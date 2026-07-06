@@ -86,6 +86,35 @@ const VIEW_CATEGORY: Record<string, string> = {
   bar: 'Beverages',
 };
 
+function normalizeKitchenCategory(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase();
+}
+
+function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_station_route'>): 'kitchen' | 'bar' {
+  const explicitRoute = item.kitchen_station_route?.trim().toLowerCase();
+  if (explicitRoute === 'kitchen' || explicitRoute === 'bar') {
+    return explicitRoute;
+  }
+
+  const category = normalizeKitchenCategory(item.category);
+  if (!category) {
+    return 'kitchen';
+  }
+
+  const isBarCategory =
+    category.includes('beverage') ||
+    category.includes('drink') ||
+    category.includes('coffee') ||
+    category.includes('tea') ||
+    category.includes('juice') ||
+    category.includes('bar') ||
+    category.includes('wine') ||
+    category.includes('beer') ||
+    category.includes('cocktail');
+
+  return isBarCategory ? 'bar' : 'kitchen';
+}
+
 @Component({
   selector: 'app-kitchen-display',
   standalone: true,
@@ -398,6 +427,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       border-radius: var(--radius-lg);
       overflow: visible;
       box-shadow: var(--shadow-md);
+      min-width: 0;
     }
     .order-card.status-preparing { border-left-color: #3B82F6; }
     .order-card.status-ready { border-left-color: var(--color-success); }
@@ -441,6 +471,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
+      gap: var(--space-3);
       padding: var(--space-4) var(--space-5);
       border-bottom: 2px solid var(--color-border);
       background: var(--color-bg);
@@ -449,16 +480,25 @@ const VIEW_CATEGORY: Record<string, string> = {
       display: flex;
       flex-direction: column;
       gap: var(--space-1);
+      flex: 1;
+      min-width: 0;
     }
     .order-id {
       font-size: 1.5rem;
       font-weight: 700;
       color: var(--color-text);
+      overflow-wrap: anywhere;
     }
     .order-table {
       font-size: 1.25rem;
       font-weight: 600;
       color: var(--color-primary);
+      overflow-wrap: anywhere;
+    }
+    .order-customer,
+    .order-time,
+    .order-waiting {
+      overflow-wrap: anywhere;
     }
     .order-customer { font-size: 1rem; color: var(--color-text-muted); }
     .order-time { font-size: 1rem; color: var(--color-text-muted); }
@@ -468,6 +508,9 @@ const VIEW_CATEGORY: Record<string, string> = {
       border-radius: 20px;
       font-size: 0.9375rem;
       font-weight: 700;
+      flex-shrink: 0;
+      text-align: center;
+      white-space: nowrap;
     }
     .status-badge.pending { background: rgba(245, 158, 11, 0.2); color: var(--color-warning); }
     .status-badge.preparing { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
@@ -480,8 +523,8 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .order-item {
       display: grid;
-      grid-template-columns: auto 1fr auto auto;
-      align-items: center;
+      grid-template-columns: auto minmax(0, 1fr) auto auto;
+      align-items: start;
       gap: var(--space-3);
       padding: var(--space-3) 0;
       font-size: 1.125rem;
@@ -494,17 +537,24 @@ const VIEW_CATEGORY: Record<string, string> = {
       color: var(--color-primary);
       font-size: 1.25rem;
     }
-    .item-name { font-weight: 600; color: var(--color-text); }
+    .item-name {
+      font-weight: 600;
+      color: var(--color-text);
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
     .item-notes {
       grid-column: 2 / 4;
       font-size: 0.9375rem;
       color: var(--color-text-muted);
       font-style: italic;
+      overflow-wrap: anywhere;
     }
     .item-customization {
       grid-column: 2 / 4;
       font-size: 0.8125rem;
       color: var(--color-text-muted);
+      overflow-wrap: anywhere;
     }
     .item-status {
       font-size: 0.8125rem;
@@ -520,6 +570,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       position: relative;
       display: inline-flex;
       z-index: 10;
+      justify-self: end;
     }
     .order-item:hover .item-status-control {
       z-index: 50;
@@ -608,6 +659,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       font-size: 1rem;
       color: var(--color-text);
       border-top: 1px solid var(--color-border);
+      overflow-wrap: anywhere;
     }
     .modal-backdrop {
       position: fixed;
@@ -670,6 +722,36 @@ const VIEW_CATEGORY: Record<string, string> = {
       background: var(--color-bg);
       color: var(--color-text);
       border: 1px solid var(--color-border);
+    }
+    @media (max-width: 900px) {
+      .order-grid {
+        grid-template-columns: 1fr;
+      }
+      .order-header {
+        flex-direction: column;
+      }
+      .status-badge {
+        align-self: flex-start;
+      }
+    }
+    @media (max-width: 640px) {
+      .kitchen-header,
+      .kitchen-main {
+        padding-left: var(--space-4);
+        padding-right: var(--space-4);
+      }
+      .order-item {
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+      .item-status-control,
+      .item-status {
+        grid-column: 2;
+        justify-self: start;
+      }
+      .item-customization,
+      .item-notes {
+        grid-column: 2;
+      }
     }
   `],
 })
@@ -740,7 +822,6 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   /** Orders that are active (including paid but not yet delivered); category or station filter. */
   activeOrders = computed(() => {
     const view = this.viewMode();
-    const category = VIEW_CATEGORY[view] ?? '';
     const routeKey = view === 'bar' ? 'bar' : 'kitchen';
     const useStations = this.stationsForCurrentView().length > 0;
     const sel = this.stationSelection();
@@ -748,13 +829,12 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     const itemVisible = (i: OrderItem): boolean => {
       if (i.removed_by_customer) return false;
       if (!(i.status === 'pending' || i.status === 'preparing' || i.status === 'ready')) return false;
+      const inferredRoute = inferKitchenRouteFromItem(i);
+
       if (!useStations) {
-        return i.category === category;
+        return inferredRoute === routeKey;
       }
-      const kr =
-        i.kitchen_station_route ||
-        (i.category === 'Beverages' ? 'bar' : 'kitchen');
-      if (kr !== routeKey) return false;
+      if (inferredRoute !== routeKey) return false;
       if (sel === 'all') return true;
       return i.kitchen_station_id === sel;
     };

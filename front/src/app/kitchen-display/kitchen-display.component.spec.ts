@@ -155,6 +155,49 @@ describe('KitchenDisplayComponent', () => {
     expect(fixture.componentInstance.activeOrders()[0].id).toBe(1);
   });
 
+  it('should infer kitchen and bar routes from flexible category names when no stations are configured', () => {
+    const orders = [
+      {
+        id: 10,
+        status: 'pending',
+        table_name: 'T10',
+        created_at: new Date().toISOString(),
+        items: [
+          {
+            id: 10,
+            product_name: 'Miso Ramen',
+            quantity: 1,
+            status: 'pending',
+            price_cents: 1200,
+            category: 'Mains',
+          },
+          {
+            id: 11,
+            product_name: 'Lemon Tea',
+            quantity: 1,
+            status: 'pending',
+            price_cents: 400,
+            category: 'Cold Drinks',
+          },
+        ],
+        total_cents: 1600,
+      },
+    ];
+    mockApi.getOrders.and.returnValue(of(orders));
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activeOrders().length).toBe(1);
+    expect(fixture.componentInstance.activeOrders()[0].items.length).toBe(1);
+    expect(fixture.componentInstance.activeOrders()[0].items[0].product_name).toBe('Miso Ramen');
+
+    fixture.componentInstance.viewMode.set('bar');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.activeOrders().length).toBe(1);
+    expect(fixture.componentInstance.activeOrders()[0].items.length).toBe(1);
+    expect(fixture.componentInstance.activeOrders()[0].items[0].product_name).toBe('Lemon Tea');
+  });
+
   it('should toggle sound and persist to localStorage', () => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();

@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService, KitchenStation, Product, ProductBulkImportConfirmResult, ProductQuestionStaff, Tax } from '../services/api.service';
 import { PermissionService } from '../services/permission.service';
 import { SidebarComponent } from '../shared/sidebar.component';
@@ -32,6 +32,9 @@ import { ProductBulkImportComponent } from './product-bulk-import.component';
            <h1>{{ 'PRODUCTS.TITLE' | translate }}</h1>
            @if (activeTab() === 'products' && !showAddForm() && !editingProduct() && canEditProducts()) {
              <div class="page-header-actions">
+             <button type="button" class="btn btn-secondary" (click)="openCategoriesTab()">
+               Manage categories
+             </button>
              <button type="button" class="btn btn-secondary" (click)="openBulkImport()">
                {{ 'PRODUCTS.BULK_IMPORT' | translate }}
              </button>
@@ -153,12 +156,19 @@ import { ProductBulkImportComponent } from './product-bulk-import.component';
                    <div class="form-row">
                      <div class="form-group">
                        <label for="category">{{ 'PRODUCTS.CATEGORY_LABEL' | translate }}</label>
-                       <select id="category" [(ngModel)]="formData.category" name="category" (change)="onCategoryChange()" [disabled]="!canEditProducts()">
+                       <select id="category" [(ngModel)]="formData.category" name="category" (ngModelChange)="onCategoryChange()" [disabled]="!canEditProducts()">
                          <option value="">{{ 'PRODUCTS.SELECT_CATEGORY' | translate }}</option>
                          @for (category of getCategoryKeys(); track category) {
                            <option [value]="category">{{ getCategoryLabel(category) }}</option>
                          }
                        </select>
+                       @if (canEditProducts()) {
+                         <div class="field-inline-actions">
+                           <button type="button" class="btn btn-ghost btn-sm" (click)="openCategoriesTab()">
+                             Add / edit categories
+                           </button>
+                         </div>
+                       }
                      </div>
                      <div class="form-group">
                        <label for="subcategory">{{ 'PRODUCTS.SUBCATEGORY_LABEL' | translate }}</label>
@@ -488,7 +498,7 @@ import { ProductBulkImportComponent } from './product-bulk-import.component';
                             <select 
                               class="inline-select" 
                               [(ngModel)]="editingCategory" 
-                              (change)="onCategoryChangeInline()"
+                              (ngModelChange)="onCategoryChangeInline()"
                               (blur)="saveCategoryInline(product)"
                               (keydown.escape)="cancelCategoryEdit()"
                               [attr.data-product-id]="product.id">
@@ -600,6 +610,7 @@ import { ProductBulkImportComponent } from './product-bulk-import.component';
 export class ProductsComponent implements OnInit {
   private api = inject(ApiService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   private permissions = inject(PermissionService);
   private translate = inject(TranslateService);
 
@@ -696,6 +707,14 @@ export class ProductsComponent implements OnInit {
   );
 
   ngOnInit() {
+    this.route.queryParamMap.subscribe((params) => {
+      const tab = params.get('tab');
+      if (tab === 'categories') {
+        this.activeTab.set('categories');
+      } else if (tab === 'products') {
+        this.activeTab.set('products');
+      }
+    });
     this.loadTenantSettingsThenProducts();
     this.loadCategories();
     // Load all taxes (not only "valid today") so dropdowns aren't empty due to validity-period edge cases.
@@ -727,7 +746,11 @@ export class ProductsComponent implements OnInit {
   }
 
   getCategoryKeys(): string[] {
-    return Object.keys(this.categories());
+    return Object.keys(this.categories()).sort((a, b) => a.localeCompare(b));
+  }
+
+  openCategoriesTab() {
+    this.activeTab.set('categories');
   }
 
   /** Translation key for known categories; falls back to raw value for custom categories. */

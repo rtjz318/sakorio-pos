@@ -62,6 +62,18 @@ import {
               }
             </a>
           }
+          @if (canViewPos()) {
+            <a routerLink="/pos" class="action-card" data-testid="dashboard-pos">
+              <div class="action-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="16" rx="2"/>
+                  <path d="M7 8h10M7 12h4M16 16h1"/>
+                </svg>
+              </div>
+              <span class="action-label">Cashier POS</span>
+              <span class="action-desc">Launch the live cashier shell for tables, menu access, and checkouts.</span>
+            </a>
+          }
           <a routerLink="/staff/orders" class="action-card">
             <div class="action-icon">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -541,6 +553,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   canShowAdminSections = computed(() => this.permissions.isAdmin(this.user()));
   canViewCustomers = computed(() => this.permissions.canAccessRoute(this.user(), '/customers'));
   canViewMyShift = computed(() => this.permissions.canAccessRoute(this.user(), '/my-shift'));
+  canViewPos = computed(() => this.permissions.canAccessRoute(this.user(), '/pos'));
   canViewReservations = computed(() => this.permissions.hasPermission(this.user(), 'reservation:read'));
   canViewTables = computed(() => this.permissions.canAccessRoute(this.user(), '/tables'));
 

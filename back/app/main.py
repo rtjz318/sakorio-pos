@@ -11099,12 +11099,61 @@ def create_order(
     })
 
 
+@app.post("/orders/staff")
+def create_staff_order(
+    order_data: models.StaffOrderCreate,
+    request: Request,
+    current_user: Annotated[
+        models.User,
+        Depends(require_permission(Permission.TABLE_ACTIVATE, Permission.ORDER_READ)),
+    ],
+    session: Session = Depends(get_session),
+) -> dict:
+    """Staff POS endpoint - add items to a tenant-scoped table without public PIN flow."""
+    table = session.exec(
+        select(models.Table).where(
+            models.Table.id == order_data.table_id,
+            models.Table.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+
+    if not table.is_active:
+        raise HTTPException(
+            status_code=403,
+            detail="Table is not accepting orders. Activate the table before creating a ticket.",
+        )
+
+    shared_order = models.OrderCreate(
+        items=order_data.items,
+        notes=order_data.notes,
+        customer_name=order_data.customer_name,
+        staff_access=_sign_staff_menu_token(table.token),
+        latitude=order_data.latitude,
+        longitude=order_data.longitude,
+    )
+    return create_order(table.token, shared_order, request, session)
+
+
 # ============ PUBLIC: PAYMENT REQUEST & CALL WAITER ============
 
 
 class PaymentRequest(_BaseModel):
     payment_method: str  # 'cash', 'card_terminal'
     message: str | None = None  # Optional message/observation from customer
+
+
+def _normalize_order_payment_method(raw: str | None) -> str:
+    value = (raw or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if value in {"card_terminal", "terminal", "card"}:
+        return "terminal"
+    if value == "cash":
+        return "cash"
+    if value == "hitpay":
+        return "hitpay"
+    return value or "other"
 
 
 @app.post("/menu/{table_token}/order/{order_id}/request-payment")
@@ -11143,7 +11192,7 @@ def request_payment(
         order.bill_requested_at = datetime.now(timezone.utc)
 
     # Store the requested payment method on the order
-    order.payment_method = payment_request.payment_method
+    order.payment_method = _normalize_order_payment_method(payment_request.payment_method)
 
     # Append customer message to notes if provided
     if payment_request.message:
@@ -11170,7 +11219,7 @@ def request_payment(
         "order_id": order.id,
         "table_name": table.name,
         "table_id": table.id,
-        "payment_method": payment_request.payment_method,
+        "payment_method": order.payment_method,
         "message": payment_request.message,
         "assigned_waiter_id": effective_waiter_id,
         "assigned_waiter_name": effective_waiter_name,
@@ -11179,12 +11228,16 @@ def request_payment(
     return JSONResponse(content={
         "status": "payment_requested",
         "order_id": order.id,
-        "payment_method": payment_request.payment_method,
+        "payment_method": order.payment_method,
     })
 
 
 class CallWaiterRequest(_BaseModel):
     message: str | None = None  # Optional message/reason
+
+
+class HitPayPaymentRequestCreate(_BaseModel):
+    redirect_path: str | None = None
 
 
 @app.post("/menu/{table_token}/call-waiter")
@@ -11693,7 +11746,7 @@ def mark_order_paid(
     order.status = models.OrderStatus.paid
     order.paid_at = datetime.now(timezone.utc)
     order.paid_by_user_id = current_user.id
-    order.payment_method = payment_data.payment_method
+    order.payment_method = _normalize_order_payment_method(payment_data.payment_method)
     order.tip_percent_applied = tip_pct
     order.tip_amount_cents = tip_amt if tip_amt else None
     order.tip_attributed_user_id = _effective_waiter_for_tip(session, order)
@@ -11707,13 +11760,13 @@ def mark_order_paid(
         "type": "order_paid",
         "order_id": order.id,
         "table_name": table.name if table else "Unknown",
-        "payment_method": payment_data.payment_method
+        "payment_method": order.payment_method
     }, table_id=order.table_id)
 
     return {
         "status": "paid",
         "order_id": order.id,
-        "payment_method": payment_data.payment_method,
+        "payment_method": order.payment_method,
         "paid_at": order.paid_at.isoformat(),
         "tip_percent_applied": order.tip_percent_applied,
         "tip_amount_cents": order.tip_amount_cents,
@@ -11769,7 +11822,7 @@ def finish_order(
     order.status = models.OrderStatus.paid
     order.paid_at = now
     order.paid_by_user_id = current_user.id
-    order.payment_method = payment_data.payment_method
+    order.payment_method = _normalize_order_payment_method(payment_data.payment_method)
     order.tip_percent_applied = tip_pct
     order.tip_amount_cents = tip_amt if tip_amt else None
     order.tip_attributed_user_id = _effective_waiter_for_tip(session, order)
@@ -11784,7 +11837,7 @@ def finish_order(
             "type": "order_paid",
             "order_id": order.id,
             "table_name": table.name if table else "Unknown",
-            "payment_method": payment_data.payment_method,
+            "payment_method": order.payment_method,
         },
         table_id=order.table_id,
     )
@@ -11792,7 +11845,7 @@ def finish_order(
     return {
         "status": "paid",
         "order_id": order.id,
-        "payment_method": payment_data.payment_method,
+        "payment_method": order.payment_method,
         "paid_at": order.paid_at.isoformat(),
         "tip_percent_applied": order.tip_percent_applied,
         "tip_amount_cents": order.tip_amount_cents,
@@ -12882,6 +12935,10 @@ def _hitpay_amount_to_cents(value: Any) -> int | None:
 def _frontend_base_url(request: Request) -> str | None:
     if settings.public_app_base_url:
         return settings.public_app_base_url.rstrip("/")
+    return _request_base_url(request)
+
+
+def _request_base_url(request: Request) -> str | None:
     origin = request.headers.get("origin")
     if origin and origin.startswith(("http://", "https://")):
         return origin.rstrip("/")
@@ -12996,7 +13053,7 @@ def _mark_order_paid_from_provider(
         return
 
     order.status = models.OrderStatus.paid
-    order.payment_method = payment_method
+    order.payment_method = _normalize_order_payment_method(payment_method)
     order.paid_at = datetime.now(timezone.utc)
     order.bill_requested_at = None
     paid_note = f"[PAID: {provider_reference}]"
@@ -13012,7 +13069,7 @@ def _mark_order_paid_from_provider(
             "order_id": order.id,
             "table_name": table.name if table else None,
             "status": order.status.value,
-            "payment_method": payment_method,
+            "payment_method": order.payment_method,
         },
         table_id=order.table_id,
     )
@@ -13031,6 +13088,7 @@ def create_hitpay_payment_request(
     request: Request,
     order_id: int,
     table_token: str,
+    payment_request: HitPayPaymentRequestCreate | None = None,
     session: Session = Depends(get_session),
 ) -> dict:
     """Create a HitPay payment request and return the hosted checkout URL."""
@@ -13069,12 +13127,26 @@ def create_hitpay_payment_request(
             status_code=400, detail="HitPay is not configured for this tenant"
         )
 
-    frontend_base = _frontend_base_url(request)
-    redirect_url = (
-        f"{frontend_base}/menu/{table_token}/payment-success?order_id={order_id}&provider=hitpay"
-        if frontend_base
+    redirect_path = (
+        payment_request.redirect_path.strip()
+        if payment_request
+        and isinstance(payment_request.redirect_path, str)
+        and payment_request.redirect_path.strip()
         else None
     )
+    redirect_url: str | None = None
+    if redirect_path:
+        if not redirect_path.startswith("/pos"):
+            raise HTTPException(status_code=400, detail="redirect_path must target /pos")
+        request_base = _request_base_url(request)
+        redirect_url = f"{request_base}{redirect_path}" if request_base else None
+    else:
+        frontend_base = _frontend_base_url(request)
+        redirect_url = (
+            f"{frontend_base}/menu/{table_token}/payment-success?order_id={order_id}&provider=hitpay"
+            if frontend_base
+            else None
+        )
     currency = _resolve_tenant_payment_currency(tenant)
 
     try:

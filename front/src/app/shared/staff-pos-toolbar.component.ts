@@ -18,6 +18,15 @@ import { StaffLayoutService } from '../services/staff-layout.service';
     @if (showBar()) {
       <div class="staff-pos-toolbar" role="toolbar" [attr.aria-label]="'STAFF_FLOW.TOOLBAR_ARIA' | translate">
         <div class="staff-pos-segment" role="group">
+          @if (canPos()) {
+            <a
+              routerLink="/pos"
+              class="segment-btn"
+              [class.active]="isPosRoute()"
+              data-testid="staff-flow-pos-link">
+              POS
+            </a>
+          }
           @if (canOrders()) {
             <a
               routerLink="/staff/orders"
@@ -151,7 +160,11 @@ export class StaffPosToolbarComponent {
   private router = inject(Router);
 
   showBar(): boolean {
-    return this.canOrders() || this.canTables();
+    return this.canPos() || this.canOrders() || this.canTables();
+  }
+
+  canPos(): boolean {
+    return this.permissions.canAccessRoute(this.api.getCurrentUser(), '/pos');
   }
 
   canOrders(): boolean {
@@ -169,6 +182,10 @@ export class StaffPosToolbarComponent {
 
   isOrdersRoute(): boolean {
     return this.router.url.split('?')[0].startsWith('/staff/orders');
+  }
+
+  isPosRoute(): boolean {
+    return this.router.url.split('?')[0].startsWith('/pos');
   }
 
   isTablesRoute(): boolean {

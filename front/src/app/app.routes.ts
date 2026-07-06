@@ -66,6 +66,7 @@ export const routes: Routes = [
     loadComponent: () => import('./tables/tables-canvas.component').then(m => m.TablesCanvasComponent),
   },
   { path: 'tables', canActivate: [authGuard, uiModuleGuard('tables'), tableAccessGuard], loadComponent: () => import('./tables/tables.component').then(m => m.TablesComponent) },
+  { path: 'pos', canActivate: [authGuard, roleGuard(['owner', 'admin', 'waiter', 'receptionist'])], loadComponent: () => import('./cashier-pos/cashier-pos.component').then(m => m.CashierPosComponent) },
 
   // Staff orders (list and manage orders)
   { path: 'staff/orders', canActivate: [authGuard, orderAccessGuard], loadComponent: () => import('./orders/orders.component').then(m => m.OrdersComponent) },

@@ -11,8 +11,11 @@ from . import models
 from .permissions import Permission, require_permission
 from .rate_limits import admin_user_limit
 from .tenant_subcategories import (
+    add_custom_category,
     add_custom_subcategory,
+    remove_custom_category,
     remove_custom_subcategory,
+    rename_custom_category,
     rename_custom_subcategory,
 )
 
@@ -33,6 +36,69 @@ class SubcategoryRenameBody(SQLModel):
 class SubcategoryDeleteBody(SQLModel):
     category: str = Field(max_length=128)
     name: str = Field(max_length=128)
+
+
+class CategoryCreateBody(SQLModel):
+    name: str = Field(max_length=128)
+
+
+class CategoryRenameBody(SQLModel):
+    old_name: str = Field(max_length=128)
+    new_name: str = Field(max_length=128)
+
+
+class CategoryDeleteBody(SQLModel):
+    name: str = Field(max_length=128)
+
+
+@router.post("/category")
+@admin_user_limit()
+def create_tenant_category(
+    request: Request,
+    response: Response,
+    body: CategoryCreateBody,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.PRODUCT_WRITE))],
+    session: Session = Depends(get_session),
+) -> dict[str, list[str]]:
+    try:
+        return add_custom_category(session, current_user.tenant_id, body.name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.put("/category")
+@admin_user_limit()
+def rename_tenant_category(
+    request: Request,
+    response: Response,
+    body: CategoryRenameBody,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.PRODUCT_WRITE))],
+    session: Session = Depends(get_session),
+) -> dict[str, list[str]]:
+    try:
+        return rename_custom_category(
+            session,
+            current_user.tenant_id,
+            body.old_name,
+            body.new_name,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.delete("/category")
+@admin_user_limit()
+def delete_tenant_category(
+    request: Request,
+    response: Response,
+    body: CategoryDeleteBody,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.PRODUCT_WRITE))],
+    session: Session = Depends(get_session),
+) -> dict[str, list[str]]:
+    try:
+        return remove_custom_category(session, current_user.tenant_id, body.name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("")

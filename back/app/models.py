@@ -1042,6 +1042,15 @@ class OrderCreate(SQLModel):
     longitude: float | None = None  # Optional GPS longitude for location verification
 
 
+class StaffOrderCreate(SQLModel):
+    table_id: int
+    items: list[OrderItemCreate]
+    notes: str | None = None
+    customer_name: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+
+
 class OrderStatusUpdate(SQLModel):
     status: OrderStatus
 

@@ -1,11 +1,10 @@
 {
   "/api": {
-    "target": "http://localhost:4202",
-    "secure": false,
-    "pathRewrite": { "^/api": "" }
+    "target": "https://api.sakorio.com",
+    "secure": false
   },
   "/ws": {
-    "target": "http://localhost:4202",
+    "target": "wss://api.sakorio.com",
     "secure": false,
     "ws": true
   }

@@ -123,6 +123,12 @@ export class ReportsComponent implements OnInit {
     return r.by_category.reduce((sum, c) => sum + c.quantity, 0);
   });
 
+  totalCollectedByPaymentMethod = computed(() => {
+    const r = this.report();
+    if (!r?.by_payment_method?.length) return r?.summary.total_collected_cents ?? 0;
+    return r.by_payment_method.reduce((sum, row) => sum + (row.collected_cents ?? row.revenue_cents), 0);
+  });
+
   /** Bumps when UI language changes so currency/date formatting refreshes. */
   private reportIntlRevision = signal(0);
 
@@ -633,6 +639,37 @@ export class ReportsComponent implements OnInit {
     return t !== key ? t : status;
   }
 
+  getPaymentMethodLabel(method: string): string {
+    const normalized = (method || '').trim().toLowerCase();
+    const keyMap: Record<string, string> = {
+      hitpay: 'REPORTS.PAYMENT_METHOD_HITPAY',
+      terminal: 'REPORTS.PAYMENT_METHOD_TERMINAL',
+      cash: 'REPORTS.PAYMENT_METHOD_CASH',
+      other: 'REPORTS.PAYMENT_METHOD_OTHER',
+    };
+    const key = keyMap[normalized];
+    if (key) {
+      const translated = this.translate.instant(key);
+      if (translated !== key) return translated;
+    }
+    switch (normalized) {
+      case 'hitpay':
+        return 'HitPay';
+      case 'terminal':
+        return 'Terminal';
+      case 'cash':
+        return 'Cash';
+      default:
+        return normalized ? normalized.replace(/_/g, ' ') : 'Other';
+    }
+  }
+
+  paymentMethodShareWidth(collectedCents: number): string {
+    const total = this.totalCollectedByPaymentMethod();
+    if (total <= 0) return '0%';
+    return `${Math.min(100, (collectedCents / total) * 100)}%`;
+  }
+
   /** Backend keys rows by (product_id, product_name); tracking by id alone duplicates NG0955. */
   trackByProductRow(p: SalesReport['by_product'][number]): string {
     return `${p.product_id}\u0000${p.product_name}`;
@@ -719,6 +756,10 @@ export class ReportsComponent implements OnInit {
 
   exportCSV() {
     this.export('csv', 'summary');
+  }
+
+  exportPaymentCSV() {
+    this.export('csv', 'payment');
   }
 
   exportExcel() {

@@ -1,9 +1,11 @@
-import { Component, inject, signal, computed, OnInit, output } from '@angular/core';
+import { Component, computed, inject, OnInit, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
-import { ApiService, Product } from '../services/api.service';
 import { forkJoin } from 'rxjs';
+import { ApiService, Product } from '../services/api.service';
+
+const STANDARD_CATEGORIES = ['Starters', 'Main Course', 'Desserts', 'Beverages', 'Sides'];
 
 @Component({
   selector: 'app-categories',
@@ -11,96 +13,195 @@ import { forkJoin } from 'rxjs';
   imports: [CommonModule, FormsModule, TranslateModule],
   template: `
     <div class="categories-container">
-      <!-- Split View Layout -->
       <div class="split-view">
-        <!-- Sidebar: Categories List -->
-        <div class="category-sidebar">
+        <aside class="category-sidebar">
           <div class="sidebar-header">
-            <h3>{{ 'CATALOG.CATEGORY_LABEL' | translate }}</h3>
+            <div>
+              <p class="sidebar-eyebrow">Menu structure</p>
+              <h3>{{ 'CATALOG.CATEGORY_LABEL' | translate }}</h3>
+            </div>
+            <button class="btn btn-primary btn-sm" type="button" (click)="toggleAddCategoryForm()">
+              {{ showAddCategoryForm() ? ('COMMON.CANCEL' | translate) : 'Add category' }}
+            </button>
           </div>
+
+          @if (showAddCategoryForm()) {
+            <div class="sidebar-form">
+              <label class="form-label">New category name</label>
+              <div class="input-row">
+                <input
+                  type="text"
+                  [(ngModel)]="newCategoryName"
+                  placeholder="Chef specials"
+                  (keyup.enter)="addCategory()" />
+                <button class="btn btn-primary" type="button" (click)="addCategory()" [disabled]="!newCategoryName.trim()">
+                  {{ 'COMMON.OK' | translate }}
+                </button>
+              </div>
+            </div>
+          }
+
           <div class="sidebar-list">
             @for (category of mainCategories(); track category) {
-              <button 
-                class="category-item" 
+              <button
+                class="category-item"
                 [class.active]="selectedCategory() === category"
+                type="button"
                 (click)="selectCategory(category)">
-                <span>{{ getCategoryLabel(category) }}</span>
+                <div class="category-item-copy">
+                  <span>{{ getCategoryLabel(category) }}</span>
+                  @if (isCustomCategory(category)) {
+                    <small class="category-type">Custom</small>
+                  } @else {
+                    <small class="category-type">Standard</small>
+                  }
+                </div>
                 <span class="count">{{ getSubcategoryCount(category) }}</span>
               </button>
             }
           </div>
-        </div>
+        </aside>
 
-        <!-- Main: Subcategories Management -->
-        <div class="subcategory-main">
-          @if (selectedCategory()) {
+        <section class="subcategory-main">
+          @if (selectedCategory(); as category) {
             <div class="main-header">
-              <h2>{{ 'PRODUCTS.MANAGE_SUBCATEGORIES_FOR' | translate:{category: getCategoryLabel(selectedCategory()!) } }}</h2>
-              <button class="btn btn-primary btn-sm" (click)="showAddForm.set(true)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                {{ 'PRODUCTS.ADD_SUBCATEGORY' | translate }}
-              </button>
+              <div>
+                <p class="sidebar-eyebrow">Category workspace</p>
+                <h2>{{ getCategoryLabel(category) }}</h2>
+                <p class="header-note">
+                  Edit the top-level menu category, then manage the subcategories staff use while creating products.
+                </p>
+              </div>
+
+              <div class="header-actions">
+                @if (isCustomCategory(category)) {
+                  <button class="btn btn-secondary btn-sm" type="button" (click)="openRenameCategory(category)">
+                    Rename category
+                  </button>
+                  <button class="btn btn-secondary btn-sm" type="button" (click)="deleteCategory(category)">
+                    Delete category
+                  </button>
+                }
+                <button class="btn btn-primary btn-sm" type="button" (click)="showAddForm.set(true)">
+                  {{ 'PRODUCTS.ADD_SUBCATEGORY' | translate }}
+                </button>
+              </div>
             </div>
 
-            @if (showAddForm()) {
-              <div class="form-card add-form">
+            <div class="action-strip">
+              <div class="action-strip-copy">
+                <span class="summary-label">Category actions</span>
+                @if (isCustomCategory(category)) {
+                  <strong>Edit or remove {{ getCategoryLabel(category) }}</strong>
+                  <small>This is a custom category. You can rename it or remove it when no products still use it.</small>
+                } @else {
+                  <strong>{{ getCategoryLabel(category) }} is a standard category</strong>
+                  <small>Built-in categories stay protected. You can still add, edit, or delete the subcategories inside them.</small>
+                }
+              </div>
+
+              <div class="action-strip-buttons">
+                @if (isCustomCategory(category)) {
+                  <button class="btn btn-secondary btn-md" type="button" (click)="openRenameCategory(category)">
+                    Rename top-level category
+                  </button>
+                  <button class="btn btn-danger btn-md" type="button" (click)="deleteCategory(category)">
+                    Delete top-level category
+                  </button>
+                }
+                <button class="btn btn-primary btn-md" type="button" (click)="showAddForm.set(true)">
+                  Add subcategory
+                </button>
+              </div>
+            </div>
+
+            @if (showRenameCategoryForm()) {
+              <div class="form-card">
                 <div class="form-group">
-                  <label>{{ 'PRODUCTS.SUBCATEGORY_NAME' | translate }}</label>
+                  <label class="form-label">Rename category</label>
                   <div class="input-row">
-                    <input 
-                      type="text" 
-                      [(ngModel)]="newSubcategoryName" 
-                      [placeholder]="'PRODUCTS.ENTER_SUBCATEGORY_NAME' | translate"
-                      (keyup.enter)="addSubcategory()">
-                    <button class="btn btn-secondary" (click)="showAddForm.set(false)">{{ 'COMMON.CANCEL' | translate }}</button>
-                    <button class="btn btn-primary" (click)="addSubcategory()" [disabled]="!newSubcategoryName.trim()">{{ 'COMMON.OK' | translate }}</button>
+                    <input
+                      type="text"
+                      [(ngModel)]="renameCategoryName"
+                      [placeholder]="getCategoryLabel(category)"
+                      (keyup.enter)="saveCategoryRename(category)" />
+                    <button class="btn btn-secondary" type="button" (click)="cancelCategoryRename()">
+                      {{ 'COMMON.CANCEL' | translate }}
+                    </button>
+                    <button class="btn btn-primary" type="button" (click)="saveCategoryRename(category)" [disabled]="!renameCategoryName.trim()">
+                      Save
+                    </button>
                   </div>
                 </div>
               </div>
             }
+
+            @if (showAddForm()) {
+              <div class="form-card">
+                <div class="form-group">
+                  <label class="form-label">{{ 'PRODUCTS.SUBCATEGORY_NAME' | translate }}</label>
+                  <div class="input-row">
+                    <input
+                      type="text"
+                      [(ngModel)]="newSubcategoryName"
+                      [placeholder]="'PRODUCTS.ENTER_SUBCATEGORY_NAME' | translate"
+                      (keyup.enter)="addSubcategory()" />
+                    <button class="btn btn-secondary" type="button" (click)="showAddForm.set(false)">
+                      {{ 'COMMON.CANCEL' | translate }}
+                    </button>
+                    <button class="btn btn-primary" type="button" (click)="addSubcategory()" [disabled]="!newSubcategoryName.trim()">
+                      {{ 'COMMON.OK' | translate }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            }
+
+            <div class="category-summary-grid">
+              <article class="summary-card">
+                <span class="summary-label">Subcategories</span>
+                <strong>{{ currentSubcategories().length }}</strong>
+                <small>Used for staff product grouping</small>
+              </article>
+              <article class="summary-card">
+                <span class="summary-label">Products in category</span>
+                <strong>{{ productCountForCategory(category) }}</strong>
+                <small>Live products currently using this category</small>
+              </article>
+            </div>
 
             <div class="subcategories-grid">
               @for (subcat of currentSubcategories(); track subcat) {
                 <div class="subcat-card">
                   @if (editingSubcategory() === subcat) {
                     <div class="edit-mode">
-                      <input 
-                        type="text" 
-                        [(ngModel)]="editName" 
+                      <input
+                        type="text"
+                        [(ngModel)]="editName"
                         class="edit-input"
                         (keyup.enter)="saveEdit(subcat)"
-                        (keyup.escape)="editingSubcategory.set(null)"
-                        #editInput
-                        autofocus>
+                        (keyup.escape)="editingSubcategory.set(null)" />
                       <div class="edit-actions">
-                        <button class="icon-btn success" (click)="saveEdit(subcat)">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="20 6 9 17 4 12"/>
-                          </svg>
+                        <button class="icon-btn success" type="button" (click)="saveEdit(subcat)">
+                          Save
                         </button>
-                        <button class="icon-btn" (click)="editingSubcategory.set(null)">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                          </svg>
+                        <button class="icon-btn" type="button" (click)="editingSubcategory.set(null)">
+                          {{ 'COMMON.CANCEL' | translate }}
                         </button>
                       </div>
                     </div>
                   } @else {
                     <div class="view-mode">
-                      <span class="subcat-name">{{ subcat }}</span>
+                      <div class="subcat-copy">
+                        <span class="subcat-name">{{ subcat }}</span>
+                        <small>{{ productCountForSubcategory(category, subcat) }} products</small>
+                      </div>
                       <div class="subcat-actions">
-                        <button class="icon-btn" (click)="startEdit(subcat)" title="{{ 'COMMON.EDIT' | translate }}">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                          </svg>
+                        <button class="icon-btn" type="button" (click)="startEdit(subcat)">
+                          {{ 'COMMON.EDIT' | translate }}
                         </button>
-                        <button class="icon-btn danger" (click)="deleteSubcategory(subcat)" title="{{ 'COMMON.DELETE' | translate }}">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="3,6 5,6 21,6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-                          </svg>
+                        <button class="icon-btn danger" type="button" (click)="deleteSubcategory(subcat)">
+                          {{ 'COMMON.DELETE' | translate }}
                         </button>
                       </div>
                     </div>
@@ -108,7 +209,8 @@ import { forkJoin } from 'rxjs';
                 </div>
               } @empty {
                 <div class="empty-subcategories">
-                  <p>{{ 'PRODUCTS.NO_SUBCATEGORIES_FOUND' | translate }}</p>
+                  <h3>No subcategories yet</h3>
+                  <p>Keep the top-level category, or add subcategories to guide product setup.</p>
                 </div>
               }
             </div>
@@ -122,10 +224,9 @@ import { forkJoin } from 'rxjs';
               <p>{{ 'PRODUCTS.SELECT_CATEGORY_TO_MANAGE' | translate }}</p>
             </div>
           }
-        </div>
+        </section>
       </div>
 
-      <!-- Toasts/Messages -->
       @if (success()) { <div class="toast success">{{ success() }}</div> }
       @if (error()) { <div class="toast error">{{ error() }}</div> }
       @if (loading()) { <div class="loading-overlay"><div class="spinner"></div></div> }
@@ -140,8 +241,7 @@ import { forkJoin } from 'rxjs';
 
     .split-view {
       display: grid;
-      grid-template-columns: 280px 1fr;
-      gap: 0;
+      grid-template-columns: 320px 1fr;
       height: 100%;
       background: var(--color-surface);
       border: 1px solid var(--color-border);
@@ -149,19 +249,40 @@ import { forkJoin } from 'rxjs';
       overflow: hidden;
     }
 
-    /* Sidebar */
     .category-sidebar {
-      border-right: 1px solid var(--color-border);
-      background: var(--color-bg);
       display: flex;
       flex-direction: column;
+      border-right: 1px solid var(--color-border);
+      background: var(--color-bg);
     }
 
-    .sidebar-header {
+    .sidebar-header,
+    .sidebar-form {
       padding: var(--space-4);
       border-bottom: 1px solid var(--color-border);
       background: var(--color-surface);
-      h3 { margin: 0; font-size: 0.875rem; text-transform: uppercase; color: var(--color-text-muted); }
+    }
+
+    .sidebar-header {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .sidebar-eyebrow,
+    .summary-label,
+    .form-label,
+    .category-type {
+      margin: 0;
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+    }
+
+    .sidebar-header h3,
+    .main-header h2 {
+      margin: 0;
     }
 
     .sidebar-list {
@@ -173,44 +294,226 @@ import { forkJoin } from 'rxjs';
     .category-item {
       width: 100%;
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      margin-bottom: 0.35rem;
       padding: var(--space-3) var(--space-4);
-      background: none;
-      border: none;
+      border: 1px solid transparent;
       border-radius: var(--radius-md);
+      background: transparent;
       color: var(--color-text);
-      font-weight: 500;
       text-align: left;
       cursor: pointer;
-      transition: all 0.15s ease;
-      margin-bottom: 2px;
-
-      &:hover { background: var(--color-surface); }
-      &.active { background: var(--color-primary); color: white; .count { background: rgba(255,255,255,0.2); color: white; } }
-
-      .count {
-        font-size: 0.75rem;
-        background: var(--color-bg);
-        color: var(--color-text-muted);
-        padding: 2px 8px;
-        border-radius: 10px;
-      }
+      transition: border-color 0.15s ease, background 0.15s ease;
     }
 
-    /* Main Area */
+    .category-item:hover {
+      background: var(--color-surface);
+      border-color: var(--color-border);
+    }
+
+    .category-item.active {
+      background: color-mix(in srgb, var(--color-primary) 12%, white);
+      border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+    }
+
+    .category-item-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      min-width: 0;
+    }
+
+    .count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 2rem;
+      height: 2rem;
+      padding: 0 0.65rem;
+      border-radius: 999px;
+      background: var(--color-surface);
+      color: var(--color-text-muted);
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
     .subcategory-main {
-      padding: var(--space-6);
       overflow-y: auto;
+      padding: var(--space-6);
       background: var(--color-surface);
     }
 
-    .main-header {
+            .main-header {
       display: flex;
+      align-items: flex-start;
       justify-content: space-between;
+      gap: var(--space-4);
+      margin-bottom: var(--space-5);
+    }
+
+    .action-strip {
+      display: flex;
       align-items: center;
-      margin-bottom: var(--space-6);
-      h2 { margin: 0; font-size: 1.25rem; font-weight: 600; }
+      justify-content: space-between;
+      gap: var(--space-4);
+      margin-bottom: var(--space-4);
+      padding: var(--space-4);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: color-mix(in srgb, var(--color-primary) 4%, white);
+    }
+
+    .action-strip-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      max-width: 44rem;
+    }
+
+    .action-strip-copy strong {
+      font-size: 1rem;
+    }
+
+    .action-strip-copy small {
+      color: var(--color-text-muted);
+      line-height: 1.4;
+    }
+
+    .action-strip-buttons {
+      display: flex;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .header-note {
+      margin: 0.45rem 0 0;
+      color: var(--color-text-muted);
+      max-width: 52rem;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .form-card {
+      margin-bottom: var(--space-4);
+      padding: var(--space-4);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg);
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .input-row {
+      display: flex;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+
+    .input-row input {
+      flex: 1;
+      min-width: 16rem;
+      padding: 0.85rem 1rem;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: white;
+    }
+
+    .category-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+    }
+
+    .summary-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      padding: var(--space-4);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg);
+    }
+
+    .summary-card strong {
+      font-size: 1.45rem;
+    }
+
+    .summary-card small {
+      color: var(--color-text-muted);
+    }
+
+    .btn-danger {
+      background: var(--color-error);
+      border-color: var(--color-error);
+      color: white;
+    }
+
+    .btn-danger:hover {
+      filter: brightness(0.96);
+    }
+
+    .subcategories-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: var(--space-4);
+    }
+
+    .subcat-card,
+    .empty-subcategories {
+      padding: var(--space-4);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg);
+    }
+
+    .view-mode,
+    .edit-mode {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+    }
+
+    .subcat-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .subcat-name {
+      font-weight: 700;
+    }
+
+    .subcat-copy small {
+      color: var(--color-text-muted);
+    }
+
+    .subcat-actions,
+    .edit-actions {
+      display: flex;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+
+    .edit-input {
+      flex: 1;
+      min-width: 10rem;
+      padding: 0.75rem 0.9rem;
+      border: 1px solid var(--color-primary);
+      border-radius: var(--radius-md);
     }
 
     .select-prompt {
@@ -219,98 +522,36 @@ import { forkJoin } from 'rxjs';
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      color: var(--color-text-muted);
       text-align: center;
-      .prompt-icon { margin-bottom: var(--space-4); opacity: 0.3; }
-    }
-
-    .subcategories-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: var(--space-4);
-    }
-
-    .subcat-card {
-      background: var(--color-bg);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-md);
-      padding: var(--space-3) var(--space-4);
-      transition: border-color 0.15s;
-
-      &:hover { border-color: var(--color-primary); }
-    }
-
-    .view-mode, .edit-mode {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: var(--space-2);
-    }
-
-    .subcat-name { font-weight: 500; }
-
-    .subcat-actions, .edit-actions {
-      display: flex;
-      gap: var(--space-1);
-    }
-
-    .edit-input {
-      flex: 1;
-      padding: var(--space-1) var(--space-2);
-      border: 1px solid var(--color-primary);
-      border-radius: var(--radius-sm);
-      font-size: 0.9375rem;
-      &:focus { outline: none; }
-    }
-
-    .icon-btn {
-      background: none;
-      border: none;
-      padding: var(--space-2);
-      border-radius: var(--radius-sm);
       color: var(--color-text-muted);
-      cursor: pointer;
-      &:hover { background: rgba(0,0,0,0.05); color: var(--color-text); }
-      &.danger:hover { background: rgba(220, 38, 38, 0.1); color: var(--color-error); }
-      &.success:hover { background: rgba(22, 163, 74, 0.1); color: var(--color-success); }
     }
 
-    .btn-sm { padding: var(--space-2) var(--space-3); font-size: 0.8125rem; }
-
-    .add-form {
-      margin-bottom: var(--space-6);
-      padding: var(--space-4);
-      background: var(--color-bg);
-      border: 1px dashed var(--color-primary);
+    .prompt-icon {
+      margin-bottom: var(--space-4);
+      opacity: 0.35;
     }
 
-    .input-row {
-      display: flex;
-      gap: var(--space-2);
-      input { flex: 1; padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
-    }
-
-    /* Toasts & Overlay */
     .toast {
       position: fixed;
-      bottom: 2rem;
       right: 2rem;
-      padding: 1rem 1.5rem;
+      bottom: 2rem;
+      z-index: 1000;
+      padding: 1rem 1.25rem;
       border-radius: var(--radius-md);
       color: white;
-      z-index: 1000;
       box-shadow: var(--shadow-lg);
-      &.success { background: var(--color-success); }
-      &.error { background: var(--color-error); }
     }
+
+    .toast.success { background: var(--color-success); }
+    .toast.error { background: var(--color-error); }
 
     .loading-overlay {
       position: absolute;
       inset: 0;
-      background: rgba(255,255,255,0.7);
       display: flex;
       align-items: center;
       justify-content: center;
+      background: rgba(255, 255, 255, 0.72);
       z-index: 10;
     }
 
@@ -323,19 +564,43 @@ import { forkJoin } from 'rxjs';
       animation: spin 1s linear infinite;
     }
 
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    @media (max-width: 768px) {
-      .split-view { grid-template-columns: 1fr; }
-      .category-sidebar { border-right: none; border-bottom: 1px solid var(--color-border); max-height: 200px; }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
-  `]
+
+    @media (max-width: 960px) {
+      .split-view {
+        grid-template-columns: 1fr;
+      }
+
+      .category-sidebar {
+        border-right: none;
+        border-bottom: 1px solid var(--color-border);
+      }
+
+      .main-header {
+        flex-direction: column;
+      }
+
+      .action-strip {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .action-strip-buttons {
+        justify-content: flex-start;
+      }
+
+      .category-summary-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  `],
 })
 export class CategoriesComponent implements OnInit {
   private api = inject(ApiService);
   private translate = inject(TranslateService);
 
-  /** Notify parent (Products tab) to refresh shared category map. */
   categoriesChanged = output<void>();
 
   products = signal<Product[]>([]);
@@ -345,17 +610,20 @@ export class CategoriesComponent implements OnInit {
   error = signal('');
   success = signal('');
 
-  // UI State
   showAddForm = signal(false);
+  showAddCategoryForm = signal(false);
+  showRenameCategoryForm = signal(false);
   newSubcategoryName = '';
+  newCategoryName = '';
+  renameCategoryName = '';
   editingSubcategory = signal<string | null>(null);
   editName = '';
 
-  mainCategories = computed(() => Object.keys(this.categoriesMap()).sort());
+  mainCategories = computed(() => Object.keys(this.categoriesMap()).sort((a, b) => a.localeCompare(b)));
   currentSubcategories = computed(() => {
     const cat = this.selectedCategory();
     if (!cat) return [];
-    return (this.categoriesMap()[cat] || []).filter(s => !!s).sort();
+    return (this.categoriesMap()[cat] || []).filter(Boolean).sort((a, b) => a.localeCompare(b));
   });
 
   ngOnInit() {
@@ -371,6 +639,14 @@ export class CategoriesComponent implements OnInit {
       next: ({ products, categories }) => {
         this.products.set(products);
         this.categoriesMap.set(categories);
+
+        const selected = this.selectedCategory();
+        if (selected && categories[selected]) {
+          this.selectedCategory.set(selected);
+        } else {
+          this.selectedCategory.set(Object.keys(categories)[0] || null);
+        }
+
         this.loading.set(false);
       },
       error: () => {
@@ -385,61 +661,209 @@ export class CategoriesComponent implements OnInit {
     this.categoriesChanged.emit();
   }
 
-  private apiErrorMessage(err: { error?: { detail?: string } }, fallbackKey: string): string {
+  private resolveCategoryKey(map: Record<string, string[]>, desired: string): string | null {
+    const normalizedDesired = desired.trim().toLowerCase();
+    const exact = Object.keys(map).find((key) => key === desired);
+    if (exact) return exact;
+    return (
+      Object.keys(map).find((key) => key.trim().toLowerCase() === normalizedDesired) ?? null
+    );
+  }
+
+  private showSuccess(message: string) {
+    this.success.set(message);
+    setTimeout(() => this.success.set(''), 3000);
+  }
+
+  private showError(message: string) {
+    this.error.set(message);
+    setTimeout(() => this.error.set(''), 4000);
+  }
+
+  private apiErrorMessage(err: { error?: { detail?: string } }, fallback: string): string {
     const detail = err?.error?.detail;
-    if (detail === 'Subcategory already exists') {
-      return this.translate.instant('PRODUCTS.SUBCATEGORY_ALREADY_EXISTS');
+    if (typeof detail === 'string' && detail.trim()) {
+      return detail;
     }
-    return this.translate.instant(fallbackKey);
+    return fallback;
+  }
+
+  getCategoryLabel(category: string): string {
+    const keyMap: Record<string, string> = {
+      Starters: 'PRODUCTS.CATEGORY_STARTERS',
+      'Main Course': 'PRODUCTS.CATEGORY_MAIN_COURSE',
+      Desserts: 'PRODUCTS.CATEGORY_DESSERTS',
+      Beverages: 'PRODUCTS.CATEGORY_BEVERAGES',
+      Sides: 'PRODUCTS.CATEGORY_SIDES',
+    };
+    const key = keyMap[category];
+    return key ? this.translate.instant(key) : category;
   }
 
   getSubcategoryCount(category: string): number {
     return (this.categoriesMap()[category] || []).length;
   }
 
-  getCategoryLabel(category: string): string {
-    const keyMap: Record<string, string> = {
-      'Starters': 'PRODUCTS.CATEGORY_STARTERS',
-      'Main Course': 'PRODUCTS.CATEGORY_MAIN_COURSE',
-      'Desserts': 'PRODUCTS.CATEGORY_DESSERTS',
-      'Beverages': 'PRODUCTS.CATEGORY_BEVERAGES',
-      'Sides': 'PRODUCTS.CATEGORY_SIDES',
-    };
-    const key = keyMap[category];
-    if (key) return this.translate.instant(key);
-    return category;
+  productCountForCategory(category: string): number {
+    return this.products().filter((product) => product.category === category).length;
+  }
+
+  productCountForSubcategory(category: string, subcategory: string): number {
+    return this.products().filter(
+      (product) => product.category === category && product.subcategory === subcategory,
+    ).length;
+  }
+
+  isCustomCategory(category: string): boolean {
+    return !STANDARD_CATEGORIES.includes(category);
   }
 
   selectCategory(category: string) {
     this.selectedCategory.set(category);
     this.showAddForm.set(false);
+    this.showRenameCategoryForm.set(false);
     this.editingSubcategory.set(null);
   }
 
-  addSubcategory() {
-    const name = this.newSubcategoryName.trim();
-    const cat = this.selectedCategory();
-    if (!name || !cat) return;
+  toggleAddCategoryForm() {
+    this.showAddCategoryForm.update((value) => !value);
+    if (!this.showAddCategoryForm()) {
+      this.newCategoryName = '';
+    }
+  }
 
-    if (this.currentSubcategories().includes(name)) {
-      this.error.set(this.translate.instant('PRODUCTS.SUBCATEGORY_ALREADY_EXISTS'));
-      setTimeout(() => this.error.set(''), 3000);
+  addCategory() {
+    const name = this.newCategoryName.trim();
+    if (!name) return;
+
+    this.loading.set(true);
+    this.api.createTenantCategory(name).subscribe({
+      next: (map) => {
+        this.applyCategoriesMap(map);
+        this.selectedCategory.set(this.resolveCategoryKey(map, name) || name);
+        this.newCategoryName = '';
+        this.showAddCategoryForm.set(false);
+        this.loading.set(false);
+        this.showSuccess(`Category "${name}" created.`);
+      },
+      error: (err) => {
+        this.loading.set(false);
+        this.showError(this.apiErrorMessage(err, 'Unable to create category.'));
+      },
+    });
+  }
+
+  openRenameCategory(category: string) {
+    this.renameCategoryName = category;
+    this.showRenameCategoryForm.set(true);
+  }
+
+  cancelCategoryRename() {
+    this.showRenameCategoryForm.set(false);
+    this.renameCategoryName = '';
+  }
+
+  saveCategoryRename(oldCategory: string) {
+    const newCategory = this.renameCategoryName.trim();
+    if (!newCategory || newCategory === oldCategory) {
+      this.cancelCategoryRename();
+      return;
+    }
+
+    const productsToUpdate = this.products().filter((product) => product.category === oldCategory);
+    this.loading.set(true);
+
+    const renameRequest = this.api.renameTenantCategory(oldCategory, newCategory);
+    if (productsToUpdate.length === 0) {
+      renameRequest.subscribe({
+        next: (map) => {
+          this.applyCategoriesMap(map);
+          this.selectedCategory.set(this.resolveCategoryKey(map, newCategory) || newCategory);
+          this.loading.set(false);
+          this.cancelCategoryRename();
+          this.showSuccess(`Category renamed to "${newCategory}".`);
+        },
+        error: (err) => {
+          this.loading.set(false);
+          this.showError(this.apiErrorMessage(err, 'Unable to rename category.'));
+        },
+      });
+      return;
+    }
+
+    forkJoin([
+      ...productsToUpdate.map((product) => this.api.updateProduct(product.id!, { category: newCategory })),
+      renameRequest,
+    ]).subscribe({
+      next: (results) => {
+        const map = results[results.length - 1] as Record<string, string[]>;
+        this.applyCategoriesMap(map);
+        this.products.update((list) =>
+          list.map((product) =>
+            product.category === oldCategory ? { ...product, category: newCategory } : product,
+          ),
+        );
+        this.selectedCategory.set(this.resolveCategoryKey(map, newCategory) || newCategory);
+        this.loading.set(false);
+        this.cancelCategoryRename();
+        this.showSuccess(`Category renamed to "${newCategory}".`);
+      },
+      error: (err) => {
+        this.loading.set(false);
+        this.showError(this.apiErrorMessage(err, 'Unable to rename category.'));
+      },
+    });
+  }
+
+  deleteCategory(category: string) {
+    const productCount = this.productCountForCategory(category);
+    if (productCount > 0) {
+      this.showError(`Move or reassign ${productCount} product(s) before deleting this category.`);
+      return;
+    }
+
+    if (!globalThis.confirm?.(`Delete category "${this.getCategoryLabel(category)}"?`)) {
       return;
     }
 
     this.loading.set(true);
-    this.api.createTenantSubcategory(cat, name).subscribe({
+    this.api.deleteTenantCategory(category).subscribe({
+      next: (map) => {
+        this.applyCategoriesMap(map);
+        const nextCategory = Object.keys(map)[0] || null;
+        this.selectedCategory.set(nextCategory);
+        this.loading.set(false);
+        this.showSuccess(`Category "${this.getCategoryLabel(category)}" deleted.`);
+      },
+      error: (err) => {
+        this.loading.set(false);
+        this.showError(this.apiErrorMessage(err, 'Unable to delete category.'));
+      },
+    });
+  }
+
+  addSubcategory() {
+    const name = this.newSubcategoryName.trim();
+    const category = this.selectedCategory();
+    if (!name || !category) return;
+
+    if (this.currentSubcategories().includes(name)) {
+      this.showError(this.translate.instant('PRODUCTS.SUBCATEGORY_ALREADY_EXISTS'));
+      return;
+    }
+
+    this.loading.set(true);
+    this.api.createTenantSubcategory(category, name).subscribe({
       next: (map) => {
         this.applyCategoriesMap(map);
         this.newSubcategoryName = '';
         this.showAddForm.set(false);
         this.loading.set(false);
-        this.showSuccess('PRODUCTS.SUBCATEGORY_ADDED');
+        this.showSuccess(this.translate.instant('PRODUCTS.SUBCATEGORY_ADDED'));
       },
       error: (err) => {
-        this.error.set(this.apiErrorMessage(err, 'PRODUCTS.FAILED_TO_UPDATE_SUBCATEGORY'));
         this.loading.set(false);
-        setTimeout(() => this.error.set(''), 4000);
+        this.showError(this.apiErrorMessage(err, 'Unable to add subcategory.'));
       },
     });
   }
@@ -451,116 +875,109 @@ export class CategoriesComponent implements OnInit {
 
   saveEdit(oldName: string) {
     const newName = this.editName.trim();
-    const cat = this.selectedCategory();
-    if (!newName || !cat || newName === oldName) {
+    const category = this.selectedCategory();
+    if (!newName || !category || newName === oldName) {
       this.editingSubcategory.set(null);
       return;
     }
 
+    const productsToUpdate = this.products().filter(
+      (product) => product.category === category && product.subcategory === oldName,
+    );
     this.loading.set(true);
-    
-    // Find all products in this category and subcategory
-    const productsToUpdate = this.products().filter(p => p.category === cat && p.subcategory === oldName);
-    
+
+    const renameRequest = this.api.renameTenantSubcategory(category, oldName, newName);
     if (productsToUpdate.length === 0) {
-      this.api.renameTenantSubcategory(cat, oldName, newName).subscribe({
+      renameRequest.subscribe({
         next: (map) => {
           this.applyCategoriesMap(map);
           this.loading.set(false);
           this.editingSubcategory.set(null);
-          this.showSuccess('PRODUCTS.SUBCATEGORY_UPDATED');
+          this.showSuccess(this.translate.instant('PRODUCTS.SUBCATEGORY_UPDATED'));
         },
         error: (err) => {
-          this.error.set(this.apiErrorMessage(err, 'PRODUCTS.FAILED_TO_UPDATE_SUBCATEGORY'));
           this.loading.set(false);
+          this.showError(this.apiErrorMessage(err, 'Unable to rename subcategory.'));
         },
       });
       return;
     }
 
-    const requests = [
-      ...productsToUpdate.map((p) => this.api.updateProduct(p.id!, { subcategory: newName })),
-      this.api.renameTenantSubcategory(cat, oldName, newName),
-    ];
-
-    forkJoin(requests).subscribe({
+    forkJoin([
+      ...productsToUpdate.map((product) => this.api.updateProduct(product.id!, { subcategory: newName })),
+      renameRequest,
+    ]).subscribe({
       next: (results) => {
         const map = results[results.length - 1] as Record<string, string[]>;
         this.applyCategoriesMap(map);
         this.products.update((list) =>
-          list.map((p) => {
-            if (p.category === cat && p.subcategory === oldName) {
-              return { ...p, subcategory: newName };
-            }
-            return p;
-          }),
+          list.map((product) =>
+            product.category === category && product.subcategory === oldName
+              ? { ...product, subcategory: newName }
+              : product,
+          ),
         );
         this.loading.set(false);
         this.editingSubcategory.set(null);
-        this.showSuccess('PRODUCTS.SUBCATEGORY_UPDATED');
+        this.showSuccess(this.translate.instant('PRODUCTS.SUBCATEGORY_UPDATED'));
       },
       error: (err) => {
-        this.error.set(this.apiErrorMessage(err, 'PRODUCTS.FAILED_TO_UPDATE_SUBCATEGORY'));
         this.loading.set(false);
+        this.showError(this.apiErrorMessage(err, 'Unable to rename subcategory.'));
       },
     });
   }
 
   deleteSubcategory(name: string) {
-    const cat = this.selectedCategory();
-    if (!cat) return;
+    const category = this.selectedCategory();
+    if (!category) return;
 
-    if (!confirm(this.translate.instant('PRODUCTS.DELETE_SUBCATEGORY_CONFIRM', { name }))) {
+    if (!globalThis.confirm?.(this.translate.instant('PRODUCTS.DELETE_SUBCATEGORY_CONFIRM', { name }))) {
       return;
     }
 
+    const productsToUpdate = this.products().filter(
+      (product) => product.category === category && product.subcategory === name,
+    );
     this.loading.set(true);
-    const productsToUpdate = this.products().filter(p => p.category === cat && p.subcategory === name);
 
+    const deleteRequest = this.api.deleteTenantSubcategory(category, name);
     if (productsToUpdate.length === 0) {
-      this.api.deleteTenantSubcategory(cat, name).subscribe({
+      deleteRequest.subscribe({
         next: (map) => {
           this.applyCategoriesMap(map);
           this.loading.set(false);
-          this.showSuccess('PRODUCTS.SUBCATEGORY_DELETED');
+          this.showSuccess(this.translate.instant('PRODUCTS.SUBCATEGORY_DELETED'));
         },
         error: (err) => {
-          this.error.set(this.apiErrorMessage(err, 'PRODUCTS.FAILED_TO_UPDATE_SUBCATEGORY'));
           this.loading.set(false);
+          this.showError(this.apiErrorMessage(err, 'Unable to delete subcategory.'));
         },
       });
       return;
     }
 
-    const requests = [
-      ...productsToUpdate.map((p) => this.api.updateProduct(p.id!, { subcategory: null as any })),
-      this.api.deleteTenantSubcategory(cat, name),
-    ];
-
-    forkJoin(requests).subscribe({
+    forkJoin([
+      ...productsToUpdate.map((product) => this.api.updateProduct(product.id!, { subcategory: null as any })),
+      deleteRequest,
+    ]).subscribe({
       next: (results) => {
         const map = results[results.length - 1] as Record<string, string[]>;
         this.applyCategoriesMap(map);
         this.products.update((list) =>
-          list.map((p) => {
-            if (p.category === cat && p.subcategory === name) {
-              return { ...p, subcategory: undefined };
-            }
-            return p;
-          }),
+          list.map((product) =>
+            product.category === category && product.subcategory === name
+              ? { ...product, subcategory: undefined }
+              : product,
+          ),
         );
         this.loading.set(false);
-        this.showSuccess('PRODUCTS.SUBCATEGORY_DELETED');
+        this.showSuccess(this.translate.instant('PRODUCTS.SUBCATEGORY_DELETED'));
       },
       error: (err) => {
-        this.error.set(this.apiErrorMessage(err, 'PRODUCTS.FAILED_TO_UPDATE_SUBCATEGORY'));
         this.loading.set(false);
+        this.showError(this.apiErrorMessage(err, 'Unable to delete subcategory.'));
       },
     });
-  }
-
-  private showSuccess(key: string) {
-    this.success.set(this.translate.instant(key));
-    setTimeout(() => this.success.set(''), 3000);
   }
 }

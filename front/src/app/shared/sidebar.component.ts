@@ -68,6 +68,15 @@ import { StaffLayoutService } from '../services/staff-layout.service';
                <span>{{ 'NAV.MY_SHIFT' | translate }}</span>
              </a>
            }
+           @if (canViewPos()) {
+             <a routerLink="/pos" routerLinkActive="active" class="nav-link" (click)="closeSidebar()">
+               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                 <rect x="3" y="4" width="18" height="16" rx="2"/>
+                 <path d="M7 8h10M7 12h4M16 16h1"/>
+               </svg>
+               <span>POS</span>
+             </a>
+           }
            <a routerLink="/staff/orders" routerLinkActive="active" class="nav-link" (click)="closeSidebar()">
              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
@@ -284,6 +293,7 @@ export class SidebarComponent implements OnInit, AfterViewInit, OnDestroy {
   commitHash = environment.commitHash;
 
   // Computed permission checks
+  canViewPos = computed(() => this.permissions.canAccessRoute(this.user(), '/pos'));
   canViewTables = computed(() => this.permissions.canAccessRoute(this.user(), '/tables'));
   canViewReservations = computed(() => this.permissions.hasPermission(this.user(), 'reservation:read'));
   canViewCustomers = computed(() => this.permissions.canAccessRoute(this.user(), '/customers'));

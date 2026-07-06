@@ -67,6 +67,12 @@
             <span class="card-label">{{ 'REPORTS.TOTAL_TIPS' | translate }}</span>
             <span class="card-value">{{ formatCurrency(r.summary.total_tips_cents ?? 0) }}</span>
           </div>
+          @if ((r.summary.total_collected_cents ?? 0) > 0) {
+            <div class="summary-card collected">
+              <span class="card-label">Total collected</span>
+              <span class="card-value">{{ formatCurrency(r.summary.total_collected_cents ?? 0) }}</span>
+            </div>
+          }
           @if ((r.summary.total_cost_cents ?? 0) > 0 || (r.summary.total_profit_cents ?? 0) !== 0) {
             <div class="summary-card cost">
               <span class="card-label">{{ 'REPORTS.TOTAL_COST' | translate }}</span>
@@ -98,6 +104,55 @@
             </div>
           }
         </div>
+
+        @if (r.by_payment_method.length > 0) {
+          <div class="chart-block payment-method-block" data-testid="reports-by-payment-method">
+            <div class="chart-header-inline">
+              <h3>Sales by payment method</h3>
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                (click)="exportPaymentCSV()"
+                [disabled]="exporting()"
+              >
+                Export payment CSV
+              </button>
+            </div>
+            <div class="data-table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Payment method</th>
+                    <th class="num">Orders</th>
+                    <th class="num">Revenue</th>
+                    <th class="num">Tips</th>
+                    <th class="num">Collected</th>
+                    <th class="num">Average ticket</th>
+                    <th class="num">{{ 'REPORTS.SHARE' | translate }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of r.by_payment_method; track row.payment_method) {
+                    <tr>
+                      <td>{{ getPaymentMethodLabel(row.payment_method) }}</td>
+                      <td class="num">{{ row.order_count }}</td>
+                      <td class="num">{{ formatCurrency(row.revenue_cents) }}</td>
+                      <td class="num">{{ formatCurrency(row.tips_cents ?? 0) }}</td>
+                      <td class="num">{{ formatCurrency(row.collected_cents ?? row.revenue_cents) }}</td>
+                      <td class="num">{{ formatCurrency(row.average_collected_per_order_cents ?? 0) }}</td>
+                      <td class="num share-with-bar">
+                        <div class="bar-track inline">
+                          <div class="bar-fill payment" [style.width]="paymentMethodShareWidth((row.collected_cents ?? row.revenue_cents))"></div>
+                        </div>
+                        <span class="share-value">{{ formatPct((row.collected_cents ?? row.revenue_cents), totalCollectedByPaymentMethod()) }}</span>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
 
         <!-- Reservations by source -->
         @if ((r.reservations?.by_source?.length ?? 0) > 0) {

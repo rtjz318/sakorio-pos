@@ -1,8 +1,8 @@
 # Reports (Sales & Revenue)
 
-Reports give restaurant owners and admins revenue analysis from paid orders: date range, summary, breakdown by product, category, table, and waiter, with simple charts and CSV/Excel export.
+Reports give restaurant owners and admins revenue analysis from paid orders: date range, summary, breakdown by payment method, product, category, table, and waiter, with simple charts and CSV/Excel export.
 
-![Reports — date range, summary, by product/category/table](screenshots/reports.png)
+![Reports - date range, summary, by product/category/table](screenshots/reports.png)
 
 ## Access
 
@@ -21,23 +21,24 @@ Reports give restaurant owners and admins revenue analysis from paid orders: dat
 | Feature | Description |
 |--------|-------------|
 | **Date range** | From / To (default: last 30 days). All report data is filtered by this range. |
-| **Summary** | Total revenue (cents), total orders, **average payment per client** (revenue ÷ orders), reservation count, and daily series (date, revenue, order count). |
+| **Summary** | Total revenue (cents), total tips, total collected, total orders, **average payment per client** (revenue divided by orders), reservation count, and daily series (date, revenue, order count). |
 | **Reservations** | Total reservations in the date range (by `reservation_date`) and breakdown by source: **Public (book page)** (reservations with token) vs **Staff** (no token). Shown in summary card and "By source" block; Excel export includes a Reservations sheet. |
+| **By payment method** | Normalized staff and online sales by `hitpay`, `terminal`, `cash`, plus fallback `other`, showing orders, revenue, tips, collected amount, average ticket, and share of collected sales. |
 | **By product** | Product name, category (from Product), quantity sold, revenue. Table + bar chart. |
 | **By category** | Category, quantity, revenue. Table + bar chart. |
 | **By table** | Table name, revenue, order count. Table + bar chart. |
-| **By waiter** | Waiter name (table’s assigned waiter or floor default), revenue, order count. Table + bar chart. |
-| **Export CSV** | Downloads the summary daily data as CSV. |
-| **Export Excel** | Downloads a workbook with sheets: Summary, Reservations, By Product, By Category, By Table, By Waiter. |
+| **By waiter** | Waiter name (table's assigned waiter or floor default), revenue, order count. Table + bar chart. |
+| **Export CSV** | Downloads a selected dataset as CSV (`summary`, `products`, `category`, `table`, `waiter`, `payment`). |
+| **Export Excel** | Downloads a workbook with sheets: Summary, Reservations, By Payment Method, By Product, By Category, By Table, By Waiter. |
 
 Charts are CSS-only (no extra JS libs). Currency comes from tenant settings (same as Orders).
 
 ## API
 
 - **GET `/reports/sales?from_date=YYYY-MM-DD&to_date=YYYY-MM-DD`**  
-  Returns combined report: `summary` (includes `average_revenue_per_order_cents`), `reservations` (total, by_source), `by_product`, `by_category`, `by_table`, `by_waiter`. Requires auth and `report:read`.
+  Returns combined report: `summary` (includes `average_revenue_per_order_cents` and `total_collected_cents`), `reservations` (total, by_source), `by_payment_method`, `by_product`, `by_category`, `by_table`, `by_waiter`. Requires auth and `report:read`.
 
-- **GET `/reports/export?from_date=...&to_date=...&format=csv|xlsx&report=summary|products|category|table|waiter`**  
+- **GET `/reports/export?from_date=...&to_date=...&format=csv|xlsx&report=summary|products|category|table|waiter|payment`**  
   Returns file download. For `format=xlsx`, all report types are included in one workbook; `report` is ignored. For CSV, `report` selects which dataset to export.
 
 ## Testing

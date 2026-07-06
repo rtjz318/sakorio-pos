@@ -46,8 +46,7 @@ def normalize_custom_subcategories(stored: dict | None) -> dict[str, list[str]]:
                 continue
             existing.add(name)
             items.append(name)
-        if items:
-            out[cat] = sorted(items)
+        out[cat] = sorted(items)
     return out
 
 
@@ -154,6 +153,61 @@ def _save_custom(tenant: models.Tenant, custom: dict[str, list[str]]) -> None:
     tenant.custom_subcategories = custom or None
 
 
+def add_custom_category(session: Session, tenant_id: int, category: str) -> dict[str, list[str]]:
+    cat = _validate_category_name(category)
+    tenant, custom = _load_tenant_custom(session, tenant_id)
+    existing = set(tenant_categories_for_ui(session, tenant_id).keys())
+    if cat in existing:
+        raise ValueError("Category already exists")
+    updated = deepcopy(custom)
+    updated.setdefault(cat, [])
+    _save_custom(tenant, updated)
+    session.add(tenant)
+    session.commit()
+    session.refresh(tenant)
+    return tenant_categories_for_ui(session, tenant_id)
+
+
+def rename_custom_category(
+    session: Session,
+    tenant_id: int,
+    old_category: str,
+    new_category: str,
+) -> dict[str, list[str]]:
+    old = _validate_category_name(old_category)
+    new = _validate_category_name(new_category)
+    if old == new:
+        return tenant_categories_for_ui(session, tenant_id)
+    tenant, custom = _load_tenant_custom(session, tenant_id)
+    if old not in custom:
+        raise ValueError("Only tenant-defined categories can be renamed")
+    existing = set(tenant_categories_for_ui(session, tenant_id).keys())
+    existing.discard(old)
+    if new in existing:
+        raise ValueError("Category already exists")
+    updated = deepcopy(custom)
+    updated[new] = sorted(updated.pop(old, []))
+    _save_custom(tenant, updated)
+    session.add(tenant)
+    session.commit()
+    session.refresh(tenant)
+    return tenant_categories_for_ui(session, tenant_id)
+
+
+def remove_custom_category(session: Session, tenant_id: int, category: str) -> dict[str, list[str]]:
+    cat = _validate_category_name(category)
+    tenant, custom = _load_tenant_custom(session, tenant_id)
+    if cat not in custom:
+        raise ValueError("Only tenant-defined categories can be deleted")
+    updated = deepcopy(custom)
+    del updated[cat]
+    _save_custom(tenant, updated)
+    session.add(tenant)
+    session.commit()
+    session.refresh(tenant)
+    return tenant_categories_for_ui(session, tenant_id)
+
+
 def add_custom_subcategory(
     session: Session, tenant_id: int, category: str, name: str
 ) -> dict[str, list[str]]:
@@ -209,8 +263,6 @@ def remove_custom_subcategory(
     updated = deepcopy(custom)
     if cat in updated:
         updated[cat] = [s for s in updated[cat] if s != sub]
-        if not updated[cat]:
-            del updated[cat]
     _save_custom(tenant, updated)
     session.add(tenant)
     session.commit()

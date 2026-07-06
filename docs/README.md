@@ -69,6 +69,7 @@ This folder contains deployment guides, feature documentation, implementation pl
 | [0031-order-customizations-plan.md](0031-order-customizations-plan.md) | GitHub **#50**: pizza-style order modifiers — existing `ProductQuestion` / `customization_answers`, staff UI gap, phased plan. |
 | [0032-github-issues-roadmap.md](0032-github-issues-roadmap.md) | GitHub **#52–#54**: umbrella roadmap (warehouses, kitchen SLAs, marketing/comms). |
 | [0050-github-issue-52-split-plan.md](0050-github-issue-52-split-plan.md) | GitHub **#52**: dedicated child-issue specs, phases, dependencies, copy-paste bodies for filing. |
+| [0051-cashier-pos-module-plan.md](0051-cashier-pos-module-plan.md) | Dedicated cashier POS module brief: current gaps, reusable APIs, route plan, UX architecture, and phased build path. |
 
 ---
 

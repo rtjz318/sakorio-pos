@@ -133,6 +133,7 @@ const ROUTE_ROLES: Record<string, UserRole[]> = {
   '/': ['owner', 'admin', 'kitchen', 'bartender', 'waiter', 'receptionist'],
   '/products': ['owner', 'admin', 'kitchen', 'bartender', 'waiter', 'receptionist'],
   '/catalog': ['owner', 'admin', 'kitchen', 'bartender', 'waiter', 'receptionist'],
+  '/pos': ['owner', 'admin', 'waiter', 'receptionist'],
   '/tables': ['owner', 'admin', 'waiter', 'receptionist'],
   '/tables/canvas': ['owner', 'admin', 'waiter', 'receptionist'],
   '/reservations': ['owner', 'admin', 'waiter', 'receptionist'],

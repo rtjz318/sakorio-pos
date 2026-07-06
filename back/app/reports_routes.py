@@ -30,6 +30,13 @@ REVENUE_STATUSES = {models.OrderStatus.paid, models.OrderStatus.completed}
 # Item statuses we exclude from revenue
 EXCLUDED_ITEM_STATUSES = {models.OrderItemStatus.cancelled}
 
+_PAYMENT_METHOD_ORDER = {
+    "hitpay": 0,
+    "terminal": 1,
+    "cash": 2,
+    "other": 3,
+}
+
 
 def _revenue_date(order: models.Order) -> datetime | None:
     """Date used for attributing revenue (paid_at if set, else created_at)."""
@@ -61,6 +68,17 @@ def _waiter_name_for_order_tips(session: Session, order: models.Order) -> str:
             u = session.get(models.User, waiter_id)
             return (u.full_name or u.email) if u else str(waiter_id)
     return "Unassigned"
+
+
+def _normalize_payment_method(raw: str | None) -> str:
+    value = (raw or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if value in {"card_terminal", "terminal", "card"}:
+        return "terminal"
+    if value in {"cash"}:
+        return "cash"
+    if value in {"hitpay"}:
+        return "hitpay"
+    return "other"
 
 
 def _get_revenue_items(
@@ -138,6 +156,7 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
     tips_by_day: dict[str, int] = defaultdict(int)
     tips_by_waiter: dict[str, int] = defaultdict(int)
     total_tips_cents = 0
+    paid_orders_summary: list[dict] = []
     orders_for_tips = session.exec(
         select(models.Order)
         .where(models.Order.tenant_id == tenant_id)
@@ -148,7 +167,23 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
         rev_date = _revenue_date(order)
         if not _in_range(rev_date, from_date, to_date):
             continue
+        order_items = session.exec(
+            select(models.OrderItem)
+            .where(models.OrderItem.order_id == order.id)
+            .where(models.OrderItem.removed_by_customer == False)
+            .where(models.OrderItem.status != models.OrderItemStatus.cancelled)
+        ).all()
+        order_revenue_cents = sum(item.quantity * item.price_cents for item in order_items)
         tip = int(order.tip_amount_cents or 0)
+        payment_method = _normalize_payment_method(getattr(order, "payment_method", None))
+        paid_orders_summary.append(
+            {
+                "payment_method": payment_method,
+                "revenue_cents": order_revenue_cents,
+                "tips_cents": tip,
+                "collected_cents": order_revenue_cents + tip,
+            }
+        )
         if tip <= 0:
             continue
         total_tips_cents += tip
@@ -270,6 +305,42 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
         for k, v in sorted(by_waiter.items(), key=lambda x: -x[1]["revenue_cents"])
     ]
 
+    by_payment_method: dict[str, dict] = defaultdict(
+        lambda: {"revenue_cents": 0, "tips_cents": 0, "collected_cents": 0, "order_count": 0}
+    )
+    total_collected_cents = 0
+    for paid in paid_orders_summary:
+        method = paid["payment_method"]
+        by_payment_method[method]["revenue_cents"] += paid["revenue_cents"]
+        by_payment_method[method]["tips_cents"] += paid["tips_cents"]
+        by_payment_method[method]["collected_cents"] += paid["collected_cents"]
+        by_payment_method[method]["order_count"] += 1
+        total_collected_cents += paid["collected_cents"]
+    by_payment_method_list = []
+    for method, data in sorted(
+        by_payment_method.items(),
+        key=lambda item: (_PAYMENT_METHOD_ORDER.get(item[0], 99), -item[1]["collected_cents"]),
+    ):
+        order_count = data["order_count"]
+        collected_cents = data["collected_cents"]
+        by_payment_method_list.append(
+            {
+                "payment_method": method,
+                "revenue_cents": data["revenue_cents"],
+                "tips_cents": data["tips_cents"],
+                "collected_cents": collected_cents,
+                "order_count": order_count,
+                "average_collected_per_order_cents": (
+                    collected_cents // order_count if order_count else 0
+                ),
+                "share_of_collected_sales_pct": (
+                    round((collected_cents / total_collected_cents) * 100, 2)
+                    if total_collected_cents > 0
+                    else 0
+                ),
+            }
+        )
+
     # Reservations in date range (by reservation_date); source = public (token set) vs staff (no token); by status
     reservations = session.exec(
         select(models.Reservation)
@@ -321,11 +392,13 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
             "total_cost_cents": total_cost_cents,
             "total_profit_cents": total_profit_cents,
             "total_tips_cents": total_tips_cents,
+            "total_collected_cents": total_collected_cents,
             "total_orders": total_orders,
             "average_revenue_per_order_cents": average_revenue_per_order_cents,
             "daily": summary_daily,
         },
         "reservations": reservations_summary,
+        "by_payment_method": by_payment_method_list,
         "by_product": by_product_list,
         "by_category": by_category_list,
         "by_table": by_table_list,
@@ -370,7 +443,7 @@ def export_report(
     from_date: date = Query(..., description="Start date (YYYY-MM-DD)"),
     to_date: date = Query(..., description="End date (YYYY-MM-DD)"),
     format: str = Query("csv", description="csv or xlsx"),
-    report: str = Query("summary", description="summary, products, category, table, waiter"),
+    report: str = Query("summary", description="summary, products, category, table, waiter, payment"),
     lang: str | None = Query(None, description="UI language for headers (e.g. en, es, de)"),
 ) -> StreamingResponse:
     """Export report as CSV or Excel. Same date range as reports."""
@@ -397,6 +470,7 @@ def export_report(
                 L["cost_cents"],
                 L["profit_cents"],
                 L["tips_cents"],
+                L["collected_cents"],
                 L["orders"],
             ]
         )
@@ -407,6 +481,7 @@ def export_report(
                 row.get("cost_cents", 0),
                 row.get("profit_cents", 0),
                 row.get("tips_cents", 0),
+                row["revenue_cents"] + row.get("tips_cents", 0),
                 row["order_count"],
             ])
         ws.append([])
@@ -418,6 +493,7 @@ def export_report(
                 s.get("total_cost_cents", 0),
                 s.get("total_profit_cents", 0),
                 s.get("total_tips_cents", 0),
+                s.get("total_collected_cents", s["total_revenue_cents"] + s.get("total_tips_cents", 0)),
                 s["total_orders"],
             ]
         )
@@ -517,6 +593,31 @@ def export_report(
                 w.get("tips_cents", 0),
                 w["order_count"],
             ])
+        # Payment method
+        ws6 = wb.create_sheet(L["sheet_by_payment_method"][:31])
+        ws6.append(
+            [
+                L["payment_method"],
+                L["orders"],
+                L["revenue_cents"],
+                L["tips_cents"],
+                L["collected_cents"],
+                L["average_ticket_cents"],
+                L["share_of_collected_sales_pct"],
+            ]
+        )
+        for pm in data["by_payment_method"]:
+            method_key = pm["payment_method"]
+            method_label = L.get(f"payment_method_{method_key}", method_key)
+            ws6.append([
+                method_label,
+                pm["order_count"],
+                pm["revenue_cents"],
+                pm.get("tips_cents", 0),
+                pm.get("collected_cents", 0),
+                pm.get("average_collected_per_order_cents", 0),
+                pm.get("share_of_collected_sales_pct", 0),
+            ])
         buf = BytesIO()
         wb.save(buf)
         buf.seek(0)
@@ -589,6 +690,35 @@ def export_report(
             L["profit_cents"],
             L["tips_cents"],
             L["orders"],
+        ]
+    elif report == "payment":
+        rows = data["by_payment_method"]
+        keys = [
+            "payment_method",
+            "order_count",
+            "revenue_cents",
+            "tips_cents",
+            "collected_cents",
+            "average_collected_per_order_cents",
+            "share_of_collected_sales_pct",
+        ]
+        header_row = [
+            L["payment_method"],
+            L["orders"],
+            L["revenue_cents"],
+            L["tips_cents"],
+            L["collected_cents"],
+            L["average_ticket_cents"],
+            L["share_of_collected_sales_pct"],
+        ]
+        rows = [
+            {
+                **row,
+                "payment_method": L.get(
+                    f"payment_method_{row['payment_method']}", row["payment_method"]
+                ),
+            }
+            for row in rows
         ]
     else:
         rows = data["summary"]["daily"]

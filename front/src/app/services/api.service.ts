@@ -1290,6 +1290,15 @@ export interface OrderCreate {
   longitude?: number | null;  // Optional GPS longitude for location verification
 }
 
+export interface StaffOrderCreate {
+  table_id: number;
+  items: OrderItemCreate[];
+  notes?: string;
+  customer_name?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
 export interface OrderHistoryItem {
   id: number;
   status: string;
@@ -1308,6 +1317,7 @@ export interface SalesReport {
     total_cost_cents?: number;
     total_profit_cents?: number;
     total_tips_cents?: number;
+    total_collected_cents?: number;
     total_orders: number;
     average_revenue_per_order_cents: number;
     daily: {
@@ -1319,6 +1329,15 @@ export interface SalesReport {
       order_count: number;
     }[];
   };
+  by_payment_method: {
+    payment_method: string;
+    revenue_cents: number;
+    tips_cents?: number;
+    collected_cents?: number;
+    average_collected_per_order_cents?: number;
+    share_of_collected_sales_pct?: number;
+    order_count: number;
+  }[];
   by_product: { product_id: number; product_name: string; category?: string; quantity: number; revenue_cents: number; cost_cents?: number; profit_cents?: number }[];
   by_category: { category: string; quantity: number; revenue_cents: number; cost_cents?: number; profit_cents?: number }[];
   by_table: { table_name: string; revenue_cents: number; cost_cents?: number; profit_cents?: number; order_count: number }[];
@@ -2359,6 +2378,10 @@ export class ApiService {
     return this.http.post(`${this.apiUrl}/menu/${tableToken}/order`, order);
   }
 
+  createStaffOrder(order: StaffOrderCreate): Observable<any> {
+    return this.http.post(`${this.apiUrl}/orders/staff`, order);
+  }
+
   getCurrentOrder(tableToken: string, sessionId?: string): Observable<any> {
     let params = new HttpParams();
     if (sessionId) {
@@ -2376,7 +2399,8 @@ export class ApiService {
   // Payments
   createHitPayPaymentRequest(
     orderId: number,
-    tableToken: string
+    tableToken: string,
+    redirectPath?: string | null,
   ): Observable<{ checkout_url: string; hitpay_payment_request_id: string; order_id: number }> {
     return this.http.post<{
       checkout_url: string;
@@ -2384,7 +2408,7 @@ export class ApiService {
       order_id: number;
     }>(
       `${this.apiUrl}/orders/${orderId}/create-hitpay-payment-request?table_token=${tableToken}`,
-      {}
+      { redirect_path: redirectPath ?? null }
     );
   }
 
@@ -2899,6 +2923,31 @@ export class ApiService {
 
   getCatalogCategories(): Observable<Record<string, string[]>> {
     return this.http.get<Record<string, string[]>>(`${this.apiUrl}/catalog/categories`);
+  }
+
+  createTenantCategory(name: string): Observable<Record<string, string[]>> {
+    return this.http.post<Record<string, string[]>>(
+      `${this.apiUrl}/tenant/subcategories/category`,
+      { name },
+    );
+  }
+
+  renameTenantCategory(
+    oldName: string,
+    newName: string,
+  ): Observable<Record<string, string[]>> {
+    return this.http.put<Record<string, string[]>>(
+      `${this.apiUrl}/tenant/subcategories/category`,
+      { old_name: oldName, new_name: newName },
+    );
+  }
+
+  deleteTenantCategory(name: string): Observable<Record<string, string[]>> {
+    return this.http.request<Record<string, string[]>>(
+      'DELETE',
+      `${this.apiUrl}/tenant/subcategories/category`,
+      { body: { name } },
+    );
   }
 
   createTenantSubcategory(category: string, name: string): Observable<Record<string, string[]>> {

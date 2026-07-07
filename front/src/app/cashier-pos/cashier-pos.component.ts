@@ -5135,7 +5135,7 @@ export class CashierPosComponent {
       }
 
       if (mode === 'cash' || mode === 'card_terminal') {
-        await firstValueFrom(this.api.finishOrder(orderId, mode));
+        await firstValueFrom(this.api.markOrderPaid(orderId, mode));
         this.lastCheckoutOutcome.set({
           mode,
           tableName: table.name,
@@ -5145,11 +5145,11 @@ export class CashierPosComponent {
         this.notice.set(
           mode === 'cash'
             ? nextReadyTable
-              ? `Cash checkout completed for ${table.name}. ${nextReadyTable.name} is up next.`
-              : `Cash checkout completed for ${table.name}.`
+              ? `Cash payment recorded for ${table.name}. ${nextReadyTable.name} is up next.`
+              : `Cash payment recorded for ${table.name}.`
             : nextReadyTable
-              ? `Terminal checkout completed for ${table.name}. ${nextReadyTable.name} is up next.`
-              : `Card terminal checkout completed for ${table.name}.`,
+              ? `Terminal payment recorded for ${table.name}. ${nextReadyTable.name} is up next.`
+              : `Card terminal payment recorded for ${table.name}.`,
         );
       } else if (mode === 'hitpay') {
         this.hitPayFlowState.set('redirecting');

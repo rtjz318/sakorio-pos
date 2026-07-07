@@ -37,6 +37,8 @@ type FullscreenDocument = Document & {
   msExitFullscreen?: () => Promise<void> | void;
 };
 
+type KitchenLaneKey = 'pending' | 'preparing' | 'ready';
+
 function getFullscreenElement(): Element | null {
   const d = document as FullscreenDocument;
   return (
@@ -90,10 +92,32 @@ function normalizeKitchenCategory(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase();
 }
 
-function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_station_route'>): 'kitchen' | 'bar' {
+function inferKitchenRouteFromItem(
+  item: Pick<OrderItem, 'category' | 'kitchen_station_route' | 'kitchen_station_name'>
+): 'kitchen' | 'bar' {
   const explicitRoute = item.kitchen_station_route?.trim().toLowerCase();
-  if (explicitRoute === 'kitchen' || explicitRoute === 'bar') {
-    return explicitRoute;
+  if (explicitRoute) {
+    const explicitLooksLikeBar =
+      explicitRoute === 'bar' ||
+      explicitRoute.includes('bar') ||
+      explicitRoute.includes('drink') ||
+      explicitRoute.includes('beverage') ||
+      explicitRoute.includes('coffee') ||
+      explicitRoute.includes('tea');
+    return explicitLooksLikeBar ? 'bar' : 'kitchen';
+  }
+
+  const stationName = (item.kitchen_station_name ?? '').trim().toLowerCase();
+  if (stationName) {
+    const stationLooksLikeBar =
+      stationName.includes('bar') ||
+      stationName.includes('drink') ||
+      stationName.includes('beverage') ||
+      stationName.includes('coffee') ||
+      stationName.includes('tea');
+    if (stationLooksLikeBar) {
+      return 'bar';
+    }
   }
 
   const category = normalizeKitchenCategory(item.category);
@@ -113,6 +137,27 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
     category.includes('cocktail');
 
   return isBarCategory ? 'bar' : 'kitchen';
+}
+
+function normalizeItemWorkflowStatus(
+  value: OrderItem['status'] | string | null | undefined
+): 'pending' | 'preparing' | 'ready' | 'delivered' | 'cancelled' {
+  const status = (value ?? '').toString().trim().toLowerCase();
+  if (status === 'preparing' || status === 'ready' || status === 'delivered' || status === 'cancelled') {
+    return status;
+  }
+  return 'pending';
+}
+
+function getWorkflowSortWeight(
+  value: OrderItem['status'] | string | null | undefined
+): number {
+  const normalized = normalizeItemWorkflowStatus(value);
+  if (normalized === 'ready') return 0;
+  if (normalized === 'preparing') return 1;
+  if (normalized === 'pending') return 2;
+  if (normalized === 'delivered') return 3;
+  return 4;
 }
 
 @Component({
@@ -182,7 +227,7 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
           <div class="empty-state">
             <p>{{ 'ORDERS.LOADING' | translate }}</p>
           </div>
-        } @else if (activeOrders().length === 0) {
+        } @else if (visibleOrders().length === 0) {
           <div class="empty-state">
             <div class="empty-icon">
               <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -194,23 +239,61 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
             <p>{{ 'KITCHEN_DISPLAY.NO_ACTIVE_ORDERS_DESC' | translate }}</p>
           </div>
         } @else {
-          <div class="order-grid">
-            @for (order of activeOrders(); track order.id) {
-              <article class="order-card status-{{ order.status }} {{ getTimerColorClass(order) }}" [class.order-card-urgent]="order.staff_urgent">
+          @if (routeFallbackActive()) {
+            <div class="routing-fallback-banner">
+              <strong>{{ 'KITCHEN_DISPLAY.STATION' | translate }}</strong>
+              <span>Showing all active tickets because some kitchen or bar routing is still missing.</span>
+            </div>
+          }
+          <div class="lane-summary-strip">
+            @for (lane of kitchenLanes(); track lane.key) {
+              <article class="lane-summary-card lane-summary-card--{{ lane.key }}">
+                <span class="lane-summary-eyebrow">{{ lane.eyebrow }}</span>
+                <strong class="lane-summary-title">{{ lane.title }}</strong>
+                <span class="lane-summary-count">{{ lane.orders.length }} {{ lane.orders.length === 1 ? 'ticket' : 'tickets' }}</span>
+              </article>
+            }
+          </div>
+
+          <div class="lane-board">
+            @for (lane of kitchenLanes(); track lane.key) {
+              <section class="service-lane service-lane--{{ lane.key }}">
+                <header class="service-lane-header">
+                  <div>
+                    <span class="service-lane-eyebrow">{{ lane.eyebrow }}</span>
+                    <h2>{{ lane.title }}</h2>
+                  </div>
+                  <span class="service-lane-count">{{ lane.orders.length }}</span>
+                </header>
+
+                @if (lane.orders.length === 0) {
+                  <div class="service-lane-empty">
+                    <p>No tickets in this lane.</p>
+                  </div>
+                } @else {
+                  <div class="service-lane-list">
+                    @for (order of lane.orders; track order.id) {
+                      <article class="order-card status-{{ getOrderDisplayStatus(order) }} {{ getTimerColorClass(order) }}" [class.order-card-urgent]="order.staff_urgent">
                 <div class="order-header">
                   <div class="order-meta">
-                    <span class="order-id">#{{ order.id }}</span>
-                    <span class="order-table">{{ order.table_name }}</span>
-                    @if (order.staff_urgent) {
-                      <span class="urgent-badge">{{ 'KITCHEN_DISPLAY.URGENT' | translate }}</span>
-                    }
-                    @if (order.customer_name) {
-                      <span class="order-customer">{{ 'ORDERS.CUSTOMER' | translate }}: {{ order.customer_name }}</span>
-                    }
-                    <span class="order-time" [title]="formatExactTime(order.created_at)">{{ formatOrderTime(order.created_at) }}</span>
-                    <span class="order-waiting" [title]="formatExactTime(order.created_at)">{{ 'KITCHEN_DISPLAY.WAITING' | translate }}: {{ formatWaitingTime(order.created_at) }}</span>
+                    <div class="order-meta-top">
+                      <span class="order-id">#{{ order.id }}</span>
+                      <span class="status-badge status-{{ getOrderDisplayStatus(order) }}">{{ getStatusLabel(getOrderDisplayStatus(order)) }}</span>
+                    </div>
+                    <div class="order-meta-row">
+                      <span class="order-table">{{ order.table_name }}</span>
+                      @if (order.customer_name) {
+                        <span class="order-customer">{{ order.customer_name }}</span>
+                      }
+                    </div>
+                    <div class="order-meta-row order-meta-row--muted">
+                      <span class="order-time" [title]="formatExactTime(order.created_at)">{{ formatOrderTime(order.created_at) }}</span>
+                      <span class="order-waiting" [title]="formatExactTime(order.created_at)">{{ 'KITCHEN_DISPLAY.WAITING' | translate }}: {{ formatWaitingTime(order.created_at) }}</span>
+                      @if (order.staff_urgent) {
+                        <span class="urgent-badge">{{ 'KITCHEN_DISPLAY.URGENT' | translate }}</span>
+                      }
+                    </div>
                   </div>
-                  <span class="status-badge status-{{ order.status }}">{{ getStatusLabel(order.status) }}</span>
                 </div>
                 <div class="order-timer-bar-wrap" [attr.aria-label]="'KITCHEN_DISPLAY.TIMER_BAR_HINT' | translate">
                   <div class="order-timer-bar-track">
@@ -221,7 +304,7 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
                   @for (item of getSortedItems(order.items); track item.id) {
                     @if (!item.removed_by_customer) {
                       <li class="order-item">
-                        <span class="item-qty">{{ item.quantity }}×</span>
+                        <span class="item-qty">{{ item.quantity }}x</span>
                         <span class="item-name">{{ item.product_name }}</span>
                         @if (hasCustomization(item)) {
                           <span class="item-customization">{{ formatCustomizationItem(item) }}</span>
@@ -233,8 +316,7 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
                           <div class="item-status-control">
                             <button
                               type="button"
-                              class="item-status-badge clickable"
-                              [class]="'status-' + (item.status || 'pending')"
+                              class="item-status-badge clickable status-{{ normalizeItemStatus(item.status) }}"
                               (click)="toggleItemStatusDropdown(order.id, item.id!)"
                               [title]="'ORDERS.CLICK_TO_CHANGE_STATUS' | translate">
                               {{ getItemStatusLabel(item.status || 'pending') }}
@@ -270,7 +352,7 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
                             }
                           </div>
                         } @else {
-                          <span class="item-status" [class]="'status-' + (item.status || 'pending')">{{ getItemStatusLabel(item.status || 'pending') }}</span>
+                          <span class="item-status status-{{ normalizeItemStatus(item.status) }}">{{ getItemStatusLabel(item.status || 'pending') }}</span>
                         }
                       </li>
                     }
@@ -279,7 +361,11 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
                 @if (order.notes) {
                   <div class="order-notes">{{ 'KITCHEN_DISPLAY.NOTES' | translate }}: {{ order.notes }}</div>
                 }
-              </article>
+                      </article>
+                    }
+                  </div>
+                }
+              </section>
             }
           </div>
         }
@@ -348,7 +434,8 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
     .header-actions {
       display: flex;
       align-items: center;
-      gap: var(--space-5);
+      justify-content: flex-end;
+      gap: var(--space-3);
       flex-wrap: wrap;
     }
     .timer-settings-btn,
@@ -404,6 +491,14 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
       padding: var(--space-5) var(--space-6);
       overflow: auto;
     }
+    .kitchen-main::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    .kitchen-main::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--color-primary) 20%, var(--color-border));
+      border-radius: 999px;
+    }
     .empty-state {
       text-align: center;
       padding: var(--space-8);
@@ -416,18 +511,171 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
     .empty-state p { margin: 0; color: var(--color-text-muted); }
     .order-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-      gap: var(--space-5);
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: var(--space-4);
       align-items: start;
+    }
+    .lane-summary-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(220px, 1fr));
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+      align-items: stretch;
+    }
+    .routing-fallback-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      margin-bottom: var(--space-4);
+      padding: 0.9rem 1rem;
+      border-radius: var(--radius-lg);
+      border: 1px solid color-mix(in srgb, var(--color-warning) 32%, var(--color-border));
+      background: color-mix(in srgb, var(--color-warning) 8%, white);
+      color: var(--color-text);
+      line-height: 1.45;
+      font-size: 0.92rem;
+    }
+    .routing-fallback-banner strong {
+      color: var(--color-warning);
+      font-size: 0.74rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      padding-top: 0.15rem;
+    }
+    .lane-summary-card {
+      display: grid;
+      gap: 0.35rem;
+      padding: var(--space-4);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: color-mix(in srgb, var(--color-surface) 94%, white);
+      box-shadow: var(--shadow-sm);
+    }
+    .lane-summary-card--pending { border-top: 4px solid var(--color-warning); }
+    .lane-summary-card--preparing { border-top: 4px solid #3B82F6; }
+    .lane-summary-card--ready { border-top: 4px solid var(--color-success); }
+    .lane-summary-eyebrow {
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+    }
+    .lane-summary-title {
+      font-size: 1.05rem;
+      color: var(--color-text);
+    }
+    .lane-summary-count {
+      font-size: 0.92rem;
+      color: var(--color-text-muted);
+    }
+    .lane-board {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: var(--space-4);
+      align-items: start;
+      grid-auto-rows: minmax(0, auto);
+    }
+    .service-lane {
+      min-width: 0;
+      min-height: 0;
+      padding: var(--space-4);
+      border-radius: calc(var(--radius-lg) + 2px);
+      border: 1px solid var(--color-border);
+      background: color-mix(in srgb, var(--color-surface) 96%, white);
+      box-shadow: var(--shadow-sm);
+      display: grid;
+      gap: var(--space-3);
+      align-self: start;
+    }
+    .service-lane--pending { border-top: 5px solid var(--color-warning); }
+    .service-lane--preparing { border-top: 5px solid #3B82F6; }
+    .service-lane--ready { border-top: 5px solid var(--color-success); }
+    .service-lane-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-3);
+    }
+    .service-lane-header > div {
+      min-width: 0;
+      display: grid;
+      gap: 0.2rem;
+    }
+    .service-lane-header h2 {
+      margin: 0.15rem 0 0;
+      font-size: 1.15rem;
+      line-height: 1.15;
+      color: var(--color-text);
+      overflow-wrap: anywhere;
+    }
+    .service-lane-eyebrow {
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+    }
+    .service-lane-count {
+      min-width: 2.5rem;
+      min-height: 2.5rem;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.25rem 0.8rem;
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: var(--color-text);
+      background: color-mix(in srgb, var(--color-primary) 10%, white);
+      border: 1px solid color-mix(in srgb, var(--color-primary) 16%, var(--color-border));
+      flex-shrink: 0;
+    }
+    .service-lane-list {
+      display: grid;
+      gap: var(--space-3);
+      align-content: start;
+      max-height: calc(100vh - 19rem);
+      overflow: auto;
+      padding-right: 0.3rem;
+      padding-bottom: 0.1rem;
+      min-height: 0;
+      scrollbar-gutter: stable;
+    }
+    .service-lane-list::-webkit-scrollbar {
+      width: 8px;
+    }
+    .service-lane-list::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--color-primary) 18%, var(--color-border));
+      border-radius: 999px;
+    }
+    .service-lane-empty {
+      border: 1px dashed var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+      background: var(--color-bg);
+      text-align: center;
+    }
+    .service-lane-empty p {
+      margin: 0;
+      color: var(--color-text-muted);
+      font-size: 0.95rem;
     }
     .order-card {
       background: var(--color-surface);
       border: 2px solid var(--color-border);
       border-left: 6px solid var(--color-warning);
       border-radius: var(--radius-lg);
-      overflow: visible;
+      overflow: hidden;
       box-shadow: var(--shadow-md);
       min-width: 0;
+      display: flex;
+      flex-direction: column;
+      isolation: isolate;
+      contain: layout paint;
+      min-height: 0;
     }
     .order-card.status-preparing { border-left-color: #3B82F6; }
     .order-card.status-ready { border-left-color: var(--color-success); }
@@ -468,74 +716,112 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
     .order-card.timer-orange { border-left-color: #f97316; }
     .order-card.timer-red { border-left-color: #ef4444; }
     .order-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: var(--space-3);
-      padding: var(--space-4) var(--space-5);
-      border-bottom: 2px solid var(--color-border);
-      background: var(--color-bg);
-    }
-    .order-meta {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-1);
-      flex: 1;
+      display: grid;
+      gap: var(--space-2);
+      padding: 0.95rem 1rem 0.9rem;
+      border-bottom: 1px solid var(--color-border);
+      background: color-mix(in srgb, var(--color-bg) 82%, white);
       min-width: 0;
     }
+    .order-meta {
+      display: grid;
+      gap: 0.35rem;
+      min-width: 0;
+    }
+    .order-meta-top,
+    .order-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.55rem 0.75rem;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+    .order-meta-top > :first-child,
+    .order-meta-row > :first-child {
+      min-width: 0;
+    }
+    .order-meta-row--muted {
+      align-items: center;
+      gap: 0.35rem 0.65rem;
+    }
     .order-id {
-      font-size: 1.5rem;
+      font-size: 1.18rem;
       font-weight: 700;
       color: var(--color-text);
       overflow-wrap: anywhere;
+      line-height: 1.1;
     }
     .order-table {
-      font-size: 1.25rem;
-      font-weight: 600;
+      font-size: 0.95rem;
+      font-weight: 700;
       color: var(--color-primary);
       overflow-wrap: anywhere;
+    }
+    .order-customer {
+      font-size: 0.76rem;
+      color: var(--color-text-muted);
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--color-primary) 8%, white);
+      border: 1px solid color-mix(in srgb, var(--color-primary) 14%, var(--color-border));
+      max-width: 100%;
+    }
+    .order-time,
+    .order-waiting {
+      font-size: 0.8rem;
+      color: var(--color-text-muted);
+    }
+    .order-waiting {
+      font-weight: 700;
+      color: var(--color-text);
     }
     .order-customer,
     .order-time,
     .order-waiting {
       overflow-wrap: anywhere;
     }
-    .order-customer { font-size: 1rem; color: var(--color-text-muted); }
-    .order-time { font-size: 1rem; color: var(--color-text-muted); }
-    .order-waiting { font-size: 1.125rem; font-weight: 700; color: var(--color-text); }
     .status-badge {
-      padding: var(--space-2) var(--space-4);
+      padding: 0.34rem 0.72rem;
       border-radius: 20px;
-      font-size: 0.9375rem;
+      font-size: 0.74rem;
       font-weight: 700;
       flex-shrink: 0;
       text-align: center;
-      white-space: nowrap;
+      white-space: normal;
+      line-height: 1.1;
+      max-width: 100%;
+      overflow-wrap: anywhere;
     }
-    .status-badge.pending { background: rgba(245, 158, 11, 0.2); color: var(--color-warning); }
-    .status-badge.preparing { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
-    .status-badge.ready { background: var(--color-success-light); color: var(--color-success); }
-    .status-badge.partially_delivered { background: var(--color-success-light); color: var(--color-success); }
+    .status-badge.status-pending { background: rgba(245, 158, 11, 0.2); color: var(--color-warning); }
+    .status-badge.status-preparing { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
+    .status-badge.status-ready { background: var(--color-success-light); color: var(--color-success); }
+    .status-badge.status-partially_delivered { background: var(--color-success-light); color: var(--color-success); }
     .order-items {
       list-style: none;
       margin: 0;
-      padding: var(--space-4) var(--space-5);
+      padding: 0.3rem 1rem 0.9rem;
+      display: grid;
+      gap: 0.15rem;
+      min-width: 0;
     }
     .order-item {
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto auto;
+      grid-template-columns: 2.8rem minmax(0, 1fr) minmax(6.25rem, auto);
       align-items: start;
-      gap: var(--space-3);
-      padding: var(--space-3) 0;
-      font-size: 1.125rem;
-      line-height: 1.4;
+      gap: 0.45rem 0.75rem;
+      padding: 0.7rem 0;
+      font-size: 0.95rem;
+      line-height: 1.25;
       border-bottom: 1px solid var(--color-border);
     }
     .order-item:last-child { border-bottom: none; }
     .item-qty {
       font-weight: 700;
       color: var(--color-primary);
-      font-size: 1.25rem;
+      font-size: 0.88rem;
+      padding-top: 0.18rem;
+      min-width: 2.4rem;
     }
     .item-name {
       font-weight: 600;
@@ -544,23 +830,30 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
       overflow-wrap: anywhere;
     }
     .item-notes {
-      grid-column: 2 / 4;
-      font-size: 0.9375rem;
+      grid-column: 2 / 3;
+      font-size: 0.76rem;
       color: var(--color-text-muted);
       font-style: italic;
       overflow-wrap: anywhere;
     }
     .item-customization {
-      grid-column: 2 / 4;
-      font-size: 0.8125rem;
+      grid-column: 2 / 3;
+      font-size: 0.74rem;
       color: var(--color-text-muted);
       overflow-wrap: anywhere;
     }
     .item-status {
-      font-size: 0.8125rem;
+      font-size: 0.72rem;
       font-weight: 600;
-      padding: 2px 8px;
-      border-radius: 10px;
+      padding: 0.35rem 0.55rem;
+      border-radius: 12px;
+      justify-self: end;
+      align-self: center;
+      white-space: normal;
+      max-width: 8.5rem;
+      text-align: center;
+      line-height: 1.1;
+      overflow-wrap: anywhere;
     }
     .item-status.status-pending { background: rgba(245, 158, 11, 0.15); color: var(--color-warning); }
     .item-status.status-preparing { background: rgba(59, 130, 246, 0.15); color: #3B82F6; }
@@ -571,6 +864,9 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
       display: inline-flex;
       z-index: 10;
       justify-self: end;
+      align-self: center;
+      width: min(100%, 8.5rem);
+      max-width: 8.5rem;
     }
     .order-item:hover .item-status-control {
       z-index: 50;
@@ -578,16 +874,26 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
     .item-status-badge.clickable {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: var(--space-2);
-      min-height: 44px;
-      padding: var(--space-2) var(--space-3);
-      font-size: 0.875rem;
+      min-height: 32px;
+      padding: 0.34rem 0.62rem;
+      font-size: 0.72rem;
       font-weight: 600;
       border-radius: 14px;
       border: 1px solid var(--color-border);
       cursor: pointer;
       background: inherit;
       transition: all 0.15s;
+      width: 100%;
+      max-width: 100%;
+      text-align: center;
+      line-height: 1.1;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    .item-status-badge.clickable svg {
+      flex-shrink: 0;
     }
     .item-status-badge.clickable:hover {
       filter: brightness(0.95);
@@ -607,7 +913,8 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
       border-radius: var(--radius-md);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       z-index: 100;
-      min-width: 160px;
+      min-width: 180px;
+      max-width: min(220px, 80vw);
       overflow: hidden;
     }
     .dropdown-section {
@@ -654,9 +961,9 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
       flex-shrink: 0;
     }
     .order-notes {
-      padding: var(--space-3) var(--space-5);
+      padding: 0.7rem 1rem 0.9rem;
       background: rgba(245, 158, 11, 0.08);
-      font-size: 1rem;
+      font-size: 0.82rem;
       color: var(--color-text);
       border-top: 1px solid var(--color-border);
       overflow-wrap: anywhere;
@@ -723,12 +1030,31 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
       color: var(--color-text);
       border: 1px solid var(--color-border);
     }
+    @media (max-width: 1360px) {
+      .lane-summary-strip {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 1120px) {
+      .lane-summary-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .lane-board {
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      }
+      .service-lane-list {
+        max-height: none;
+      }
+    }
     @media (max-width: 900px) {
+      .lane-summary-strip,
+      .lane-board,
       .order-grid {
         grid-template-columns: 1fr;
       }
-      .order-header {
-        flex-direction: column;
+      .order-meta-top,
+      .order-meta-row {
+        align-items: flex-start;
       }
       .status-badge {
         align-self: flex-start;
@@ -740,8 +1066,21 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
         padding-left: var(--space-4);
         padding-right: var(--space-4);
       }
+      .header-actions {
+        justify-content: flex-start;
+      }
       .order-item {
         grid-template-columns: auto minmax(0, 1fr);
+      }
+      .order-header {
+        padding: 0.9rem 0.9rem 0.85rem;
+      }
+      .order-meta-top {
+        align-items: flex-start;
+      }
+      .order-meta-row--muted {
+        flex-direction: column;
+        align-items: flex-start;
       }
       .item-status-control,
       .item-status {
@@ -751,6 +1090,21 @@ function inferKitchenRouteFromItem(item: Pick<OrderItem, 'category' | 'kitchen_s
       .item-customization,
       .item-notes {
         grid-column: 2;
+      }
+      .station-filter {
+        width: 100%;
+        align-items: stretch;
+        flex-direction: column;
+      }
+      .station-filter-select {
+        width: 100%;
+      }
+      .service-lane,
+      .lane-summary-card {
+        padding: var(--space-3);
+      }
+      .service-lane-list {
+        padding-right: 0;
       }
     }
   `],
@@ -819,44 +1173,132 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
   });
 
+  private getKitchenVisibleItems(
+    order: Order,
+    options?: { routeKey?: 'kitchen' | 'bar'; selectedStation?: number | 'all'; enforceStationSelection?: boolean }
+  ): OrderItem[] {
+    const routeKey = options?.routeKey;
+    const selectedStation = options?.selectedStation ?? 'all';
+    const enforceStationSelection = options?.enforceStationSelection ?? false;
+
+    return (order.items ?? []).filter((item) => {
+      if (item.removed_by_customer) return false;
+      const itemStatus = normalizeItemWorkflowStatus(item.status);
+      if (!(itemStatus === 'pending' || itemStatus === 'preparing' || itemStatus === 'ready')) {
+        return false;
+      }
+
+      if (routeKey) {
+        const inferredRoute = inferKitchenRouteFromItem(item);
+        if (inferredRoute !== routeKey) {
+          return false;
+        }
+      }
+
+      if (enforceStationSelection && selectedStation !== 'all') {
+        return item.kitchen_station_id === selectedStation;
+      }
+
+      return true;
+    });
+  }
+
+  private hasStationSelectionForCurrentView(selection: number | 'all'): boolean {
+    if (selection === 'all') {
+      return false;
+    }
+    return this.stationsForCurrentView().some((station) => station.id === selection);
+  }
+
   /** Orders that are active (including paid but not yet delivered); category or station filter. */
   activeOrders = computed(() => {
     const view = this.viewMode();
     const routeKey = view === 'bar' ? 'bar' : 'kitchen';
     const useStations = this.stationsForCurrentView().length > 0;
     const sel = this.stationSelection();
-
-    const itemVisible = (i: OrderItem): boolean => {
-      if (i.removed_by_customer) return false;
-      if (!(i.status === 'pending' || i.status === 'preparing' || i.status === 'ready')) return false;
-      const inferredRoute = inferKitchenRouteFromItem(i);
-
-      if (!useStations) {
-        return inferredRoute === routeKey;
-      }
-      if (inferredRoute !== routeKey) return false;
-      if (sel === 'all') return true;
-      return i.kitchen_station_id === sel;
-    };
+    const enforceStationSelection = useStations && this.hasStationSelectionForCurrentView(sel);
 
     const list = this.orders().filter((o) => {
-      if (!['pending', 'preparing', 'ready', 'partially_delivered', 'paid'].includes(o.status)) return false;
-      const items = (o.items ?? []).filter(itemVisible);
+      const items = this.getKitchenVisibleItems(o, {
+        routeKey,
+        selectedStation: sel,
+        enforceStationSelection,
+      });
       return items.length > 0;
     });
     const mapped = list.map((o) => ({
       ...o,
       staff_urgent: !!o.staff_urgent,
-      items: (o.items ?? []).filter(itemVisible),
+      items: this.getKitchenVisibleItems(o, {
+        routeKey,
+        selectedStation: sel,
+        enforceStationSelection,
+      }),
     }));
     return mapped.sort((a, b) => {
       if (!!a.staff_urgent !== !!b.staff_urgent) {
         return a.staff_urgent ? -1 : 1;
       }
+      const aRank = getWorkflowSortWeight(this.getOrderDisplayStatus(a));
+      const bRank = getWorkflowSortWeight(this.getOrderDisplayStatus(b));
+      if (aRank !== bRank) {
+        return aRank - bRank;
+      }
       const ta = new Date(a.created_at).getTime();
       const tb = new Date(b.created_at).getTime();
       return ta - tb;
     });
+  });
+
+  private fallbackKitchenOrders = computed(() => {
+    const list = this.orders().filter((order) => {
+      const items = this.getKitchenVisibleItems(order);
+      return items.length > 0;
+    });
+
+    return list
+      .map((order) => ({
+        ...order,
+        staff_urgent: !!order.staff_urgent,
+        items: this.getKitchenVisibleItems(order),
+      }))
+      .sort((a, b) => {
+        if (!!a.staff_urgent !== !!b.staff_urgent) {
+          return a.staff_urgent ? -1 : 1;
+        }
+        const aRank = getWorkflowSortWeight(this.getOrderDisplayStatus(a));
+        const bRank = getWorkflowSortWeight(this.getOrderDisplayStatus(b));
+        if (aRank !== bRank) {
+          return aRank - bRank;
+        }
+        const ta = new Date(a.created_at).getTime();
+        const tb = new Date(b.created_at).getTime();
+        return ta - tb;
+      });
+  });
+
+  routeFallbackActive = computed(
+    () => this.viewMode() === 'kitchen' && this.activeOrders().length === 0 && this.fallbackKitchenOrders().length > 0
+  );
+
+  visibleOrders = computed(() => (this.routeFallbackActive() ? this.fallbackKitchenOrders() : this.activeOrders()));
+
+  kitchenLanes = computed(() => {
+    const buckets: Record<KitchenLaneKey, Order[]> = {
+      pending: [],
+      preparing: [],
+      ready: [],
+    };
+
+    for (const order of this.visibleOrders()) {
+      buckets[this.getOrderLane(order)].push(order);
+    }
+
+    return [
+      { key: 'pending' as const, title: 'New tickets', eyebrow: 'Send to prep', orders: buckets.pending },
+      { key: 'preparing' as const, title: 'In prep', eyebrow: 'Working now', orders: buckets.preparing },
+      { key: 'ready' as const, title: 'Ready pass', eyebrow: 'Hand off', orders: buckets.ready },
+    ];
   });
 
   lastRefreshRelative = computed(() => {
@@ -1149,8 +1591,21 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     return this.translate.instant('ORDER_STATUS.' + status) || status;
   }
 
+  getOrderDisplayStatus(order: Order): 'pending' | 'preparing' | 'ready' {
+    const firstVisibleItem = this.getSortedItems(order.items ?? [])[0];
+    const workflowStatus = normalizeItemWorkflowStatus(firstVisibleItem?.status ?? order.status);
+    if (workflowStatus === 'ready') return 'ready';
+    if (workflowStatus === 'preparing') return 'preparing';
+    return 'pending';
+  }
+
+  normalizeItemStatus(status: string | null | undefined): 'pending' | 'preparing' | 'ready' | 'delivered' | 'cancelled' {
+    return normalizeItemWorkflowStatus(status);
+  }
+
   getItemStatusLabel(status: string): string {
-    return this.translate.instant('ITEM_STATUS.' + status) || status;
+    const normalized = normalizeItemWorkflowStatus(status);
+    return this.translate.instant('ITEM_STATUS.' + normalized) || normalized;
   }
 
   hasCustomization(item: OrderItem): boolean {
@@ -1173,9 +1628,9 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     if (m.remove?.length) parts.push(`Remove: ${m.remove.join(', ')}`);
     if (m.add?.length) parts.push(`Add: ${m.add.join(', ')}`);
     if (m.substitute?.length) {
-      parts.push(`Sub: ${m.substitute.map(s => `${s.from}→${s.to}`).join(', ')}`);
+      parts.push(`Sub: ${m.substitute.map((s) => `${s.from} -> ${s.to}`).join(', ')}`);
     }
-    return parts.join(' · ');
+    return parts.join(' | ');
   }
 
   formatCustomizationItem(item: OrderItem): string {
@@ -1191,12 +1646,12 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
           if (Array.isArray(v)) parts.push(v.join(', '));
           else parts.push(String(v));
         }
-        c = parts.join(' · ');
+        c = parts.join(' | ');
       }
     }
     const snapM = item.line_modifiers_summary?.trim();
     const m = snapM || this.formatLineModifiersFromJson(item.line_modifiers ?? undefined);
-    if (c && m) return `${c} · ${m}`;
+    if (c && m) return `${c} | ${m}`;
     return c || m || '';
   }
 
@@ -1210,23 +1665,34 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       cancelled: 4,
     };
     const notYetDelivered = [...items].filter(
-      (i) => !i.removed_by_customer && (i.status === 'pending' || i.status === 'preparing' || i.status === 'ready')
+      (i) => {
+        if (i.removed_by_customer) return false;
+        const itemStatus = normalizeItemWorkflowStatus(i.status);
+        return itemStatus === 'pending' || itemStatus === 'preparing' || itemStatus === 'ready';
+      }
     );
     return notYetDelivered.sort((a, b) => {
-      const aOrder = order[a.status || 'pending'] ?? 5;
-      const bOrder = order[b.status || 'pending'] ?? 5;
+      const aOrder = order[normalizeItemWorkflowStatus(a.status)] ?? 5;
+      const bOrder = order[normalizeItemWorkflowStatus(b.status)] ?? 5;
       return aOrder - bOrder;
     });
   }
 
+  private getOrderLane(order: Order): KitchenLaneKey {
+    const workflowStatus = this.getOrderDisplayStatus(order);
+    if (workflowStatus === 'ready') return 'ready';
+    if (workflowStatus === 'preparing') return 'preparing';
+    return 'pending';
+  }
+
   formatOrderTime(dateString: string): string {
-    if (!dateString) return '—';
+    if (!dateString) return '-';
     const dateStr =
       dateString.endsWith('Z') || dateString.includes('+') || dateString.includes('-', 10)
         ? dateString
         : dateString + 'Z';
     const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return '—';
+    if (isNaN(date.getTime())) return '-';
     const diffMs = Date.now() - date.getTime();
     if (diffMs < 60_000) return '< 1m ago';
     if (diffMs < 3600_000) return `${Math.floor(diffMs / 60_000)}m ago`;
@@ -1252,7 +1718,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       delivered: { forward: [], backward: ['ready'] },
       cancelled: { forward: [], backward: [] },
     };
-    const key = (currentStatus ?? '').toString().toLowerCase();
+    const key = normalizeItemWorkflowStatus(currentStatus);
     return transitions[key] ?? { forward: [], backward: [] };
   }
 

@@ -198,6 +198,103 @@ describe('KitchenDisplayComponent', () => {
     expect(fixture.componentInstance.activeOrders()[0].items[0].product_name).toBe('Lemon Tea');
   });
 
+  it('should keep kitchen tickets visible when the order is paid or completed but line items are still active', () => {
+    const orders = [
+      {
+        id: 24,
+        status: 'completed',
+        table_name: 'Table 1',
+        created_at: new Date().toISOString(),
+        items: [
+          {
+            id: 201,
+            product_name: 'Chawanmushi',
+            quantity: 1,
+            status: 'pending',
+            price_cents: 390,
+            category: 'Sides',
+          },
+        ],
+        total_cents: 390,
+        paid_at: new Date().toISOString(),
+      },
+    ];
+    mockApi.getOrders.and.returnValue(of(orders));
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activeOrders().length).toBe(1);
+    expect(fixture.componentInstance.activeOrders()[0].id).toBe(24);
+    expect(fixture.componentInstance.getOrderDisplayStatus(fixture.componentInstance.activeOrders()[0])).toBe('pending');
+  });
+
+  it('should treat custom non-bar station routes as kitchen tickets', () => {
+    const orders = [
+      {
+        id: 31,
+        status: 'pending',
+        table_name: 'Table 4',
+        created_at: new Date().toISOString(),
+        items: [
+          {
+            id: 401,
+            product_name: 'Mystery Bowl',
+            quantity: 1,
+            status: 'preparing',
+            price_cents: 990,
+            category: null,
+            kitchen_station_route: 'prep-only',
+            kitchen_station_name: 'Hot pass',
+          },
+        ],
+        total_cents: 990,
+      },
+    ];
+    mockApi.getOrders.and.returnValue(of(orders));
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activeOrders().length).toBe(1);
+    expect(fixture.componentInstance.routeFallbackActive()).toBeFalse();
+    expect(fixture.componentInstance.visibleOrders().length).toBe(1);
+    expect(fixture.componentInstance.visibleOrders()[0].id).toBe(31);
+  });
+
+  it('should treat custom drink-like station routes as bar tickets', () => {
+    const orders = [
+      {
+        id: 32,
+        status: 'pending',
+        table_name: 'Table 7',
+        created_at: new Date().toISOString(),
+        items: [
+          {
+            id: 402,
+            product_name: 'Iced Matcha',
+            quantity: 1,
+            status: 'pending',
+            price_cents: 650,
+            category: null,
+            kitchen_station_route: 'drinks-pass',
+            kitchen_station_name: 'Cold drinks',
+          },
+        ],
+        total_cents: 650,
+      },
+    ];
+    mockApi.getOrders.and.returnValue(of(orders));
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activeOrders().length).toBe(0);
+
+    fixture.componentInstance.viewMode.set('bar');
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activeOrders().length).toBe(1);
+    expect(fixture.componentInstance.activeOrders()[0].id).toBe(32);
+  });
+
   it('should toggle sound and persist to localStorage', () => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();

@@ -357,18 +357,6 @@ interface OrderTableGroup {
                                   </button>
                                 </div>
                               }
-                              @if (order.status !== 'paid' && order.status !== 'cancelled' && canFinishOrder()) {
-                                <div class="dropdown-section">
-                                  <button
-                                    class="dropdown-item forward"
-                                    (click)="openFinishPaymentModal(order); statusDropdownOpen.set(null)">
-                                    {{ 'ORDERS.FINISH_ORDER_MENU' | translate }}
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                      <polyline points="9,18 15,12 9,6"/>
-                                    </svg>
-                                  </button>
-                                </div>
-                              }
                               @if (order.status === 'paid' && canMarkPaid()) {
                                 <div class="dropdown-section">
                                   <button
@@ -648,18 +636,6 @@ interface OrderTableGroup {
                                     </button>
                                   </div>
                                 }
-                                @if (order.status !== 'paid' && order.status !== 'cancelled' && canFinishOrder()) {
-                                  <div class="dropdown-section">
-                                    <button
-                                      class="dropdown-item forward"
-                                      (click)="openFinishPaymentModal(order); statusDropdownOpen.set(null)">
-                                      {{ 'ORDERS.FINISH_ORDER_MENU' | translate }}
-                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <polyline points="9,18 15,12 9,6"/>
-                                      </svg>
-                                    </button>
-                                  </div>
-                                }
                                 @if (order.status === 'paid' && canMarkPaid()) {
                                   <div class="dropdown-section">
                                     <button
@@ -833,9 +809,6 @@ interface OrderTableGroup {
                 @if (order.status !== 'paid' && order.status !== 'cancelled' && canMarkPaid()) {
                   <button type="button" class="btn btn-primary" (click)="markEditOrderAsPaid(order)">{{ 'ORDERS.MARK_AS_PAID' | translate }}</button>
                 }
-                @if (order.status !== 'paid' && order.status !== 'cancelled' && canFinishOrder()) {
-                  <button type="button" class="btn btn-success" (click)="markEditOrderFinish(order)">{{ 'ORDERS.FINISH_ORDER' | translate }}</button>
-                }
               </div>
             </div>
           </div>
@@ -889,7 +862,7 @@ interface OrderTableGroup {
           <div class="modal-overlay">
             <div class="modal" (click)="$event.stopPropagation()" appFocusFirstInput>
               <div class="modal-header">
-                <h3>{{ paymentModalFinishMode() ? ('ORDERS.FINISH_ORDER_TITLE' | translate) : ('ORDERS.MARK_ORDER_AS_PAID' | translate) }}</h3>
+                <h3>{{ 'ORDERS.MARK_ORDER_AS_PAID' | translate }}</h3>
                 <button class="icon-btn" (click)="closePaymentModal()">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M18 6L6 18M6 6l12 12"/>
@@ -951,11 +924,7 @@ interface OrderTableGroup {
                     }
                   </div>
                 }
-                @if (paymentModalFinishMode()) {
-                  <p class="modal-hint">{{ 'ORDERS.FINISH_ORDER_HELP' | translate }}</p>
-                } @else {
-                  <p class="modal-hint">{{ 'ORDERS.PAY_NOW_HELP' | translate }}</p>
-                }
+                <p class="modal-hint">{{ 'ORDERS.PAY_NOW_HELP' | translate }}</p>
                 <div class="form-group">
                   <label for="payment-method">{{ 'ORDERS.PAYMENT_METHOD' | translate }}</label>
                   <select id="payment-method" [(ngModel)]="paymentMethod" class="form-select">
@@ -970,8 +939,6 @@ interface OrderTableGroup {
                 <button class="btn btn-primary" (click)="confirmMarkAsPaid()" [disabled]="processingPayment()">
                   @if (processingPayment()) {
                     {{ 'ORDERS.PROCESSING' | translate }}
-                  } @else if (paymentModalFinishMode()) {
-                    {{ 'ORDERS.FINISH_ORDER_CONFIRM' | translate }}
                   } @else {
                     {{ 'ORDERS.MARK_AS_PAID' | translate }}
                   }
@@ -2166,11 +2133,6 @@ export class OrdersComponent implements OnInit, OnDestroy {
   canUpdateStatus = computed(() => this.permissions.hasPermission(this.api.getCurrentUser(), 'order:update_status'));
   canUpdateItemStatus = computed(() => this.permissions.hasPermission(this.api.getCurrentUser(), 'order:item_status'));
   canMarkPaid = computed(() => this.permissions.hasPermission(this.api.getCurrentUser(), 'order:mark_paid'));
-  /** Finish (deliver all + pay) needs both status updates and mark-paid (same as backend). */
-  canFinishOrder = computed(() =>
-    this.permissions.hasPermission(this.api.getCurrentUser(), 'order:update_status') &&
-    this.permissions.hasPermission(this.api.getCurrentUser(), 'order:mark_paid')
-  );
   canCancelOrder = computed(() => this.permissions.hasPermission(this.api.getCurrentUser(), 'order:cancel'));
   canRemoveItem = computed(() => this.permissions.hasPermission(this.api.getCurrentUser(), 'order:remove_item'));
   canDeleteOrder = computed(() => this.permissions.hasPermission(this.api.getCurrentUser(), 'order:delete'));
@@ -2203,8 +2165,6 @@ export class OrdersComponent implements OnInit, OnDestroy {
   showRemovedItems = false;
   viewMode = signal<'active' | 'not_paid' | 'history'>('active');
   orderToMarkPaid = signal<Order | null>(null);
-  /** When true, payment modal confirms finish (deliver all + pay) instead of pay-only. */
-  paymentModalFinishMode = signal(false);
   paymentMethod = 'cash';
   /** Selected POS tip preset percent; 0 = no tip */
   paymentTipPercent = 0;
@@ -2887,17 +2847,6 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
   markEditOrderAsPaid(order: Order) {
     this.closeOrderEdit();
-    this.paymentModalFinishMode.set(false);
-    this.orderToMarkPaid.set(order);
-    this.paymentMethod = 'cash';
-    this.paymentTipPercent = 0;
-    this.paymentAmountPaidInput = '';
-    this.paymentTipAmountInput = '';
-  }
-
-  markEditOrderFinish(order: Order) {
-    this.closeOrderEdit();
-    this.paymentModalFinishMode.set(true);
     this.orderToMarkPaid.set(order);
     this.paymentMethod = 'cash';
     this.paymentTipPercent = 0;
@@ -3854,7 +3803,6 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
   markAsPaid(order: Order) {
     this.statusDropdownOpen.set(null); // Close dropdown
-    this.paymentModalFinishMode.set(false);
     this.orderToMarkPaid.set(order);
     this.paymentMethod = 'cash'; // Reset to default
     this.paymentTipPercent = 0;
@@ -3862,19 +3810,8 @@ export class OrdersComponent implements OnInit, OnDestroy {
     this.paymentTipAmountInput = '';
   }
 
-  openFinishPaymentModal(order: Order) {
-    this.statusDropdownOpen.set(null);
-    this.paymentModalFinishMode.set(true);
-    this.orderToMarkPaid.set(order);
-    this.paymentMethod = 'cash';
-    this.paymentTipPercent = 0;
-    this.paymentAmountPaidInput = '';
-    this.paymentTipAmountInput = '';
-  }
-
   closePaymentModal() {
     this.orderToMarkPaid.set(null);
-    this.paymentModalFinishMode.set(false);
     this.processingPayment.set(false);
     this.paymentTipPercent = 0;
     this.paymentAmountPaidInput = '';
@@ -3981,9 +3918,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
         tipAmountCents: tip,
         amountPaidCents: paid > 0 ? paid : undefined,
       };
-      const req = this.paymentModalFinishMode()
-        ? this.api.finishOrder(order.id, this.paymentMethod, opts)
-        : this.api.markOrderPaid(order.id, this.paymentMethod, opts);
+      const req = this.api.markOrderPaid(order.id, this.paymentMethod, opts);
       req.subscribe({
         next: () => {
           this.processingPayment.set(false);
@@ -3992,12 +3927,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.processingPayment.set(false);
-          this.showToast(
-            this.translate.instant(
-              this.paymentModalFinishMode() ? 'ORDERS.FAILED_TO_FINISH' : 'ORDERS.FAILED_TO_MARK_PAID'
-            ),
-            'error'
-          );
+          this.showToast(this.translate.instant('ORDERS.FAILED_TO_MARK_PAID'), 'error');
         }
       });
       return;
@@ -4009,9 +3939,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
         ? this.paymentTipPercent
         : null;
     const presetOpts = { tipEntryMode: 'preset' as const, tipPercent: tip };
-    const req = this.paymentModalFinishMode()
-      ? this.api.finishOrder(order.id, this.paymentMethod, presetOpts)
-      : this.api.markOrderPaid(order.id, this.paymentMethod, presetOpts);
+    const req = this.api.markOrderPaid(order.id, this.paymentMethod, presetOpts);
     req.subscribe({
       next: () => {
         this.processingPayment.set(false);
@@ -4020,12 +3948,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.processingPayment.set(false);
-        this.showToast(
-          this.translate.instant(
-            this.paymentModalFinishMode() ? 'ORDERS.FAILED_TO_FINISH' : 'ORDERS.FAILED_TO_MARK_PAID'
-          ),
-          'error'
-        );
+        this.showToast(this.translate.instant('ORDERS.FAILED_TO_MARK_PAID'), 'error');
       }
     });
   }

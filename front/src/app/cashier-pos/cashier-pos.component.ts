@@ -16,7 +16,7 @@ import {
 import { SidebarComponent } from '../shared/sidebar.component';
 import { StaffPosToolbarComponent } from '../shared/staff-pos-toolbar.component';
 
-type PosCheckoutMode = 'hold' | 'cash' | 'card_terminal' | 'hitpay';
+type PosCheckoutMode = 'cash' | 'card_terminal' | 'hitpay';
 type PosSettlementMode = 'cash' | 'card_terminal' | 'hitpay';
 type PosProductSource = 'tenant_product' | 'product';
 
@@ -3475,6 +3475,19 @@ export class CashierPosComponent {
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
   readonly queuePreviewLimit = 4;
+  readonly formatPrice = (cents: number): string => {
+    const settings = this.settings();
+    const currencyCode = settings?.currency_code || null;
+    if (currencyCode) {
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: currencyCode,
+        currencyDisplay: 'symbol',
+      }).format(cents / 100);
+    }
+    const currency = settings?.currency || '$';
+    return `${currency}${(cents / 100).toFixed(2)}`;
+  };
 
   loading = signal(true);
   error = signal<string | null>(null);
@@ -3891,9 +3904,8 @@ export class CashierPosComponent {
         return `Terminal settled - ${this.formatPrice(outcome.amountCents)}`;
       case 'hitpay':
         return `HitPay confirmed - ${this.formatPrice(outcome.amountCents)}`;
-      case 'hold':
       default:
-        return `Bill held - ${this.formatPrice(outcome.amountCents)}`;
+        return `Checkout completed - ${this.formatPrice(outcome.amountCents)}`;
     }
   }
 
@@ -3901,10 +3913,6 @@ export class CashierPosComponent {
     const outcome = this.lastCheckoutOutcome();
     if (!outcome) {
       return '';
-    }
-
-    if (outcome.mode === 'hold') {
-      return `${outcome.tableName} - bill #${outcome.orderId} is back in the queue.`;
     }
 
     return `${outcome.tableName} - bill #${outcome.orderId} is complete.`;
@@ -4414,10 +4422,6 @@ export class CashierPosComponent {
     return this.payableLiveBillOrder() ? 'Live bill' : 'Current ticket';
   }
 
-  showHoldBillAction(): boolean {
-    return this.cartItemCount() > 0 && !this.hasPayableLiveBill();
-  }
-
   confirmProductButtonLabel(): string {
     return this.hasPayableLiveBill() ? 'Add to bill' : 'Add to ticket';
   }
@@ -4439,23 +4443,12 @@ export class CashierPosComponent {
     const amount = this.checkoutSummaryTotalCopy();
     const mode = this.primaryCheckoutMode();
     if (mode === 'card_terminal') {
-      return `Checkout terminal · ${amount}`;
+      return `Checkout terminal - ${amount}`;
     }
     if (mode === 'hitpay') {
-      return `Send HitPay · ${amount}`;
+      return `Send HitPay - ${amount}`;
     }
-    if (mode === 'cash') {
-      return `Checkout cash · ${amount}`;
-    }
-    switch (this.primaryCheckoutMode()) {
-      case 'card_terminal':
-        return `Run terminal · ${amount}`;
-      case 'hitpay':
-        return `Send HitPay · ${amount}`;
-      case 'cash':
-      default:
-        return `Collect cash · ${amount}`;
-    }
+    return `Checkout cash - ${amount}`;
   }
 
   checkoutSummaryTableCopy(): string {
@@ -4509,14 +4502,13 @@ export class CashierPosComponent {
 
     switch (outcome.mode) {
       case 'cash':
-        return `Cash collected · ${this.formatPrice(outcome.amountCents)}`;
+        return `Cash collected - ${this.formatPrice(outcome.amountCents)}`;
       case 'card_terminal':
-        return `Terminal settled · ${this.formatPrice(outcome.amountCents)}`;
+        return `Terminal settled - ${this.formatPrice(outcome.amountCents)}`;
       case 'hitpay':
-        return `HitPay confirmed · ${this.formatPrice(outcome.amountCents)}`;
-      case 'hold':
+        return `HitPay confirmed - ${this.formatPrice(outcome.amountCents)}`;
       default:
-        return `Bill held · ${this.formatPrice(outcome.amountCents)}`;
+        return `Checkout completed - ${this.formatPrice(outcome.amountCents)}`;
     }
   }
 
@@ -4526,14 +4518,8 @@ export class CashierPosComponent {
       return '';
     }
 
-    switch (outcome.mode) {
-      case 'hold':
-        return `${outcome.tableName} · bill #${outcome.orderId} is back in the live queue.`;
-      default:
-        return `${outcome.tableName} · bill #${outcome.orderId} is complete. Pick the next table or dismiss this summary.`;
-    }
+    return `${outcome.tableName} - bill #${outcome.orderId} is complete. Pick the next table or dismiss this summary.`;
   }
-
   hitPayStateLabel(): string {
     switch (this.hitPayFlowState()) {
       case 'redirecting':
@@ -5167,21 +5153,9 @@ export class CashierPosComponent {
         }
         window.location.href = payment.checkout_url;
         return;
-      } else {
-        this.lastCheckoutOutcome.set({
-          mode,
-          tableName: table.name,
-          orderId,
-          amountCents: this.checkoutAmountCents(),
-        });
-        this.notice.set(
-          liveBill && hasCartLines
-            ? `Items were added onto ${table.name}'s live bill.`
-            : `Ticket sent to the live order queue for ${table.name}.`,
-        );
       }
 
-      this.selectedOrderId.set(mode === 'hold' ? orderId : null);
+      this.selectedOrderId.set(null);
       this.clearCart();
       if (mode === 'cash' || mode === 'card_terminal') {
         this.queueReadyTableAfterReload(tableId, 'catalog');
@@ -5741,20 +5715,6 @@ export class CashierPosComponent {
     return normalized || 'Awaiting payment';
   }
 
-  formatPrice(cents: number): string {
-    const settings = this.settings();
-    const currencyCode = settings?.currency_code || null;
-    if (currencyCode) {
-      return new Intl.NumberFormat(undefined, {
-        style: 'currency',
-        currency: currencyCode,
-        currencyDisplay: 'symbol',
-      }).format(cents / 100);
-    }
-    const currency = settings?.currency || '$';
-    return `${currency}${(cents / 100).toFixed(2)}`;
-  }
-
   formatDate(value?: string | null): string {
     if (!value) return 'Unknown';
     const date = new Date(value);
@@ -6182,4 +6142,3 @@ export class CashierPosComponent {
     return parts.join(', ');
   }
 }
-

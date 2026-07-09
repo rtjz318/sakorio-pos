@@ -149,6 +149,19 @@ function normalizeItemWorkflowStatus(
   return 'pending';
 }
 
+function normalizeOrderWorkflowStatus(
+  value: Order['status'] | string | null | undefined
+): 'pending' | 'preparing' | 'ready' | 'delivered' | 'cancelled' {
+  const status = (value ?? '').toString().trim().toLowerCase();
+  if (!status) return 'pending';
+  if (status.includes('cancel')) return 'cancelled';
+  if (status.includes('ready')) return 'ready';
+  if (status.includes('prepar') || status.includes('cook') || status === 'open') return 'preparing';
+  if (status.includes('complete') || status.includes('deliver') || status.includes('closed')) return 'delivered';
+  if (status.includes('paid') || status.includes('pending')) return 'pending';
+  return 'pending';
+}
+
 function getWorkflowSortWeight(
   value: OrderItem['status'] | string | null | undefined
 ): number {
@@ -490,6 +503,9 @@ function getWorkflowSortWeight(
       flex: 1;
       padding: var(--space-5) var(--space-6);
       overflow: auto;
+      max-width: 1680px;
+      width: 100%;
+      margin: 0 auto;
     }
     .kitchen-main::-webkit-scrollbar {
       width: 10px;
@@ -511,13 +527,13 @@ function getWorkflowSortWeight(
     .empty-state p { margin: 0; color: var(--color-text-muted); }
     .order-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: var(--space-4);
       align-items: start;
     }
     .lane-summary-strip {
       display: grid;
-      grid-template-columns: repeat(3, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
       gap: var(--space-3);
       margin-bottom: var(--space-4);
       align-items: stretch;
@@ -573,7 +589,7 @@ function getWorkflowSortWeight(
     }
     .lane-board {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
       gap: var(--space-4);
       align-items: start;
       grid-auto-rows: minmax(0, auto);
@@ -581,23 +597,25 @@ function getWorkflowSortWeight(
     .service-lane {
       min-width: 0;
       min-height: 0;
-      padding: var(--space-4);
+      padding: 1rem;
       border-radius: calc(var(--radius-lg) + 2px);
       border: 1px solid var(--color-border);
       background: color-mix(in srgb, var(--color-surface) 96%, white);
       box-shadow: var(--shadow-sm);
       display: grid;
-      gap: var(--space-3);
+      gap: 0.9rem;
       align-self: start;
+      max-height: calc(100vh - 11.5rem);
+      overflow: hidden;
     }
     .service-lane--pending { border-top: 5px solid var(--color-warning); }
     .service-lane--preparing { border-top: 5px solid #3B82F6; }
     .service-lane--ready { border-top: 5px solid var(--color-success); }
     .service-lane-header {
-      display: flex;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
       align-items: flex-start;
-      justify-content: space-between;
-      gap: var(--space-3);
+      gap: 0.75rem;
     }
     .service-lane-header > div {
       min-width: 0;
@@ -634,10 +652,11 @@ function getWorkflowSortWeight(
       flex-shrink: 0;
     }
     .service-lane-list {
-      display: grid;
-      gap: var(--space-3);
-      align-content: start;
-      max-height: calc(100vh - 19rem);
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+      align-items: stretch;
+      max-height: calc(100vh - 16.25rem);
       overflow: auto;
       padding-right: 0.3rem;
       padding-bottom: 0.1rem;
@@ -665,17 +684,18 @@ function getWorkflowSortWeight(
     }
     .order-card {
       background: var(--color-surface);
-      border: 2px solid var(--color-border);
+      border: 1px solid var(--color-border);
       border-left: 6px solid var(--color-warning);
       border-radius: var(--radius-lg);
-      overflow: hidden;
-      box-shadow: var(--shadow-md);
+      overflow: visible;
+      box-shadow: var(--shadow-sm);
       min-width: 0;
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-auto-rows: auto;
+      align-content: start;
       isolation: isolate;
-      contain: layout paint;
-      min-height: 0;
+      min-height: max-content;
+      height: auto;
     }
     .order-card.status-preparing { border-left-color: #3B82F6; }
     .order-card.status-ready { border-left-color: var(--color-success); }
@@ -717,8 +737,8 @@ function getWorkflowSortWeight(
     .order-card.timer-red { border-left-color: #ef4444; }
     .order-header {
       display: grid;
-      gap: var(--space-2);
-      padding: 0.95rem 1rem 0.9rem;
+      gap: 0.45rem;
+      padding: 0.8rem 0.9rem 0.72rem;
       border-bottom: 1px solid var(--color-border);
       background: color-mix(in srgb, var(--color-bg) 82%, white);
       min-width: 0;
@@ -730,23 +750,24 @@ function getWorkflowSortWeight(
     }
     .order-meta-top,
     .order-meta-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.55rem 0.75rem;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 0.45rem 0.75rem;
       min-width: 0;
-      flex-wrap: wrap;
     }
     .order-meta-top > :first-child,
     .order-meta-row > :first-child {
       min-width: 0;
     }
     .order-meta-row--muted {
+      display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 0.35rem 0.65rem;
     }
     .order-id {
-      font-size: 1.18rem;
+      font-size: 1.05rem;
       font-weight: 700;
       color: var(--color-text);
       overflow-wrap: anywhere;
@@ -782,9 +803,9 @@ function getWorkflowSortWeight(
       overflow-wrap: anywhere;
     }
     .status-badge {
-      padding: 0.34rem 0.72rem;
+      padding: 0.3rem 0.62rem;
       border-radius: 20px;
-      font-size: 0.74rem;
+      font-size: 0.7rem;
       font-weight: 700;
       flex-shrink: 0;
       text-align: center;
@@ -800,28 +821,28 @@ function getWorkflowSortWeight(
     .order-items {
       list-style: none;
       margin: 0;
-      padding: 0.3rem 1rem 0.9rem;
+      padding: 0.15rem 0.95rem 0.8rem;
       display: grid;
-      gap: 0.15rem;
+      gap: 0;
       min-width: 0;
     }
     .order-item {
       display: grid;
-      grid-template-columns: 2.8rem minmax(0, 1fr) minmax(6.25rem, auto);
+      grid-template-columns: 2.5rem minmax(0, 1fr) auto;
       align-items: start;
-      gap: 0.45rem 0.75rem;
-      padding: 0.7rem 0;
-      font-size: 0.95rem;
-      line-height: 1.25;
+      gap: 0.35rem 0.65rem;
+      padding: 0.58rem 0;
+      font-size: 0.9rem;
+      line-height: 1.2;
       border-bottom: 1px solid var(--color-border);
     }
     .order-item:last-child { border-bottom: none; }
     .item-qty {
       font-weight: 700;
       color: var(--color-primary);
-      font-size: 0.88rem;
-      padding-top: 0.18rem;
-      min-width: 2.4rem;
+      font-size: 0.82rem;
+      padding-top: 0.12rem;
+      min-width: 2rem;
     }
     .item-name {
       font-weight: 600;
@@ -843,14 +864,14 @@ function getWorkflowSortWeight(
       overflow-wrap: anywhere;
     }
     .item-status {
-      font-size: 0.72rem;
+      font-size: 0.68rem;
       font-weight: 600;
-      padding: 0.35rem 0.55rem;
+      padding: 0.3rem 0.48rem;
       border-radius: 12px;
       justify-self: end;
       align-self: center;
       white-space: normal;
-      max-width: 8.5rem;
+      max-width: 7.4rem;
       text-align: center;
       line-height: 1.1;
       overflow-wrap: anywhere;
@@ -865,8 +886,8 @@ function getWorkflowSortWeight(
       z-index: 10;
       justify-self: end;
       align-self: center;
-      width: min(100%, 8.5rem);
-      max-width: 8.5rem;
+      width: min(100%, 7.4rem);
+      max-width: 7.4rem;
     }
     .order-item:hover .item-status-control {
       z-index: 50;
@@ -876,9 +897,9 @@ function getWorkflowSortWeight(
       align-items: center;
       justify-content: center;
       gap: var(--space-2);
-      min-height: 32px;
-      padding: 0.34rem 0.62rem;
-      font-size: 0.72rem;
+      min-height: 30px;
+      padding: 0.28rem 0.5rem;
+      font-size: 0.68rem;
       font-weight: 600;
       border-radius: 14px;
       border: 1px solid var(--color-border);
@@ -896,8 +917,7 @@ function getWorkflowSortWeight(
       flex-shrink: 0;
     }
     .item-status-badge.clickable:hover {
-      filter: brightness(0.95);
-      transform: scale(1.05);
+      filter: brightness(0.97);
     }
     .item-status-badge.status-pending.clickable { background: rgba(245, 158, 11, 0.15); color: var(--color-warning); }
     .item-status-badge.status-preparing.clickable { background: rgba(59, 130, 246, 0.15); color: #3B82F6; }
@@ -961,7 +981,7 @@ function getWorkflowSortWeight(
       flex-shrink: 0;
     }
     .order-notes {
-      padding: 0.7rem 1rem 0.9rem;
+      padding: 0.65rem 0.95rem 0.8rem;
       background: rgba(245, 158, 11, 0.08);
       font-size: 0.82rem;
       color: var(--color-text);
@@ -1031,16 +1051,16 @@ function getWorkflowSortWeight(
       border: 1px solid var(--color-border);
     }
     @media (max-width: 1360px) {
-      .lane-summary-strip {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+      .lane-board {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
     @media (max-width: 1120px) {
-      .lane-summary-strip {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
       .lane-board {
-        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .service-lane {
+        max-height: none;
       }
       .service-lane-list {
         max-height: none;
@@ -1054,7 +1074,7 @@ function getWorkflowSortWeight(
       }
       .order-meta-top,
       .order-meta-row {
-        align-items: flex-start;
+        grid-template-columns: minmax(0, 1fr);
       }
       .status-badge {
         align-self: flex-start;
@@ -1086,6 +1106,8 @@ function getWorkflowSortWeight(
       .item-status {
         grid-column: 2;
         justify-self: start;
+        width: auto;
+        max-width: 100%;
       }
       .item-customization,
       .item-notes {
@@ -1173,7 +1195,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
   });
 
-  private getKitchenVisibleItems(
+  private getRouteMatchedItems(
     order: Order,
     options?: { routeKey?: 'kitchen' | 'bar'; selectedStation?: number | 'all'; enforceStationSelection?: boolean }
   ): OrderItem[] {
@@ -1183,10 +1205,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
     return (order.items ?? []).filter((item) => {
       if (item.removed_by_customer) return false;
-      const itemStatus = normalizeItemWorkflowStatus(item.status);
-      if (!(itemStatus === 'pending' || itemStatus === 'preparing' || itemStatus === 'ready')) {
-        return false;
-      }
+      if (normalizeItemWorkflowStatus(item.status) === 'cancelled') return false;
 
       if (routeKey) {
         const inferredRoute = inferKitchenRouteFromItem(item);
@@ -1201,6 +1220,44 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
       return true;
     });
+  }
+
+  private getKitchenVisibleItems(
+    order: Order,
+    options?: { routeKey?: 'kitchen' | 'bar'; selectedStation?: number | 'all'; enforceStationSelection?: boolean }
+  ): OrderItem[] {
+    return this.getRouteMatchedItems(order, options).filter((item) => {
+      const itemStatus = normalizeItemWorkflowStatus(item.status);
+      return itemStatus === 'pending' || itemStatus === 'preparing' || itemStatus === 'ready';
+    });
+  }
+
+  private getKitchenRenderableItems(
+    order: Order,
+    options?: { routeKey?: 'kitchen' | 'bar'; selectedStation?: number | 'all'; enforceStationSelection?: boolean }
+  ): OrderItem[] {
+    const activeItems = this.getKitchenVisibleItems(order, options);
+    if (activeItems.length > 0) {
+      return activeItems;
+    }
+
+    const routeMatchedItems = this.getRouteMatchedItems(order, options);
+    if (routeMatchedItems.length === 0) {
+      return [];
+    }
+
+    const orderWorkflow = normalizeOrderWorkflowStatus(order.status);
+    if (!(orderWorkflow === 'pending' || orderWorkflow === 'preparing' || orderWorkflow === 'ready')) {
+      return [];
+    }
+
+    // Production-safe fallback: if the order itself is still active but line-item states
+    // are missing or inconsistent, keep the ticket visible by projecting the order-level
+    // workflow onto the route-matched lines instead of rendering an empty board.
+    return routeMatchedItems.map((item) => ({
+      ...item,
+      status: orderWorkflow,
+    }));
   }
 
   private hasStationSelectionForCurrentView(selection: number | 'all'): boolean {
@@ -1219,7 +1276,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     const enforceStationSelection = useStations && this.hasStationSelectionForCurrentView(sel);
 
     const list = this.orders().filter((o) => {
-      const items = this.getKitchenVisibleItems(o, {
+      const items = this.getKitchenRenderableItems(o, {
         routeKey,
         selectedStation: sel,
         enforceStationSelection,
@@ -1229,7 +1286,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     const mapped = list.map((o) => ({
       ...o,
       staff_urgent: !!o.staff_urgent,
-      items: this.getKitchenVisibleItems(o, {
+      items: this.getKitchenRenderableItems(o, {
         routeKey,
         selectedStation: sel,
         enforceStationSelection,
@@ -1252,7 +1309,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   private fallbackKitchenOrders = computed(() => {
     const list = this.orders().filter((order) => {
-      const items = this.getKitchenVisibleItems(order);
+      const items = this.getKitchenRenderableItems(order);
       return items.length > 0;
     });
 
@@ -1260,7 +1317,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       .map((order) => ({
         ...order,
         staff_urgent: !!order.staff_urgent,
-        items: this.getKitchenVisibleItems(order),
+        items: this.getKitchenRenderableItems(order),
       }))
       .sort((a, b) => {
         if (!!a.staff_urgent !== !!b.staff_urgent) {

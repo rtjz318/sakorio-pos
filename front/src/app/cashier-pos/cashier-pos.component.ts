@@ -157,7 +157,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                   <article class="table-card" [class.table-card--selected]="selectedTableId() === table.id">
                     <button type="button" class="table-card-main" (click)="selectTable(table)">
                       <div class="table-card-top">
-                        <div>
+                        <div class="table-card-copy">
                           <span class="table-name">{{ table.name }}</span>
                           <span class="table-meta">{{ table.seat_count || 0 }} seats</span>
                         </div>
@@ -166,24 +166,12 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                         </span>
                       </div>
                       <div class="table-card-bottom">
-                        <span>{{ getTableSaleSummary(table) }}</span>
-                        <span>{{ getPaymentStateLabel(table) }}</span>
+                        <span class="table-card-summary">{{ getTableSaleSummary(table) }}</span>
+                        <span class="table-card-payment-pill">{{ getPaymentStateLabel(table) }}</span>
                       </div>
                     </button>
 
                     <div class="table-card-actions" [class.table-card-actions--triple]="canClearTable(table)">
-                      <button
-                        type="button"
-                        class="btn btn-secondary btn-sm"
-                        (click)="selectTable(table); openOrdersForTable(table)">
-                        {{ tableOrdersActionLabel(table) }}
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-primary btn-sm"
-                        (click)="focusTableForSale(table)">
-                        {{ tablePrimaryActionLabel(table) }}
-                      </button>
                       @if (canClearTable(table)) {
                         <button
                           type="button"
@@ -193,6 +181,18 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                           {{ pendingTableId() === table.id ? 'Clearing...' : 'Clear paid' }}
                         </button>
                       }
+                      <button
+                        type="button"
+                        class="btn btn-primary btn-sm"
+                        (click)="focusTableForSale(table)">
+                        {{ tablePrimaryActionLabel(table) }}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-sm"
+                        (click)="selectTable(table); openOrdersForTable(table)">
+                        {{ tableOrdersActionLabel(table) }}
+                      </button>
                     </div>
                   </article>
                 }
@@ -455,7 +455,6 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                   </div>
                   <div class="checkout-hero-pills">
                     <span class="muted-pill">{{ getTableStateLabel(checkoutTable) }}</span>
-                    <span class="muted-pill">{{ getPaymentStateLabel(checkoutTable) }}</span>
                     @if (payableLiveBillOrder(); as liveBill) {
                       <span class="muted-pill muted-pill--accent">Bill #{{ liveBill.id }}</span>
                     }
@@ -497,9 +496,6 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                 @if (cartLines().length > 0) {
                   <div class="cart-header-actions">
                     <span class="muted-pill">{{ formatPrice(cartSubtotalCents()) }}</span>
-                    <button type="button" class="btn btn-secondary btn-sm" (click)="scrollToPaymentDock()">
-                      Go to payment
-                    </button>
                     <button type="button" class="btn btn-ghost btn-sm" (click)="clearCart()" [disabled]="processingCheckout()">
                       Clear cart
                     </button>
@@ -524,7 +520,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                     </div>
                     <div class="action-row action-row--secondary action-row--live-bill">
                       <button type="button" class="btn btn-secondary btn-sm" (click)="focusLiveBillForItems()">Add items</button>
-                      <button type="button" class="btn btn-primary btn-sm" (click)="focusLiveBillForSettlement()">Checkout</button>
+                      <button type="button" class="btn btn-primary btn-sm" (click)="focusLiveBillForSettlement()">Collect payment</button>
                     </div>
                     <div class="line-list line-list--readonly line-list--live-bill">
                       @for (item of liveBill.items; track $index) {
@@ -670,9 +666,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                     <p class="checkout-empty-copy">{{ checkoutIntroCopy() }}</p>
                     <div class="action-row action-row--checkout-compact">
                       <button type="button" class="btn btn-primary btn-sm" (click)="advanceToNextReadyTable()">
-                        Next table
+                        Choose table
                       </button>
-                      <a routerLink="/tables/canvas" class="btn btn-ghost btn-sm">Floor map</a>
+                      <a routerLink="/tables/canvas" class="btn btn-ghost btn-sm">Open floor</a>
                     </div>
                   </div>
                 }
@@ -683,13 +679,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                     <strong>{{ checkoutSummaryTotalCopy() }}</strong>
                     <small>{{ settlementSummaryCaption() }}</small>
                     <div class="settlement-summary-pills">
-                      <span class="muted-pill">{{ settlementSummaryBadge() }}</span>
                       <span class="muted-pill muted-pill--accent">{{ checkoutSummaryTableCopy() }}</span>
                       <span class="muted-pill">{{ checkoutSummaryItemsCopy() }}</span>
+                      <span class="muted-pill">{{ primarySettlementModeLabel() }}</span>
                     </div>
-                  </div>
-                  <div class="settlement-summary-mode">
-                    <span class="muted-pill muted-pill--accent">{{ primarySettlementModeLabel() }}</span>
                   </div>
                   <div class="settlement-summary-actions">
                     <button
@@ -762,7 +755,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
               </div>
               <div class="lane-header-actions">
                 @if (effectiveCheckoutTable()) {
-                  <span class="muted-pill">{{ queueHistoryOrders().length }} linked</span>
+                  <span class="muted-pill">{{ queueHistoryOrders().length }} tickets</span>
                   @if (queueHistoryHasOverflow()) {
                     <button
                       type="button"
@@ -772,7 +765,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                     </button>
                   }
                 }
-                <a routerLink="/staff/orders" class="btn btn-ghost btn-sm">All orders</a>
+                <a routerLink="/staff/orders" class="btn btn-ghost btn-sm">Orders</a>
               </div>
             </div>
 
@@ -784,8 +777,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
               @if (effectiveCheckoutTable()) {
                 @if (queueHistoryOrders().length > 0) {
                   <div class="queue-history-summary">
-                    <span class="muted-pill muted-pill--accent">{{ queueHistoryOpenCount() }} open</span>
-                    <span class="muted-pill">{{ queueHistoryPaidCount() }} paid</span>
+                    <span class="muted-pill muted-pill--accent">{{ queueHistoryOpenCount() }} live</span>
+                    <span class="muted-pill">{{ queueHistoryPaidCount() }} settled</span>
                     <span class="muted-pill">{{ queueHistoryLatestLabel() }}</span>
                   </div>
                   <div class="queue-history-grid">
@@ -803,7 +796,6 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                           <strong>{{ formatPrice(order.total_cents || 0) }}</strong>
                         </div>
                         <div class="queue-order-row-meta">
-                          <span class="muted-pill muted-pill--accent">{{ queueOrderContextLabel(order) }}</span>
                           <span class="state-pill" [class]="orderStatusClass(order)">
                             {{ queueGroupStatusLabel(order) }}
                           </span>
@@ -846,28 +838,25 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                           </div>
                           <div class="queue-group-pills">
                             <span class="muted-pill muted-pill--accent">{{ queueGroupPrimaryStateLabel(group) }}</span>
-                            <span class="muted-pill">{{ queueGroupCountLabel(group) }}</span>
+                            <span class="muted-pill">{{ queueGroupStateBreakdownLabel(group) }}</span>
                             <span class="muted-pill">{{ formatPrice(group.totalCents) }}</span>
                             @if (queueGroupLeadOrder(group); as leadOrder) {
-                              <span class="state-pill" [class]="orderStatusClass(leadOrder)">
-                                {{ queueGroupStatusLabel(leadOrder) }}
-                              </span>
-                              <span class="muted-pill muted-pill--accent">Lead #{{ leadOrder.id }}</span>
+                              <span class="muted-pill muted-pill--accent">#{{ leadOrder.id }}</span>
                             }
                           </div>
                         </div>
                         <div class="queue-group-actions">
                           <button
                             type="button"
-                            class="btn btn-secondary btn-sm"
-                            (click)="openOrdersForQueueGroup(group)">
-                            {{ queueGroupOrdersActionLabel(group) }}
-                          </button>
-                          <button
-                            type="button"
                             class="btn btn-primary btn-sm"
                             (click)="focusQueueGroup(group)">
                             {{ queueGroupPrimaryActionLabel(group) }}
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-secondary btn-sm"
+                            (click)="openOrdersForQueueGroup(group)">
+                            {{ queueGroupOrdersActionLabel(group) }}
                           </button>
                         </div>
                         <div class="queue-group-list">
@@ -885,11 +874,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                               <strong>{{ formatPrice(order.total_cents || 0) }}</strong>
                             </div>
                             <div class="queue-order-row-meta">
-                              <span class="muted-pill muted-pill--accent">{{ queueOrderContextLabel(order) }}</span>
                               <span class="state-pill" [class]="orderStatusClass(order)">
                                 {{ queueGroupStatusLabel(order) }}
                               </span>
-                              <span class="muted-pill">{{ paymentLabel(order) }}</span>
                               <span class="muted-pill">{{ queueOrderAgeLabel(order) }}</span>
                             </div>
                             <div class="queue-order-row-footer">
@@ -968,7 +955,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                   <div class="product-question-state">
                     <span class="muted-pill muted-pill--soft">{{ question.required ? 'Required' : 'Optional' }}</span>
                     @if (isQuestionAnswered(question)) {
-                      <span class="muted-pill muted-pill--accent">Selected</span>
+                      <span class="muted-pill muted-pill--accent">Set</span>
                     }
                   </div>
                 </div>
@@ -1173,21 +1160,26 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .cashier-grid {
       display: grid;
-      grid-template-columns: minmax(220px, 0.48fr) minmax(540px, 1.56fr) minmax(390px, 0.96fr);
-      gap: 1rem;
+      grid-template-columns: minmax(286px, 324px) minmax(0, 1.36fr) minmax(356px, 396px);
+      gap: 0.9rem;
       align-items: start;
     }
 
     .lane,
     .queue-panel {
-      padding: 1rem;
+      padding: 0.94rem;
       display: flex;
       flex-direction: column;
-      gap: 0.9rem;
+      gap: 0.85rem;
     }
 
     .lane--tables {
       gap: var(--space-2);
+      min-width: 0;
+      position: sticky;
+      top: 1rem;
+      max-height: calc(100vh - 1.5rem);
+      overflow: hidden;
     }
 
     .lane--catalog {
@@ -1199,8 +1191,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       top: 1rem;
       max-height: calc(100vh - 1.5rem);
       overflow: auto;
-      padding-bottom: 1.2rem;
-      gap: 0.95rem;
+      padding-bottom: 1.1rem;
+      gap: 0.72rem;
     }
 
     .lane-header,
@@ -1242,19 +1234,19 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       border: 1px solid color-mix(in srgb, var(--color-border) 76%, white);
       border-radius: var(--radius-xl);
       background: linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--color-primary-light) 12%, white),
-        color-mix(in srgb, var(--color-bg) 84%, white)
+        180deg,
+        color-mix(in srgb, var(--color-surface) 96%, white),
+        color-mix(in srgb, var(--color-bg) 88%, white)
       );
-      padding: 0.8rem 0.92rem;
+      padding: 0.68rem 0.78rem;
       display: grid;
-      gap: 0.62rem;
+      gap: 0.42rem;
       box-shadow: var(--shadow-sm);
     }
 
     .checkout-hero-main {
       display: grid;
-      gap: 0.55rem;
+      gap: 0.45rem;
       min-width: 0;
     }
 
@@ -1265,13 +1257,14 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .checkout-hero-copy strong {
-      font-size: 1rem;
+      font-size: 0.95rem;
       line-height: 1.15;
     }
 
     .checkout-hero-copy small {
       color: var(--color-text-muted);
-      line-height: 1.3;
+      line-height: 1.22;
+      font-size: 0.82rem;
     }
 
     .checkout-hero-pills {
@@ -1414,9 +1407,11 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .table-stack {
-      max-height: 50vh;
+      max-height: calc(100vh - 13.1rem);
       overflow: auto;
-      padding-right: 0.15rem;
+      padding-right: 0.2rem;
+      align-content: start;
+      gap: 0.7rem;
     }
 
     .table-card,
@@ -1431,6 +1426,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .table-card {
       overflow: hidden;
       border-radius: calc(var(--radius-lg) + 0.15rem);
+      min-width: 0;
     }
 
     .table-card-main,
@@ -1439,19 +1435,21 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       text-align: left;
       border: 0;
       background: transparent;
-      padding: 0.82rem 0.9rem 0.72rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.36rem;
+      padding: 0.88rem 0.9rem 0.78rem;
+      display: grid;
+      align-content: start;
+      gap: 0.42rem;
+      min-width: 0;
+      min-height: 5rem;
       cursor: pointer;
       transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
     }
 
     .product-card {
-      padding: 0.72rem 0.78rem;
+      padding: 0.84rem 0.88rem;
       display: flex;
       flex-direction: column;
-      min-height: 8.95rem;
+      min-height: 9rem;
       height: 100%;
       overflow: hidden;
     }
@@ -1459,7 +1457,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .product-card-body {
       display: grid;
       grid-template-columns: 4.1rem minmax(0, 1fr);
-      gap: 0.62rem;
+      gap: 0.72rem;
       align-items: stretch;
       height: 100%;
       min-height: 100%;
@@ -1469,7 +1467,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      gap: 0.34rem;
+      gap: 0.56rem;
       min-width: 0;
       min-height: 100%;
       height: 100%;
@@ -1479,7 +1477,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .product-card-copy {
       display: flex;
       flex-direction: column;
-      gap: 0.18rem;
+      gap: 0.32rem;
       min-width: 0;
       min-height: 0;
       flex: 1;
@@ -1536,15 +1534,13 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .table-card-top,
-    .table-card-bottom,
     .order-card-top,
     .product-card-top,
     .product-card-bottom,
     .total-row,
     .line-row,
     .line-controls,
-    .catalog-toolbar,
-    .table-card-actions {
+    .catalog-toolbar {
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -1564,11 +1560,33 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       align-items: flex-start;
     }
 
+    .table-card-top {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 0.34rem;
+    }
+
+    .table-card-copy {
+      display: grid;
+      gap: 0.08rem;
+      min-width: 0;
+      align-content: start;
+    }
+
+    .table-meta {
+      display: block;
+      font-size: 0.78rem;
+      line-height: 1.18;
+      color: var(--color-text-muted);
+      white-space: nowrap;
+    }
+
     .line-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 0.8rem;
-      padding: 0.95rem 0;
+      gap: 0.68rem;
+      padding: 0.78rem 0;
       border-bottom: 1px solid color-mix(in srgb, var(--color-border) 72%, white);
     }
 
@@ -1598,7 +1616,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .product-card-top > div,
     .product-title-stack {
       display: grid;
-      gap: 0.16rem;
+      gap: 0.2rem;
       min-width: 0;
       flex: 1;
       min-height: 0;
@@ -1607,8 +1625,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .product-card-badges {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.28rem;
-      min-height: 1rem;
+      gap: 0.36rem;
+      min-height: 1.15rem;
       align-items: flex-start;
       align-content: flex-start;
       min-width: 0;
@@ -1623,30 +1641,35 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .table-card-actions {
-      padding: 0 0.9rem 0.82rem;
+      padding: 0 0.9rem 0.84rem;
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       align-items: stretch;
-      gap: 0.42rem;
+      gap: 0.4rem;
       border-top: 1px solid color-mix(in srgb, var(--color-border) 74%, white);
     }
 
     .table-card-actions--triple {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .table-card-actions--triple .btn:last-child {
-      grid-column: auto;
+    .table-card-actions .btn-primary {
+      order: -1;
+    }
+
+    .table-card-actions--triple .btn-primary {
+      grid-column: 1 / -1;
     }
 
     .table-card-actions .btn {
       width: 100%;
-      min-height: 1.95rem;
+      min-height: 2.18rem;
       justify-content: center;
-      padding-inline: 0.58rem;
+      padding-inline: 0.6rem;
       text-align: center;
       white-space: normal;
-      font-size: 0.82rem;
+      font-size: 0.72rem;
+      line-height: 1.15;
     }
 
     .btn-table-clear {
@@ -1663,17 +1686,75 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .table-name {
-      line-height: 1.15;
+      line-height: 1.04;
+      overflow-wrap: anywhere;
+      text-wrap: balance;
+      font-size: 0.98rem;
     }
 
     .table-card-bottom {
-      font-size: 0.82rem;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 0.28rem 0.46rem;
+      font-size: 0.72rem;
+      line-height: 1.18;
+      padding-top: 0.08rem;
+    }
+
+    .table-card-summary,
+    .table-card-payment,
+    .table-card-payment-pill {
+      min-width: 0;
+      display: block;
+    }
+
+    .table-card-summary {
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      text-wrap: pretty;
+      color: var(--color-text-muted);
+      font-weight: 600;
       line-height: 1.22;
-      padding-top: 0.05rem;
+    }
+
+    .table-card-payment {
+      text-align: right;
+      white-space: nowrap;
+      font-weight: 700;
+      color: var(--color-text);
+    }
+
+    .table-card-payment-pill {
+      justify-self: end;
+      align-self: center;
+      width: fit-content;
+      border-radius: 999px;
+      padding: 0.18rem 0.52rem;
+      background: color-mix(in srgb, var(--color-bg) 72%, white);
+      color: var(--color-text-muted);
+      font-size: 0.58rem;
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .table-card .state-pill {
+      justify-self: end;
+      max-width: 100%;
+    }
+
+    .table-card-actions .btn-secondary {
+      background: color-mix(in srgb, var(--color-surface) 92%, white);
     }
 
     .product-card-top strong {
-      font-size: 0.96rem;
+      font-size: 0.98rem;
       line-height: 1.14;
       display: -webkit-box;
       -webkit-line-clamp: 2;
@@ -1683,18 +1764,18 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .product-card-top span {
-      font-size: 0.74rem;
-      line-height: 1.18;
+      font-size: 0.73rem;
+      line-height: 1.2;
       overflow-wrap: anywhere;
       color: var(--color-text-muted);
     }
 
     .product-notes {
       margin: 0;
-      font-size: 0.76rem;
-      line-height: 1.18;
-      min-height: 1.78em;
-      max-height: 1.78em;
+      font-size: 0.74rem;
+      line-height: 1.24;
+      min-height: 1.9em;
+      max-height: 1.9em;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
@@ -1709,17 +1790,17 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .product-card-bottom {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(5.5rem, auto);
-      align-items: center;
-      padding-top: 0.34rem;
-      gap: 0.38rem;
+      grid-template-columns: minmax(0, 1fr) minmax(6.35rem, auto);
+      align-items: end;
+      padding-top: 0.46rem;
+      gap: 0.56rem;
       border-top: 1px solid color-mix(in srgb, var(--color-border) 70%, white);
       margin-top: auto;
     }
 
     .product-price-stack {
       display: grid;
-      gap: 0.22rem;
+      gap: 0.18rem;
       min-width: 0;
       align-content: end;
       align-self: stretch;
@@ -1730,14 +1811,15 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .product-card-bottom .btn {
-      width: 100%;
-      min-width: 5.5rem;
-      min-height: 1.95rem;
+      width: auto;
+      min-width: 6.35rem;
+      min-height: 2.1rem;
       justify-content: center;
-      align-self: stretch;
+      align-self: end;
       flex-shrink: 0;
-      padding-inline: 0.62rem;
+      padding-inline: 0.72rem;
       font-weight: 700;
+      white-space: nowrap;
     }
 
     .product-price {
@@ -1752,6 +1834,19 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     @media (max-width: 640px) {
       .checkout-hero {
         padding: 0.85rem 0.9rem;
+      }
+
+      .table-card-main {
+        padding: 0.76rem 0.82rem 0.68rem;
+      }
+
+      .table-card-top,
+      .table-card-bottom {
+        grid-template-columns: 1fr;
+      }
+
+      .table-card-payment-pill {
+        justify-self: start;
       }
 
       .table-card-actions,
@@ -1868,8 +1963,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .settlement-mode-grid--compact {
-      grid-template-columns: repeat(auto-fit, minmax(122px, 1fr));
-      gap: 0.45rem;
+      grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+      gap: 0.42rem;
     }
 
     .mode-card {
@@ -1878,11 +1973,11 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       background: var(--color-surface);
       color: var(--color-text);
       text-align: left;
-      padding: 0.64rem 0.72rem;
+      padding: 0.6rem 0.68rem;
       display: flex;
       flex-direction: column;
-      gap: 0.14rem;
-      min-height: 3.8rem;
+      gap: 0.1rem;
+      min-height: 3.55rem;
       cursor: pointer;
       transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
     }
@@ -1894,29 +1989,29 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .mode-card strong {
-      font-size: 0.9rem;
-      line-height: 1.22;
+      font-size: 0.88rem;
+      line-height: 1.18;
     }
 
     .mode-card small {
       color: var(--color-text-muted);
       line-height: 1.2;
-      font-size: 0.65rem;
+      font-size: 0.62rem;
     }
 
     .settlement-mode-grid--compact .mode-card {
-      min-height: 3.55rem;
-      padding: 0.58rem 0.64rem;
-      gap: 0.12rem;
+      min-height: 3.18rem;
+      padding: 0.5rem 0.62rem;
+      gap: 0.08rem;
     }
 
     .settlement-mode-grid--compact .mode-card strong {
-      font-size: 0.88rem;
+      font-size: 0.84rem;
     }
 
     .settlement-mode-grid--compact .mode-card small {
-      font-size: 0.62rem;
-      line-height: 1.18;
+      font-size: 0.6rem;
+      line-height: 1.14;
     }
 
     .mode-card--selected {
@@ -1944,7 +2039,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       padding-top: 0;
       justify-content: flex-start;
       flex-wrap: wrap;
-      gap: var(--space-2);
+      gap: 0.42rem;
     }
 
     .action-row--checkout {
@@ -2215,7 +2310,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: var(--space-2);
+      gap: 0.45rem;
       flex-wrap: wrap;
     }
 
@@ -2238,7 +2333,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       align-items: center;
       justify-content: space-between;
       gap: 0.75rem;
-      padding: 0.78rem 0.9rem;
+      padding: 0.74rem 0.84rem;
       border: 1px dashed color-mix(in srgb, var(--color-border) 88%, white);
       border-radius: 18px;
       background: color-mix(in srgb, var(--color-surface-alt) 55%, white);
@@ -2316,35 +2411,31 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .settlement-summary-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 0.75rem;
+      gap: 0.44rem;
       align-items: center;
-      padding: 0.82rem 0.92rem;
+      padding: 0.62rem 0.72rem;
       border: 1px solid color-mix(in srgb, var(--color-primary) 14%, var(--color-border));
       border-radius: var(--radius-xl);
       background: linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--color-primary-light) 14%, white),
-        color-mix(in srgb, var(--color-surface) 96%, white)
+        180deg,
+        color-mix(in srgb, var(--color-surface) 97%, white),
+        color-mix(in srgb, var(--color-bg) 90%, white)
       );
       box-shadow: var(--shadow-sm);
     }
 
     .settlement-summary-row--active {
-      grid-template-columns: minmax(0, 1fr) minmax(0, auto) auto;
+      grid-template-columns: minmax(0, 1fr) auto;
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      backdrop-filter: blur(6px);
     }
 
     .settlement-summary-row--compact {
       grid-template-columns: 1fr;
       gap: 0.7rem;
       align-items: stretch;
-    }
-
-    .settlement-summary-mode {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 0.6rem;
-      flex-wrap: wrap;
     }
 
     .settlement-summary-row--compact .settlement-summary-actions {
@@ -2358,28 +2449,29 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .settlement-summary-copy {
       display: grid;
-      gap: 0.2rem;
+      gap: 0.08rem;
       min-width: 0;
     }
 
     .settlement-summary-copy strong {
-      font-size: 1.02rem;
-      line-height: 1.16;
+      font-size: 0.96rem;
+      line-height: 1.14;
     }
 
     .settlement-summary-copy small {
       color: var(--color-text-muted);
-      line-height: 1.35;
+      line-height: 1.22;
+      font-size: 0.78rem;
     }
 
     .settlement-summary-copy--primary strong {
-      font-size: 1.12rem;
+      font-size: 1rem;
     }
 
     .settlement-summary-pills {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.45rem;
+      gap: 0.28rem;
       align-items: center;
       justify-content: flex-start;
     }
@@ -2387,9 +2479,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .checkout-outcome-card {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 0.85rem;
+      gap: 0.5rem;
       align-items: center;
-      padding: 0.78rem 0.92rem;
+      padding: 0.64rem 0.72rem;
       border: 1px solid color-mix(in srgb, var(--color-success, #10b981) 22%, var(--color-border));
       border-radius: var(--radius-xl);
       background: linear-gradient(
@@ -2404,17 +2496,18 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 0.7rem;
+      gap: 0.42rem;
       flex-wrap: wrap;
-      padding: 0.72rem 0.9rem;
-      border: 1px solid color-mix(in srgb, var(--color-primary) 16%, var(--color-border));
+      padding: 0.48rem 0.62rem;
+      border: 1px solid color-mix(in srgb, var(--color-primary) 12%, var(--color-border));
       border-radius: var(--radius-lg);
-      background: color-mix(in srgb, var(--color-primary-light) 10%, white);
+      background: color-mix(in srgb, var(--color-bg) 82%, white);
     }
 
     .payment-state-strip small {
       color: var(--color-text-muted);
-      line-height: 1.35;
+      line-height: 1.28;
+      font-size: 0.78rem;
       flex: 1 1 18rem;
     }
 
@@ -2425,42 +2518,44 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .checkout-outcome-copy {
       display: grid;
-      gap: 0.18rem;
+      gap: 0.14rem;
       min-width: 0;
     }
 
     .checkout-outcome-copy strong {
-      font-size: 1.02rem;
+      font-size: 0.98rem;
       line-height: 1.2;
     }
 
     .checkout-outcome-copy small {
       color: var(--color-text-muted);
-      line-height: 1.35;
+      line-height: 1.26;
+      font-size: 0.82rem;
     }
 
     .checkout-outcome-actions {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      gap: 0.55rem;
-      align-items: center;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+      gap: 0.32rem;
+      align-items: stretch;
+      min-width: min(100%, 17.5rem);
     }
 
     .settlement-summary-actions {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      gap: 0.65rem;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.32rem;
       align-items: stretch;
+      min-width: min(100%, 12.4rem);
     }
 
     .settlement-submit-btn,
     .settlement-summary-actions .btn-primary {
-      min-width: 10.75rem;
-      min-height: 3rem;
+      width: 100%;
+      min-width: 0;
+      min-height: 2.35rem;
       font-weight: 700;
-      white-space: nowrap;
+      white-space: normal;
       justify-content: center;
       box-shadow: var(--shadow-sm);
     }
@@ -2501,7 +2596,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .product-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(19.25rem, 1fr));
       gap: 0.8rem;
       align-items: stretch;
     }
@@ -2579,8 +2674,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .queue-group-card {
       display: grid;
-      gap: 0.62rem;
-      padding: 0.72rem;
+      gap: 0.5rem;
+      padding: 0.62rem;
       border: 1px solid var(--color-border);
       border-radius: var(--radius-xl);
       background: color-mix(in srgb, var(--color-surface) 94%, white);
@@ -2609,12 +2704,13 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .queue-group-copy small {
       color: var(--color-text-muted);
-      line-height: 1.35;
+      line-height: 1.28;
+      font-size: 0.8rem;
     }
 
     .queue-group-hint {
-      font-size: 0.9rem;
-      line-height: 1.35;
+      font-size: 0.82rem;
+      line-height: 1.28;
       color: var(--color-text);
       font-weight: 700;
     }
@@ -2624,24 +2720,31 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       flex-wrap: wrap;
       gap: 0.45rem;
       align-items: center;
+      justify-content: flex-start;
     }
 
     .queue-group-actions {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
       gap: 0.45rem;
-      justify-content: flex-start;
+      align-items: stretch;
+    }
+
+    .queue-group-actions .btn {
+      width: 100%;
+      min-height: 2.35rem;
     }
 
     .queue-group-list {
       display: grid;
-      gap: 0.5rem;
+      gap: 0.42rem;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     }
 
     .queue-order-row {
       display: grid;
-      gap: 0.38rem;
-      padding: 0.56rem 0.64rem;
+      gap: 0.3rem;
+      padding: 0.52rem 0.56rem;
       border: 1px solid var(--color-border);
       border-radius: var(--radius-lg);
       background: color-mix(in srgb, var(--color-surface) 98%, white);
@@ -2666,34 +2769,36 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .queue-order-row-top strong {
-      font-size: 0.94rem;
-      line-height: 1.2;
+      font-size: 0.88rem;
+      line-height: 1.15;
       white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .queue-order-row-copy {
       display: grid;
-      gap: 0.18rem;
+      gap: 0.14rem;
       min-width: 0;
     }
 
     .queue-order-row-copy small {
       color: var(--color-text-muted);
-      line-height: 1.25;
+      line-height: 1.22;
+      font-size: 0.74rem;
     }
 
     .queue-order-row-meta {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.45rem;
+      gap: 0.38rem;
       align-items: center;
     }
 
     .queue-order-row-footer {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 0.55rem;
+      justify-content: flex-end;
+      gap: 0.48rem;
       flex-wrap: wrap;
     }
 
@@ -2709,7 +2814,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .queue-order-row-age {
       color: var(--color-text-muted);
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       line-height: 1.2;
     }
 
@@ -2770,16 +2875,16 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .queue-history-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 0.6rem;
+      grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
+      gap: 0.5rem;
     }
 
     .queue-history-summary {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.45rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(116px, max-content));
+      gap: 0.36rem;
       align-items: center;
-      margin-bottom: 0.55rem;
+      margin-bottom: 0.48rem;
     }
 
     .queue-history-collapsed {
@@ -2798,21 +2903,28 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .queue-order-row--history {
       min-height: 0;
-      padding: 0.72rem 0.8rem;
-      gap: 0.45rem;
+      padding: 0.66rem 0.72rem;
+      gap: 0.34rem;
+      border-radius: var(--radius-lg);
     }
 
     .queue-order-row-actions {
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 0.5rem;
+      gap: 0.42rem;
       flex-wrap: wrap;
     }
 
+    .queue-order-row-actions .btn {
+      width: auto;
+      min-width: 5.2rem;
+      min-height: 1.95rem;
+    }
+
     .order-card--history {
-      padding: 0.78rem 0.82rem;
-      gap: 0.55rem;
+      padding: 0.72rem 0.76rem;
+      gap: 0.48rem;
       min-height: 0;
     }
 
@@ -2821,21 +2933,22 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .qty-btn {
-      width: 2.15rem;
-      height: 2.15rem;
+      width: 1.95rem;
+      height: 1.95rem;
       border-radius: 999px;
       border: 1px solid var(--color-border);
       background: var(--color-surface);
       color: var(--color-text);
-      font-size: 1.1rem;
+      font-size: 1rem;
       font-weight: 700;
       cursor: pointer;
     }
 
     .qty-value {
-      min-width: 1.35rem;
+      min-width: 1.15rem;
       text-align: center;
       font-weight: 700;
+      font-size: 0.92rem;
     }
 
     .line-copy {
@@ -2863,7 +2976,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 0.45rem;
+      gap: 0.38rem;
       row-gap: 0.35rem;
       flex-wrap: wrap;
     }
@@ -2871,8 +2984,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .qty-control {
       display: inline-flex;
       align-items: center;
-      gap: 0.35rem;
-      padding: 0.2rem;
+      gap: 0.24rem;
+      padding: 0.14rem;
       border: 1px solid color-mix(in srgb, var(--color-border) 82%, white);
       border-radius: 999px;
       background: color-mix(in srgb, var(--color-surface) 94%, white);
@@ -2880,8 +2993,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .line-total-stack {
       display: grid;
-      gap: 0.1rem;
-      min-width: 5.75rem;
+      gap: 0.06rem;
+      min-width: 4.8rem;
       justify-items: end;
       text-align: right;
     }
@@ -2892,12 +3005,13 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .line-remove-btn {
       min-width: auto;
-      padding-inline: 0.7rem;
-      min-height: 2.1rem;
+      padding-inline: 0.56rem;
+      min-height: 1.8rem;
+      font-size: 0.82rem;
     }
 
     .totals-card {
-      gap: 0.9rem;
+      gap: 0.66rem;
       border-color: color-mix(in srgb, var(--color-primary) 12%, var(--color-border));
       background: linear-gradient(
         180deg,
@@ -3059,9 +3173,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .product-dialog-hero {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 1rem;
+      gap: 0.9rem;
       align-items: start;
-      padding: 1.25rem;
+      padding: 1.1rem 1.15rem 1rem;
       border-bottom: 1px solid var(--color-border);
       background: linear-gradient(
         180deg,
@@ -3073,20 +3187,21 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .product-dialog-copy {
       display: flex;
       flex-direction: column;
-      gap: 0.55rem;
+      gap: 0.48rem;
       min-width: 0;
     }
 
     .product-dialog-copy h3 {
       margin: 0;
-      font-size: 1.35rem;
-      line-height: 1.1;
+      font-size: 1.26rem;
+      line-height: 1.08;
     }
 
     .product-dialog-subcopy {
       margin: 0;
       color: var(--color-text-muted);
-      line-height: 1.35;
+      line-height: 1.3;
+      font-size: 0.88rem;
       max-width: 34rem;
     }
 
@@ -3097,8 +3212,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .product-dialog-media {
-      width: 5.75rem;
-      height: 5.75rem;
+      width: 5.25rem;
+      height: 5.25rem;
       border-radius: var(--radius-xl);
       overflow: hidden;
       border: 1px solid color-mix(in srgb, var(--color-primary) 12%, var(--color-border));
@@ -3111,8 +3226,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       display: flex;
       flex-direction: column;
       align-items: flex-end;
-      gap: 0.75rem;
-      justify-content: space-between;
+      gap: 0.6rem;
+      justify-content: flex-start;
     }
 
     .product-dialog-media img {
@@ -3125,15 +3240,15 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .product-question-list {
       display: flex;
       flex-direction: column;
-      gap: 1rem;
-      padding: 0 1.25rem;
+      gap: 0.82rem;
+      padding: 0 1.15rem;
     }
 
     .product-question-card {
       display: flex;
       flex-direction: column;
-      gap: 0.62rem;
-      padding: 0.95rem 1rem;
+      gap: 0.56rem;
+      padding: 0.82rem 0.9rem;
       border-radius: var(--radius-lg);
       border: 1px solid var(--color-border);
       background: linear-gradient(
@@ -3228,9 +3343,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       align-items: center;
       gap: 0.9rem;
       flex-wrap: wrap;
-      padding: 1rem 1.25rem 1.25rem;
+      padding: 0.9rem 1.15rem 1.1rem;
       border-top: 1px solid var(--color-border);
-      background: color-mix(in srgb, var(--color-surface) 98%, white);
+      background: color-mix(in srgb, var(--color-surface) 94%, white);
+      backdrop-filter: blur(6px);
       position: sticky;
       bottom: 0;
     }
@@ -3241,13 +3357,14 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .modal-actions-copy strong {
-      font-size: 1.1rem;
-      line-height: 1.1;
+      font-size: 1rem;
+      line-height: 1.08;
     }
 
     .modal-actions-copy small {
       color: var(--color-text-muted);
-      line-height: 1.35;
+      line-height: 1.28;
+      font-size: 0.84rem;
     }
 
     .modal-actions-buttons {
@@ -3350,7 +3467,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     @media (max-width: 1480px) {
       .cashier-grid {
-        grid-template-columns: minmax(220px, 0.56fr) minmax(0, 1.28fr) minmax(360px, 0.96fr);
+        grid-template-columns: minmax(320px, 348px) minmax(0, 1.05fr) minmax(360px, 392px);
       }
 
       .catalog-toolbar {
@@ -3369,8 +3486,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
         grid-template-columns: 1fr;
       }
 
+      .lane--tables,
       .lane--checkout {
         position: static;
+        max-height: none;
       }
 
       .catalog-toolbar {
@@ -3389,6 +3508,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       .settlement-mode-grid,
       .product-grid,
       .queue-grid,
+      .queue-history-grid,
       .continue-bill-card,
       .history-summary-grid,
       .context-grid,
@@ -3412,6 +3532,13 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
       .settlement-summary-row--active {
         grid-template-columns: 1fr;
+        position: static;
+        backdrop-filter: none;
+      }
+
+      .payment-state-strip {
+        position: static;
+        backdrop-filter: none;
       }
 
       .settlement-summary-row--compact {
@@ -3443,6 +3570,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
       .continue-bill-summary {
         justify-content: flex-start;
+      }
+
+      .queue-group-actions {
+        grid-template-columns: 1fr;
       }
 
       .continue-bill-actions > .btn {
@@ -3832,10 +3963,7 @@ export class CashierPosComponent {
     if (count <= 0) {
       return 'Orders';
     }
-    if (count === 1) {
-      return 'Orders (1)';
-    }
-    return `Orders (${count})`;
+    return `Orders / ${count}`;
   }
 
   queueGroupSummaryLabel(group: PosQueueOrderGroup): string {
@@ -3845,14 +3973,14 @@ export class CashierPosComponent {
     const liveCount = group.orders.filter((order) => !this.isPaid(order) && !this.isClosedOrder(order)).length;
 
     if (settleCount > 0) {
-      return `${settleCount} to settle · ${liveCount} live · latest ${freshness}`;
+      return `${settleCount} awaiting payment · ${liveCount} live · ${freshness}`;
     }
 
     if (liveCount > 0) {
-      return `${liveCount} live bill${liveCount === 1 ? '' : 's'} · latest ${freshness}`;
+      return `${liveCount} live bill${liveCount === 1 ? '' : 's'} · ${freshness}`;
     }
 
-    return `${group.orders.length} bill${group.orders.length === 1 ? '' : 's'} · latest ${freshness}`;
+    return `${group.orders.length} bill${group.orders.length === 1 ? '' : 's'} · ${freshness}`;
   }
 
   queueGroupSummaryCopy(group: PosQueueOrderGroup): string {
@@ -3866,29 +3994,14 @@ export class CashierPosComponent {
     ).length;
 
     if (settleCount > 0) {
-      return `${settleCount} to settle | ${liveCount} live | latest ${freshness}`;
+      return `${settleCount} to settle | ${liveCount} live | ${freshness}`;
     }
 
     if (liveCount > 0) {
-      return `${liveCount} live bill${liveCount === 1 ? '' : 's'} | latest ${freshness}`;
+      return `${liveCount} live bill${liveCount === 1 ? '' : 's'} | ${freshness}`;
     }
 
-    return `${group.orders.length} bill${group.orders.length === 1 ? '' : 's'} | latest ${freshness}`;
-  }
-
-  queueOrderContextLabel(order: Order): string {
-    const tableName = (order.table_name || '').trim();
-    const customerName = (order.customer_name || '').trim();
-    if (tableName && customerName) {
-      return `${tableName} - ${customerName}`;
-    }
-    if (tableName) {
-      return tableName;
-    }
-    if (customerName) {
-      return customerName;
-    }
-    return 'Counter ticket';
+    return `${group.orders.length} settled bill${group.orders.length === 1 ? '' : 's'} | ${freshness}`;
   }
 
   checkoutOutcomeHeadline(): string {
@@ -3915,7 +4028,7 @@ export class CashierPosComponent {
       return '';
     }
 
-    return `${outcome.tableName} - bill #${outcome.orderId} is complete.`;
+    return `${outcome.tableName} bill #${outcome.orderId} is complete.`;
   }
 
   queueOrderActionCopy(order: Order): string {
@@ -3958,14 +4071,14 @@ export class CashierPosComponent {
       null;
 
     if (preferredOrder && !this.isPaid(preferredOrder) && this.isClosedOrder(preferredOrder)) {
-      return 'Collect payment';
+      return 'Settle';
     }
 
     if (group.tableId != null) {
-      return 'Resume table';
+      return 'Resume';
     }
 
-    return 'Resume counter';
+    return 'Counter';
   }
 
   queueGroupPrimaryStateLabel(group: PosQueueOrderGroup): string {
@@ -3998,28 +4111,39 @@ export class CashierPosComponent {
       null;
 
     if (!preferredOrder) {
-      return 'No cashier action is waiting.';
+      return 'No cashier action waiting';
     }
 
     if (!this.isPaid(preferredOrder) && this.isClosedOrder(preferredOrder)) {
-      return 'Collect payment now, then move to the next ready table.';
+      return 'Settle now';
     }
 
     if (!this.isPaid(preferredOrder)) {
-      return 'Resume the bill, add items, or keep service moving.';
+      return 'Add items or collect later';
     }
 
-    return 'Review the latest settled bill if the guest needs it.';
+    return 'Review receipt if needed';
   }
 
-  queueGroupCountLabel(group: PosQueueOrderGroup): string {
-    const count = group.orders.length;
-    return count === 1 ? '1 bill' : `${count} bills`;
+  queueGroupStateBreakdownLabel(group: PosQueueOrderGroup): string {
+    const settleCount = group.orders.filter((order) => !this.isPaid(order) && this.isClosedOrder(order)).length;
+    const liveCount = group.orders.filter((order) => !this.isPaid(order) && !this.isClosedOrder(order)).length;
+    const paidCount = group.orders.filter((order) => this.isPaid(order)).length;
+
+    if (settleCount > 0) {
+      return liveCount > 0 ? `${settleCount} settle | ${liveCount} live` : `${settleCount} settle`;
+    }
+
+    if (liveCount > 0) {
+      return paidCount > 0 ? `${liveCount} live | ${paidCount} paid` : `${liveCount} live`;
+    }
+
+    return paidCount === 1 ? '1 paid' : `${paidCount} paid`;
   }
 
   queueGroupOrdersActionLabel(group: PosQueueOrderGroup): string {
     const count = group.orders.length;
-    return count === 1 ? 'Orders (1)' : `Orders (${count})`;
+    return count === 1 ? 'Orders' : `Orders ${count}`;
   }
 
   compareQueueGroups(a: PosQueueOrderGroup, b: PosQueueOrderGroup): number {
@@ -4386,10 +4510,10 @@ export class CashierPosComponent {
   checkoutIntroTitle(): string {
     const table = this.effectiveCheckoutTable();
     if (this.hasPayableLiveBill()) {
-      return 'Bill ready to settle';
+      return 'Live bill ready';
     }
     if (table) {
-      return `${table.name} is ready`;
+      return table.name;
     }
     return 'Select a table';
   }
@@ -4400,9 +4524,9 @@ export class CashierPosComponent {
       return 'Add items to the live bill or collect payment now.';
     }
     if (table) {
-      return `Add items to start a new bill for ${table.name}.`;
+      return 'Add items to start a new bill.';
     }
-    return 'Pick a table to begin.';
+    return 'Choose a table to begin.';
   }
 
   emptyCartHint(): string {
@@ -4439,18 +4563,6 @@ export class CashierPosComponent {
     }
   }
 
-  checkoutPrimaryActionLabel(): string {
-    const amount = this.checkoutSummaryTotalCopy();
-    const mode = this.primaryCheckoutMode();
-    if (mode === 'card_terminal') {
-      return `Checkout terminal - ${amount}`;
-    }
-    if (mode === 'hitpay') {
-      return `Send HitPay - ${amount}`;
-    }
-    return `Checkout cash - ${amount}`;
-  }
-
   checkoutSummaryTableCopy(): string {
     const table = this.effectiveCheckoutTable();
     if (!table) {
@@ -4470,28 +4582,15 @@ export class CashierPosComponent {
 
   settlementSummaryCaption(): string {
     if (this.hasPayableLiveBill() && this.cartItemCount() > 0) {
-      return 'Settling the live bill together with new add-on items.';
+      return 'Settle the live bill with the new add-ons together.';
     }
     if (this.hasPayableLiveBill()) {
-      return 'Live bill ready for settlement.';
+      return 'Live bill ready to settle.';
     }
     if (this.cartItemCount() > 0) {
-      return 'Ready to collect payment.';
+      return 'Ready to take payment.';
     }
-    return 'Pick a table and add items.';
-  }
-
-  settlementSummaryBadge(): string {
-    if (this.hasPayableLiveBill() && this.cartItemCount() > 0) {
-      return 'Live bill + add-on';
-    }
-    if (this.hasPayableLiveBill()) {
-      return 'Live bill';
-    }
-    if (this.cartItemCount() > 0) {
-      return 'New cashier bill';
-    }
-    return 'Awaiting items';
+    return 'Choose a table and add items.';
   }
 
   checkoutOutcomeTitle(): string {
@@ -4518,7 +4617,7 @@ export class CashierPosComponent {
       return '';
     }
 
-    return `${outcome.tableName} - bill #${outcome.orderId} is complete. Pick the next table or dismiss this summary.`;
+    return `${outcome.tableName} bill #${outcome.orderId} is complete. Pick the next table or dismiss this summary.`;
   }
   hitPayStateLabel(): string {
     switch (this.hitPayFlowState()) {
@@ -4566,7 +4665,7 @@ export class CashierPosComponent {
   queuePanelEyebrow(): string {
     const table = this.effectiveCheckoutTable();
     if (table) {
-      return 'Table history';
+      return 'Table recovery';
     }
     return 'Cashier queue';
   }
@@ -4574,35 +4673,35 @@ export class CashierPosComponent {
   queuePanelTitle(): string {
     const table = this.effectiveCheckoutTable();
     if (table) {
-      return `${table.name} orders`;
+      return `${table.name} recovery`;
     }
-    return 'Open bills';
+    return 'Cashier queue';
   }
 
   queuePanelSubtitle(): string {
     const table = this.effectiveCheckoutTable();
     if (table) {
-      return 'Resume this table, collect payment, or review its past orders.';
+      return 'Resume live bills or review past tickets for this table.';
     }
-    return 'Grouped by table so the cashier can spot payment and service work fast.';
+    return 'Grouped by table for fast payment and service follow-up.';
   }
 
   queuePanelEmptyCopy(): string {
     const table = this.effectiveCheckoutTable();
     if (table) {
-      return `No other orders are linked to ${table.name} yet.`;
+      return `No other tickets are linked to ${table.name}.`;
     }
-    return 'No open bills are waiting right now.';
+    return 'No tickets need cashier attention right now.';
   }
 
   queueHistoryPrimaryActionLabel(order: Order): string {
     if (!this.isPaid(order) && this.isClosedOrder(order)) {
-      return 'Collect payment';
+      return 'Collect';
     }
     if (!this.isPaid(order)) {
-      return 'Resume bill';
+      return 'Resume';
     }
-    return 'View receipt';
+    return 'Receipt';
   }
 
   tableOrderCountForTable(table: CanvasTable): number {
@@ -4654,7 +4753,7 @@ export class CashierPosComponent {
     if (!latest) {
       return 'No recent bills';
     }
-    return `${this.isPaid(latest) ? 'Latest paid' : 'Latest open'} ${this.queueOrderAgeLabel(latest)}`;
+    return `${this.isPaid(latest) ? 'Last settled' : 'Last live'} / ${this.queueOrderAgeLabel(latest)}`;
   }
 
   queueSettlementCount(): number {
@@ -4977,6 +5076,7 @@ export class CashierPosComponent {
       return;
     }
 
+    this.notice.set(`Reopening settled bill #${order.id} for review.`);
     this.continueOrderInPos(order);
   }
 
@@ -4985,12 +5085,12 @@ export class CashierPosComponent {
     const candidate = this.nextReadyTableCandidate(this.selectedTableId());
 
     if (!candidate) {
-      this.notice.set('No clear tables are ready for a new cashier ticket right now.');
+      this.notice.set('No clear tables are ready for a new cashier bill right now.');
       return;
     }
 
     this.selectTable(candidate);
-    this.notice.set(`${candidate.name} is ready for the next cashier ticket.`);
+    this.notice.set(`${candidate.name} is clear. Start the next cashier bill from the catalog.`);
     this.scrollToCatalog();
   }
 
@@ -5238,8 +5338,8 @@ export class CashierPosComponent {
       }
       this.notice.set(
         nextReadyTable
-          ? `${table.name} is clear. ${nextReadyTable.name} is ready for the next cashier ticket.`
-          : `${table.name} is clear and ready for the next cashier ticket.`,
+          ? `${table.name} is clear. ${nextReadyTable.name} is ready for the next cashier bill.`
+          : `${table.name} is clear and ready for the next cashier bill.`,
       );
       if (this.selectedTableId() === table.id) {
         this.selectedTableId.set(null);
@@ -5306,7 +5406,7 @@ export class CashierPosComponent {
     this.selectOrder(order);
 
     if (!this.isPaid(order) && this.isClosedOrder(order)) {
-      this.notice.set(`Bill #${order.id} is ready for payment. Collect it from the checkout dock.`);
+      this.notice.set(`Bill #${order.id} is awaiting payment. Collect it from the checkout dock.`);
       this.scrollToPaymentDock();
       return;
     }
@@ -5317,7 +5417,7 @@ export class CashierPosComponent {
       return;
     }
 
-    this.notice.set(`Reviewing settled bill #${order.id}.`);
+    this.notice.set(`Viewing settled bill #${order.id}. Use the rail to inspect its receipt and payment outcome.`);
     this.scrollToPaymentDock();
   }
 
@@ -5349,7 +5449,7 @@ export class CashierPosComponent {
         if (preferredOrder && !this.isPaid(preferredOrder) && this.isClosedOrder(preferredOrder)) {
           this.selectTable(table);
           this.selectOrder(preferredOrder);
-          this.notice.set(`${table.name} has a bill ready for payment.`);
+          this.notice.set(`${table.name} has a bill awaiting payment.`);
           this.scrollToPaymentDock();
           return;
         }
@@ -5373,12 +5473,12 @@ export class CashierPosComponent {
   selectNextReadyTable(): void {
     const candidate = this.nextReadyTableCandidate(this.selectedTableId());
     if (!candidate) {
-      this.notice.set('No clear tables are ready for a new cashier ticket right now.');
+      this.notice.set('No clear tables are ready for a new cashier bill right now.');
       return;
     }
 
     this.selectTable(candidate);
-    this.notice.set(`${candidate.name} is ready for the next cashier ticket.`);
+    this.notice.set(`${candidate.name} is ready for the next cashier bill.`);
     this.scrollToCatalog();
   }
 
@@ -5544,18 +5644,18 @@ export class CashierPosComponent {
       return `Live bill #${serviceOrder.id}`;
     }
     if (serviceOrder && !this.isPaid(serviceOrder) && this.isClosedOrder(serviceOrder)) {
-      return `Awaiting payment #${serviceOrder.id}`;
+      return `Ready to pay #${serviceOrder.id}`;
     }
     if (serviceOrder && this.isPaid(serviceOrder)) {
-      return `Last bill #${serviceOrder.id}`;
+      return `Last settled #${serviceOrder.id}`;
     }
-    return 'Clear table';
+    return 'Clear';
   }
 
   tablePrimaryActionLabel(table: CanvasTable): string {
     const serviceOrder = this.tableServiceOrder(table);
     if (serviceOrder && !this.isPaid(serviceOrder) && this.isClosedOrder(serviceOrder)) {
-      return 'Collect payment';
+      return 'Take payment';
     }
     return this.tableHasOpenService(table) ? 'Resume bill' : 'Start bill';
   }
@@ -5563,18 +5663,18 @@ export class CashierPosComponent {
   selectedTableSummary(table: CanvasTable): string {
     const serviceOrder = this.tableServiceOrder(table);
     if (serviceOrder && !this.isClosedOrder(serviceOrder) && !this.isPaid(serviceOrder)) {
-      return `Live bill #${serviceOrder.id} in service`;
+      return `Open bill #${serviceOrder.id}`;
     }
     if (serviceOrder && !this.isPaid(serviceOrder) && this.isClosedOrder(serviceOrder)) {
-      return `Bill #${serviceOrder.id} awaiting payment`;
+      return `Ready to pay #${serviceOrder.id}`;
     }
     if (serviceOrder && this.isPaid(serviceOrder)) {
-      return `Last bill #${serviceOrder.id} paid`;
+      return `Last settled #${serviceOrder.id}`;
     }
     if (table.active_order_id && serviceOrder) {
-      return `Service ticket #${serviceOrder.id}`;
+      return `Ticket #${serviceOrder.id}`;
     }
-    return 'Clear table ready for a new bill';
+    return 'No active bill';
   }
 
   tableLiveOrderCount(table: CanvasTable): number {
@@ -5595,7 +5695,7 @@ export class CashierPosComponent {
       return 'No bill history yet';
     }
 
-    return `${this.formatDate(latest.created_at)} · ${this.paymentLabel(latest)}`;
+    return `${this.paymentLabel(latest)} · ${this.formatDate(latest.created_at)}`;
   }
 
   tableLatestOrder(tableId: number): Order | null {

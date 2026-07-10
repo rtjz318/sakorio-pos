@@ -45,11 +45,51 @@ Implemented direction so far:
 - queue/history language was tightened toward cashier wording:
   - `Continue`
   - `Settle`
-  - `View receipt`
-  - `Collect payment`
-  - `Resume bill`
+  - `Receipt`
+  - `Collect`
+  - `Resume`
 - queue ranking now prefers cashier urgency instead of pure recency
-- post-settlement recovery now moves the cashier toward the next useful table state
+- post-settlement recovery now moves the cashier toward the next useful table state and next clear bill-ready table
+- another compactness pass was applied after the initial handoff:
+  - wider floor/table lane in the cashier grid
+  - cleaner table-card action hierarchy with the primary operator action surfaced first
+  - reduced metadata pressure inside table cards to avoid status / payment wrap collisions
+  - denser settlement dock cards and tighter payment-mode layout
+  - more predictable outcome / settlement action stacking in narrow counter widths
+  - tighter queue/history rail cards with clearer primary/secondary action emphasis
+  - safer tablet-width fallback for grouped queue actions and history rows
+  - simpler queue-group pills and more direct order-review wording for the cashier rail
+  - final cashier copy cleanup so the dock now uses shorter action-first language:
+    - `Choose a table to begin`
+    - `Live bill with add-ons`
+    - `Use terminal`
+    - `Take cash`
+    - `Ready for a new bill`
+  - checkout / queue polish now also includes:
+    - a pinned active-settlement summary inside the checkout rail while cart lines scroll
+    - the active settlement mode folded into the summary pill row instead of its own column
+    - denser grouped queue preview tiles for faster table-by-table scanning
+  - an additional Phase D operator-language pass now keeps the cashier rail tighter:
+    - selected-table status copy is shorter:
+      - `Open bill #...`
+      - `Ready to pay #...`
+      - `Last settled #...`
+      - `No active bill`
+    - grouped queue actions are reduced to primary verbs:
+      - `Settle`
+      - `Resume`
+      - `Counter`
+    - grouped queue hints were shortened to cashier prompts instead of full sentences
+    - no-table checkout empty states now use:
+      - `Choose table`
+      - `Open floor`
+    - grouped queue cards now place the main cashier action first and the order-review action second
+    - linked-ticket history pills are shorter:
+      - `live`
+      - `settled`
+      - `tickets`
+    - compact settlement mode cards were re-balanced for better tablet scan speed
+    - the selected-table dock and payment-state strip were toned down visually so the main checkout CTA carries the weight
 
 ### 2. Reports now include Sakorio payment buckets
 
@@ -98,6 +138,17 @@ Current category-management direction:
 - add subcategory
 - edit subcategory
 - delete subcategory
+
+### 4. Demo floor seeding compatibility
+
+Backend:
+
+- `back/app/seeds/seed_demo_tables.py`
+
+Why it changed:
+
+- the demo floor seed now inserts `is_active` and `seating_zone` when creating a fallback floor row
+- this keeps fresh staging/demo databases compatible with the current floor schema instead of failing on missing required fields
 
 Important note:
 
@@ -161,6 +212,9 @@ That includes continued polish around:
 - table/order recovery after actions
 - product customization modal quality
 - grouped order visibility by table
+- repo-wide frontend build hygiene:
+  - Angular build currently still fails on unresolved SCSS / SSR path issues outside the cashier module
+  - cashier POS work is still valid, but a clean production build for the frontend will require a broader frontend configuration cleanup
 
 ## Important Product Decisions Locked In
 
@@ -210,6 +264,15 @@ If the old Render setup was pointing at the previous repo or previous branch, it
    - settle with HitPay
 3. Verify reports reflect those payment outcomes correctly.
 4. Only then promote this repo cleanly onto Render.
+
+### Latest cashier polish already completed
+
+- The active settlement summary now stays pinned while the cashier cart scrolls, keeping amount due and the primary action visible during settlement.
+- Settlement mode was folded into the summary pills so the checkout rail reads as a single compact decision surface.
+- Grouped queue previews were tightened into denser tiles for faster scanning at the counter.
+- Table-linked history wording now reads as a cashier recovery rail with shorter `Collect`, `Resume`, and `Receipt` actions and clearer live / awaiting-payment / settled bill states.
+- Recovery history tiles were tightened further so action buttons sit like compact counter controls instead of wide full-card CTAs.
+- Recovery / reopen transitions now use clearer operator notices for settled-bill review, awaiting-payment bills, and next-table handoff into the catalog.
 
 ## Commit Scope Reminder
 

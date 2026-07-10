@@ -1,6 +1,6 @@
 # Sakorio Gap Checklist
 
-Last reviewed: 2026-07-06
+Last reviewed: 2026-07-10
 
 Repository: `tanjunnan0101/pos`
 
@@ -122,8 +122,8 @@ Acceptance target:
 
 Status:
 
-- Core cashier dock cleanup is implemented in code.
-- Remaining validation is live cashier walk-through QA on localhost.
+- Implemented in code and now largely moved into final production polish.
+- Remaining validation is focused on localhost cashier walk-through QA and edge-case settlement review.
 
 Implementation notes:
 
@@ -157,9 +157,44 @@ Implementation notes:
     - selected-table actions
     - live bill / open bill queue actions
   - denser queue and history summaries using relative age labels instead of heavier timestamp copy
+  - a tighter queue/history rail with:
+    - denser table-group cards
+    - stronger primary/secondary action hierarchy
+    - cleaner history-card wrapping
+    - better tablet-width fallback for grouped action buttons
+    - simpler group status pills and more direct queue action wording
   - deterministic post-settlement handoff so paid or cleared tables move the cashier onto the next ready table after reload
   - clearer post-payment notice copy that surfaces which table is up next when one is available
 - Remaining gap is continued localhost cashier walk-through QA before moving fully into the next product phase.
+- Final copy cleanup also landed in the cashier dock:
+  - shorter empty-state wording
+  - cleaner live-bill language
+  - more direct settlement CTA wording
+  - less repeated status language inside queue and history surfaces
+- A final Phase D cashier wording pass also landed:
+  - selected-table summaries now read in plain cashier language:
+    - `Open bill #...`
+    - `Ready to pay #...`
+    - `Last settled #...`
+    - `No active bill`
+  - grouped queue primary actions were shortened to operator verbs:
+    - `Settle`
+    - `Resume`
+    - `Counter`
+  - grouped queue helper text is now shorter and less instructional:
+    - `Settle now`
+    - `Add items or collect later`
+    - `Review receipt if needed`
+  - empty checkout states now use simpler route actions:
+    - `Choose table`
+    - `Open floor`
+  - grouped queue cards now surface the primary cashier action first, with the order-review button secondary
+  - linked-table history pills were shortened from descriptive labels to tighter cashier counts:
+    - `x live`
+    - `x settled`
+    - `x tickets`
+  - compact settlement mode cards were widened slightly and re-balanced for better tablet readability
+  - the selected-table dock and payment-state strip were visually de-emphasized so the main settlement CTA stays dominant
 
 ### Phase D: Production Counter Polish
 
@@ -186,7 +221,7 @@ Acceptance target:
 
 Status:
 
-- In progress.
+- Implemented in code, pending full cashier smoke QA and production-fit review.
 
 Implementation notes:
 
@@ -213,7 +248,7 @@ Implementation notes:
 - The post-checkout outcome card can now reopen the just-settled bill directly, in addition to moving the cashier to the next ready table.
 - The cashier table/bill language is now more consistent:
   - `Orders` instead of mixed `Bills` / `Orders`
-  - `Resume bill`, `Collect payment`, and `Review order` action wording
+  - `Resume bill`, `Collect payment`, and `Orders` action wording
   - selected-table summaries now distinguish:
     - live bill in service
     - awaiting payment
@@ -230,12 +265,39 @@ Implementation notes:
 - Selected-table history now exposes a compact open / paid / latest summary before the bill grid so table recovery is easier to scan under pressure.
 - Post-settlement recovery is now shorter:
   - the outcome card can clear the just-paid table directly
-  - history actions now read as `Collect payment`, `Resume bill`, and `View receipt`
+  - history actions now read as `Collect`, `Resume`, and `Receipt`
 - The open-bill queue now starts with a top-level cashier summary strip:
-  - bills to settle
+  - bills awaiting payment
   - live unpaid bills
   - paid review items
 - Table selection now resolves the linked bill using the same cashier-priority queue ranking, so floor clicks and queue clicks stay aligned.
+- The cashier table lane has been widened and simplified further so floor cards now behave more like operator control tiles than compressed info cards:
+  - stronger primary-action placement
+  - clearer secondary `Orders` / `Clear paid` actions
+  - less metadata wrapping inside narrow table cards
+- The settlement dock has been tightened again:
+  - smaller settlement mode cards
+  - a quieter, denser sticky checkout rail
+  - checkout outcome actions and primary settlement CTA now stack more predictably in narrower cashier layouts
+  - the active settlement summary now stays pinned inside the cashier rail while the cart scrolls
+  - the selected settlement mode now sits inside the summary pill row instead of a separate column
+  - grouped queue previews are denser and more tile-like for faster table scanning
+- The selected-table history / recovery rail now uses more cashier-native bill wording:
+  - table-linked history reads as recovery rather than generic orders
+  - action labels are shorter (`Collect`, `Resume`, `Receipt`)
+  - linked bill copy now distinguishes live, awaiting-payment, and settled states more clearly
+  - recovery cards are denser and no longer stretch full-width actions across every history tile
+- Recovery transitions now guide the operator more clearly:
+  - reopening a settled bill explicitly enters review mode
+  - awaiting-payment bills consistently point the cashier to the checkout dock
+  - next-table actions now confirm that the next table is clear and ready to build from the catalog
+- Grouped cashier queue copy is now shorter and more scanable:
+  - counts lead the summary
+  - `awaiting payment` replaces vaguer settle wording in the supporting copy
+  - empty-state language now reflects cashier attention instead of only open bills
+- A repo-wide Angular build issue still exists outside the cashier module:
+  - unresolved SCSS / Angular SSR path resolution
+  - this is not introduced by the cashier POS polish pass, but it still blocks a clean local production build until the broader frontend config is repaired
 
 ## 3. Integration Notes
 

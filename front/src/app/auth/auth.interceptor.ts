@@ -3,6 +3,7 @@ import { inject, Injector } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, throwError, switchMap, ReplaySubject, take } from 'rxjs';
 import { ApiService } from '../services/api.service';
+import { isCustomerPublicHost } from '../shared/host-portal.util';
 
 // Flag to prevent multiple simultaneous refresh attempts
 let isRefreshing = false;
@@ -13,8 +14,10 @@ let refreshResult$ = new ReplaySubject<boolean>(1);
 function isPublicRoute(url: string): boolean {
   const path = (url || '').split('?')[0].replace(/\/$/, '') || '/';
   return (
+    path === '/' ||
     path === '/login' ||
     path === '/register' ||
+    path === '/orders' ||
     path === '/courier/login' ||
     path.startsWith('/provider/login') ||
     path.startsWith('/provider/register') ||
@@ -49,9 +52,11 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const injector = inject(Injector);
   const router = inject(Router);
 
-  // Ensure cookies are sent with requests
+  const sendCredentials = !isCustomerPublicHost();
+
+  // On the public customer host, never attach staff auth cookies.
   req = req.clone({
-    withCredentials: true
+    withCredentials: sendCredentials
   });
 
   return next(req).pipe(
@@ -98,7 +103,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
               refreshResult$.next(true);
               refreshResult$.complete();
               // Retry the original request with fresh token
-              return next(req.clone({ withCredentials: true }));
+              return next(req.clone({ withCredentials: sendCredentials }));
             }),
             catchError((refreshError) => {
               isRefreshing = false;
@@ -121,7 +126,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
             switchMap((success) => {
               if (success) {
                 // Refresh succeeded - retry this request
-                return next(req.clone({ withCredentials: true }));
+                return next(req.clone({ withCredentials: sendCredentials }));
               } else {
                 // Refresh failed - propagate the error
                 return throwError(() => error);

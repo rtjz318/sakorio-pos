@@ -13,6 +13,7 @@ import {
   take,
 } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { isCustomerPublicHost } from '../shared/host-portal.util';
 import { LanguageService } from './language.service';
 
 // Interfaces
@@ -1495,6 +1496,12 @@ export class ApiService {
   reservationUpdates$ = this.reservationUpdates.asObservable();
 
   constructor() {
+    if (isCustomerPublicHost()) {
+      this.userSubject.next(null);
+      this.authInitialCheckDone$.next(true);
+      return;
+    }
+
     this.checkAuth()
       .pipe(finalize(() => this.authInitialCheckDone$.next(true)))
       .subscribe();
@@ -1511,6 +1518,11 @@ export class ApiService {
 
   // Check authentication status with backend (cookies)
   checkAuth(): Observable<User | null> {
+    if (isCustomerPublicHost()) {
+      this.userSubject.next(null);
+      return of(null);
+    }
+
     return this.http.get<User | null>(`${this.apiUrl}/users/me`).pipe(
       tap((user) => {
         // Normalize role to lowercase so guards work regardless of API serialization
@@ -1638,7 +1650,7 @@ export class ApiService {
 
   // Refresh token - exchange valid refresh token for new access token
   refreshToken(): Observable<any> {
-    return this.http.post(`${this.apiUrl}/refresh`, {}, { withCredentials: true }).pipe(
+    return this.http.post(`${this.apiUrl}/refresh`, {}, { withCredentials: !isCustomerPublicHost() }).pipe(
       tap(() => {
         // Re-check auth to update user state with new token
         this.checkAuth().subscribe();
@@ -2767,7 +2779,7 @@ export class ApiService {
   /** Get token for WebSocket auth (cookie may not be sent on WS upgrade from some origins). */
   getWsToken(): Observable<{ access_token: string }> {
     return this.http.get<{ access_token: string }>(`${this.apiUrl}/ws-token`, {
-      withCredentials: true,
+      withCredentials: !isCustomerPublicHost(),
     });
   }
 

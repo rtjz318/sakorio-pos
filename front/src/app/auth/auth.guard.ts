@@ -2,10 +2,15 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { catchError, map, of } from 'rxjs';
 import { ApiService } from '../services/api.service';
+import { isCustomerPublicHost } from '../shared/host-portal.util';
 
 export const authGuard: CanActivateFn = (route, state) => {
   const apiService = inject(ApiService);
   const router = inject(Router);
+
+  if (isCustomerPublicHost()) {
+    return router.createUrlTree(['/']);
+  }
 
   const redirectForRole = (user: { role?: string; provider_id?: number | null } | null) => {
     if (user?.role === 'courier') {

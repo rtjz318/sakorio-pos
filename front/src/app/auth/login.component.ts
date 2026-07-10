@@ -7,6 +7,7 @@ import { ApiService, type TenantSummary } from '../services/api.service';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
 import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { LegalLinksComponent } from '../shared/legal-links.component';
+import { isCustomerPublicHost } from '../shared/host-portal.util';
 
 @Component({
   selector: 'app-login',
@@ -443,6 +444,10 @@ export class LoginComponent implements OnInit {
     this.api.login(username, password, isNaN(id as number) ? undefined : id).subscribe({
       next: () => {
         this.api.checkAuth().subscribe(user => {
+          if (isCustomerPublicHost()) {
+            void this.router.navigate(['/']);
+            return;
+          }
           if (user?.role === 'courier') {
             void this.router.navigate(['/courier']);
           } else if (user?.provider_id != null) {
@@ -475,6 +480,10 @@ export class LoginComponent implements OnInit {
     this.api.loginWithOtp(token, this.otpCode).subscribe({
       next: () => {
         this.api.checkAuth().subscribe(user => {
+          if (isCustomerPublicHost()) {
+            void this.router.navigate(['/']);
+            return;
+          }
           if (user?.role === 'courier') {
             void this.router.navigate(['/courier']);
           } else if (user?.provider_id != null) {

@@ -273,6 +273,84 @@ If the old Render setup was pointing at the previous repo or previous branch, it
 - Table-linked history wording now reads as a cashier recovery rail with shorter `Collect`, `Resume`, and `Receipt` actions and clearer live / awaiting-payment / settled bill states.
 - Recovery history tiles were tightened further so action buttons sit like compact counter controls instead of wide full-card CTAs.
 - Recovery / reopen transitions now use clearer operator notices for settled-bill review, awaiting-payment bills, and next-table handoff into the catalog.
+- Another production-density pass was applied to the cashier and kitchen surfaces:
+  - cashier grid widths were rebalanced so the table lane, catalog, and checkout dock each have enough width for tablet service
+  - table cards now use cleaner top-row alignment, wider action buttons, and less status/payment wrapping pressure
+  - product cards were restructured so thumbnails, copy, price, and CTA buttons stay aligned instead of fighting for vertical space
+  - kitchen lane cards now give order IDs, status chips, item names, and dropdown controls more width to prevent overlap in hosted layouts
+  - kitchen service lanes now scale down more safely on narrower widths without clipping active ticket content
+
+## Hosted Render State (Current Sakorio Mapping)
+
+This repo is now mapped onto the existing Sakorio Render estate instead of the earlier QR/Nest stack.
+
+### Service mapping
+
+- `restaurant-pos-staging-api`
+  - repo: `rtjz318/sakorio-pos`
+  - branch: `development`
+  - root directory: `back`
+  - runtime: Python web service
+  - purpose: FastAPI backend
+  - public host: `https://api.sakorio.com`
+
+- `restaurant-pos-staging-staff-web`
+  - repo: `rtjz318/sakorio-pos`
+  - branch: `development`
+  - root directory: `front`
+  - runtime: Docker web service using `Dockerfile.prod`
+  - purpose: staff/station interface
+  - public host: `https://staff.sakorio.com`
+
+- `restaurant-pos-staging-owner-web`
+  - repo: `rtjz318/sakorio-pos`
+  - branch: `development`
+  - root directory: `front`
+  - runtime: Docker web service using `Dockerfile.prod`
+  - purpose: owner/admin interface
+  - public host: `https://app.sakorio.com`
+
+- `restaurant-pos-staging-customer-web`
+  - repo: `rtjz318/sakorio-pos`
+  - branch: `development`
+  - root directory: `front`
+  - runtime: Docker web service using `Dockerfile.prod`
+  - purpose: public ordering / customer-facing surface
+  - public host: `https://order.sakorio.com`
+
+- `restaurant-pos-staging-redis`
+  - reuse for Redis backing where required by the backend
+
+- Render PostgreSQL
+  - active database was recreated and re-seeded for the current Sakorio POS repo
+  - backend migrations must target the Render Postgres hostname, not the local `db` Docker hostname, when run from Windows
+
+### Important hosted behavior already fixed
+
+- `order.sakorio.com` no longer needs to share the same authenticated dashboard session behavior as `staff.sakorio.com`
+- the public customer surface must stay customer-facing even when staff are signed into the staff surface in another tab/session
+- kitchen display now loads the live tickets again on the hosted staff surface
+
+### Known hosted sanity baseline
+
+At the point of this handoff, the following have already been exercised in hosted staging:
+
+- owner app loads on `app.sakorio.com`
+- staff app loads on `staff.sakorio.com`
+- customer/public ordering loads on `order.sakorio.com`
+- backend health and auth are wired through `api.sakorio.com`
+- Render database + backend migration path were re-established after the Sakorio repo switch
+
+### Still worth QA after each production-facing deploy
+
+- staff login and role navigation
+- POS table selection
+- add item to an existing live table bill
+- cash settlement
+- terminal settlement
+- HitPay redirect / callback path
+- kitchen display ticket movement
+- public order flow remaining isolated from staff sessions
 
 ## Commit Scope Reminder
 

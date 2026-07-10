@@ -123,7 +123,8 @@ Acceptance target:
 Status:
 
 - Implemented in code and now largely moved into final production polish.
-- Remaining validation is focused on localhost cashier walk-through QA and edge-case settlement review.
+- Hosted staging is now wired through the Sakorio Render services.
+- Remaining validation is focused on final counter-speed polish and edge-case settlement review, not missing core cashier infrastructure.
 
 Implementation notes:
 
@@ -195,6 +196,11 @@ Implementation notes:
     - `x tickets`
   - compact settlement mode cards were widened slightly and re-balanced for better tablet readability
   - the selected-table dock and payment-state strip were visually de-emphasized so the main settlement CTA stays dominant
+  - the latest production-density pass also tightened:
+    - cashier 3-lane width balance
+    - table-card action density and wrapping behavior
+    - product-card thumbnail / CTA alignment
+    - kitchen lane overflow and ticket-card text wrapping on hosted tablet widths
 
 ### Phase D: Production Counter Polish
 

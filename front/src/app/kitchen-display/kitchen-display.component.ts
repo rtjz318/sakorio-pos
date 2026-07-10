@@ -589,7 +589,7 @@ function getWorkflowSortWeight(
     }
     .lane-board {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
       gap: var(--space-4);
       align-items: start;
       grid-auto-rows: minmax(0, auto);
@@ -597,7 +597,7 @@ function getWorkflowSortWeight(
     .service-lane {
       min-width: 0;
       min-height: 0;
-      padding: 1rem;
+      padding: 1rem 1rem 0.95rem;
       border-radius: calc(var(--radius-lg) + 2px);
       border: 1px solid var(--color-border);
       background: color-mix(in srgb, var(--color-surface) 96%, white);
@@ -605,7 +605,7 @@ function getWorkflowSortWeight(
       display: grid;
       gap: 0.9rem;
       align-self: start;
-      max-height: calc(100vh - 11.5rem);
+      max-height: calc(100vh - 10.75rem);
       overflow: hidden;
     }
     .service-lane--pending { border-top: 5px solid var(--color-warning); }
@@ -656,7 +656,7 @@ function getWorkflowSortWeight(
       flex-direction: column;
       gap: 0.9rem;
       align-items: stretch;
-      max-height: calc(100vh - 16.25rem);
+      max-height: calc(100vh - 15.35rem);
       overflow: auto;
       padding-right: 0.3rem;
       padding-bottom: 0.1rem;
@@ -696,6 +696,7 @@ function getWorkflowSortWeight(
       isolation: isolate;
       min-height: max-content;
       height: auto;
+      contain: layout paint;
     }
     .order-card.status-preparing { border-left-color: #3B82F6; }
     .order-card.status-ready { border-left-color: var(--color-success); }
@@ -737,8 +738,8 @@ function getWorkflowSortWeight(
     .order-card.timer-red { border-left-color: #ef4444; }
     .order-header {
       display: grid;
-      gap: 0.45rem;
-      padding: 0.8rem 0.9rem 0.72rem;
+      gap: 0.5rem;
+      padding: 0.82rem 0.92rem 0.76rem;
       border-bottom: 1px solid var(--color-border);
       background: color-mix(in srgb, var(--color-bg) 82%, white);
       min-width: 0;
@@ -751,9 +752,9 @@ function getWorkflowSortWeight(
     .order-meta-top,
     .order-meta-row {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) max-content;
       align-items: start;
-      gap: 0.45rem 0.75rem;
+      gap: 0.45rem 0.8rem;
       min-width: 0;
     }
     .order-meta-top > :first-child,
@@ -767,7 +768,7 @@ function getWorkflowSortWeight(
       gap: 0.35rem 0.65rem;
     }
     .order-id {
-      font-size: 1.05rem;
+      font-size: 1.08rem;
       font-weight: 700;
       color: var(--color-text);
       overflow-wrap: anywhere;
@@ -787,6 +788,8 @@ function getWorkflowSortWeight(
       background: color-mix(in srgb, var(--color-primary) 8%, white);
       border: 1px solid color-mix(in srgb, var(--color-primary) 14%, var(--color-border));
       max-width: 100%;
+      display: inline-flex;
+      align-items: center;
     }
     .order-time,
     .order-waiting {
@@ -811,7 +814,7 @@ function getWorkflowSortWeight(
       text-align: center;
       white-space: normal;
       line-height: 1.1;
-      max-width: 100%;
+      max-width: 9rem;
       overflow-wrap: anywhere;
     }
     .status-badge.status-pending { background: rgba(245, 158, 11, 0.2); color: var(--color-warning); }
@@ -823,15 +826,15 @@ function getWorkflowSortWeight(
       margin: 0;
       padding: 0.15rem 0.95rem 0.8rem;
       display: grid;
-      gap: 0;
+      gap: 0.05rem;
       min-width: 0;
     }
     .order-item {
       display: grid;
       grid-template-columns: 2.5rem minmax(0, 1fr) auto;
       align-items: start;
-      gap: 0.35rem 0.65rem;
-      padding: 0.58rem 0;
+      gap: 0.42rem 0.72rem;
+      padding: 0.62rem 0;
       font-size: 0.9rem;
       line-height: 1.2;
       border-bottom: 1px solid var(--color-border);
@@ -871,7 +874,7 @@ function getWorkflowSortWeight(
       justify-self: end;
       align-self: center;
       white-space: normal;
-      max-width: 7.4rem;
+      max-width: 8rem;
       text-align: center;
       line-height: 1.1;
       overflow-wrap: anywhere;
@@ -886,8 +889,8 @@ function getWorkflowSortWeight(
       z-index: 10;
       justify-self: end;
       align-self: center;
-      width: min(100%, 7.4rem);
-      max-width: 7.4rem;
+      width: min(100%, 8rem);
+      max-width: 8rem;
     }
     .order-item:hover .item-status-control {
       z-index: 50;
@@ -933,8 +936,8 @@ function getWorkflowSortWeight(
       border-radius: var(--radius-md);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       z-index: 100;
-      min-width: 180px;
-      max-width: min(220px, 80vw);
+      min-width: 190px;
+      max-width: min(230px, 82vw);
       overflow: hidden;
     }
     .dropdown-section {

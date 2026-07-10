@@ -474,166 +474,155 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                 }
               </div>
 
-              <!-- Table Status and PIN Section -->
-              <div class="status-section">
-                @if (table.is_active) {
-                  <div class="status-badge status-active">
+              <div class="status-section status-section--operator">
+                <div class="status-section-top">
+                  <div class="status-badge" [class.status-active]="tableHasActiveSessionOrOpenOrder(table)" [class.status-inactive]="!tableHasActiveSessionOrOpenOrder(table)">
                     <span class="status-dot"></span>
-                    {{ 'TABLES.ACTIVE' | translate }}
+                    {{ tableOperatorStateLabel(table) }}
                   </div>
+                  @if (table.active_order_id) {
+                    <span class="table-operator-chip">Bill #{{ table.active_order_id }}</span>
+                  }
+                </div>
+                <div class="table-operator-summary">
+                  <span>{{ table.seat_count || 0 }} {{ 'TABLES.SEATS' | translate | lowercase }}</span>
+                  @if (table.assigned_waiter_name || table.effective_waiter_name) {
+                    <span>{{ table.assigned_waiter_name || table.effective_waiter_name }}</span>
+                  }
                   @if (table.order_pin) {
-                    <div class="pin-display">
-                      <span class="pin-label">PIN:</span>
-                      <span class="pin-value">{{ table.order_pin }}</span>
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-ghost btn-pin-renew"
-                        (click)="regeneratePin(table)"
-                        [disabled]="activatingTableId() === table.id"
-                        [title]="'TABLES.NEW_PIN' | translate">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M23 4v6h-6M1 20v-6h6"/>
-                          <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-                        </svg>
-                        {{ 'TABLES.NEW_PIN' | translate }}
-                      </button>
-                    </div>
-                  }
-                } @else {
-                  <div class="status-badge status-inactive">
-                    <span class="status-dot"></span>
-                    {{ 'TABLES.INACTIVE' | translate }}
-                  </div>
-                }
-              </div>
-
-              <!-- Waiter Assignment -->
-              <div class="waiter-assign-section">
-                <div class="waiter-assign-row">
-                  <svg class="waiter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
-                    <circle cx="12" cy="7" r="4"/>
-                  </svg>
-                  @if (canManageTableAssignments()) {
-                    <select class="waiter-select" (change)="onWaiterAssign(table, $event)">
-                      <option value="" [selected]="!table.assigned_waiter_id">{{ 'TABLES.UNASSIGNED' | translate }}</option>
-                      @for (w of waiters(); track w.id) {
-                        <option [value]="w.id" [selected]="table.assigned_waiter_id === w.id">{{ w.full_name || w.email }}</option>
-                      }
-                    </select>
-                  } @else {
-                    <span class="waiter-readonly">
-                      @if (table.assigned_waiter_id) {
-                        {{ table.assigned_waiter_name || table.effective_waiter_name || '—' }}
-                      } @else if (table.effective_waiter_name) {
-                        {{ 'TABLES.SECTION_DEFAULT' | translate }}: {{ table.effective_waiter_name }}
-                      } @else {
-                        {{ 'TABLES.UNASSIGNED' | translate }}
-                      }
-                    </span>
+                    <span>PIN {{ table.order_pin }}</span>
                   }
                 </div>
-                @if (canManageTableAssignments() && !table.assigned_waiter_id && table.effective_waiter_name) {
-                  <div class="waiter-inherited">{{ 'TABLES.SECTION_DEFAULT' | translate }}: {{ table.effective_waiter_name }}</div>
-                }
               </div>
 
-              <div class="qr-section">
-                <div class="qr-card">
-                  @if (tenantSettings() && !compact) {
-                    <div class="qr-header">
-                      <div class="company-name">{{ tenantSettings()!.name }}</div>
-                      @if (tenantSettings()!.phone) {
-                        <div class="company-phone">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
-                          </svg>
-                          {{ tenantSettings()!.phone }}
-                        </div>
-                      }
-                    </div>
-                  }
-                  <div class="qr-code-wrapper">
-                    <qrcode [qrdata]="getMenuUrl(table)" [width]="compact ? 96 : 180" [errorCorrectionLevel]="'M'" cssClass="qr-code"></qrcode>
-                  </div>
-                  <div class="qr-footer">
-                    <div class="table-number">{{ table.name }}</div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Session Control Actions -->
-              <div
-                class="session-actions"
-                [class.session-actions--inactive]="!table.is_active"
-                [class.session-actions--single]="table.is_active && !!table.order_pin">
-                @if (table.is_active) {
-                  @if (!table.order_pin) {
-                    <button
-                      type="button"
-                      class="btn btn-sm btn-ghost"
-                      (click)="regeneratePin(table)"
-                      [disabled]="activatingTableId() === table.id"
-                      [title]="'TABLES.NEW_PIN' | translate">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M23 4v6h-6M1 20v-6h6"/>
-                        <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-                      </svg>
-                      {{ 'TABLES.NEW_PIN' | translate }}
-                    </button>
-                  }
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-warning"
-                    (click)="confirmCloseTable(table)"
-                    [disabled]="activatingTableId() === table.id">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                      <path d="M7 11V7a5 5 0 0110 0v4"/>
-                    </svg>
-                    {{ 'TABLES.CLOSE_TABLE' | translate }}
-                  </button>
-                } @else {
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-success"
-                    (click)="activateTableSession(table)"
-                    [disabled]="activatingTableId() === table.id">
-                    @if (activatingTableId() === table.id) {
-                      <span class="spinner"></span>
-                    } @else {
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                        <path d="M7 11V7a5 5 0 0110 0v4"/>
-                      </svg>
-                    }
-                    {{ 'TABLES.ACTIVATE' | translate }}
+              <div class="table-actions table-actions--primary">
+                @if (canOpenStaffOrders()) {
+                  <button type="button" class="btn btn-secondary btn-sm" (click)="openOrdersForTable(table)">
+                    {{ table.active_order_id ? ('TABLES.OPEN_STAFF_ORDER' | translate) : ('TABLES.VIEW_TABLE_ORDERS' | translate) }}
                   </button>
                 }
-              </div>
-
-              <div class="table-actions">
-                <button type="button" class="btn btn-secondary btn-sm" (click)="openStaffMenu(table)"
-                  [disabled]="staffMenuOpeningTableId() === table.id">{{ 'TABLES.OPEN_MENU' | translate }}</button>
-                <button 
-                  class="btn btn-sm" 
-                  [class.btn-ghost]="copiedTableId() !== table.id"
-                  [class.btn-copied]="copiedTableId() === table.id"
-                  (click)="copyLink(table)">
-                  @if (copiedTableId() === table.id) {
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="20,6 9,17 4,12"/>
-                    </svg>
-                    Copied!
-                  } @else {
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-                    </svg>
-                    Copy
-                  }
+                <button type="button" class="btn btn-primary btn-sm" (click)="openPosForTable(table)">
+                  {{ tablePrimaryActionLabel(table) }}
                 </button>
               </div>
+
+              @if (canManageTableAssignments() || canManageFloors()) {
+                <details class="table-admin-panel">
+                  <summary>Advanced controls</summary>
+
+                  <div class="waiter-assign-section">
+                    <div class="waiter-assign-row">
+                      <svg class="waiter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                      </svg>
+                      @if (canManageTableAssignments()) {
+                        <select class="waiter-select" (change)="onWaiterAssign(table, $event)">
+                          <option value="" [selected]="!table.assigned_waiter_id">{{ 'TABLES.UNASSIGNED' | translate }}</option>
+                          @for (w of waiters(); track w.id) {
+                            <option [value]="w.id" [selected]="table.assigned_waiter_id === w.id">{{ w.full_name || w.email }}</option>
+                          }
+                        </select>
+                      } @else {
+                        <span class="waiter-readonly">
+                          @if (table.assigned_waiter_id) {
+                            {{ table.assigned_waiter_name || table.effective_waiter_name || '—' }}
+                          } @else if (table.effective_waiter_name) {
+                            {{ 'TABLES.SECTION_DEFAULT' | translate }}: {{ table.effective_waiter_name }}
+                          } @else {
+                            {{ 'TABLES.UNASSIGNED' | translate }}
+                          }
+                        </span>
+                      }
+                    </div>
+                    @if (canManageTableAssignments() && !table.assigned_waiter_id && table.effective_waiter_name) {
+                      <div class="waiter-inherited">{{ 'TABLES.SECTION_DEFAULT' | translate }}: {{ table.effective_waiter_name }}</div>
+                    }
+                  </div>
+
+                  <div class="session-actions"
+                    [class.session-actions--inactive]="!table.is_active"
+                    [class.session-actions--single]="table.is_active && !!table.order_pin">
+                    @if (table.is_active) {
+                      @if (!table.order_pin) {
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-ghost"
+                          (click)="regeneratePin(table)"
+                          [disabled]="activatingTableId() === table.id"
+                          [title]="'TABLES.NEW_PIN' | translate">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 4v6h-6M1 20v-6h6"/>
+                            <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                          </svg>
+                          {{ 'TABLES.NEW_PIN' | translate }}
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-warning"
+                        (click)="confirmCloseTable(table)"
+                        [disabled]="activatingTableId() === table.id">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                          <path d="M7 11V7a5 5 0 0110 0v4"/>
+                        </svg>
+                        {{ 'TABLES.CLOSE_TABLE' | translate }}
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-success"
+                        (click)="activateTableSession(table)"
+                        [disabled]="activatingTableId() === table.id">
+                        @if (activatingTableId() === table.id) {
+                          <span class="spinner"></span>
+                        } @else {
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0110 0v4"/>
+                          </svg>
+                        }
+                        {{ 'TABLES.ACTIVATE' | translate }}
+                      </button>
+                    }
+                  </div>
+
+                  <div class="table-actions">
+                    <button type="button" class="btn btn-secondary btn-sm" (click)="openStaffMenu(table)"
+                      [disabled]="staffMenuOpeningTableId() === table.id">{{ 'TABLES.OPEN_MENU' | translate }}</button>
+                    <button
+                      class="btn btn-sm"
+                      [class.btn-ghost]="copiedTableId() !== table.id"
+                      [class.btn-copied]="copiedTableId() === table.id"
+                      (click)="copyLink(table)">
+                      @if (copiedTableId() === table.id) {
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="20,6 9,17 4,12"/>
+                        </svg>
+                        Copied!
+                      } @else {
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                        </svg>
+                        Copy
+                      }
+                    </button>
+                  </div>
+
+                  <div class="qr-section qr-section--compact">
+                    <div class="qr-card">
+                      <div class="qr-code-wrapper">
+                        <qrcode [qrdata]="getMenuUrl(table)" [width]="compact ? 96 : 180" [errorCorrectionLevel]="'M'" cssClass="qr-code"></qrcode>
+                      </div>
+                      <div class="qr-footer">
+                        <div class="table-number">{{ table.name }}</div>
+                      </div>
+                    </div>
+                  </div>
+                </details>
+              }
               </div>
             </ng-template>
           }
@@ -949,6 +938,15 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     .qr-footer { text-align: center; margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--color-border); }
     .table-number { font-size: 1rem; font-weight: 600; color: var(--color-primary); text-transform: uppercase; }
     .table-actions { display: flex; gap: var(--space-2); justify-content: center; }
+    .table-actions--primary {
+      justify-content: stretch;
+      margin-bottom: var(--space-3);
+    }
+    .table-actions--primary .btn {
+      flex: 1 1 0;
+      justify-content: center;
+      min-width: 0;
+    }
 
     .icon-btn { background: none; border: none; padding: var(--space-2); border-radius: var(--radius-sm); color: var(--color-text-muted); cursor: pointer; transition: all 0.15s ease; }
     .icon-btn:hover { background: var(--color-bg); color: var(--color-text); }
@@ -991,6 +989,49 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
       padding: var(--space-3);
       background: var(--color-bg);
       border-radius: var(--radius-md);
+    }
+    .status-section--operator {
+      align-items: stretch;
+      gap: var(--space-3);
+      background: linear-gradient(180deg, rgba(249, 250, 251, 0.95) 0%, rgba(243, 244, 246, 0.9) 100%);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+    }
+    .status-section-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+    .table-operator-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      background: rgba(37, 99, 235, 0.08);
+      color: #1d4ed8;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+    .table-operator-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+    }
+    .table-operator-summary span {
+      display: inline-flex;
+      align-items: center;
+      min-height: 1.85rem;
+      padding: 0.3rem 0.65rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.92);
+      color: var(--color-text-muted);
+      font-size: 0.78rem;
+      font-weight: 600;
+      border: 1px solid rgba(226, 232, 240, 0.9);
     }
     .status-badge {
       display: flex;
@@ -1069,6 +1110,58 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
       font-size: 0.75rem;
       color: var(--color-text);
     }
+    .table-admin-panel {
+      margin-top: auto;
+      border-top: 1px solid var(--color-border);
+      padding-top: var(--space-3);
+    }
+    .table-admin-panel summary {
+      cursor: pointer;
+      list-style: none;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+    }
+    .table-admin-panel summary::-webkit-details-marker {
+      display: none;
+    }
+    .table-admin-panel summary::after {
+      content: '+';
+      font-size: 1rem;
+      line-height: 1;
+    }
+    .table-admin-panel[open] summary::after {
+      content: '−';
+    }
+    .table-admin-panel[open] summary {
+      margin-bottom: var(--space-3);
+    }
+    .table-admin-panel > :not(summary) {
+      max-width: 100%;
+    }
+    .qr-section--compact {
+      margin-top: var(--space-3);
+      margin-bottom: 0;
+    }
+    .qr-section--compact .qr-card {
+      padding: var(--space-3);
+      box-shadow: none;
+      background: var(--color-bg);
+      border-style: dashed;
+    }
+    .qr-section--compact .qr-code-wrapper {
+      margin: var(--space-2) 0;
+    }
+    .qr-section--compact .qr-footer {
+      margin-top: var(--space-2);
+      padding-top: var(--space-2);
+    }
 
     /* Session Actions */
     .session-actions {
@@ -1144,6 +1237,15 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
 
     @media (max-width: 768px) {
       .table-grid { grid-template-columns: 1fr; }
+      .status-section-top {
+        align-items: stretch;
+      }
+      .table-actions--primary {
+        flex-direction: column;
+      }
+      .table-actions--primary .btn {
+        width: 100%;
+      }
     }
   `]
 })
@@ -1361,6 +1463,50 @@ export class TablesComponent implements OnInit {
     void this.router.navigate(['/staff/orders'], {
       queryParams: { focusTableId: table.id, table: table.id },
     });
+  }
+
+  canOpenStaffOrders(): boolean {
+    return this.permissions.canAccessRoute(this.api.getCurrentUser(), '/staff/orders');
+  }
+
+  openOrdersForTable(table: Table): void {
+    if (!table.id || !this.canOpenStaffOrders()) return;
+    void this.router.navigate(['/staff/orders'], {
+      queryParams: {
+        table: table.id,
+        focusTableId: table.id,
+      },
+    });
+  }
+
+  openPosForTable(table: Table): void {
+    if (!table.id) return;
+    void this.router.navigate(['/pos'], {
+      queryParams: {
+        tableId: table.id,
+        orderId: table.active_order_id ?? null,
+      },
+    });
+  }
+
+  tableOperatorStateLabel(table: Table): string {
+    if (table.active_order_id) {
+      return 'Live bill';
+    }
+    if (table.is_active) {
+      return 'Ready for bill';
+    }
+    return 'Idle table';
+  }
+
+  tablePrimaryActionLabel(table: Table): string {
+    if (table.active_order_id) {
+      return 'Resume bill';
+    }
+    if (table.is_active) {
+      return 'Start bill';
+    }
+    return 'Open POS';
   }
 
   loadData() {

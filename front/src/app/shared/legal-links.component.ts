@@ -20,7 +20,7 @@ import { TranslateModule } from '@ngx-translate/core';
           <a [href]="termsUrl()!" target="_blank" rel="noopener noreferrer">{{ 'LEGAL.TERMS_OF_SERVICE' | translate }}</a>
         }
         @if (termsUrl() && privacyUrl()) {
-          <span class="legal-sep" aria-hidden="true">|</span>
+          <span class="legal-sep" aria-hidden="true"> | </span>
         }
         @if (privacyUrl()) {
           <a [href]="privacyUrl()!" target="_blank" rel="noopener noreferrer">{{ 'LEGAL.PRIVACY_POLICY' | translate }}</a>

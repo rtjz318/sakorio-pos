@@ -17,7 +17,7 @@ function isPublicRoute(url: string): boolean {
     path === '/' ||
     path === '/login' ||
     path === '/register' ||
-    path === '/orders' ||
+    (path === '/orders' && isCustomerPublicHost()) ||
     path === '/courier/login' ||
     path.startsWith('/provider/login') ||
     path.startsWith('/provider/register') ||

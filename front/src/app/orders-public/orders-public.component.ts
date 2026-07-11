@@ -1,8 +1,9 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { ApiService, TenantSummary } from '../services/api.service';
 import { LanguagePickerComponent } from '../shared/language-picker.component';
+import { isCustomerPublicHost } from '../shared/host-portal.util';
 
 @Component({
   selector: 'app-orders-public',
@@ -187,6 +188,7 @@ import { LanguagePickerComponent } from '../shared/language-picker.component';
 })
 export class OrdersPublicComponent implements OnInit {
   private api = inject(ApiService);
+  private router = inject(Router);
 
   tenants = signal<TenantSummary[]>([]);
   loading = signal(true);
@@ -197,6 +199,24 @@ export class OrdersPublicComponent implements OnInit {
   );
 
   ngOnInit(): void {
+    if (!isCustomerPublicHost()) {
+      const cachedUser = this.api.getCurrentUser();
+      if (cachedUser) {
+        void this.router.navigateByUrl('/staff/orders');
+        return;
+      }
+
+      this.api.checkAuth().subscribe({
+        next: () => {
+          void this.router.navigateByUrl('/staff/orders');
+        },
+        error: () => {
+          void this.router.navigateByUrl('/login');
+        },
+      });
+      return;
+    }
+
     this.loading.set(true);
     this.error.set(null);
     this.api.getPublicTenants().subscribe({

@@ -139,6 +139,11 @@ class Settings(BaseSettings):
 
     # Rate limiting (see ROADMAP.md)
     rate_limit_enabled: bool = Field(default=True, validation_alias="RATE_LIMIT_ENABLED")
+    redis_url: str = Field(
+        default="",
+        validation_alias="REDIS_URL",
+        description="Primary Redis connection used for websocket fan-out and general background coordination.",
+    )
     rate_limit_redis_url: str = Field(
         default="", validation_alias="RATE_LIMIT_REDIS_URL"
     )  # Empty = use REDIS_URL

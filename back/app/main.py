@@ -98,6 +98,11 @@ from .opening_hours_effective import (
     effective_weekly_json_preview,
     opening_service_windows_for_date as _opening_service_windows_for_date,
 )
+from .websocket_bridge import (
+    register_websocket_routes,
+    start_websocket_bridge,
+    stop_websocket_bridge,
+)
 
 from .rate_limits import (
     _rate_limit_key,
@@ -247,8 +252,11 @@ async def _app_lifespan(app: FastAPI):
     app.state.social_publish_stop = stop_social
     app.state.social_publish_task = social_task
     logger.info("Social publish worker started")
+    start_websocket_bridge(app)
 
     yield
+
+    await stop_websocket_bridge(app)
 
     stop_soc = getattr(app.state, "social_publish_stop", None)
     task_soc = getattr(app.state, "social_publish_task", None)
@@ -302,6 +310,7 @@ app.add_middleware(
 )
 
 register_rate_limit_exception_handler(app)
+register_websocket_routes(app)
 
 
 def _is_connection_or_pool_operational_failure(exc: BaseException) -> bool:

@@ -1160,7 +1160,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .cashier-grid {
       display: grid;
-      grid-template-columns: minmax(388px, 448px) minmax(0, 1.28fr) minmax(344px, 388px);
+      grid-template-columns: minmax(404px, 468px) minmax(0, 1.24fr) minmax(356px, 404px);
       gap: 1rem;
       align-items: start;
     }
@@ -1180,7 +1180,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       top: 1rem;
       max-height: calc(100vh - 1.5rem);
       overflow: hidden;
-      padding-inline: 1rem;
+      padding-inline: 0.96rem;
     }
 
     .lane--catalog {
@@ -1428,7 +1428,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       overflow: auto;
       padding-right: 0.2rem;
       align-content: start;
-      gap: 0.72rem;
+      gap: 0.78rem;
     }
 
     .table-card,
@@ -1455,10 +1455,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       text-align: left;
       border: 0;
       background: transparent;
-      padding: 0.82rem 0.9rem 0.58rem;
+      padding: 0.88rem 0.96rem 0.68rem;
       display: grid;
       align-content: start;
-      gap: 0.38rem;
+      gap: 0.44rem;
       min-width: 0;
       min-height: 0;
       cursor: pointer;
@@ -1466,18 +1466,18 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .product-card {
-      padding: 0.98rem 1rem;
+      padding: 1rem 1.02rem;
       display: flex;
       flex-direction: column;
-      min-height: 9.6rem;
+      min-height: 10rem;
       height: 100%;
       overflow: hidden;
     }
 
     .product-card-body {
       display: grid;
-      grid-template-columns: 4.75rem minmax(0, 1fr);
-      gap: 0.84rem;
+      grid-template-columns: 5rem minmax(0, 1fr);
+      gap: 0.9rem;
       align-items: stretch;
       height: 100%;
       min-height: 100%;
@@ -1496,7 +1496,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .product-card-copy {
       display: flex;
       flex-direction: column;
-      gap: 0.34rem;
+      gap: 0.4rem;
       min-width: 0;
       min-height: 0;
       flex: 1;
@@ -1511,9 +1511,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
         color-mix(in srgb, var(--color-primary-light) 22%, white),
         color-mix(in srgb, var(--color-bg) 84%, white)
       );
-      width: 4.75rem;
-      height: 4.75rem;
-      min-height: 4.75rem;
+      width: 5rem;
+      height: 5rem;
+      min-height: 5rem;
       aspect-ratio: 1 / 1;
       display: flex;
       align-items: center;
@@ -1568,8 +1568,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .catalog-toolbar {
       display: grid;
-      grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr) auto;
+      grid-template-columns: minmax(0, 1.16fr) minmax(236px, 0.84fr) auto;
       align-items: stretch;
+      gap: 0.7rem;
     }
 
     .table-card-top,
@@ -1588,7 +1589,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .table-card-copy {
       display: grid;
-      gap: 0.18rem;
+      gap: 0.22rem;
       min-width: 0;
       align-content: start;
     }
@@ -1597,13 +1598,13 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       line-height: 1.08;
       overflow-wrap: anywhere;
       text-wrap: balance;
-      font-size: 1.12rem;
+      font-size: 1.16rem;
       font-weight: 800;
     }
 
     .table-meta {
       display: block;
-      font-size: 0.87rem;
+      font-size: 0.88rem;
       line-height: 1.24;
       color: var(--color-text-muted);
       white-space: normal;
@@ -1653,7 +1654,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       display: flex;
       flex-wrap: wrap;
       gap: 0.36rem;
-      min-height: 1rem;
+      min-height: 1.2rem;
       align-items: flex-start;
       align-content: flex-start;
       min-width: 0;
@@ -1669,11 +1670,11 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .table-card-actions {
       margin-top: auto;
-      padding: 0 1rem 1rem;
+      padding: 0.72rem 0.96rem 0.96rem;
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       align-items: stretch;
-      gap: 0.5rem;
+      gap: 0.52rem;
       border-top: 1px solid color-mix(in srgb, var(--color-border) 74%, white);
     }
 
@@ -1683,9 +1684,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .table-card-actions .btn {
       width: 100%;
-      min-height: 2.26rem;
+      min-height: 2.42rem;
       justify-content: center;
-      padding-inline: 0.72rem;
+      padding-inline: 0.74rem;
       text-align: center;
       white-space: nowrap;
       overflow: hidden;
@@ -1709,14 +1710,13 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .table-card-bottom {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
       gap: 0.42rem 0.56rem;
-      font-size: 0.79rem;
+      font-size: 0.8rem;
       line-height: 1.24;
-      padding-top: 0.18rem;
+      padding-top: 0.22rem;
     }
 
     .table-card-summary,
@@ -1733,8 +1733,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       white-space: normal;
       color: var(--color-text-muted);
       font-weight: 600;
-      line-height: 1.24;
-      flex: 1 1 10rem;
+      line-height: 1.28;
+      min-width: 0;
     }
 
     .table-card-payment {
@@ -1749,12 +1749,12 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       align-self: center;
       width: fit-content;
       border-radius: 999px;
-      padding: 0.26rem 0.56rem;
+      padding: 0.28rem 0.58rem;
       background: color-mix(in srgb, var(--color-bg) 72%, white);
       color: var(--color-text-muted);
-      font-size: 0.64rem;
+      font-size: 0.65rem;
       font-weight: 700;
-      line-height: 1.1;
+      line-height: 1.08;
       letter-spacing: 0.04em;
       text-transform: uppercase;
       white-space: nowrap;
@@ -1797,10 +1797,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .product-notes {
       margin: 0;
-      font-size: 0.76rem;
-      line-height: 1.3;
-      min-height: 2.6em;
-      max-height: 2.6em;
+      font-size: 0.78rem;
+      line-height: 1.32;
+      min-height: 2.64em;
+      max-height: 2.64em;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
@@ -1817,8 +1817,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: end;
-      padding-top: 0.56rem;
-      gap: 0.65rem;
+      padding-top: 0.62rem;
+      gap: 0.72rem;
       border-top: 1px solid color-mix(in srgb, var(--color-border) 70%, white);
       margin-top: auto;
     }
@@ -1837,19 +1837,19 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .product-card-bottom .btn {
       width: auto;
-      min-width: 6.2rem;
-      min-height: 2.18rem;
+      min-width: 6.5rem;
+      min-height: 2.24rem;
       justify-content: center;
       align-self: end;
       flex-shrink: 0;
-      padding-inline: 0.8rem;
+      padding-inline: 0.9rem;
       font-weight: 700;
       white-space: nowrap;
       font-size: 0.82rem;
     }
 
     .product-price {
-      font-size: 1.02rem;
+      font-size: 1.06rem;
       line-height: 1.12;
     }
 
@@ -3509,7 +3509,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     @media (max-width: 1480px) {
       .cashier-grid {
-        grid-template-columns: minmax(312px, 348px) minmax(0, 1.06fr) minmax(344px, 380px);
+        grid-template-columns: minmax(340px, 382px) minmax(0, 1.02fr) minmax(340px, 388px);
       }
 
       .catalog-toolbar {
@@ -4027,14 +4027,14 @@ export class CashierPosComponent {
     const liveCount = group.orders.filter((order) => !this.isPaid(order) && !this.isClosedOrder(order)).length;
 
     if (settleCount > 0) {
-      return `${settleCount} awaiting payment · ${liveCount} live · ${freshness}`;
+      return `${settleCount} awaiting payment Â· ${liveCount} live Â· ${freshness}`;
     }
 
     if (liveCount > 0) {
-      return `${liveCount} live bill${liveCount === 1 ? '' : 's'} · ${freshness}`;
+      return `${liveCount} live bill${liveCount === 1 ? '' : 's'} Â· ${freshness}`;
     }
 
-    return `${group.orders.length} bill${group.orders.length === 1 ? '' : 's'} · ${freshness}`;
+    return `${group.orders.length} bill${group.orders.length === 1 ? '' : 's'} Â· ${freshness}`;
   }
 
   queueGroupSummaryCopy(group: PosQueueOrderGroup): string {
@@ -4772,9 +4772,9 @@ export class CashierPosComponent {
       return 'Orders';
     }
     if (count === 1) {
-      return 'Orders · 1';
+      return 'Orders Â· 1';
     }
-    return `Orders · ${count}`;
+    return `Orders Â· ${count}`;
   }
 
   queueHistoryOrders(): Order[] {
@@ -4839,7 +4839,7 @@ export class CashierPosComponent {
 
   queueGroupSummary(group: PosQueueOrderGroup): string {
     const newestAt = group.newestAt ? this.formatDate(group.newestAt) : 'just now';
-    return `${group.orders.length} open bill${group.orders.length === 1 ? '' : 's'} · latest ${newestAt}`;
+    return `${group.orders.length} open bill${group.orders.length === 1 ? '' : 's'} Â· latest ${newestAt}`;
   }
 
   queueGroupStatusLabel(order: Order): string {
@@ -4875,7 +4875,7 @@ export class CashierPosComponent {
     const tableName = (order.table_name || '').trim();
     const customerName = (order.customer_name || '').trim();
     if (tableName && customerName) {
-      return `${tableName} · ${customerName}`;
+      return `${tableName} Â· ${customerName}`;
     }
     if (tableName) {
       return tableName;
@@ -5749,7 +5749,7 @@ export class CashierPosComponent {
       return 'No bill history yet';
     }
 
-    return `${this.paymentLabel(latest)} · ${this.formatDate(latest.created_at)}`;
+    return `${this.paymentLabel(latest)} Â· ${this.formatDate(latest.created_at)}`;
   }
 
   tableLatestOrder(tableId: number): Order | null {

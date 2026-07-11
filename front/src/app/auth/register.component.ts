@@ -130,14 +130,14 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
         <div class="auth-actions-foot">
           <span>{{ 'AUTH.ALREADY_HAVE_ACCOUNT' | translate }}</span>
           <a routerLink="/login">{{ 'AUTH.SIGN_IN_LINK' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">Â·</span>
+          <span class="auth-foot-sep" aria-hidden="true">·</span>
           <a routerLink="/provider/login" data-testid="register-provider-login">{{ 'LANDING.PROVIDER_LOGIN' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">Â·</span>
+          <span class="auth-foot-sep" aria-hidden="true">·</span>
           <a routerLink="/provider/register" data-testid="register-provider-register">{{ 'LANDING.REGISTER_AS_PROVIDER' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">Â·</span>
+          <span class="auth-foot-sep" aria-hidden="true">·</span>
           <a href="mailto:sales@sakario.sg" data-testid="register-contact-us">{{ 'LANDING.CONTACT_US' | translate }}</a>
           @if (legalTermsUrl() || legalPrivacyUrl()) {
-            <span class="auth-foot-sep" aria-hidden="true">Â·</span>
+            <span class="auth-foot-sep" aria-hidden="true">·</span>
             <app-legal-links [inline]="true" [termsUrl]="legalTermsUrl()" [privacyUrl]="legalPrivacyUrl()" />
           }
         </div>
@@ -384,3 +384,4 @@ export class RegisterComponent implements OnInit {
     }
   }
 }
+

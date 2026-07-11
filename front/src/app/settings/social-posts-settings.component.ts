@@ -483,7 +483,7 @@ export class SocialPostsSettingsComponent implements OnInit, OnDestroy {
 
   shortText(s: string | null, n: number): string {
     if (!s) return '';
-    return s.length <= n ? s : s.slice(0, n) + 'â€¦';
+    return s.length <= n ? s : s.slice(0, n) + '…';
   }
 
   private readonly api = inject(ApiService);
@@ -660,3 +660,4 @@ export class SocialPostsSettingsComponent implements OnInit, OnDestroy {
     });
   }
 }
+

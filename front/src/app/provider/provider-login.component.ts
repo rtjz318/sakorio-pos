@@ -38,7 +38,7 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
                 [type]="showPassword() ? 'text' : 'password'"
                 name="password"
                 formControlName="password"
-                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                placeholder="••••••••"
                 autocomplete="current-password"
               >
               <button type="button" class="pw-toggle" (click)="showPassword.set(!showPassword())" [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'" tabindex="-1">
@@ -54,21 +54,21 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
             <div class="error-banner">{{ error() }}</div>
           }
           <button type="submit" class="btn-submit" [disabled]="form.invalid || loading()">
-            {{ loading() ? 'Signing inâ€¦' : 'Sign in' }}
+            {{ loading() ? 'Signing in…' : 'Sign in' }}
           </button>
         </form>
 
         <div class="auth-actions-foot">
           <span>{{ 'PROVIDER_AUTH.NO_ACCOUNT' | translate }}</span>
           <a routerLink="/provider/register">{{ 'LANDING.REGISTER_AS_PROVIDER' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">Â·</span>
+          <span class="auth-foot-sep" aria-hidden="true">·</span>
           <a routerLink="/provider/forgot-password">{{ 'AUTH.FORGOT_PASSWORD' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">Â·</span>
+          <span class="auth-foot-sep" aria-hidden="true">·</span>
           <a routerLink="/login">{{ 'PROVIDER_AUTH.BACK_STAFF_LOGIN' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">Â·</span>
+          <span class="auth-foot-sep" aria-hidden="true">·</span>
           <a href="mailto:sales@sakario.sg">{{ 'LANDING.CONTACT_US' | translate }}</a>
           @if (legalTermsUrl() || legalPrivacyUrl()) {
-            <span class="auth-foot-sep" aria-hidden="true">Â·</span>
+            <span class="auth-foot-sep" aria-hidden="true">·</span>
             <app-legal-links [inline]="true" [termsUrl]="legalTermsUrl()" [privacyUrl]="legalPrivacyUrl()" />
           }
         </div>
@@ -200,3 +200,4 @@ export class ProviderLoginComponent implements OnInit {
     });
   }
 }
+

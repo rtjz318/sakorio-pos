@@ -183,19 +183,19 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
             <div class="success-banner">{{ success() }}</div>
           }
           <button type="submit" class="btn-submit" [disabled]="form.invalid || loading()">
-            {{ loading() ? 'Creatingâ€¦' : 'Create account' }}
+            {{ loading() ? 'Creating…' : 'Create account' }}
           </button>
         </form>
 
         <div class="auth-actions-foot">
           <span>{{ 'AUTH.ALREADY_HAVE_ACCOUNT' | translate }}</span>
           <a routerLink="/provider/login">{{ 'AUTH.SIGN_IN_LINK' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">Â·</span>
+          <span class="auth-foot-sep" aria-hidden="true">·</span>
           <a routerLink="/login">{{ 'PROVIDER_AUTH.BACK_STAFF_LOGIN' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">Â·</span>
+          <span class="auth-foot-sep" aria-hidden="true">·</span>
           <a href="mailto:sales@sakario.sg">{{ 'LANDING.CONTACT_US' | translate }}</a>
           @if (legalTermsUrl() || legalPrivacyUrl()) {
-            <span class="auth-foot-sep" aria-hidden="true">Â·</span>
+            <span class="auth-foot-sep" aria-hidden="true">·</span>
             <app-legal-links [inline]="true" [termsUrl]="legalTermsUrl()" [privacyUrl]="legalPrivacyUrl()" />
           }
         </div>
@@ -372,3 +372,4 @@ export class ProviderRegisterComponent implements OnInit {
     });
   }
 }
+

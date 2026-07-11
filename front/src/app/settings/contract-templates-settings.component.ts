@@ -380,7 +380,7 @@ export class ContractTemplatesSettingsComponent implements OnInit {
     this.editingId.set(null);
     this.formKey = '';
     this.formName = '';
-    this.formBody = '<p>{{employer_name}} — {{worker_name}}</p>\n<p>{{role_title}} · {{start_date}} — {{end_date}}</p>';
+    this.formBody = '<p>{{employer_name}} — {{worker_name}}</p>\n<p>{{role_title}} � {{start_date}} — {{end_date}}</p>';
     this.formKind = null;
     this.formLocale = '';
     this.formError.set(null);
@@ -531,3 +531,4 @@ export class ContractTemplatesSettingsComponent implements OnInit {
     });
   }
 }
+

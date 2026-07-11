@@ -152,7 +152,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     const name = this.customerName();
     const table = this.tableName();
     if (name) {
-      return `Hey, ${name}! Â· ${table}`;
+      return `Hey, ${name}! · ${table}`;
     }
     return table;
   });
@@ -1074,7 +1074,7 @@ export class MenuComponent implements OnInit, OnDestroy {
       if (Array.isArray(v)) parts.push(v.join(', '));
       else parts.push(String(v));
     }
-    return parts.join(' Â· ');
+    return parts.join(' · ');
   }
 
   getItemStatusLabel(status: string): string {
@@ -1358,3 +1358,4 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
 }
+

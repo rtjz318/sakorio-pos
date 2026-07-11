@@ -132,19 +132,28 @@ interface OrderTableGroup {
                           <p class="eyebrow">Table orders</p>
                           <h3>{{ group.tableName }}</h3>
                           <p class="table-order-group-summary">
-                            {{ group.activeCount }} active tickets Â· {{ formatPrice(group.totalCents) }} currently linked to this table
+                            {{ formatActiveGroupSummary(group) }}
                           </p>
                           <div class="table-order-group-meta">
                             <span class="group-pill group-pill--accent">{{ group.activeCount }} active</span>
                             <span class="group-pill">{{ group.orders.length }} tickets</span>
                             <span class="group-pill">{{ formatPrice(group.totalCents) }}</span>
+                            @if (countOrdersWithStatuses(group.orders, ['ready']) > 0) {
+                              <span class="group-pill group-pill--success">{{ countOrdersWithStatuses(group.orders, ['ready']) }} ready</span>
+                            }
+                            @if (countOrdersWithStatuses(group.orders, ['preparing', 'partially_delivered']) > 0) {
+                              <span class="group-pill group-pill--info">{{ countOrdersWithStatuses(group.orders, ['preparing', 'partially_delivered']) }} in kitchen</span>
+                            }
+                            @if (countOrdersWithStatuses(group.orders, ['pending']) > 0) {
+                              <span class="group-pill group-pill--warning">{{ countOrdersWithStatuses(group.orders, ['pending']) }} new</span>
+                            }
                             @if (group.tableGroupLabel) {
                               <span class="group-pill">{{ group.tableGroupLabel }}</span>
-                          }
-                          @if (group.latestCreatedAt) {
-                            <span class="group-pill">{{ formatOrderTime(group.latestCreatedAt) }}</span>
-                          }
-                        </div>
+                            }
+                            @if (group.latestCreatedAt) {
+                              <span class="group-pill">{{ formatOrderTime(group.latestCreatedAt) }}</span>
+                            }
+                          </div>
                         <div class="table-order-stat-grid">
                           <article class="table-order-stat">
                             <span>Latest</span>
@@ -411,12 +420,18 @@ interface OrderTableGroup {
                           <p class="eyebrow">Awaiting payment</p>
                           <h3>{{ group.tableName }}</h3>
                           <p class="table-order-group-summary">
-                            Settlement-ready tickets stay grouped by table so cashier can close a whole section without hunting by order number.
+                            {{ formatUnpaidGroupSummary(group) }}
                           </p>
                           <div class="table-order-group-meta">
                             <span class="group-pill group-pill--accent">{{ group.unpaidCount }} unpaid</span>
                             <span class="group-pill">{{ group.orders.length }} tickets</span>
                             <span class="group-pill">{{ formatPrice(group.totalCents) }}</span>
+                            @if (countOrdersWithStatuses(group.orders, ['completed']) > 0) {
+                              <span class="group-pill group-pill--success">{{ countOrdersWithStatuses(group.orders, ['completed']) }} ready to close</span>
+                            }
+                            @if (countOrdersWithStatuses(group.orders, ['paid']) > 0) {
+                              <span class="group-pill group-pill--info">{{ countOrdersWithStatuses(group.orders, ['paid']) }} settled</span>
+                            }
                             @if (group.tableGroupLabel) {
                               <span class="group-pill">{{ group.tableGroupLabel }}</span>
                             }
@@ -722,7 +737,7 @@ interface OrderTableGroup {
                 </button>
               </div>
               <div class="modal-body">
-                <p class="order-summary">{{ 'ORDERS.TOTAL' | translate }}: {{ formatPrice(order.total_cents) }}{{ order.customer_name ? ' Â· ' + ('ORDERS.CUSTOMER' | translate) + ': ' + order.customer_name : '' }}</p>
+                <p class="order-summary">{{ 'ORDERS.TOTAL' | translate }}: {{ formatPrice(order.total_cents) }}{{ order.customer_name ? ' · ' + ('ORDERS.CUSTOMER' | translate) + ': ' + order.customer_name : '' }}</p>
 
                 <div class="edit-order-items">
                   <div class="edit-order-label">{{ 'ORDERS.ITEMS' | translate }}</div>
@@ -1144,11 +1159,11 @@ interface OrderTableGroup {
     }
 
     .table-order-group-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(250px, 0.85fr) auto;
+      align-items: start;
       gap: var(--space-3);
-      padding: var(--space-4);
+      padding: var(--space-3);
       border-bottom: 1px solid var(--color-border);
       background: linear-gradient(
         135deg,
@@ -1167,14 +1182,15 @@ interface OrderTableGroup {
     .table-order-stat-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--space-2);
+      gap: 0.65rem;
+      min-width: min(100%, 320px);
     }
 
     .table-order-stat {
       display: flex;
       flex-direction: column;
-      gap: 0.25rem;
-      padding: 0.8rem 0.9rem;
+      gap: 0.2rem;
+      padding: 0.7rem 0.8rem;
       border: 1px solid var(--color-border);
       border-radius: var(--radius-lg);
       background: color-mix(in srgb, var(--color-surface) 94%, white);
@@ -1189,7 +1205,7 @@ interface OrderTableGroup {
     }
 
     .table-order-stat strong {
-      font-size: 0.95rem;
+      font-size: 0.88rem;
       line-height: 1.25;
       color: var(--color-text);
     }
@@ -1203,7 +1219,7 @@ interface OrderTableGroup {
 
     .table-order-group-copy h3 {
       margin: 0;
-      font-size: 1.2rem;
+      font-size: 1.08rem;
       font-weight: 700;
       line-height: 1.15;
       color: var(--color-text);
@@ -1212,8 +1228,8 @@ interface OrderTableGroup {
     .table-order-group-summary {
       margin: 0;
       color: var(--color-text-muted);
-      line-height: 1.4;
-      font-size: 0.92rem;
+      line-height: 1.35;
+      font-size: 0.86rem;
     }
 
     .table-order-group-meta {
@@ -1226,13 +1242,13 @@ interface OrderTableGroup {
     .group-pill {
       display: inline-flex;
       align-items: center;
-      min-height: 1.9rem;
-      padding: 0.3rem 0.75rem;
+      min-height: 1.7rem;
+      padding: 0.22rem 0.62rem;
       border-radius: 999px;
       background: color-mix(in srgb, var(--color-bg) 78%, white);
       border: 1px solid var(--color-border);
       color: var(--color-text-muted);
-      font-size: 0.8125rem;
+      font-size: 0.75rem;
       font-weight: 600;
       white-space: nowrap;
     }
@@ -1243,10 +1259,28 @@ interface OrderTableGroup {
       border-color: color-mix(in srgb, var(--color-primary) 20%, var(--color-border));
     }
 
+    .group-pill--success {
+      background: color-mix(in srgb, var(--color-success-light) 84%, white);
+      color: var(--color-success);
+      border-color: color-mix(in srgb, var(--color-success) 18%, var(--color-border));
+    }
+
+    .group-pill--info {
+      background: color-mix(in srgb, #dbeafe 84%, white);
+      color: #2563eb;
+      border-color: color-mix(in srgb, #2563eb 16%, var(--color-border));
+    }
+
+    .group-pill--warning {
+      background: color-mix(in srgb, #fef3c7 88%, white);
+      color: #b45309;
+      border-color: color-mix(in srgb, #f59e0b 18%, var(--color-border));
+    }
+
     .order-grid--table {
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(332px, 1fr));
       gap: var(--space-3);
-      padding: var(--space-4);
+      padding: var(--space-3);
       background: transparent;
     }
     
@@ -1258,6 +1292,8 @@ interface OrderTableGroup {
 
     .order-card {
       position: relative;
+      display: flex;
+      flex-direction: column;
       background: var(--color-surface);
       border: 1px solid var(--color-border);
       border-left: 4px solid transparent;
@@ -1284,11 +1320,10 @@ interface OrderTableGroup {
     .order-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      gap: var(--space-3);
-      padding: var(--space-4);
+      align-items: flex-start;
+      gap: var(--space-2);
+      padding: var(--space-3);
       border-bottom: 1px solid var(--color-border);
-      margin-bottom: var(--space-3);
     }
     .order-header-main { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1; }
     .btn-edit-order {
@@ -1323,11 +1358,11 @@ interface OrderTableGroup {
     .order-id { font-weight: 600; color: var(--color-text); }
     .order-table { color: var(--color-text-muted); font-size: 0.875rem; }
     .order-table-group { color: var(--color-text-muted); font-size: 0.75rem; margin-left: 0.35rem; opacity: 0.9; }
-    .order-customer { color: var(--color-primary); font-size: 0.875rem; font-weight: 500; }
-    .order-time { color: var(--color-text-muted); font-size: 0.75rem; }
+    .order-customer { color: var(--color-primary); font-size: 0.8125rem; font-weight: 500; }
+    .order-time { color: var(--color-text-muted); font-size: 0.72rem; }
 
     .status-badge {
-      padding: var(--space-1) var(--space-3); border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+      padding: 0.28rem 0.6rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700;
       &.pending { background: rgba(245, 158, 11, 0.15); color: var(--color-warning); }
       &.preparing { background: rgba(59, 130, 246, 0.15); color: #3B82F6; }
       &.ready { background: var(--color-success-light); color: var(--color-success); }
@@ -1335,13 +1370,13 @@ interface OrderTableGroup {
       &.completed { background: var(--color-bg); color: var(--color-text-muted); }
     }
 
-    .order-items { padding: 0 var(--space-4); }
+    .order-items { padding: 0 var(--space-3); flex: 1; }
     .order-item { 
       display: flex; 
       flex-direction: column;
-      gap: var(--space-1); 
-      padding: var(--space-3) 0; 
-      font-size: 0.9375rem; 
+      gap: 0.35rem; 
+      padding: 0.75rem 0; 
+      font-size: 0.9rem; 
     }
     .order-item:not(:last-child) { border-bottom: 1px solid var(--color-border); }
     .order-item.removed { 
@@ -1357,7 +1392,7 @@ interface OrderTableGroup {
       display: flex; 
       flex-wrap: wrap;
       align-items: center;
-      gap: var(--space-2);
+      gap: 0.45rem;
     }
     .item-details-row {
       display: flex;
@@ -1368,7 +1403,7 @@ interface OrderTableGroup {
     .item-actions {
       display: flex;
       align-items: center;
-      gap: var(--space-2);
+      gap: 0.45rem;
     }
     .item-qty { 
       font-weight: 600; 
@@ -1397,12 +1432,12 @@ interface OrderTableGroup {
     }
     .item-customization {
       width: 100%;
-      font-size: 0.8125rem;
+      font-size: 0.76rem;
       color: var(--color-text-muted);
     }
     .item-price { 
       color: var(--color-text-muted); 
-      font-size: 0.875rem;
+      font-size: 0.8rem;
     }
     .price-total {
       color: var(--color-text-muted);
@@ -1569,11 +1604,10 @@ interface OrderTableGroup {
       display: flex; 
       justify-content: space-between; 
       align-items: center; 
-      padding: var(--space-4); 
+      padding: var(--space-3); 
       background: none;
       flex-wrap: wrap;
-      gap: var(--space-2);
-      margin-top: var(--space-3);
+      gap: 0.65rem;
       border-top: 1px solid var(--color-border);
       overflow: visible;
     }
@@ -1581,10 +1615,11 @@ interface OrderTableGroup {
       display: flex;
       flex-direction: column;
       gap: var(--space-1);
+      min-width: 0;
     }
     .order-total { font-weight: 600; color: var(--color-text); }
     .order-line-count {
-      font-size: 0.8125rem;
+      font-size: 0.76rem;
       color: var(--color-text-muted);
     }
     .order-actions {
@@ -1592,18 +1627,18 @@ interface OrderTableGroup {
       flex-wrap: wrap;
       align-items: center;
       justify-content: flex-end;
-      gap: var(--space-2);
+      gap: 0.55rem;
       position: relative;
       overflow: visible;
     }
     .btn-primary-action {
-      min-height: 44px;
-      padding: var(--space-2) var(--space-4);
+      min-height: 38px;
+      padding: 0.5rem 0.95rem;
       border-radius: 999px;
       border: 1px solid color-mix(in srgb, var(--color-primary) 18%, var(--color-border));
       background: color-mix(in srgb, var(--color-primary-light) 82%, white);
       color: var(--color-primary);
-      font-size: 0.875rem;
+      font-size: 0.8rem;
       font-weight: 700;
       cursor: pointer;
       transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
@@ -1614,9 +1649,9 @@ interface OrderTableGroup {
       background: color-mix(in srgb, var(--color-primary-light) 68%, white);
     }
     .btn-icon-only {
-      width: 44px;
-      min-width: 44px;
-      min-height: 44px;
+      width: 38px;
+      min-width: 38px;
+      min-height: 38px;
       padding: 0;
       justify-content: center;
     }
@@ -1633,11 +1668,11 @@ interface OrderTableGroup {
     .status-badge-btn {
       display: inline-flex;
       align-items: center;
-      gap: var(--space-2);
-      min-height: 44px;
-      padding: var(--space-2) var(--space-3);
-      border-radius: 14px;
-      font-size: 0.875rem;
+      gap: 0.35rem;
+      min-height: 38px;
+      padding: 0.45rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.8rem;
       font-weight: 600;
       cursor: pointer;
       border: 1px solid var(--color-border);
@@ -1956,7 +1991,7 @@ interface OrderTableGroup {
       }
       .table-order-group-header {
         padding: var(--space-3);
-        flex-direction: column;
+        grid-template-columns: 1fr;
         align-items: stretch;
       }
       .table-order-stat-grid {
@@ -2334,6 +2369,39 @@ export class OrdersComponent implements OnInit, OnDestroy {
     }
 
     return group.tableId;
+  }
+
+  countOrdersWithStatuses(orders: readonly Order[], statuses: string[]): number {
+    const lookup = new Set(statuses);
+    return orders.reduce((count, order) => count + (lookup.has(order.status) ? 1 : 0), 0);
+  }
+
+  formatActiveGroupSummary(group: OrderTableGroup): string {
+    const parts = [
+      `${group.activeCount} active ticket${group.activeCount === 1 ? '' : 's'}`,
+      `${this.formatPrice(group.totalCents)} on this table`,
+    ];
+
+    const readyCount = this.countOrdersWithStatuses(group.orders, ['ready']);
+    if (readyCount > 0) {
+      parts.push(`${readyCount} ready to hand off`);
+    }
+
+    return parts.join(' · ');
+  }
+
+  formatUnpaidGroupSummary(group: OrderTableGroup): string {
+    const parts = [
+      `${group.unpaidCount} ticket${group.unpaidCount === 1 ? '' : 's'} awaiting payment`,
+      `${this.formatPrice(group.totalCents)} still open`,
+    ];
+
+    const completedCount = this.countOrdersWithStatuses(group.orders, ['completed']);
+    if (completedCount > 0) {
+      parts.push(`${completedCount} ready to close`);
+    }
+
+    return parts.join(' · ');
   }
 
   private isOrderActiveForGroup(order: Order): boolean {
@@ -2900,14 +2968,14 @@ export class OrdersComponent implements OnInit, OnDestroy {
     if (m.substitute?.length) {
       parts.push(`Sub: ${m.substitute.map(s => `${s.from}â†’${s.to}`).join(', ')}`);
     }
-    return parts.join(' Â· ');
+    return parts.join(' · ');
   }
 
   formatItemModifiersLine(item: OrderItem): string {
     const c = this.formatCustomizationItem(item);
     const snap = item.line_modifiers_summary?.trim();
     const m = snap || this.formatLineModifiersFromJson(item.line_modifiers ?? undefined);
-    if (c && m) return `${c} Â· ${m}`;
+    if (c && m) return `${c} · ${m}`;
     return c || m || '';
   }
 
@@ -3006,7 +3074,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
       if (Array.isArray(v)) parts.push(v.join(', '));
       else parts.push(String(v));
     }
-    return parts.join(' Â· ');
+    return parts.join(' · ');
   }
 
   dismissWaiterAlert(): void {
@@ -3451,7 +3519,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     const repoUrl = 'https://github.com/tanjunnan0101/pos';
     const version = environment.version || '0.0.0';
     const commit = environment.commitHash || '';
-    return `${this.escapeHtml(prefix)} Â· ${this.escapeHtml(repoUrl)} Â· v${this.escapeHtml(version)}${commit ? ` (${this.escapeHtml(commit)})` : ''}`;
+    return `${this.escapeHtml(prefix)} · ${this.escapeHtml(repoUrl)} · v${this.escapeHtml(version)}${commit ? ` (${this.escapeHtml(commit)})` : ''}`;
   }
 
   private escapeHtml(s: string): string {
@@ -3953,3 +4021,4 @@ export class OrdersComponent implements OnInit, OnDestroy {
     });
   }
 }
+

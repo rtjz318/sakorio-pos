@@ -129,7 +129,7 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
                     <summary>{{ 'RESERVATIONS.CLIENT_TECH_SUMMARY' | translate }}</summary>
                     <div class="client-tech-inner">
                       @if (r.client_ip) { <div><strong>{{ 'RESERVATIONS.CLIENT_TECH_IP' | translate }}:</strong> {{ r.client_ip }}</div> }
-                      @if (r.client_user_agent) { <div class="ua" title="{{ r.client_user_agent }}"><strong>{{ 'RESERVATIONS.CLIENT_TECH_USER_AGENT' | translate }}:</strong> {{ r.client_user_agent.length > 60 ? r.client_user_agent.slice(0, 60) + 'â€¦' : r.client_user_agent }}</div> }
+                      @if (r.client_user_agent) { <div class="ua" title="{{ r.client_user_agent }}"><strong>{{ 'RESERVATIONS.CLIENT_TECH_USER_AGENT' | translate }}:</strong> {{ r.client_user_agent.length > 60 ? r.client_user_agent.slice(0, 60) + '…' : r.client_user_agent }}</div> }
                       @if (r.client_fingerprint) { <div><strong>{{ 'RESERVATIONS.CLIENT_TECH_FINGERPRINT' | translate }}:</strong> {{ r.client_fingerprint }}</div> }
                       @if (r.client_screen_width != null || r.client_screen_height != null) { <div><strong>{{ 'RESERVATIONS.CLIENT_TECH_SCREEN' | translate }}:</strong> {{ r.client_screen_width }}Ã—{{ r.client_screen_height }}</div> }
                     </div>
@@ -253,7 +253,7 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
                   />
                 }
                 @if (slotCapacity(); as cap) {
-                  <p class="slot-capacity">{{ 'RESERVATIONS.SEATS_LEFT' | translate }}: {{ cap.seats_left }} Â· {{ 'RESERVATIONS.TABLES_LEFT' | translate }}: {{ cap.tables_left }}</p>
+                  <p class="slot-capacity">{{ 'RESERVATIONS.SEATS_LEFT' | translate }}: {{ cap.seats_left }} · {{ 'RESERVATIONS.TABLES_LEFT' | translate }}: {{ cap.tables_left }}</p>
                 }
                 <div class="form-group">
                   <label for="res-modal-name">{{ 'RESERVATIONS.CUSTOMER_NAME' | translate }}</label>
@@ -965,3 +965,4 @@ export class ReservationsComponent implements OnInit, OnDestroy {
     });
   }
 }
+

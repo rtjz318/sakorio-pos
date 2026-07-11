@@ -32,7 +32,7 @@ import { environment } from '../../environments/environment';
             <input
               type="search"
               class="search-input"
-              placeholder="Search productsâ€¦"
+              placeholder="Search products…"
               [value]="searchQuery()"
               (input)="searchQuery.set($any($event.target).value)"
             >
@@ -55,7 +55,7 @@ import { environment } from '../../environments/environment';
                 @if (p.email) { <dt>Email</dt><dd>{{ p.email }}</dd> }
                 @if (p.bank_iban || p.bank_name) {
                   <dt>Bank</dt>
-                  <dd>{{ p.bank_name }}{{ p.bank_iban ? ' Â· ' + p.bank_iban : '' }}</dd>
+                  <dd>{{ p.bank_name }}{{ p.bank_iban ? ' · ' + p.bank_iban : '' }}</dd>
                 }
               </dl>
             </section>
@@ -63,7 +63,7 @@ import { environment } from '../../environments/environment';
         }
 
         @if (loading()) {
-          <p class="loading">Loading productsâ€¦</p>
+          <p class="loading">Loading products…</p>
         }
         @if (error()) {
           <div class="error-banner">{{ error() }}</div>
@@ -310,7 +310,7 @@ import { environment } from '../../environments/environment';
           </div>
           <div class="modal-actions">
             <button type="button" class="btn-secondary" (click)="closeCompanyModal()">Cancel</button>
-            <button type="submit" class="btn-primary" [disabled]="savingCompany()">{{ savingCompany() ? 'Savingâ€¦' : 'Save' }}</button>
+            <button type="submit" class="btn-primary" [disabled]="savingCompany()">{{ savingCompany() ? 'Saving…' : 'Save' }}</button>
           </div>
         </form>
       </div>
@@ -808,3 +808,4 @@ export class ProviderDashboardComponent implements OnInit {
     this.api.logout().subscribe(() => this.router.navigate(['/provider/login']));
   }
 }
+

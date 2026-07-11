@@ -8,7 +8,7 @@ export function reservationDietaryNotesDisplay(r: {
   if (!ad && !cn) return null;
   if (!ad) return cn;
   if (!cn || ad === cn) return ad;
-  return `${ad} Â· ${cn}`;
+  return `${ad} · ${cn}`;
 }
 
 /** Value for the unified dietary textarea when editing (preserves two distinct legacy values). */
@@ -22,3 +22,4 @@ export function reservationDietaryNotesFormValue(r: {
   if (!cn || ad === cn) return ad;
   return `${ad}\n${cn}`;
 }
+

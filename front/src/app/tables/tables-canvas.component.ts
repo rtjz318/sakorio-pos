@@ -2153,7 +2153,7 @@ export class TablesCanvasComponent implements OnInit, OnDestroy {
   tableCaptionName(table: CanvasTable): string {
     const raw = (table.name || '').trim();
     if (raw.length <= 14) return raw || '?';
-    return raw.slice(0, 12) + 'â€¦';
+    return raw.slice(0, 12) + '…';
   }
 
   tableSeatLabel(table: CanvasTable): string {
@@ -3190,3 +3190,4 @@ export class TablesCanvasComponent implements OnInit, OnDestroy {
   }
 
 }
+

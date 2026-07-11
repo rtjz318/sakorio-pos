@@ -187,7 +187,9 @@ function getWorkflowSortWeight(
           </svg>
           {{ 'KITCHEN_DISPLAY.BACK_TO_ORDERS' | translate }}
         </a>
-        <h1 class="kitchen-title">{{ pageTitle() }}</h1>
+        <h1 class="kitchen-title">
+          {{ viewMode() === 'bar' ? ('BAR_DISPLAY.TITLE' | translate) : ('KITCHEN_DISPLAY.TITLE' | translate) }}
+        </h1>
         <div class="header-actions">
           @if (stationsForCurrentView().length > 0) {
             <label class="station-filter">
@@ -287,93 +289,97 @@ function getWorkflowSortWeight(
                   <div class="service-lane-list">
                     @for (order of lane.orders; track order.id) {
                       <article class="order-card status-{{ getOrderDisplayStatus(order) }} {{ getTimerColorClass(order) }}" [class.order-card-urgent]="order.staff_urgent">
-                <div class="order-header">
-                  <div class="order-meta">
-                    <div class="order-meta-top">
-                      <span class="order-id">#{{ order.id }}</span>
-                      <span class="status-badge status-{{ getOrderDisplayStatus(order) }}">{{ getStatusLabel(getOrderDisplayStatus(order)) }}</span>
-                    </div>
-                    <div class="order-meta-row">
-                      <span class="order-table">{{ order.table_name }}</span>
-                      @if (order.customer_name) {
-                        <span class="order-customer">{{ order.customer_name }}</span>
-                      }
-                    </div>
-                    <div class="order-meta-row order-meta-row--muted">
-                      <span class="order-time" [title]="formatExactTime(order.created_at)">{{ formatOrderTime(order.created_at) }}</span>
-                      <span class="order-waiting" [title]="formatExactTime(order.created_at)">{{ 'KITCHEN_DISPLAY.WAITING' | translate }}: {{ formatWaitingTime(order.created_at) }}</span>
-                      @if (order.staff_urgent) {
-                        <span class="urgent-badge">{{ 'KITCHEN_DISPLAY.URGENT' | translate }}</span>
-                      }
-                    </div>
-                  </div>
-                </div>
-                <div class="order-timer-bar-wrap" [attr.aria-label]="'KITCHEN_DISPLAY.TIMER_BAR_HINT' | translate">
-                  <div class="order-timer-bar-track">
-                    <div class="order-timer-bar-fill" [class]="getTimerBarFillClass(order)" [style.width.%]="getTimerBarPercent(order)"></div>
-                  </div>
-                </div>
-                <ul class="order-items">
-                  @for (item of getSortedItems(order.items); track item.id) {
-                    @if (!item.removed_by_customer) {
-                      <li class="order-item">
-                        <span class="item-qty">{{ item.quantity }}x</span>
-                        <span class="item-name">{{ item.product_name }}</span>
-                        @if (hasCustomization(item)) {
-                          <span class="item-customization">{{ formatCustomizationItem(item) }}</span>
-                        }
-                        @if (item.notes) {
-                          <span class="item-notes">{{ item.notes }}</span>
-                        }
-                        @if (canUpdateItemStatus() && item.id != null && item.status !== 'delivered' && item.status !== 'cancelled') {
-                          <div class="item-status-control">
-                            <button
-                              type="button"
-                              class="item-status-badge clickable status-{{ normalizeItemStatus(item.status) }}"
-                              (click)="toggleItemStatusDropdown(order.id, item.id!)"
-                              [title]="'ORDERS.CLICK_TO_CHANGE_STATUS' | translate">
-                              {{ getItemStatusLabel(item.status || 'pending') }}
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="6,9 12,15 18,9"/>
-                              </svg>
-                            </button>
-                            @if (itemStatusDropdownOpen() === order.id + '-' + item.id) {
-                              <div class="status-dropdown item-status-dropdown" data-testid="kitchen-item-status-dropdown" (click)="$event.stopPropagation()">
-                                @if (getItemStatusTransitions(item.status || 'pending').backward.length > 0) {
-                                  <div class="dropdown-section">
-                                    <div class="dropdown-label">{{ 'ORDERS.GO_BACK' | translate }}</div>
-                                    @for (status of getItemStatusTransitions(item.status || 'pending').backward; track status) {
-                                      <button type="button" class="dropdown-item backward" (click)="updateItemStatus(order.id, item.id!, status); itemStatusDropdownOpen.set(null)">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15,18 9,12 15,6"/></svg>
-                                        {{ getItemStatusLabel(status) }}
-                                      </button>
-                                    }
-                                  </div>
-                                }
-                                @if (getItemStatusTransitions(item.status || 'pending').forward.length > 0) {
-                                  <div class="dropdown-section">
-                                    <div class="dropdown-label">{{ 'ORDERS.MOVE_FORWARD' | translate }}</div>
-                                    @for (status of getItemStatusTransitions(item.status || 'pending').forward; track status) {
-                                      <button type="button" class="dropdown-item forward" (click)="updateItemStatus(order.id, item.id!, status); itemStatusDropdownOpen.set(null)">
-                                        {{ getItemStatusLabel(status) }}
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9,18 15,12 9,6"/></svg>
-                                      </button>
-                                    }
-                                  </div>
-                                }
-                              </div>
-                            }
+                        <div class="order-header">
+                          <div class="order-meta">
+                            <div class="order-meta-top">
+                              <span class="order-id">#{{ order.id }}</span>
+                              <span class="status-badge status-{{ getOrderDisplayStatus(order) }}">{{ getStatusLabel(getOrderDisplayStatus(order)) }}</span>
+                            </div>
+                            <div class="order-meta-row">
+                              <span class="order-table">{{ order.table_name }}</span>
+                              @if (order.customer_name) {
+                                <span class="order-customer">{{ order.customer_name }}</span>
+                              }
+                            </div>
+                            <div class="order-meta-row order-meta-row--muted">
+                              <span class="order-time" [title]="formatExactTime(order.created_at)">{{ formatOrderTime(order.created_at) }}</span>
+                              <span class="order-waiting" [title]="formatExactTime(order.created_at)">{{ 'KITCHEN_DISPLAY.WAITING' | translate }}: {{ formatWaitingTime(order.created_at) }}</span>
+                              @if (order.staff_urgent) {
+                                <span class="urgent-badge">{{ 'KITCHEN_DISPLAY.URGENT' | translate }}</span>
+                              }
+                            </div>
                           </div>
-                        } @else {
-                          <span class="item-status status-{{ normalizeItemStatus(item.status) }}">{{ getItemStatusLabel(item.status || 'pending') }}</span>
+                        </div>
+                        <div class="order-timer-bar-wrap" [attr.aria-label]="'KITCHEN_DISPLAY.TIMER_BAR_HINT' | translate">
+                          <div class="order-timer-bar-track">
+                            <div class="order-timer-bar-fill" [class]="getTimerBarFillClass(order)" [style.width.%]="getTimerBarPercent(order)"></div>
+                          </div>
+                        </div>
+                        <ul class="order-items">
+                          @for (item of getSortedItems(order.items); track item.id) {
+                            @if (!item.removed_by_customer) {
+                              <li class="order-item">
+                                <span class="item-qty">{{ item.quantity }}x</span>
+                                <div class="item-body">
+                                  <div class="item-title-row">
+                                    <span class="item-name">{{ item.product_name }}</span>
+                                    @if (canUpdateItemStatus() && item.id != null && item.status !== 'delivered' && item.status !== 'cancelled') {
+                                      <div class="item-status-control">
+                                        <button
+                                          type="button"
+                                          class="item-status-badge clickable status-{{ normalizeItemStatus(item.status) }}"
+                                          (click)="toggleItemStatusDropdown(order.id, item.id!)"
+                                          [title]="'ORDERS.CLICK_TO_CHANGE_STATUS' | translate">
+                                          {{ getItemStatusLabel(item.status || 'pending') }}
+                                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="6,9 12,15 18,9"/>
+                                          </svg>
+                                        </button>
+                                        @if (itemStatusDropdownOpen() === order.id + '-' + item.id) {
+                                          <div class="status-dropdown item-status-dropdown" data-testid="kitchen-item-status-dropdown" (click)="$event.stopPropagation()">
+                                            @if (getItemStatusTransitions(item.status || 'pending').backward.length > 0) {
+                                              <div class="dropdown-section">
+                                                <div class="dropdown-label">{{ 'ORDERS.GO_BACK' | translate }}</div>
+                                                @for (status of getItemStatusTransitions(item.status || 'pending').backward; track status) {
+                                                  <button type="button" class="dropdown-item backward" (click)="updateItemStatus(order.id, item.id!, status); itemStatusDropdownOpen.set(null)">
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15,18 9,12 15,6"/></svg>
+                                                    {{ getItemStatusLabel(status) }}
+                                                  </button>
+                                                }
+                                              </div>
+                                            }
+                                            @if (getItemStatusTransitions(item.status || 'pending').forward.length > 0) {
+                                              <div class="dropdown-section">
+                                                <div class="dropdown-label">{{ 'ORDERS.MOVE_FORWARD' | translate }}</div>
+                                                @for (status of getItemStatusTransitions(item.status || 'pending').forward; track status) {
+                                                  <button type="button" class="dropdown-item forward" (click)="updateItemStatus(order.id, item.id!, status); itemStatusDropdownOpen.set(null)">
+                                                    {{ getItemStatusLabel(status) }}
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9,18 15,12 9,6"/></svg>
+                                                  </button>
+                                                }
+                                              </div>
+                                            }
+                                          </div>
+                                        }
+                                      </div>
+                                    } @else {
+                                      <span class="item-status status-{{ normalizeItemStatus(item.status) }}">{{ getItemStatusLabel(item.status || 'pending') }}</span>
+                                    }
+                                  </div>
+                                  @if (hasCustomization(item)) {
+                                    <span class="item-customization">{{ formatCustomizationItem(item) }}</span>
+                                  }
+                                  @if (item.notes) {
+                                    <span class="item-notes">{{ item.notes }}</span>
+                                  }
+                                </div>
+                              </li>
+                            }
+                          }
+                        </ul>
+                        @if (order.notes) {
+                          <div class="order-notes">{{ 'KITCHEN_DISPLAY.NOTES' | translate }}: {{ order.notes }}</div>
                         }
-                      </li>
-                    }
-                  }
-                </ul>
-                @if (order.notes) {
-                  <div class="order-notes">{{ 'KITCHEN_DISPLAY.NOTES' | translate }}: {{ order.notes }}</div>
-                }
                       </article>
                     }
                   </div>
@@ -589,23 +595,25 @@ function getWorkflowSortWeight(
     }
     .lane-board {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-      gap: var(--space-4);
+      grid-template-columns: repeat(auto-fit, minmax(308px, 1fr));
+      gap: var(--space-3);
       align-items: start;
       grid-auto-rows: minmax(0, auto);
     }
     .service-lane {
+      box-sizing: border-box;
       min-width: 0;
       min-height: 0;
-      padding: 1rem 1rem 0.95rem;
+      padding: 0.9rem 0.9rem 0.82rem;
       border-radius: calc(var(--radius-lg) + 2px);
       border: 1px solid var(--color-border);
       background: color-mix(in srgb, var(--color-surface) 96%, white);
       box-shadow: var(--shadow-sm);
-      display: grid;
-      gap: 0.9rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.72rem;
       align-self: start;
-      max-height: calc(100vh - 10.75rem);
+      max-height: calc(100vh - 11.4rem);
       overflow: hidden;
     }
     .service-lane--pending { border-top: 5px solid var(--color-warning); }
@@ -616,6 +624,11 @@ function getWorkflowSortWeight(
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: flex-start;
       gap: 0.75rem;
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      padding-bottom: 0.25rem;
+      background: inherit;
     }
     .service-lane-header > div {
       min-width: 0;
@@ -624,7 +637,7 @@ function getWorkflowSortWeight(
     }
     .service-lane-header h2 {
       margin: 0.15rem 0 0;
-      font-size: 1.15rem;
+      font-size: 1.04rem;
       line-height: 1.15;
       color: var(--color-text);
       overflow-wrap: anywhere;
@@ -637,14 +650,14 @@ function getWorkflowSortWeight(
       color: var(--color-text-muted);
     }
     .service-lane-count {
-      min-width: 2.5rem;
-      min-height: 2.5rem;
+      min-width: 2.2rem;
+      min-height: 2.2rem;
       border-radius: 999px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 0.25rem 0.8rem;
-      font-size: 0.95rem;
+      padding: 0.2rem 0.65rem;
+      font-size: 0.86rem;
       font-weight: 800;
       color: var(--color-text);
       background: color-mix(in srgb, var(--color-primary) 10%, white);
@@ -654,12 +667,12 @@ function getWorkflowSortWeight(
     .service-lane-list {
       display: flex;
       flex-direction: column;
-      gap: 0.9rem;
+      gap: 0.7rem;
       align-items: stretch;
-      max-height: calc(100vh - 15.35rem);
+      max-height: calc(100vh - 15.9rem);
       overflow: auto;
-      padding-right: 0.3rem;
-      padding-bottom: 0.1rem;
+      padding-right: 0.2rem;
+      padding-bottom: 0.55rem;
       min-height: 0;
       scrollbar-gutter: stable;
     }
@@ -683,6 +696,7 @@ function getWorkflowSortWeight(
       font-size: 0.95rem;
     }
     .order-card {
+      box-sizing: border-box;
       background: var(--color-surface);
       border: 1px solid var(--color-border);
       border-left: 6px solid var(--color-warning);
@@ -690,13 +704,11 @@ function getWorkflowSortWeight(
       overflow: visible;
       box-shadow: var(--shadow-sm);
       min-width: 0;
-      display: grid;
-      grid-auto-rows: auto;
-      align-content: start;
+      display: flex;
+      flex-direction: column;
       isolation: isolate;
       min-height: max-content;
       height: auto;
-      contain: layout paint;
     }
     .order-card.status-preparing { border-left-color: #3B82F6; }
     .order-card.status-ready { border-left-color: var(--color-success); }
@@ -739,7 +751,7 @@ function getWorkflowSortWeight(
     .order-header {
       display: grid;
       gap: 0.5rem;
-      padding: 0.82rem 0.92rem 0.76rem;
+      padding: 0.72rem 0.82rem 0.68rem;
       border-bottom: 1px solid var(--color-border);
       background: color-mix(in srgb, var(--color-bg) 82%, white);
       min-width: 0;
@@ -751,14 +763,11 @@ function getWorkflowSortWeight(
     }
     .order-meta-top,
     .order-meta-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) max-content;
-      align-items: start;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
       gap: 0.45rem 0.8rem;
-      min-width: 0;
-    }
-    .order-meta-top > :first-child,
-    .order-meta-row > :first-child {
+      flex-wrap: wrap;
       min-width: 0;
     }
     .order-meta-row--muted {
@@ -768,14 +777,14 @@ function getWorkflowSortWeight(
       gap: 0.35rem 0.65rem;
     }
     .order-id {
-      font-size: 1.08rem;
+      font-size: 0.98rem;
       font-weight: 700;
       color: var(--color-text);
       overflow-wrap: anywhere;
       line-height: 1.1;
     }
     .order-table {
-      font-size: 0.95rem;
+      font-size: 0.86rem;
       font-weight: 700;
       color: var(--color-primary);
       overflow-wrap: anywhere;
@@ -790,6 +799,7 @@ function getWorkflowSortWeight(
       max-width: 100%;
       display: inline-flex;
       align-items: center;
+      justify-content: center;
     }
     .order-time,
     .order-waiting {
@@ -824,18 +834,18 @@ function getWorkflowSortWeight(
     .order-items {
       list-style: none;
       margin: 0;
-      padding: 0.15rem 0.95rem 0.8rem;
+      padding: 0.1rem 0.82rem 0.68rem;
       display: grid;
       gap: 0.05rem;
       min-width: 0;
     }
     .order-item {
       display: grid;
-      grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+      grid-template-columns: 2.05rem minmax(0, 1fr);
       align-items: start;
-      gap: 0.42rem 0.72rem;
-      padding: 0.62rem 0;
-      font-size: 0.9rem;
+      gap: 0.36rem 0.6rem;
+      padding: 0.55rem 0;
+      font-size: 0.84rem;
       line-height: 1.2;
       border-bottom: 1px solid var(--color-border);
     }
@@ -852,16 +862,29 @@ function getWorkflowSortWeight(
       color: var(--color-text);
       min-width: 0;
       overflow-wrap: anywhere;
+      line-height: 1.2;
+    }
+    .item-body {
+      min-width: 0;
+      display: grid;
+      gap: 0.22rem;
+      align-content: start;
+    }
+    .item-title-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+      min-width: 0;
     }
     .item-notes {
-      grid-column: 2 / 3;
       font-size: 0.76rem;
       color: var(--color-text-muted);
       font-style: italic;
       overflow-wrap: anywhere;
     }
     .item-customization {
-      grid-column: 2 / 3;
       font-size: 0.74rem;
       color: var(--color-text-muted);
       overflow-wrap: anywhere;
@@ -871,10 +894,10 @@ function getWorkflowSortWeight(
       font-weight: 600;
       padding: 0.3rem 0.48rem;
       border-radius: 12px;
-      justify-self: end;
-      align-self: center;
+      justify-self: start;
+      align-self: start;
       white-space: normal;
-      max-width: 8rem;
+      max-width: 100%;
       text-align: center;
       line-height: 1.1;
       overflow-wrap: anywhere;
@@ -887,10 +910,10 @@ function getWorkflowSortWeight(
       position: relative;
       display: inline-flex;
       z-index: 10;
-      justify-self: end;
-      align-self: center;
-      width: min(100%, 8rem);
-      max-width: 8rem;
+      justify-self: start;
+      align-self: start;
+      width: auto;
+      max-width: 100%;
     }
     .order-item:hover .item-status-control {
       z-index: 50;
@@ -910,6 +933,7 @@ function getWorkflowSortWeight(
       background: inherit;
       transition: all 0.15s;
       width: 100%;
+      min-width: 0;
       max-width: 100%;
       text-align: center;
       line-height: 1.1;
@@ -1055,7 +1079,7 @@ function getWorkflowSortWeight(
     }
     @media (max-width: 1360px) {
       .lane-board {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(300px, 1fr));
       }
     }
     @media (max-width: 1120px) {
@@ -1077,7 +1101,7 @@ function getWorkflowSortWeight(
       }
       .order-meta-top,
       .order-meta-row {
-        grid-template-columns: minmax(0, 1fr);
+        justify-content: flex-start;
       }
       .status-badge {
         align-self: flex-start;
@@ -1104,17 +1128,6 @@ function getWorkflowSortWeight(
       .order-meta-row--muted {
         flex-direction: column;
         align-items: flex-start;
-      }
-      .item-status-control,
-      .item-status {
-        grid-column: 2;
-        justify-self: start;
-        width: auto;
-        max-width: 100%;
-      }
-      .item-customization,
-      .item-notes {
-        grid-column: 2;
       }
       .station-filter {
         width: 100%;
@@ -1183,12 +1196,6 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   canUpdateItemStatus = computed(() =>
     this.permissions.hasPermission(this.permissions.getCurrentUser(), 'order:item_status')
-  );
-
-  pageTitle = computed(() =>
-    this.viewMode() === 'bar'
-      ? this.translate.instant('BAR_DISPLAY.TITLE')
-      : this.translate.instant('KITCHEN_DISPLAY.TITLE')
   );
 
   stationsForCurrentView = computed(() => {

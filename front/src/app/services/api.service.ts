@@ -1069,7 +1069,7 @@ export interface OrderItem {
   notes?: string;
   /** Answers to product questions: { question_id: value } */
   customization_answers?: Record<string, string | number | string[]> | null;
-  /** Snapshot "Label: value Â· â€¦" at order time */
+  /** Snapshot "Label: value · …" at order time */
   customization_summary?: string | null;
   line_modifiers?: OrderLineModifiers | null;
   /** Human-readable remove/add/sub snapshot for kitchen and invoices */
@@ -3337,3 +3337,4 @@ export class ApiService {
     return this.http.get(`${this.apiUrl}/changelog`, { responseType: 'text' });
   }
 }
+

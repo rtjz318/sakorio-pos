@@ -1160,7 +1160,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .cashier-grid {
       display: grid;
-      grid-template-columns: minmax(318px, 352px) minmax(0, 1.42fr) minmax(390px, 436px);
+      grid-template-columns: minmax(388px, 448px) minmax(0, 1.28fr) minmax(344px, 388px);
       gap: 1rem;
       align-items: start;
     }
@@ -1243,6 +1243,20 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       display: grid;
       gap: 0.42rem;
       box-shadow: var(--shadow-sm);
+    }
+
+    .lane--checkout .context-card,
+    .lane--checkout .queue-panel,
+    .lane--checkout .empty-card {
+      overflow: hidden;
+    }
+
+    .lane--checkout .line-list {
+      gap: 0.3rem;
+    }
+
+    .lane--checkout .line-row {
+      padding: 0.72rem 0;
     }
 
     .checkout-hero-main {
@@ -1408,11 +1422,13 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .table-stack {
-      max-height: calc(100vh - 12.6rem);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      max-height: calc(100vh - 12.1rem);
       overflow: auto;
-      padding-right: 0.15rem;
+      padding-right: 0.2rem;
       align-content: start;
-      gap: 0.82rem;
+      gap: 0.72rem;
     }
 
     .table-card,
@@ -1428,6 +1444,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       overflow: hidden;
       border-radius: calc(var(--radius-lg) + 0.15rem);
       min-width: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
     }
 
     .table-card-main,
@@ -1436,39 +1455,38 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       text-align: left;
       border: 0;
       background: transparent;
-      padding: 0.92rem 0.96rem 0.78rem;
+      padding: 0.82rem 0.9rem 0.58rem;
       display: grid;
       align-content: start;
-      gap: 0.52rem;
+      gap: 0.38rem;
       min-width: 0;
-      min-height: 5.5rem;
+      min-height: 0;
       cursor: pointer;
       transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
     }
 
     .product-card {
-      padding: 0.9rem 0.92rem;
+      padding: 0.98rem 1rem;
       display: flex;
       flex-direction: column;
-      min-height: 9.45rem;
+      min-height: 9.6rem;
       height: 100%;
       overflow: hidden;
     }
 
     .product-card-body {
       display: grid;
-      grid-template-columns: 4.35rem minmax(0, 1fr);
-      gap: 0.78rem;
+      grid-template-columns: 4.75rem minmax(0, 1fr);
+      gap: 0.84rem;
       align-items: stretch;
       height: 100%;
       min-height: 100%;
     }
 
     .product-card-content {
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      gap: 0.48rem;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+      gap: 0.56rem;
       min-width: 0;
       min-height: 100%;
       height: 100%;
@@ -1478,7 +1496,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .product-card-copy {
       display: flex;
       flex-direction: column;
-      gap: 0.28rem;
+      gap: 0.34rem;
       min-width: 0;
       min-height: 0;
       flex: 1;
@@ -1493,9 +1511,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
         color-mix(in srgb, var(--color-primary-light) 22%, white),
         color-mix(in srgb, var(--color-bg) 84%, white)
       );
-      width: 4.35rem;
-      height: 4.35rem;
-      min-height: 4.35rem;
+      width: 4.75rem;
+      height: 4.75rem;
+      min-height: 4.75rem;
       aspect-ratio: 1 / 1;
       display: flex;
       align-items: center;
@@ -1563,22 +1581,30 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .table-card-top {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) max-content;
+      grid-template-columns: minmax(0, 1fr) auto;
       align-items: start;
-      gap: 0.48rem;
+      gap: 0.42rem;
     }
 
     .table-card-copy {
       display: grid;
-      gap: 0.12rem;
+      gap: 0.18rem;
       min-width: 0;
       align-content: start;
     }
 
+    .table-name {
+      line-height: 1.08;
+      overflow-wrap: anywhere;
+      text-wrap: balance;
+      font-size: 1.12rem;
+      font-weight: 800;
+    }
+
     .table-meta {
       display: block;
-      font-size: 0.76rem;
-      line-height: 1.22;
+      font-size: 0.87rem;
+      line-height: 1.24;
       color: var(--color-text-muted);
       white-space: normal;
     }
@@ -1617,7 +1643,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .product-card-top > div,
     .product-title-stack {
       display: grid;
-      gap: 0.2rem;
+      gap: 0.24rem;
       min-width: 0;
       flex: 1;
       min-height: 0;
@@ -1642,35 +1668,39 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .table-card-actions {
-      padding: 0 0.96rem 0.92rem;
+      margin-top: auto;
+      padding: 0 1rem 1rem;
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       align-items: stretch;
-      gap: 0.46rem;
+      gap: 0.5rem;
       border-top: 1px solid color-mix(in srgb, var(--color-border) 74%, white);
     }
 
     .table-card-actions--triple {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .table-card-actions .btn {
       width: 100%;
-      min-height: 2.28rem;
+      min-height: 2.26rem;
       justify-content: center;
-      padding-inline: 0.55rem;
+      padding-inline: 0.72rem;
       text-align: center;
-      white-space: normal;
-      font-size: 0.74rem;
-      line-height: 1.15;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 0.8rem;
+      line-height: 1.14;
     }
 
     .btn-table-clear {
       border-style: dashed;
       color: var(--color-text-muted);
+      min-width: 0;
+      grid-column: 1 / -1;
     }
 
-    .table-name,
     .order-id,
     .product-price {
       display: block;
@@ -1678,21 +1708,15 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       font-weight: 700;
     }
 
-    .table-name {
-      line-height: 1.04;
-      overflow-wrap: anywhere;
-      text-wrap: balance;
-      font-size: 1.05rem;
-    }
-
     .table-card-bottom {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: start;
-      gap: 0.32rem 0.5rem;
-      font-size: 0.72rem;
-      line-height: 1.2;
-      padding-top: 0.02rem;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.42rem 0.56rem;
+      font-size: 0.79rem;
+      line-height: 1.24;
+      padding-top: 0.18rem;
     }
 
     .table-card-summary,
@@ -1703,20 +1727,19 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .table-card-summary {
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      overflow-wrap: anywhere;
-      text-wrap: pretty;
+      display: block;
+      overflow: visible;
+      text-overflow: unset;
+      white-space: normal;
       color: var(--color-text-muted);
       font-weight: 600;
-      line-height: 1.22;
+      line-height: 1.24;
+      flex: 1 1 10rem;
     }
 
     .table-card-payment {
-      text-align: right;
-      white-space: nowrap;
+      text-align: left;
+      white-space: normal;
       font-weight: 700;
       color: var(--color-text);
     }
@@ -1726,20 +1749,24 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       align-self: center;
       width: fit-content;
       border-radius: 999px;
-      padding: 0.2rem 0.56rem;
+      padding: 0.26rem 0.56rem;
       background: color-mix(in srgb, var(--color-bg) 72%, white);
       color: var(--color-text-muted);
-      font-size: 0.6rem;
+      font-size: 0.64rem;
       font-weight: 700;
       line-height: 1.1;
       letter-spacing: 0.04em;
       text-transform: uppercase;
       white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .table-card .state-pill {
       justify-self: end;
       max-width: 100%;
+      min-height: 1.7rem;
+      padding-inline: 0.66rem;
+      font-size: 0.72rem;
     }
 
     .table-card-actions .btn-secondary {
@@ -1747,28 +1774,33 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .product-card-top strong {
-      font-size: 1rem;
-      line-height: 1.16;
+      font-size: 1.02rem;
+      line-height: 1.18;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
-      min-height: 0;
+      min-height: 2.38em;
+      text-wrap: balance;
     }
 
     .product-card-top span {
-      font-size: 0.75rem;
-      line-height: 1.2;
-      overflow-wrap: anywhere;
+      font-size: 0.76rem;
+      line-height: 1.18;
       color: var(--color-text-muted);
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .product-notes {
       margin: 0;
       font-size: 0.76rem;
-      line-height: 1.26;
-      min-height: 2.52em;
-      max-height: 2.52em;
+      line-height: 1.3;
+      min-height: 2.6em;
+      max-height: 2.6em;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
@@ -1783,17 +1815,17 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .product-card-bottom {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(6.1rem, auto);
-      align-items: center;
-      padding-top: 0.52rem;
-      gap: 0.62rem;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      padding-top: 0.56rem;
+      gap: 0.65rem;
       border-top: 1px solid color-mix(in srgb, var(--color-border) 70%, white);
       margin-top: auto;
     }
 
     .product-price-stack {
       display: grid;
-      gap: 0.18rem;
+      gap: 0.24rem;
       min-width: 0;
       align-content: end;
       align-self: stretch;
@@ -1805,19 +1837,20 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .product-card-bottom .btn {
       width: auto;
-      min-width: 6.1rem;
-      min-height: 2.15rem;
+      min-width: 6.2rem;
+      min-height: 2.18rem;
       justify-content: center;
-      align-self: center;
+      align-self: end;
       flex-shrink: 0;
-      padding-inline: 0.72rem;
+      padding-inline: 0.8rem;
       font-weight: 700;
       white-space: nowrap;
+      font-size: 0.82rem;
     }
 
     .product-price {
-      font-size: 1rem;
-      line-height: 1.1;
+      font-size: 1.02rem;
+      line-height: 1.12;
     }
 
     .product-source {
@@ -2590,7 +2623,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .product-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(19.25rem, 1fr));
-      gap: 0.8rem;
+      gap: 0.82rem;
       align-items: stretch;
     }
 
@@ -3458,9 +3491,25 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       font-weight: 700;
     }
 
+    @media (max-width: 1560px) {
+      .catalog-toolbar {
+        grid-template-columns: minmax(0, 1fr) minmax(220px, 0.7fr);
+      }
+
+      .catalog-toolbar-actions {
+        grid-column: 1 / -1;
+        min-width: 0;
+        justify-content: flex-start;
+      }
+
+      .product-grid {
+        grid-template-columns: repeat(auto-fit, minmax(18.5rem, 1fr));
+      }
+    }
+
     @media (max-width: 1480px) {
       .cashier-grid {
-        grid-template-columns: minmax(320px, 348px) minmax(0, 1.05fr) minmax(360px, 392px);
+        grid-template-columns: minmax(312px, 348px) minmax(0, 1.06fr) minmax(344px, 380px);
       }
 
       .catalog-toolbar {
@@ -3471,6 +3520,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
         grid-column: 1 / -1;
         min-width: 0;
         justify-content: flex-start;
+      }
+
+      .product-grid {
+        grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
       }
     }
 
@@ -3483,6 +3536,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       .lane--checkout {
         position: static;
         max-height: none;
+      }
+
+      .table-stack {
+        grid-template-columns: repeat(auto-fit, minmax(236px, 1fr));
       }
 
       .catalog-toolbar {
@@ -3521,6 +3578,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       .settlement-submit-btn {
         flex: 1 1 100%;
         min-width: 0;
+      }
+
+      .table-stack {
+        grid-template-columns: 1fr;
       }
 
       .settlement-summary-row--active {
@@ -3956,7 +4017,7 @@ export class CashierPosComponent {
     if (count <= 0) {
       return 'Orders';
     }
-    return `Orders / ${count}`;
+    return `Orders (${count})`;
   }
 
   queueGroupSummaryLabel(group: PosQueueOrderGroup): string {
@@ -3966,14 +4027,14 @@ export class CashierPosComponent {
     const liveCount = group.orders.filter((order) => !this.isPaid(order) && !this.isClosedOrder(order)).length;
 
     if (settleCount > 0) {
-      return `${settleCount} awaiting payment Â· ${liveCount} live Â· ${freshness}`;
+      return `${settleCount} awaiting payment · ${liveCount} live · ${freshness}`;
     }
 
     if (liveCount > 0) {
-      return `${liveCount} live bill${liveCount === 1 ? '' : 's'} Â· ${freshness}`;
+      return `${liveCount} live bill${liveCount === 1 ? '' : 's'} · ${freshness}`;
     }
 
-    return `${group.orders.length} bill${group.orders.length === 1 ? '' : 's'} Â· ${freshness}`;
+    return `${group.orders.length} bill${group.orders.length === 1 ? '' : 's'} · ${freshness}`;
   }
 
   queueGroupSummaryCopy(group: PosQueueOrderGroup): string {
@@ -4711,9 +4772,9 @@ export class CashierPosComponent {
       return 'Orders';
     }
     if (count === 1) {
-      return 'Orders Â· 1';
+      return 'Orders · 1';
     }
-    return `Orders Â· ${count}`;
+    return `Orders · ${count}`;
   }
 
   queueHistoryOrders(): Order[] {
@@ -4778,7 +4839,7 @@ export class CashierPosComponent {
 
   queueGroupSummary(group: PosQueueOrderGroup): string {
     const newestAt = group.newestAt ? this.formatDate(group.newestAt) : 'just now';
-    return `${group.orders.length} open bill${group.orders.length === 1 ? '' : 's'} Â· latest ${newestAt}`;
+    return `${group.orders.length} open bill${group.orders.length === 1 ? '' : 's'} · latest ${newestAt}`;
   }
 
   queueGroupStatusLabel(order: Order): string {
@@ -4814,7 +4875,7 @@ export class CashierPosComponent {
     const tableName = (order.table_name || '').trim();
     const customerName = (order.customer_name || '').trim();
     if (tableName && customerName) {
-      return `${tableName} Â· ${customerName}`;
+      return `${tableName} · ${customerName}`;
     }
     if (tableName) {
       return tableName;
@@ -5634,13 +5695,13 @@ export class CashierPosComponent {
   getTableSaleSummary(table: CanvasTable): string {
     const serviceOrder = this.tableServiceOrder(table);
     if (serviceOrder && !this.isClosedOrder(serviceOrder) && !this.isPaid(serviceOrder)) {
-      return `Live bill #${serviceOrder.id}`;
+      return `Bill #${serviceOrder.id} live`;
     }
     if (serviceOrder && !this.isPaid(serviceOrder) && this.isClosedOrder(serviceOrder)) {
-      return `Ready to pay #${serviceOrder.id}`;
+      return `Bill #${serviceOrder.id} ready`;
     }
     if (serviceOrder && this.isPaid(serviceOrder)) {
-      return `Last settled #${serviceOrder.id}`;
+      return `Last bill #${serviceOrder.id}`;
     }
     return 'Clear';
   }
@@ -5656,13 +5717,13 @@ export class CashierPosComponent {
   selectedTableSummary(table: CanvasTable): string {
     const serviceOrder = this.tableServiceOrder(table);
     if (serviceOrder && !this.isClosedOrder(serviceOrder) && !this.isPaid(serviceOrder)) {
-      return `Open bill #${serviceOrder.id}`;
+      return `Bill #${serviceOrder.id} in service`;
     }
     if (serviceOrder && !this.isPaid(serviceOrder) && this.isClosedOrder(serviceOrder)) {
-      return `Ready to pay #${serviceOrder.id}`;
+      return `Bill #${serviceOrder.id} ready to pay`;
     }
     if (serviceOrder && this.isPaid(serviceOrder)) {
-      return `Last settled #${serviceOrder.id}`;
+      return `Last bill #${serviceOrder.id} paid`;
     }
     if (table.active_order_id && serviceOrder) {
       return `Ticket #${serviceOrder.id}`;
@@ -5688,7 +5749,7 @@ export class CashierPosComponent {
       return 'No bill history yet';
     }
 
-    return `${this.paymentLabel(latest)} Â· ${this.formatDate(latest.created_at)}`;
+    return `${this.paymentLabel(latest)} · ${this.formatDate(latest.created_at)}`;
   }
 
   tableLatestOrder(tableId: number): Order | null {
@@ -6235,3 +6296,4 @@ export class CashierPosComponent {
     return parts.join(', ');
   }
 }
+

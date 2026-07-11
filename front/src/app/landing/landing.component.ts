@@ -164,17 +164,17 @@ import { isCustomerPublicHost } from '../shared/host-portal.util';
       <div class="landing-footer">
         <span>{{ 'AUTH.DONT_HAVE_ACCOUNT' | translate }}</span>
         <a routerLink="/register">{{ 'AUTH.CREATE_ACCOUNT' | translate }}</a>
-        <span class="footer-sep">·</span>
+        <span class="footer-sep">|</span>
         <a routerLink="/provider/login" data-testid="landing-provider-login">{{ 'LANDING.PROVIDER_LOGIN' | translate }}</a>
-        <span class="footer-sep">·</span>
+        <span class="footer-sep">|</span>
         <a routerLink="/courier/login" data-testid="landing-courier-login">{{ 'LANDING.COURIER_LOGIN' | translate }}</a>
-        <span class="footer-sep">·</span>
+        <span class="footer-sep">|</span>
         <a routerLink="/provider/register" data-testid="landing-provider-register">{{ 'LANDING.REGISTER_AS_PROVIDER' | translate }}</a>
-        <span class="footer-sep">·</span>
+        <span class="footer-sep">|</span>
         <a href="mailto:sales@sakario.sg" data-testid="landing-contact-us">{{ 'LANDING.CONTACT_US' | translate }}</a>
-        <span class="footer-sep">·</span>
+        <span class="footer-sep">|</span>
         <a routerLink="/terms" data-testid="landing-terms">{{ 'LEGAL.TERMS_OF_SERVICE' | translate }}</a>
-        <span class="footer-sep">·</span>
+        <span class="footer-sep">|</span>
         <a routerLink="/privacy" data-testid="landing-privacy">{{ 'LEGAL.PRIVACY_POLICY' | translate }}</a>
       </div>
       <div class="landing-version-bar" data-testid="landing-version">

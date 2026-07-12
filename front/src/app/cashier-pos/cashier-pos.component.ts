@@ -1863,6 +1863,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
         grid-template-columns: 1fr;
       }
 
+      .product-grid {
+        gap: 0.72rem;
+      }
+
       .cashier-status-strip {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 0.55rem;
@@ -1882,19 +1886,20 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
       .table-card {
         border-radius: calc(var(--radius-lg) - 0.02rem);
+        min-height: 0;
       }
 
       .table-card-main {
-        padding: 0.68rem 0.74rem 0.56rem;
+        padding: 0.68rem 0.74rem 0.52rem;
       }
 
       .table-card-top {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr !important;
         gap: 0.34rem;
       }
 
       .table-card-bottom {
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr) auto !important;
         align-items: center;
         gap: 0.3rem 0.46rem;
       }
@@ -1912,7 +1917,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
       .table-card-actions,
       .table-card-actions--triple {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 0.44rem !important;
       }
 
       .table-card-actions--triple .btn-table-clear {
@@ -1923,6 +1930,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
         min-height: 1.92rem;
         padding-inline: 0.54rem;
         font-size: 0.72rem;
+        white-space: nowrap;
       }
 
       .lane-inline-pills {
@@ -1934,55 +1942,68 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       }
 
       .product-card {
-        min-height: 0;
-        padding: 0.78rem 0.82rem;
+        min-height: 0 !important;
+        padding: 0.74rem 0.78rem !important;
       }
 
       .product-card-body {
-        grid-template-columns: 4.3rem minmax(0, 1fr);
-        gap: 0.72rem;
+        display: grid;
+        grid-template-columns: 4.1rem minmax(0, 1fr) !important;
+        gap: 0.68rem !important;
         align-items: start;
+        min-height: 0;
       }
 
       .product-card-media {
-        width: 4.3rem;
-        height: 4.3rem;
-        min-height: 4.3rem;
+        width: 4.1rem !important;
+        height: 4.1rem !important;
+        min-height: 4.1rem !important;
+        aspect-ratio: 1 / 1 !important;
       }
 
       .product-card-content {
         gap: 0.44rem;
-      }
-
-      .product-card-top strong {
-        font-size: 0.96rem;
         min-height: 0;
       }
 
+      .product-card-top strong {
+        font-size: 0.92rem;
+        min-height: 0;
+        line-height: 1.22;
+      }
+
       .product-card-top span {
-        font-size: 0.72rem;
+        font-size: 0.7rem;
       }
 
       .product-notes {
-        min-height: 2.32em;
-        max-height: 2.32em;
-        font-size: 0.74rem;
-        line-height: 1.28;
+        min-height: 2.1em;
+        max-height: 2.1em;
+        font-size: 0.72rem;
+        line-height: 1.24;
       }
 
       .product-card-bottom {
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr) auto !important;
         align-items: end;
-        gap: 0.56rem;
-        padding-top: 0.48rem;
+        gap: 0.48rem;
+        padding-top: 0.42rem;
       }
 
       .product-card-bottom .btn {
         width: auto;
-        min-width: 5.35rem;
-        min-height: 2rem;
-        padding-inline: 0.72rem;
-        font-size: 0.76rem;
+        min-width: 5.1rem;
+        min-height: 1.92rem;
+        padding-inline: 0.7rem;
+        font-size: 0.74rem;
+      }
+
+      .product-price-caption {
+        display: none;
+      }
+
+      .product-price-stack {
+        gap: 0.14rem;
       }
 
       .product-dialog-hero,

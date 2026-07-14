@@ -616,6 +616,23 @@ class ReservationStatus(str, Enum):
     no_show = "no_show"
 
 
+class GuestQueueStatus(str, Enum):
+    waiting = "waiting"
+    notified = "notified"
+    seated = "seated"
+    converted_to_reservation = "converted_to_reservation"
+    cancelled = "cancelled"
+    no_show = "no_show"
+    expired = "expired"
+
+
+class GuestQueueSource(str, Enum):
+    walk_in = "walk_in"
+    phone = "phone"
+    web_waitlist = "web_waitlist"
+    staff_manual = "staff_manual"
+
+
 class Reservation(TenantMixin, table=True):
     """Table reservation: booked -> (optional) seated at table -> finished or cancelled."""
     __tablename__ = "reservation"
@@ -654,6 +671,34 @@ class Reservation(TenantMixin, table=True):
     preferred_floor_id: int | None = Field(default=None, foreign_key="floor.id")
     # BCP 47-ish tag from booking request (?lang= / Accept-Language); overrides tenant default_language for emails
     locale: str | None = Field(default=None, max_length=16)
+
+
+class GuestQueueEntry(TenantMixin, table=True):
+    """Walk-in or waitlist entry that can later be seated or converted to a reservation."""
+
+    __tablename__ = "guest_queue_entry"
+
+    id: int | None = Field(default=None, primary_key=True)
+    customer_name: str
+    customer_phone: str | None = Field(default=None, max_length=64, index=True)
+    party_size: int
+    quoted_wait_minutes: int | None = Field(default=None)
+    status: GuestQueueStatus = Field(default=GuestQueueStatus.waiting, index=True)
+    source: GuestQueueSource = Field(default=GuestQueueSource.staff_manual, index=True)
+    requested_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
+    notified_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
+    arrived_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
+    seated_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
+    completed_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
+    preferred_floor_id: int | None = Field(default=None, foreign_key="floor.id", index=True)
+    preferred_table_size: int | None = Field(default=None)
+    notes: str | None = Field(default=None)
+    linked_reservation_id: int | None = Field(default=None, foreign_key="reservation.id", index=True)
+    seated_table_id: int | None = Field(default=None, foreign_key="table.id", index=True)
+    seated_order_id: int | None = Field(default=None, foreign_key="order.id", index=True)
+    cancel_reason: str | None = Field(default=None)
+    created_by_user_id: int | None = Field(default=None, foreign_key="user.id", index=True)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class GuestFeedback(TenantMixin, table=True):
@@ -927,6 +972,50 @@ class ReservationStatusUpdate(SQLModel):
 
 class ReservationSeat(SQLModel):
     table_id: int
+
+
+class GuestQueueCreate(SQLModel):
+    customer_name: str
+    customer_phone: str | None = None
+    party_size: int = Field(ge=1, le=50)
+    quoted_wait_minutes: int | None = Field(default=None, ge=0, le=1440)
+    preferred_floor_id: int | None = None
+    preferred_table_size: int | None = Field(default=None, ge=1, le=50)
+    linked_reservation_id: int | None = None
+    notes: str | None = None
+    source: GuestQueueSource = GuestQueueSource.staff_manual
+    arrived_now: bool = True
+
+
+class GuestQueueUpdate(SQLModel):
+    customer_name: str | None = None
+    customer_phone: str | None = None
+    party_size: int | None = Field(default=None, ge=1, le=50)
+    quoted_wait_minutes: int | None = Field(default=None, ge=0, le=1440)
+    preferred_floor_id: int | None = None
+    preferred_table_size: int | None = Field(default=None, ge=1, le=50)
+    notes: str | None = None
+    source: GuestQueueSource | None = None
+    cancel_reason: str | None = None
+
+
+class GuestQueueStatusUpdate(SQLModel):
+    status: GuestQueueStatus
+    reason: str | None = None
+
+
+class GuestQueueSeat(SQLModel):
+    table_id: int
+
+
+class GuestQueueConvertToReservation(SQLModel):
+    reservation_date: str  # YYYY-MM-DD
+    reservation_time: str  # HH:MM or HH:MM:SS
+    customer_email: str | None = None
+    client_notes: str | None = None
+    customer_notes: str | None = None
+    service_type: str | None = None
+    seating_preference: str | None = None
 
 
 class GuestFeedbackCreate(SQLModel):

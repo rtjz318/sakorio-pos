@@ -642,6 +642,16 @@ def publish_reservation_update(tenant_id: int, reservation_data: dict) -> None:
             pass  # Fail silently if Redis unavailable
 
 
+def publish_queue_update(tenant_id: int, queue_data: dict) -> None:
+    """Publish guest queue / waitlist updates to Redis for the tenant."""
+    r = get_redis()
+    if r:
+        try:
+            r.publish(f"queue:tenant:{tenant_id}", json.dumps(queue_data))
+        except Exception:
+            pass
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
@@ -7797,6 +7807,44 @@ def _reservation_to_dict(
     return out
 
 
+def _queue_entry_to_dict(q: models.GuestQueueEntry, session: Session | None = None) -> dict:
+    out = {
+        "id": q.id,
+        "tenant_id": q.tenant_id,
+        "customer_name": q.customer_name,
+        "customer_phone": q.customer_phone,
+        "party_size": q.party_size,
+        "quoted_wait_minutes": q.quoted_wait_minutes,
+        "status": q.status.value,
+        "source": q.source.value,
+        "requested_at": q.requested_at.isoformat() if q.requested_at else None,
+        "notified_at": q.notified_at.isoformat() if q.notified_at else None,
+        "arrived_at": q.arrived_at.isoformat() if q.arrived_at else None,
+        "seated_at": q.seated_at.isoformat() if q.seated_at else None,
+        "completed_at": q.completed_at.isoformat() if q.completed_at else None,
+        "preferred_floor_id": q.preferred_floor_id,
+        "preferred_table_size": q.preferred_table_size,
+        "notes": q.notes,
+        "linked_reservation_id": q.linked_reservation_id,
+        "seated_table_id": q.seated_table_id,
+        "seated_order_id": q.seated_order_id,
+        "cancel_reason": q.cancel_reason,
+        "created_by_user_id": q.created_by_user_id,
+        "updated_at": q.updated_at.isoformat() if q.updated_at else None,
+    }
+    if session and q.preferred_floor_id is not None:
+        floor = session.get(models.Floor, q.preferred_floor_id)
+        out["preferred_floor_name"] = floor.name if floor else None
+    else:
+        out["preferred_floor_name"] = None
+    if session and q.seated_table_id is not None:
+        table = session.get(models.Table, q.seated_table_id)
+        out["seated_table_name"] = table.name if table else None
+    else:
+        out["seated_table_name"] = None
+    return out
+
+
 def _capacity_for_tenant(session: Session, tenant_id: int) -> tuple[int, int]:
     """Return (total_seats, total_tables) for the tenant."""
     tables = session.exec(
@@ -9578,6 +9626,322 @@ async def send_reservation_reminder(
         "to_email": to_email,
         "to_phone": to_phone,
     }
+
+
+def _seat_queue_entry_on_table(
+    queue_entry: models.GuestQueueEntry,
+    table_id: int,
+    tenant_id: int,
+    session: Session,
+) -> models.Table:
+    table = session.exec(
+        select(models.Table).where(
+            models.Table.id == table_id,
+            models.Table.tenant_id == tenant_id,
+        )
+    ).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    group_total = _group_total_seats(session, tenant_id, table)
+    if group_total < queue_entry.party_size:
+        raise HTTPException(status_code=400, detail="Table capacity is less than party size")
+    member_ids = _group_member_table_ids(session, tenant_id, table)
+    for mid in member_ids:
+        active_order = session.exec(
+            select(models.Order).where(
+                models.Order.table_id == mid,
+                models.Order.status.in_(
+                    [
+                        models.OrderStatus.pending,
+                        models.OrderStatus.preparing,
+                        models.OrderStatus.ready,
+                        models.OrderStatus.partially_delivered,
+                    ]
+                ),
+                models.Order.deleted_at.is_(None),
+            )
+        ).first()
+        if active_order:
+            raise HTTPException(status_code=400, detail="Table is already occupied")
+        other_reserved = session.exec(
+            select(models.Reservation).where(
+                models.Reservation.table_id == mid,
+                models.Reservation.status == models.ReservationStatus.booked,
+            )
+        ).first()
+        if other_reserved:
+            raise HTTPException(status_code=400, detail="Table is already reserved")
+    queue_entry.seated_table_id = table_id
+    queue_entry.status = models.GuestQueueStatus.seated
+    queue_entry.seated_at = datetime.now(timezone.utc)
+    queue_entry.updated_at = queue_entry.seated_at
+    return table
+
+
+@app.get("/queue")
+def list_guest_queue(
+    include_closed: bool = Query(False),
+    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_READ))],
+    session: Session = Depends(get_session),
+) -> list[dict]:
+    stmt = select(models.GuestQueueEntry).where(models.GuestQueueEntry.tenant_id == current_user.tenant_id)
+    if not include_closed:
+        stmt = stmt.where(
+            models.GuestQueueEntry.status.in_(
+                [
+                    models.GuestQueueStatus.waiting,
+                    models.GuestQueueStatus.notified,
+                    models.GuestQueueStatus.seated,
+                ]
+            )
+        )
+    rows = session.exec(stmt.order_by(models.GuestQueueEntry.requested_at.asc())).all()
+    return [_queue_entry_to_dict(row, session) for row in rows]
+
+
+@app.get("/queue/summary")
+def guest_queue_summary(
+    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_READ))],
+    session: Session = Depends(get_session),
+) -> dict:
+    rows = session.exec(
+        select(models.GuestQueueEntry).where(models.GuestQueueEntry.tenant_id == current_user.tenant_id)
+    ).all()
+    counts = {status.value: 0 for status in models.GuestQueueStatus}
+    waiting_guests = 0
+    notified_guests = 0
+    for row in rows:
+        counts[row.status.value] = counts.get(row.status.value, 0) + 1
+        if row.status == models.GuestQueueStatus.waiting:
+            waiting_guests += row.party_size
+        elif row.status == models.GuestQueueStatus.notified:
+            notified_guests += row.party_size
+    return {
+        "total_entries": len(rows),
+        "waiting_guests": waiting_guests,
+        "notified_guests": notified_guests,
+        "counts": counts,
+    }
+
+
+@app.post("/queue")
+def create_guest_queue_entry(
+    body: models.GuestQueueCreate,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_WRITE))],
+    session: Session = Depends(get_session),
+) -> dict:
+    if body.preferred_floor_id is not None:
+        floor = session.exec(
+            select(models.Floor).where(
+                models.Floor.id == body.preferred_floor_id,
+                models.Floor.tenant_id == current_user.tenant_id,
+            )
+        ).first()
+        if not floor:
+            raise HTTPException(status_code=404, detail="Preferred floor not found")
+    if body.linked_reservation_id is not None:
+        reservation = session.exec(
+            select(models.Reservation).where(
+                models.Reservation.id == body.linked_reservation_id,
+                models.Reservation.tenant_id == current_user.tenant_id,
+            )
+        ).first()
+        if not reservation:
+            raise HTTPException(status_code=404, detail="Linked reservation not found")
+    now_utc = datetime.now(timezone.utc)
+    queue_entry = models.GuestQueueEntry(
+        tenant_id=current_user.tenant_id,
+        customer_name=body.customer_name.strip(),
+        customer_phone=body.customer_phone.strip() if isinstance(body.customer_phone, str) and body.customer_phone.strip() else None,
+        party_size=body.party_size,
+        quoted_wait_minutes=body.quoted_wait_minutes,
+        preferred_floor_id=body.preferred_floor_id,
+        preferred_table_size=body.preferred_table_size,
+        linked_reservation_id=body.linked_reservation_id,
+        notes=body.notes.strip() if isinstance(body.notes, str) and body.notes.strip() else None,
+        source=body.source,
+        arrived_at=now_utc if body.arrived_now else None,
+        created_by_user_id=current_user.id,
+        updated_at=now_utc,
+    )
+    session.add(queue_entry)
+    session.commit()
+    session.refresh(queue_entry)
+    out = _queue_entry_to_dict(queue_entry, session)
+    publish_queue_update(current_user.tenant_id, {"type": "queue_created", "queue_entry": out})
+    return out
+
+
+@app.get("/queue/{queue_entry_id}")
+def get_guest_queue_entry(
+    queue_entry_id: int,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_READ))],
+    session: Session = Depends(get_session),
+) -> dict:
+    queue_entry = session.exec(
+        select(models.GuestQueueEntry).where(
+            models.GuestQueueEntry.id == queue_entry_id,
+            models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+    if not queue_entry:
+        raise HTTPException(status_code=404, detail="Queue entry not found")
+    return _queue_entry_to_dict(queue_entry, session)
+
+
+@app.put("/queue/{queue_entry_id}")
+def update_guest_queue_entry(
+    queue_entry_id: int,
+    body: models.GuestQueueUpdate,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_WRITE))],
+    session: Session = Depends(get_session),
+) -> dict:
+    queue_entry = session.exec(
+        select(models.GuestQueueEntry).where(
+            models.GuestQueueEntry.id == queue_entry_id,
+            models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+    if not queue_entry:
+        raise HTTPException(status_code=404, detail="Queue entry not found")
+    if body.preferred_floor_id is not None:
+        floor = session.exec(
+            select(models.Floor).where(
+                models.Floor.id == body.preferred_floor_id,
+                models.Floor.tenant_id == current_user.tenant_id,
+            )
+        ).first()
+        if not floor:
+            raise HTTPException(status_code=404, detail="Preferred floor not found")
+    update_data = body.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        if isinstance(value, str):
+            value = value.strip() or None
+        setattr(queue_entry, key, value)
+    queue_entry.updated_at = datetime.now(timezone.utc)
+    session.add(queue_entry)
+    session.commit()
+    session.refresh(queue_entry)
+    out = _queue_entry_to_dict(queue_entry, session)
+    publish_queue_update(current_user.tenant_id, {"type": "queue_updated", "queue_entry": out})
+    return out
+
+
+@app.put("/queue/{queue_entry_id}/status")
+def update_guest_queue_status(
+    queue_entry_id: int,
+    body: models.GuestQueueStatusUpdate,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_WRITE))],
+    session: Session = Depends(get_session),
+) -> dict:
+    queue_entry = session.exec(
+        select(models.GuestQueueEntry).where(
+            models.GuestQueueEntry.id == queue_entry_id,
+            models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+    if not queue_entry:
+        raise HTTPException(status_code=404, detail="Queue entry not found")
+    now_utc = datetime.now(timezone.utc)
+    queue_entry.status = body.status
+    if body.status == models.GuestQueueStatus.notified:
+        queue_entry.notified_at = now_utc
+    elif body.status in {models.GuestQueueStatus.cancelled, models.GuestQueueStatus.no_show, models.GuestQueueStatus.expired}:
+        queue_entry.cancel_reason = body.reason.strip() if isinstance(body.reason, str) and body.reason.strip() else queue_entry.cancel_reason
+        queue_entry.completed_at = now_utc
+    elif body.status == models.GuestQueueStatus.waiting:
+        queue_entry.cancel_reason = None
+        queue_entry.completed_at = None
+    queue_entry.updated_at = now_utc
+    session.add(queue_entry)
+    session.commit()
+    session.refresh(queue_entry)
+    out = _queue_entry_to_dict(queue_entry, session)
+    publish_queue_update(current_user.tenant_id, {"type": "queue_status", "queue_entry": out})
+    return out
+
+
+@app.put("/queue/{queue_entry_id}/seat")
+def seat_guest_queue_entry(
+    queue_entry_id: int,
+    body: models.GuestQueueSeat,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_WRITE))],
+    session: Session = Depends(get_session),
+) -> dict:
+    queue_entry = session.exec(
+        select(models.GuestQueueEntry).where(
+            models.GuestQueueEntry.id == queue_entry_id,
+            models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+    if not queue_entry:
+        raise HTTPException(status_code=404, detail="Queue entry not found")
+    if queue_entry.status not in {models.GuestQueueStatus.waiting, models.GuestQueueStatus.notified}:
+        raise HTTPException(status_code=400, detail="Queue entry must be waiting or notified to seat")
+    _seat_queue_entry_on_table(queue_entry, body.table_id, current_user.tenant_id, session)
+    session.add(queue_entry)
+    session.commit()
+    session.refresh(queue_entry)
+    out = _queue_entry_to_dict(queue_entry, session)
+    publish_queue_update(current_user.tenant_id, {"type": "queue_seated", "queue_entry": out})
+    return out
+
+
+@app.put("/queue/{queue_entry_id}/convert-to-reservation")
+def convert_guest_queue_to_reservation(
+    queue_entry_id: int,
+    body: models.GuestQueueConvertToReservation,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_WRITE))],
+    session: Session = Depends(get_session),
+) -> dict:
+    queue_entry = session.exec(
+        select(models.GuestQueueEntry).where(
+            models.GuestQueueEntry.id == queue_entry_id,
+            models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+    if not queue_entry:
+        raise HTTPException(status_code=404, detail="Queue entry not found")
+    if queue_entry.status not in {models.GuestQueueStatus.waiting, models.GuestQueueStatus.notified}:
+        raise HTTPException(status_code=400, detail="Queue entry can no longer be converted")
+    try:
+        reservation_date = date.fromisoformat(body.reservation_date)
+        reservation_time = time.fromisoformat(body.reservation_time)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid reservation date/time: {exc}") from exc
+    reservation = models.Reservation(
+        tenant_id=current_user.tenant_id,
+        customer_name=queue_entry.customer_name,
+        customer_phone=queue_entry.customer_phone or "",
+        customer_email=body.customer_email.strip() if isinstance(body.customer_email, str) and body.customer_email.strip() else None,
+        reservation_date=reservation_date,
+        reservation_time=reservation_time,
+        party_size=queue_entry.party_size,
+        status=models.ReservationStatus.booked,
+        token=str(uuid4()),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+        client_notes=body.client_notes.strip() if isinstance(body.client_notes, str) and body.client_notes.strip() else queue_entry.notes,
+        customer_notes=body.customer_notes.strip() if isinstance(body.customer_notes, str) and body.customer_notes.strip() else None,
+        service_type=body.service_type,
+        seating_preference=body.seating_preference,
+        preferred_floor_id=queue_entry.preferred_floor_id,
+    )
+    session.add(reservation)
+    session.flush()
+    queue_entry.linked_reservation_id = reservation.id
+    queue_entry.status = models.GuestQueueStatus.converted_to_reservation
+    queue_entry.completed_at = datetime.now(timezone.utc)
+    queue_entry.updated_at = queue_entry.completed_at
+    session.add(queue_entry)
+    session.commit()
+    session.refresh(queue_entry)
+    session.refresh(reservation)
+    queue_out = _queue_entry_to_dict(queue_entry, session)
+    reservation_out = _reservation_to_dict(reservation, session, include_client_tech=True)
+    publish_queue_update(current_user.tenant_id, {"type": "queue_converted", "queue_entry": queue_out, "reservation": reservation_out})
+    publish_reservation_update(current_user.tenant_id, {"type": "reservation_created", "reservation": reservation_out})
+    return {"queue_entry": queue_out, "reservation": reservation_out}
 
 
 # ============ TABLE SESSION MANAGEMENT ============

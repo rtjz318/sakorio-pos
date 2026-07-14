@@ -639,6 +639,65 @@ export class ReportsComponent implements OnInit {
     return t !== key ? t : status;
   }
 
+  getQueueSourceLabel(source: string): string {
+    switch ((source || '').trim().toLowerCase()) {
+      case 'walk_in':
+        return 'Walk-in';
+      case 'phone':
+        return 'Phone';
+      case 'web_waitlist':
+        return 'Web waitlist';
+      case 'staff_manual':
+        return 'Staff';
+      default:
+        return source ? source.replace(/_/g, ' ') : 'Unknown';
+    }
+  }
+
+  getQueueStatusLabel(status: string): string {
+    switch ((status || '').trim().toLowerCase()) {
+      case 'waiting':
+        return 'Waiting';
+      case 'notified':
+        return 'Notified';
+      case 'seated':
+        return 'Seated';
+      case 'converted_to_reservation':
+        return 'Converted';
+      case 'cancelled':
+        return 'Cancelled';
+      case 'no_show':
+        return 'No-show';
+      case 'expired':
+        return 'Expired';
+      default:
+        return status ? status.replace(/_/g, ' ') : 'Unknown';
+    }
+  }
+
+  formatMinutes(value: number | null | undefined): string {
+    if (!Number.isFinite(value as number)) return '0 min';
+    const rounded = Math.max(0, Math.round(Number(value)));
+    return `${rounded} min`;
+  }
+
+  queueDailyPeakCount(): number {
+    const daily = this.report()?.queue?.daily ?? [];
+    if (!daily.length) return 0;
+    return Math.max(...daily.map((day) => day.count || 0), 0);
+  }
+
+  queueDailyBarWidth(count: number): string {
+    const peak = this.queueDailyPeakCount();
+    if (peak <= 0) return '0%';
+    return `${Math.min(100, (Math.max(0, count) / peak) * 100)}%`;
+  }
+
+  queueDailySeatRate(day: { count: number; seated_count: number }): string {
+    if (!day.count || day.count <= 0) return '0% seated';
+    return `${Math.round((day.seated_count / day.count) * 100)}% seated`;
+  }
+
   getPaymentMethodLabel(method: string): string {
     const normalized = (method || '').trim().toLowerCase();
     const keyMap: Record<string, string> = {

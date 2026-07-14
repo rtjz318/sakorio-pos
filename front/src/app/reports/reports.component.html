@@ -97,6 +97,12 @@
               <span class="card-value">{{ r.reservations.total }}</span>
             </div>
           }
+          @if (r.queue) {
+            <div class="summary-card queue">
+              <span class="card-label">Queue entries</span>
+              <span class="card-value">{{ r.queue.total }}</span>
+            </div>
+          }
           @if ((r.reservations?.overbooking_slots_count ?? 0) > 0) {
             <div class="summary-card overbooking">
               <span class="card-label">{{ 'REPORTS.OVERBOOKING_SLOTS' | translate }}</span>
@@ -179,6 +185,90 @@
                 </div>
               }
             </div>
+          </div>
+        }
+
+        @if (r.queue) {
+          <div class="chart-block reservations-block queue-block">
+            <h3>Queue flow</h3>
+
+            <div class="queue-summary-grid">
+              <div class="source-row">
+                <span class="source-label">Avg quoted wait</span>
+                <span class="source-count">{{ formatMinutes(r.queue.average_quoted_wait_minutes) }}</span>
+              </div>
+              <div class="source-row">
+                <span class="source-label">Avg actual wait</span>
+                <span class="source-count">{{ formatMinutes(r.queue.average_actual_wait_minutes) }}</span>
+              </div>
+              <div class="source-row">
+                <span class="source-label">Seat conversion</span>
+                <span class="source-count">{{ r.queue.seat_conversion_pct }}%</span>
+              </div>
+              <div class="source-row">
+                <span class="source-label">Queue to reservation</span>
+                <span class="source-count">{{ r.queue.converted_to_reservation_pct }}%</span>
+              </div>
+            </div>
+
+            <div class="queue-columns">
+              @if (r.queue.by_source.length > 0) {
+                <div class="queue-column">
+                  <h4>By source</h4>
+                  <div class="reservations-by-source">
+                    @for (row of r.queue.by_source; track row.source) {
+                      <div class="source-row">
+                        <span class="source-label">{{ getQueueSourceLabel(row.source) }}</span>
+                        <span class="source-count">{{ row.count }} ({{ formatPct(row.count, r.queue.total) }})</span>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
+              @if (r.queue.by_status.length > 0) {
+                <div class="queue-column">
+                  <h4>By outcome</h4>
+                  <div class="reservations-by-source">
+                    @for (row of r.queue.by_status; track row.status) {
+                      <div class="source-row">
+                        <span class="source-label">{{ getQueueStatusLabel(row.status) }}</span>
+                        <span class="source-count">{{ row.count }} ({{ formatPct(row.count, r.queue.total) }})</span>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+
+            @if (r.queue.daily.length > 0) {
+              <div class="queue-daily-block">
+                <div class="queue-daily-header">
+                  <div>
+                    <h4>Daily throughput</h4>
+                    <p>Track queue volume and how many parties were actually seated each day.</p>
+                  </div>
+                  <span class="queue-daily-peak">Peak {{ queueDailyPeakCount() }} entries</span>
+                </div>
+
+                <div class="queue-daily-list">
+                  @for (day of r.queue.daily; track day.date) {
+                    <div class="queue-daily-row">
+                      <div class="queue-daily-copy">
+                        <strong>{{ formatShortDate(day.date) }}</strong>
+                        <span>{{ day.count }} total · {{ day.seated_count }} seated</span>
+                      </div>
+                      <div class="queue-daily-bar">
+                        <div class="queue-daily-bar-fill" [style.width]="queueDailyBarWidth(day.count)"></div>
+                      </div>
+                      <div class="queue-daily-meta">
+                        <span>{{ queueDailySeatRate(day) }}</span>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
           </div>
         }
 

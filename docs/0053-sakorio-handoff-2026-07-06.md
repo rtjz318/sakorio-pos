@@ -14,6 +14,8 @@ This repo is now the active Sakorio restaurant POS base. The earlier QR/Nest pro
 - cashier POS workflow refinement
 - product category/subcategory editing
 - staff navigation into a dedicated cashier surface
+- reservation-to-host-stand unification
+- queue / waitlist operations for walk-ins and next-available seating
 
 ## What Was Added Or Changed
 
@@ -90,6 +92,17 @@ Implemented direction so far:
       - `tickets`
     - compact settlement mode cards were re-balanced for better tablet scan speed
     - the selected-table dock and payment-state strip were toned down visually so the main checkout CTA carries the weight
+  - reservation adoption work has now started inside Sakorio cashier/tables surfaces:
+    - staff Tables now reads `CanvasTable` / `getTablesWithStatus()` instead of the thinner base table payload
+    - table list rows and table tiles can now surface upcoming reservation timing and guest context
+    - table operator copy now distinguishes:
+      - `Live bill`
+      - `Reserved soon`
+      - `Ready for bill`
+      - `Idle table`
+    - cashier POS left rail now surfaces reservation guest/time for upcoming bookings when no live bill is attached
+    - cashier POS bill dock header now surfaces reservation timing/guest context so cashiers can see who the table is being held for before opening a new ticket
+    - reservation visibility was added without breaking add-on order continuation for already-open table bills
 
 ### 2. Reports now include Sakorio payment buckets
 
@@ -186,6 +199,134 @@ Purpose:
 - support local development against the live API when needed
 - improve local POS iteration without constant Render redeploys
 
+### 6. Guest queue backend and frontend API wiring
+
+Backend already added:
+
+- `back/app/models.py`
+- `back/app/main.py`
+- `back/migrations/20260712120000_add_guest_queue_entry.sql`
+
+What exists now:
+
+- `GuestQueueEntry` persistence model
+- queue statuses:
+  - `waiting`
+  - `notified`
+  - `seated`
+  - `converted_to_reservation`
+  - `cancelled`
+  - `no_show`
+  - `expired`
+
+### 7. Queue visibility is now bridged into staff operations
+
+Frontend bridge completed:
+
+- `front/src/app/dashboard/dashboard.component.ts`
+- `front/src/app/tables/tables.component.ts`
+- `front/public/i18n/en.json`
+
+What changed:
+
+- Dashboard now exposes a first-class `Guest queue` quick action card
+- the dashboard queue card reads live queue summary counts when the reservations module is enabled
+- Tables now includes a compact host-stand pulse panel above the floor workspace:
+  - waiting guests
+  - notified guests
+  - total visible queue entries
+  - direct `Open host stand` jump
+
+Why this matters:
+
+- front-of-house staff can now see queue pressure without leaving the live floor context
+- reservation + walk-in traffic is starting to converge into one operator flow instead of staying isolated in separate modules
+
+Current stop point:
+
+- queue awareness is now visible from Dashboard and Tables
+- reservation-arrival awareness is now bridged into the Tables operator surface
+- best-fit queue seating suggestions are now derived from the live table model using:
+  - seat count
+  - preferred floor
+  - preferred table size
+  - reservation pressure on candidate tables
+- queue/frontend compile alignment was corrected around:
+  - `getGuestQueueSummary()`
+  - `CanvasTable.seat_count`
+  - floor lookup by `floor_id`
+- queue-aware cashier POS handoff is now wired:
+  - queue seating opens POS with:
+    - `tableId`
+    - `queueEntryId`
+    - guest name
+    - phone
+    - party size
+    - notes
+  - cashier POS now consumes queue handoff as a first-class prefill source alongside reservation handoff
+  - cashier order creation now uses a unified handoff prefill source
+  - cashier query sync clears stale queue/reservation params when the operator changes table/order focus
+- next integration slice should connect:
+  - owner/admin queue conversion reporting
+  - owner/admin queue volume / wait-time rollups
+  - host-stand layout/product polish
+- queue sources:
+  - `walk_in`
+  - `phone`
+  - `web_waitlist`
+  - `staff_manual`
+- queue endpoints:
+  - `GET /queue`
+  - `GET /queue/summary`
+  - `POST /queue`
+  - `GET /queue/{id}`
+  - `PUT /queue/{id}`
+  - `PUT /queue/{id}/status`
+  - `PUT /queue/{id}/seat`
+  - `PUT /queue/{id}/convert-to-reservation`
+- websocket publishing for:
+  - queue created
+  - queue updated
+  - queue status changes
+  - queue seating
+  - queue conversion
+
+Frontend API service wiring already added:
+
+- `front/src/app/services/api.service.ts`
+
+What exists there now:
+
+- queue DTOs / interfaces
+- queue REST methods
+- queue websocket subject stream
+
+### 7. Queue frontend route and navigation
+
+Frontend queue surface:
+
+- `front/src/app/queue/queue.component.ts`
+
+This screen now exists as the host-stand board for:
+
+- adding walk-ins
+- reviewing queue lanes
+- notifying guests
+- seating guests onto available tables
+- converting queue entries into future reservations
+- jumping seated guests directly into POS
+
+The missing integration bridge has now been wired:
+
+- route added:
+  - `/queue`
+- sidebar entry added:
+  - `Queue`
+- staff toolbar shortcut added:
+  - `Queue`
+- translation key added:
+  - `NAV.QUEUE`
+
 ## Working Product State
 
 ### Stable enough to keep
@@ -195,6 +336,10 @@ Purpose:
 - payment-method reporting exists
 - category and subcategory management exists
 - product cards can render photos in cashier flow
+- first reservation-adoption slice is live in staff Tables and cashier POS surfaces
+- guest queue backend exists
+- guest queue frontend screen exists
+- queue route/nav wiring now exists
 
 ### Still needs more polish
 
@@ -203,6 +348,14 @@ The cashier workflow is functional, but it is not yet "done done". Remaining eff
 The largest remaining refinement area is:
 
 - making the cashier POS feel consistently fast and obvious under real service pressure
+- completing reservation/queue adoption so front-of-house staff can manage:
+  - upcoming reservations
+  - arriving reserved guests
+  - waiting walk-ins
+  - seating priority across queue vs reservations
+  - conversion from queue to table service with minimal taps
+  - walk-in waitlist / queue seating
+  - queue-to-table / queue-to-reservation conversion
 
 That includes continued polish around:
 
@@ -212,11 +365,20 @@ That includes continued polish around:
 - table/order recovery after actions
 - product customization modal quality
 - grouped order visibility by table
+- reservation-aware table actions and POS context beyond passive visibility
+- a dedicated FOH waitlist / queue module
 - repo-wide frontend build hygiene:
   - Angular build currently still fails on unresolved SCSS / SSR path issues outside the cashier module
   - cashier POS work is still valid, but a clean production build for the frontend will require a broader frontend configuration cleanup
 
 ## Important Product Decisions Locked In
+
+### Reservation / queue direction
+
+- existing reservation subsystem in this repo is being reused, not rewritten
+- Phase 1 started by surfacing reservation context in Sakorio staff tables and cashier POS
+- next backend/frontend functional block is the new Sakorio FOH queue / waitlist layer
+- queue should remain separate from reservation records, but be linkable to reservations and tables
 
 - No split-bill or multi-party payment workflow is needed.
 - Sales reporting by payment type is required.
@@ -264,6 +426,22 @@ If the old Render setup was pointing at the previous repo or previous branch, it
    - settle with HitPay
 3. Verify reports reflect those payment outcomes correctly.
 4. Only then promote this repo cleanly onto Render.
+
+### Reservation + queue integration stop point
+
+- `/queue` is now live as a real Sakorio host-stand surface rather than a placeholder integration.
+- The latest completed queue slice added:
+  - board search
+  - source filter
+  - preferred-floor filter
+  - urgency filter
+  - visible/action-now/reservation-linked counters
+  - smarter lane ordering for notified and long-waiting guests
+  - selection sync when active filters hide the previously selected guest
+- Current next pickup for queue is:
+  1. compress the selected-guest detail rail
+  2. tighten reservation-arrival actions on the due-soon cards
+  3. visually QA hosted `/queue` density on Sakorio domains
 
 ### Latest cashier polish already completed
 
@@ -355,3 +533,444 @@ At the point of this handoff, the following have already been exercised in hoste
 ## Commit Scope Reminder
 
 This handoff corresponds to the Sakorio customization layer on top of `tanjunnan0101/pos`, not the abandoned QR/Nest codebase.
+
+## 2026-07-12 Status Update
+
+This section is the current pickup point after the later Sakorio staging migration and hosted QA work.
+
+### What is now true
+
+- Sakorio is actively running on the `pos` repo, not the old restaurant QR backend repo.
+- Render staging has been remapped onto this repo and re-seeded.
+- The public/customer host, staff host, owner host, and API host are all now tied to the same Sakorio codebase.
+- Host-specific session behavior was fixed so the public order host no longer always drops staff into the dashboard when they are signed in elsewhere.
+
+### Current staging host picture
+
+- `https://api.sakorio.com`
+  - FastAPI backend
+  - auth, tables, orders, reports, reservations, catalog, kitchen/bar data, HitPay settings
+- `https://app.sakorio.com`
+  - owner/admin-capable frontend surface
+  - also being used for the main staff POS flow in staging QA
+- `https://staff.sakorio.com`
+  - staff-facing frontend surface
+- `https://order.sakorio.com`
+  - public/customer-facing ordering surface
+
+### Render migration outcome so far
+
+- legacy Render service names were reused instead of throwing away the paid staging estate
+- backend database was recreated and migrations were rerun against the new Sakorio repo
+- frontend services were repointed to the `front` app in this repo
+- API CORS / frontend host relationships were re-established for Sakorio domains
+- public-vs-staff session isolation on different Sakorio domains was patched after repeated hosted checks
+
+### Verified hosted baseline
+
+At the time of this update, these have already been exercised on hosted staging:
+
+- owner/admin app can load
+- staff app can load
+- public order app can load
+- API health and auth are responding through `api.sakorio.com`
+- registration/login path works again after the Sakorio repo switch
+- kitchen display tickets were restored after hosted fixes
+
+### Still not considered finished
+
+The most important unfinished area is still frontend operator quality, especially:
+
+- cashier POS layout density and action clarity
+- table-card alignment and table-state scanability
+- kitchen display layout polish
+- smoother hosted staff/operator QA without repeated visual regressions
+
+### Reservations and queue status
+
+- **Reservations are already substantially implemented in this repo.**
+- **Guest queue / host waitlist backend scaffolding has now started.**
+- The latest reservation adoption slice now goes beyond passive visibility:
+  - staff reservation cards can open POS directly once a reservation is seated
+  - seating a reservation now immediately hands staff into `/pos` with the chosen table preselected
+  - POS can now accept reservation handoff query params for:
+    - reservation id
+    - guest name
+    - phone
+    - party size
+    - reservation note
+  - when a fresh POS bill is created from that handoff, the guest name and reservation note are carried into the created order payload
+- Queue backend slice now added in Sakorio repo:
+  - new SQLModel entity: `GuestQueueEntry`
+  - new enums:
+    - `GuestQueueStatus`
+    - `GuestQueueSource`
+  - new migration:
+    - `back/migrations/20260712120000_add_guest_queue_entry.sql`
+  - new tenant-scoped queue endpoints:
+    - `GET /queue`
+    - `GET /queue/summary`
+    - `POST /queue`
+    - `GET /queue/{queue_entry_id}`
+    - `PUT /queue/{queue_entry_id}`
+    - `PUT /queue/{queue_entry_id}/status`
+    - `PUT /queue/{queue_entry_id}/seat`
+    - `PUT /queue/{queue_entry_id}/convert-to-reservation`
+  - queue seating intentionally reuses the same table occupancy safeguards as reservations:
+    - table group capacity checks
+    - active order blocking
+    - booked reservation blocking
+  - queue events now publish on Redis tenant channel:
+    - `queue:tenant:{tenant_id}`
+
+### Current pickup point after queue backend slice
+
+The next meaningful Sakorio integration block is now:
+
+1. build the staff/front-of-house queue board UI on top of the new `/queue` endpoints
+2. wire queue seating into the same POS handoff pattern now used by reservations
+3. add queue-to-reservation conversion controls in staff UI
+4. add reservation/queue visibility to dashboard and reporting surfaces
+5. keep polishing hosted operator UX only after the reservation/queue functional rails are in place
+
+This is important for the next developer:
+
+- do **not** rebuild reservations from scratch
+- do **not** assume queue management is fully complete just because the backend endpoints now exist
+- reservation work should be integrated into Sakorio flows
+- queue management should continue as a new FOH/waitlist module that cooperates with reservations, tables, and POS
+
+### Next documentation to read before coding
+
+- `docs/0054-sakorio-reservation-queue-integration-brief.md`
+- `docs/0010-table-reservation-implementation-plan.md`
+- `docs/0011-table-reservation-user-guide.md`
+- `docs/0019-no-show-implementation-plan.md`
+- `docs/0051-cashier-pos-module-plan.md`
+- `docs/0052-sakorio-gap-checklist.md`
+
+### Recommended next build order
+
+1. finish remaining cashier/KDS/staff UX stabilization on hosted Sakorio staging
+2. integrate the existing reservation subsystem into Sakorio navigation and operating flows
+3. build FOH queue/waitlist management as a new module on top of current tables + reservation capacity logic
+4. wire reservation + queue states into reports, table board, and operator actions
+
+## 2026-07-13 Queue Integration Stop Point
+
+This is the exact continuation point for the next queue-focused implementation pass.
+
+### Confirmed live queue surfaces
+
+Queue is no longer only a backend scaffold. The following are already present in the Sakorio repo:
+
+- backend queue model in [models.py](C:\Users\Rick\Documents\New project\pos\back\app\models.py)
+- backend queue routes in [main.py](C:\Users\Rick\Documents\New project\pos\back\app\main.py)
+- frontend queue board in [queue.component.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\queue\queue.component.ts)
+- queue API client methods in [api.service.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\services\api.service.ts)
+- dashboard queue quick action in [dashboard.component.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\dashboard\dashboard.component.ts)
+- tables queue pulse and seating suggestions in [tables.component.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\tables\tables.component.ts)
+- cashier queue-aware handoff in [cashier-pos.component.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\cashier-pos\cashier-pos.component.ts)
+
+### Confirmed queue capabilities already working in code
+
+- create walk-in queue entry
+- list active queue entries
+- load queue summary
+- notify guest
+- return guest to waiting
+- cancel / no-show guest
+- seat onto valid table
+- convert queue entry into reservation
+- open cashier POS after queue seating
+- publish queue events over Redis/websocket
+
+### Important queue fields confirmed for next reporting slice
+
+Available queue data already exists for reporting and owner analytics:
+
+- `quoted_wait_minutes`
+- `requested_at`
+- `notified_at`
+- `seated_at`
+- `completed_at`
+- `status`
+- `source`
+- `linked_reservation_id`
+- `seated_table_id`
+
+### Exact next implementation phase
+
+Do not rebuild queue CRUD or redo the queue route.
+
+The next correct phase is:
+
+1. owner/admin queue reporting
+   - queue volume by day
+   - average quoted wait
+   - average actual seat wait
+   - seated conversion rate
+   - converted-to-reservation count
+   - cancelled / no-show / expired outcomes
+2. dashboard enrichment
+   - stronger queue health insight than only waiting/notified counts
+3. host-stand product polish
+   - denser tablet-first lane layout
+   - clearer best-fit table reasoning
+   - stronger urgency cues when reservations are due soon
+4. reservation / queue cross-links
+   - jump from reservation flows into queue workflows when required
+   - expose queue history linkage where operationally useful
+
+### Recommended first files to touch next
+
+- [reports_routes.py](C:\Users\Rick\Documents\New project\pos\back\app\reports_routes.py)
+- [reports.component.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\reports\reports.component.ts)
+- [dashboard.component.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\dashboard\dashboard.component.ts)
+
+That is the current queue integration stop point.
+
+## 2026-07-13 Queue Reporting Progress Update
+
+Queue integration has now moved one slice forward beyond the earlier stop point.
+
+### Newly completed in this pass
+
+- owner/admin sales reporting now includes a `queue` payload block from [reports_routes.py](C:\Users\Rick\Documents\New project\pos\back\app\reports_routes.py)
+- frontend report typings now understand queue analytics in [api.service.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\services\api.service.ts)
+- reports UI now has a queue flow section in:
+  - [reports.component.html](C:\Users\Rick\Documents\New project\pos\front\src\app\reports\reports.component.html)
+  - [reports.component.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\reports\reports.component.ts)
+  - [reports.component.scss](C:\Users\Rick\Documents\New project\pos\front\src\app\reports\reports.component.scss)
+
+### Queue analytics now included in report payload
+
+- total queue entries in range
+- waiting count
+- notified count
+- seated count
+- converted-to-reservation count
+- cancelled count
+- no-show count
+- expired count
+- average quoted wait minutes
+- average actual wait minutes
+- seat conversion percentage
+- queue-to-reservation conversion percentage
+- queue totals by source
+- queue totals by outcome/status
+- daily queue counts with seated counts
+
+### Important note about verification
+
+Frontend build verification in this workspace currently hits pre-existing Angular/path-resolution issues unrelated to the queue reporting patch. The failure includes unresolved SCSS/component path errors across many existing front-end files, so do not treat that failed build as evidence that the queue reporting slice itself is broken.
+
+### Exact next pickup after this pass
+
+1. verify the reports page visually in the running Sakorio app with real queue data
+2. enrich the owner dashboard with queue health cards using the same queue payload concepts
+3. add reservation/queue widgets and shortcuts into hosted operator surfaces
+4. continue with FOH host-stand polish:
+   - tablet queue lane density
+   - best-fit table suggestions
+   - urgency around near-due reservations
+
+## 2026-07-13 Hosted Queue Deployment Finding
+
+This is the important hosted Sakorio reality check that must be preserved for the next continuation pass.
+
+### What was verified live
+
+Hosted checks against `https://app.sakorio.com` confirmed:
+
+- `/reservations` loads
+- `/reports` loads
+- `/tables` loads
+- `/queue` currently resolves back to `/dashboard`
+- the hosted dashboard currently does not expose a visible queue entry point
+
+### What this does and does not mean
+
+This does **not** currently point to a general auth failure or a broken queue backend.
+
+Local code inspection confirmed:
+
+- queue route wiring already exists in:
+  - [app.routes.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\app.routes.ts)
+- dashboard queue card wiring already exists in:
+  - [dashboard.component.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\dashboard\dashboard.component.ts)
+- sidebar queue navigation wiring already exists in:
+  - [sidebar.component.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\shared\sidebar.component.ts)
+- tables host-stand queue pulse wiring already exists in:
+  - [tables.component.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\tables\tables.component.ts)
+
+### Root cause confirmed
+
+The hosted build is still missing the queue feature itself because the queue frontend slice is still local-only at this stop point:
+
+- untracked queue feature:
+  - [queue.component.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\queue\queue.component.ts)
+
+So the hosted `/queue` fallback should be treated first as a deployment-content gap, not as a permission bug.
+
+### Exact next pickup from this hosted finding
+
+1. add the queue frontend slice into git
+2. include the queue brief/migration/docs changes in the same change set
+3. redeploy the Sakorio frontend service
+4. re-verify hosted:
+   - `/queue`
+   - dashboard queue card
+   - tables host-stand pulse
+   - queue seating into cashier POS
+
+This is the new continuation point after the queue reporting implementation slice.
+
+## 2026-07-13 Host Stand Queue Polish Update
+
+Queue implementation moved one more step in this pass.
+
+### Newly completed
+
+- queue seating on [queue.component.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\queue\queue.component.ts) now behaves more like a real host stand instead of a generic admin chooser
+- seating candidates now render as scored table choices instead of a plain table-name list
+- queue now surfaces:
+  - best-fit table recommendation
+  - exact-fit / near-fit / spare-seat guidance
+  - floor label on each candidate
+  - upcoming reservation pressure on candidate tables
+  - urgency chips for near-due and due-soon reservations
+
+### Product impact
+
+For a selected waiting/notified guest, the host can now see:
+
+- which table is the best immediate seat
+- whether a table is safe to use now
+- whether a reservation will collide soon
+- whether a larger table is being overused for a smaller party
+
+This is the first meaningful pass toward the tablet-first host-stand experience described in the queue brief.
+
+### Remaining queue polish after this pass
+
+1. verify the new host-stand seating guidance visually in the running Sakorio app
+2. tighten lane density for tablet use so more cards fit above the fold
+3. add stronger best-fit explanations when multiple ready tables compete for one party
+4. package and deploy the queue feature set so hosted `/queue` stops depending on local-only files
+
+## 2026-07-13 Host Stand Queue Density Pass
+
+The queue module received a second usability pass focused on tablet scanning speed.
+
+### Newly completed
+
+- the left-side walk-in form is denser and now shows quick floor / clear-table context immediately
+- queue lanes are tighter vertically so more guests can fit in view without scrolling
+- each lane now surfaces a lead urgency chip so hosts can see the oldest / most urgent guest at a glance
+- queue cards now include short action-copy (`Tap to notify or seat`, `Tap to seat or convert`, `Tap to open POS handoff`) instead of relying only on status labels
+- table-choice cards and best-fit banners were tightened so table-selection reads more like a host stand tool and less like an admin settings page
+
+### Product impact
+
+This pass should make `/queue` much easier to run from a tablet near the entrance:
+
+- less wasted whitespace
+- faster recognition of which lane needs action first
+- clearer explanation of what happens when the host taps a guest card
+
+### Remaining queue work after this pass
+
+1. visually QA the tightened `/queue` screen in the running Sakorio app
+2. improve competing-table explanations when several tables are all technically valid for one party
+3. add final packaging / commit coverage for queue frontend + migration + docs so hosted `/queue` is deployable from git alone
+
+## 2026-07-13 Reservation Arrivals Rail Added To Queue
+
+Queue integration advanced one more host-stand step in this pass.
+
+### Newly completed
+
+- `/queue` now loads same-day booked reservations directly into the host stand screen
+- queue now surfaces a dedicated **Reservation arrivals / Due soon** rail above the live lanes
+- each arrival card now shows:
+  - guest name
+  - party size
+  - preferred floor when present
+  - reservation time
+  - urgency label based on minutes-to-arrival
+  - current queue linkage when a related queue entry already exists
+- hosts can now act from the arrival rail without jumping away:
+  - `Send to queue` when no active queue match exists
+  - `Open queue` when a linked or recent queue match exists
+  - `Open POS` when the reservation already has a table assigned
+
+### Product impact
+
+This gives the host stand one combined operating surface:
+
+- walk-ins already waiting
+- guests already called/notified
+- reservations due soon that may need queue or floor action
+
+It reduces toggling between `/reservations` and `/queue` during service buildup.
+
+### Remaining queue polish after this pass
+
+1. visually QA the new arrivals rail in the running Sakorio app
+2. improve competing-table explanations when several tables are all technically valid for one party
+3. package and commit queue frontend + migration + docs so hosted `/queue` is fully deployable from git alone
+
+## 2026-07-14 Reservation Arrival Actions Tightened In Queue
+
+The `/queue` reservation-arrivals rail has now moved beyond passive reminders.
+
+### Newly completed
+
+- each due-soon reservation card now includes a **Best next step** decision panel
+- arrival cards now branch their CTA based on current live state:
+  - guest already seated -> `Open POS`
+  - guest already on queue -> `Open queue`
+  - no table assigned -> `Send to queue`
+  - table assigned and due now -> `Open POS`
+  - table assigned but not due yet -> `Prep queue handoff`
+- secondary actions now stay contextual instead of always showing a generic static POS button
+
+### Product impact
+
+Hosts no longer need to interpret reservation metadata and decide the next screen manually.
+
+The arrival rail now behaves more like an operator launcher into:
+
+- queue
+- seated service / POS
+- reservation follow-up
+
+### Next queue pickup after this pass
+
+1. visually QA hosted `/queue` density and spacing on Sakorio domains
+2. tighten queue-lane card density again if hosted testing still feels too airy
+3. refine competing-table explanations when several candidate tables are valid
+
+## 2026-07-14 Queue Selected Guest Rail Tightened
+
+The queue detail rail has been compressed into a denser host-operator panel.
+
+### Newly completed
+
+- replaced the old four-card fact area with a tighter summary strip
+- moved source / preferred floor / preferred seats / reservation / seated-table context into compact chips
+- wrapped queue status buttons into a dedicated **Host controls** panel
+- reduced vertical whitespace before seating / reservation-conversion actions
+
+### Product impact
+
+Hosts now reach the useful actions faster after tapping a guest:
+
+- notify
+- reset to waiting
+- cancel / no-show
+- seat to a suggested table
+- convert to reservation
+
+This should make `/queue` feel more like a real front-desk operator dock than a generic admin form.

@@ -1,7 +1,7 @@
-import { Component, inject, signal, computed, OnInit, OnDestroy, ViewChild } from '@angular/core';
+﻿import { Component, inject, signal, computed, OnInit, OnDestroy, ViewChild } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { LowerCasePipe } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import {
   ApiService,
@@ -13,6 +13,7 @@ import {
   OverbookingReport,
   TenantSummary,
   ReservationBookZone,
+  GuestQueueEntry,
 } from '../services/api.service';
 import { PermissionService } from '../services/permission.service';
 import { SidebarComponent } from '../shared/sidebar.component';
@@ -124,20 +125,32 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
                   <div class="res-notes owner-notes"><strong>{{ 'RESERVATIONS.OWNER_NOTES' | translate }}:</strong> {{ r.owner_notes }}</div>
                 }
                 <div class="table-assigned">{{ 'RESERVATIONS.TABLE' | translate }}: {{ getTableDisplay(r) }}</div>
+                @if (latestQueueMatch(r); as queueMatch) {
+                  <div class="queue-handoff-summary">
+                    <span class="queue-handoff-chip">{{ queueStatusLabel(queueMatch) }}</span>
+                    <span class="queue-handoff-copy">
+                      {{ queueMatch.linked_reservation_id === r.id ? 'Queue linked to this reservation' : 'Recent queue history found' }}
+                      · {{ queueRelativeTime(queueMatch.updated_at || queueMatch.requested_at) }}
+                    </span>
+                  </div>
+                }
                 @if (r.client_ip || r.client_user_agent || r.client_fingerprint != null || r.client_screen_width != null) {
                   <details class="client-tech">
                     <summary>{{ 'RESERVATIONS.CLIENT_TECH_SUMMARY' | translate }}</summary>
                     <div class="client-tech-inner">
                       @if (r.client_ip) { <div><strong>{{ 'RESERVATIONS.CLIENT_TECH_IP' | translate }}:</strong> {{ r.client_ip }}</div> }
-                      @if (r.client_user_agent) { <div class="ua" title="{{ r.client_user_agent }}"><strong>{{ 'RESERVATIONS.CLIENT_TECH_USER_AGENT' | translate }}:</strong> {{ r.client_user_agent.length > 60 ? r.client_user_agent.slice(0, 60) + '�' : r.client_user_agent }}</div> }
+                      @if (r.client_user_agent) { <div class="ua" title="{{ r.client_user_agent }}"><strong>{{ 'RESERVATIONS.CLIENT_TECH_USER_AGENT' | translate }}:</strong> {{ r.client_user_agent.length > 60 ? r.client_user_agent.slice(0, 60) + '…' : r.client_user_agent }}</div> }
                       @if (r.client_fingerprint) { <div><strong>{{ 'RESERVATIONS.CLIENT_TECH_FINGERPRINT' | translate }}:</strong> {{ r.client_fingerprint }}</div> }
-                      @if (r.client_screen_width != null || r.client_screen_height != null) { <div><strong>{{ 'RESERVATIONS.CLIENT_TECH_SCREEN' | translate }}:</strong> {{ r.client_screen_width }}×{{ r.client_screen_height }}</div> }
+                      @if (r.client_screen_width != null || r.client_screen_height != null) { <div><strong>{{ 'RESERVATIONS.CLIENT_TECH_SCREEN' | translate }}:</strong> {{ r.client_screen_width }}Ã—{{ r.client_screen_height }}</div> }
                     </div>
                   </details>
                 }
               </div>
               <div class="card-actions">
                 @if (r.status === 'booked' && canWrite()) {
+                  <button class="btn btn-ghost btn-sm" (click)="openQueueForReservation(r)">
+                    {{ hasActiveQueueMatch(r) ? 'Open queue' : 'Send to queue' }}
+                  </button>
                   @if (r.customer_email || r.customer_phone) {
                     <button class="btn btn-ghost btn-sm" (click)="sendReminder(r)" [disabled]="sendingReminderId() === r.id" [title]="'RESERVATIONS.SEND_REMINDER' | translate">
                       {{ sendingReminderId() === r.id ? ('COMMON.LOADING' | translate) : ('RESERVATIONS.SEND_REMINDER' | translate) }}
@@ -149,6 +162,7 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
                   <button class="btn btn-ghost btn-sm danger" (click)="confirmCancel(r)">{{ 'RESERVATIONS.CANCEL' | translate }}</button>
                 }
                 @if (r.status === 'seated' && canWrite()) {
+                  <button class="btn btn-ghost btn-sm" (click)="openPosForReservation(r)">Open POS</button>
                   <button class="btn btn-ghost btn-sm" (click)="finish(r)">{{ 'RESERVATIONS.FINISH' | translate }}</button>
                 }
               </div>
@@ -253,7 +267,7 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
                   />
                 }
                 @if (slotCapacity(); as cap) {
-                  <p class="slot-capacity">{{ 'RESERVATIONS.SEATS_LEFT' | translate }}: {{ cap.seats_left }} � {{ 'RESERVATIONS.TABLES_LEFT' | translate }}: {{ cap.tables_left }}</p>
+                  <p class="slot-capacity">{{ 'RESERVATIONS.SEATS_LEFT' | translate }}: {{ cap.seats_left }} · {{ 'RESERVATIONS.TABLES_LEFT' | translate }}: {{ cap.tables_left }}</p>
                 }
                 <div class="form-group">
                   <label for="res-modal-name">{{ 'RESERVATIONS.CUSTOMER_NAME' | translate }}</label>
@@ -404,6 +418,9 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
     .status-badge.no_show { background: #ffedd5; color: #c2410c; }
     .card-body { font-size: 0.9rem; color: #4b5563; margin-bottom: 0.75rem; }
     .table-assigned { font-weight: 500; }
+    .queue-handoff-summary { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.55rem; }
+    .queue-handoff-chip { display: inline-flex; align-items: center; border-radius: 999px; background: #fff7ed; color: #c2410c; font-size: 0.75rem; font-weight: 700; padding: 0.28rem 0.6rem; }
+    .queue-handoff-copy { font-size: 0.82rem; color: #64748b; }
     .card-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 1000; }
     .modal-content { background: #fff; border-radius: var(--radius-md, 8px); max-width: min(720px, 96vw); width: 100%; max-height: 90vh; overflow: auto; box-shadow: var(--shadow-lg, 0 12px 32px rgba(0,0,0,0.1)); }
@@ -453,6 +470,7 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   private permissions = inject(PermissionService);
   private translate = inject(TranslateService);
   private apiErr = inject(ApiErrorMessageService);
+  private router = inject(Router);
 
   /** Public tenant (timezone for week grid, same as /book). */
   tenantSummary = signal<TenantSummary | null>(null);
@@ -473,7 +491,7 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   formDate = '';
   formTime = '';
   formPartySize = 1;
-  /** lunch/dinner/all — week grid when opening hours have a break */
+  /** lunch/dinner/all â€” week grid when opening hours have a break */
   formService: 'all' | 'lunch' | 'dinner' = 'all';
   /** Allergies / special requirements (synced to allergies_* and customer_notes on save). */
   formDietaryNotes = '';
@@ -492,6 +510,7 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   prefillLoading = signal(false);
   prefillMessage = signal<string | null>(null);
   prefillSuccess = signal(false);
+  queueEntries = signal<GuestQueueEntry[]>([]);
 
   canWrite = () => this.permissions.hasPermission(this.permissions.getCurrentUser(), 'reservation:write');
 
@@ -537,9 +556,15 @@ export class ReservationsComponent implements OnInit, OnDestroy {
         this.load();
         this.loadTables();
       });
+      this.wsSub.add(
+        this.api.queueUpdates$.subscribe(() => {
+          this.loadQueueHistory();
+        }),
+      );
     } catch {
       // continue without WebSocket
     }
+    this.loadQueueHistory();
   }
 
   ngOnDestroy() {
@@ -899,9 +924,126 @@ export class ReservationsComponent implements OnInit, OnDestroy {
     const r = this.reservationToSeat();
     if (!r) return;
     this.api.seatReservation(r.id, tableId).subscribe({
-      next: () => { this.closeSeatModal(); this.load(); this.loadTables(); },
+      next: () => {
+        this.closeSeatModal();
+        this.load();
+        this.loadTables();
+        this.openPosForReservation({ ...r, table_id: tableId, status: 'seated' }, tableId);
+      },
       error: (e) => alert(this.apiErr.fromHttpError(e, 'RESERVATIONS.ERROR_FAILED_SEAT')),
     });
+  }
+
+  loadQueueHistory() {
+    this.api.getGuestQueue(true).subscribe({
+      next: (rows) => this.queueEntries.set(rows),
+      error: () => this.queueEntries.set([]),
+    });
+  }
+
+  openPosForReservation(reservation: Reservation, forcedTableId?: number | null) {
+    const tableId = forcedTableId ?? reservation.table_id ?? null;
+    if (!tableId) return;
+
+    const note =
+      reservation.owner_notes?.trim() ||
+      reservation.client_notes?.trim() ||
+      reservation.customer_notes?.trim() ||
+      '';
+
+    void this.router.navigate(['/pos'], {
+      queryParams: {
+        tableId,
+        reservationId: reservation.id,
+        reservationGuest: reservation.customer_name || null,
+        reservationPhone: reservation.customer_phone || null,
+        reservationPartySize: reservation.party_size || null,
+        reservationNotes: note || null,
+      },
+    });
+  }
+
+  openQueueForReservation(reservation: Reservation) {
+    const queueMatch = this.latestQueueMatch(reservation);
+    const note =
+      reservation.owner_notes?.trim() ||
+      reservation.client_notes?.trim() ||
+      reservation.customer_notes?.trim() ||
+      '';
+
+    void this.router.navigate(['/queue'], {
+      queryParams: {
+        reservationId: reservation.id,
+        queueEntryId: queueMatch?.id ?? null,
+        queueGuest: reservation.customer_name || null,
+        queuePhone: reservation.customer_phone || null,
+        queuePartySize: reservation.party_size || null,
+        preferredFloorId: reservation.preferred_floor_id ?? null,
+        queueNotes: note || null,
+      },
+    });
+  }
+
+  hasActiveQueueMatch(reservation: Reservation): boolean {
+    const match = this.latestQueueMatch(reservation);
+    return !!match && ['waiting', 'notified', 'seated'].includes(match.status);
+  }
+
+  latestQueueMatch(reservation: Reservation): GuestQueueEntry | null {
+    const linkedMatches = this.queueEntries()
+      .filter((entry) => entry.linked_reservation_id === reservation.id)
+      .sort((a, b) => this.queueSortTime(b) - this.queueSortTime(a));
+    if (linkedMatches.length > 0) {
+      return linkedMatches[0];
+    }
+
+    const phone = this.normalizePhone(reservation.customer_phone);
+    if (!phone) return null;
+
+    const phoneMatches = this.queueEntries()
+      .filter((entry) => this.normalizePhone(entry.customer_phone) === phone)
+      .sort((a, b) => this.queueSortTime(b) - this.queueSortTime(a));
+    return phoneMatches[0] ?? null;
+  }
+
+  queueStatusLabel(entry: GuestQueueEntry): string {
+    switch (entry.status) {
+      case 'waiting':
+        return 'Waiting';
+      case 'notified':
+        return 'Notified';
+      case 'seated':
+        return 'Seated';
+      case 'converted_to_reservation':
+        return 'Converted';
+      case 'cancelled':
+        return 'Cancelled';
+      case 'no_show':
+        return 'No-show';
+      case 'expired':
+        return 'Expired';
+      default:
+        return 'Queue';
+    }
+  }
+
+  queueRelativeTime(value?: string | null): string {
+    if (!value) return 'recently';
+    const date = new Date(value);
+    const diffMinutes = Math.max(1, Math.floor((Date.now() - date.getTime()) / 60000));
+    if (diffMinutes < 60) return `${diffMinutes} min ago`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours} h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} d ago`;
+  }
+
+  private normalizePhone(value?: string | null): string {
+    return (value ?? '').replace(/\D+/g, '');
+  }
+
+  private queueSortTime(entry: GuestQueueEntry): number {
+    return new Date(entry.updated_at || entry.completed_at || entry.requested_at).getTime();
   }
 
   confirmCancel(r: Reservation) {
@@ -965,4 +1107,5 @@ export class ReservationsComponent implements OnInit, OnDestroy {
     });
   }
 }
+
 

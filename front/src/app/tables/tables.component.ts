@@ -2,7 +2,7 @@ import { afterNextRender, Component, effect, inject, signal, computed, OnInit } 
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { QRCodeComponent } from 'angularx-qrcode';
-import { ApiService, Table, TenantSettings, Floor, TableActivateResponse, User } from '../services/api.service';
+import { ApiService, Table, CanvasTable, TenantSettings, Floor, TableActivateResponse, User, GuestQueueSummary, GuestQueueEntry } from '../services/api.service';
 import { PermissionService } from '../services/permission.service';
 import { SidebarComponent } from '../shared/sidebar.component';
 import { StaffPosToolbarComponent } from '../shared/staff-pos-toolbar.component';
@@ -18,13 +18,34 @@ const TABLES_VIEW_STORAGE_KEY = 'pos.tables.viewMode';
 
 /** One combined list row per joined group, or one row per ungrouped table. */
 type TablesListRow =
-  | { kind: 'group'; groupId: number; floorId: number; members: Table[]; label: string; seatTotal: number }
-  | { kind: 'single'; table: Table };
+  | { kind: 'group'; groupId: number; floorId: number; members: CanvasTable[]; label: string; seatTotal: number }
+  | { kind: 'single'; table: CanvasTable };
 
 /** One combined tile block per floor: joined group or single table. */
 type TablesTileBlock =
-  | { kind: 'group'; groupId: number; members: Table[]; label: string; seatTotal: number }
-  | { kind: 'single'; table: Table };
+  | { kind: 'group'; groupId: number; members: CanvasTable[]; label: string; seatTotal: number }
+  | { kind: 'single'; table: CanvasTable };
+
+type FloorReservationArrival = {
+  tableId: number;
+  tableName: string;
+  floorName: string;
+  guestName: string;
+  timeLabel: string;
+  urgencyLabel: string;
+  urgencyTone: 'due' | 'soon' | 'upcoming';
+};
+
+type QueueSeatingSuggestion = {
+  entryId: number;
+  guestName: string;
+  partySize: number;
+  floorName: string;
+  tableId: number;
+  tableName: string;
+  matchLabel: string;
+  cautionLabel?: string;
+};
 
 function getInitialTablesViewMode(): 'tiles' | 'table' {
   if (typeof localStorage === 'undefined') return 'tiles';
@@ -110,6 +131,96 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
 
           @if (error()) {
             <div class="error-banner">{{ error() }}</div>
+          }
+
+          @if (canOpenQueue() && queueSummary(); as queue) {
+            <section class="queue-pulse-card" data-testid="tables-queue-pulse">
+              <div class="queue-pulse-copy">
+                <span class="queue-pulse-eyebrow">Host stand</span>
+                <h3>Walk-ins in queue</h3>
+                <p>Track waiting guests from the floor and jump straight into seating when a table opens.</p>
+              </div>
+              <div class="queue-pulse-metrics">
+                <div class="queue-pulse-metric">
+                  <span class="queue-pulse-metric-value">{{ queue.waiting_guests }}</span>
+                  <span class="queue-pulse-metric-label">Waiting</span>
+                </div>
+                <div class="queue-pulse-metric">
+                  <span class="queue-pulse-metric-value">{{ queue.notified_guests }}</span>
+                  <span class="queue-pulse-metric-label">Notified</span>
+                </div>
+                <div class="queue-pulse-metric">
+                  <span class="queue-pulse-metric-value">{{ queue.total_entries }}</span>
+                  <span class="queue-pulse-metric-label">Total in view</span>
+                </div>
+              </div>
+              <div class="queue-pulse-actions">
+                <a routerLink="/queue" class="btn btn-primary">Open host stand</a>
+              </div>
+            </section>
+          }
+
+          @if (reservationArrivals().length || queueSeatSuggestions().length) {
+            <section class="service-bridge-grid" data-testid="tables-service-bridge">
+              @if (reservationArrivals().length) {
+                <article class="service-bridge-card">
+                  <div class="service-bridge-head">
+                    <div>
+                      <span class="queue-pulse-eyebrow queue-pulse-eyebrow--amber">Arrivals due</span>
+                      <h3>Reserved guests landing soon</h3>
+                      <p>Protect near-term bookings before handing the next table to the queue.</p>
+                    </div>
+                    <a routerLink="/reservations" class="btn btn-secondary btn-sm">Open reservations</a>
+                  </div>
+                  <div class="service-bridge-list">
+                    @for (arrival of reservationArrivals(); track arrival.tableId) {
+                      <div class="service-bridge-row">
+                        <div class="service-bridge-primary">
+                          <strong>{{ arrival.guestName }}</strong>
+                          <span>{{ arrival.tableName }} • {{ arrival.floorName }}</span>
+                        </div>
+                        <div class="service-bridge-secondary">
+                          <span class="service-chip" [class.service-chip--amber]="arrival.urgencyTone !== 'upcoming'" [class.service-chip--rose]="arrival.urgencyTone === 'due'">
+                            {{ arrival.urgencyLabel }}
+                          </span>
+                          <span class="service-time">{{ arrival.timeLabel }}</span>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </article>
+              }
+
+              @if (queueSeatSuggestions().length) {
+                <article class="service-bridge-card">
+                  <div class="service-bridge-head">
+                    <div>
+                      <span class="queue-pulse-eyebrow queue-pulse-eyebrow--green">Best next seats</span>
+                      <h3>Queue guests you can seat now</h3>
+                      <p>Best-fit matches based on clear tables, party size, and reservation protection.</p>
+                    </div>
+                    <a routerLink="/queue" class="btn btn-secondary btn-sm">Open host stand</a>
+                  </div>
+                  <div class="service-bridge-list">
+                    @for (suggestion of queueSeatSuggestions(); track suggestion.entryId) {
+                      <div class="service-bridge-row">
+                        <div class="service-bridge-primary">
+                          <strong>{{ suggestion.guestName }}</strong>
+                          <span>{{ suggestion.partySize }} guests • {{ suggestion.matchLabel }}</span>
+                        </div>
+                        <div class="service-bridge-secondary service-bridge-secondary--stack">
+                          <span class="service-chip service-chip--green">{{ suggestion.tableName }}</span>
+                          <span class="service-time">{{ suggestion.floorName }}</span>
+                          @if (suggestion.cautionLabel) {
+                            <span class="service-warning">{{ suggestion.cautionLabel }}</span>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </article>
+              }
+            </section>
           }
 
           @if (loading()) {
@@ -206,7 +317,12 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                     @if (editingTableId() === table.id) {
                       <input type="text" [(ngModel)]="editingName" class="edit-input-inline" (keydown.enter)="saveTable(table)" (keydown.escape)="cancelEdit()">
                     } @else {
-                      <span class="table-name" (click)="startEdit(table)">{{ table.name }}</span>
+                      <div class="table-name-stack">
+                        <span class="table-name" (click)="startEdit(table)">{{ table.name }}</span>
+                        @if (tableReservationHint(table)) {
+                          <span class="table-reservation-inline">{{ tableReservationHint(table) }}</span>
+                        }
+                      </div>
                     }
                   </td>
                   <td>
@@ -228,7 +344,14 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                     </td>
                   }
                   <td>
-                    @if (table.is_active) {
+                    @if (table.active_order_id) {
+                      <span class="status-badge status-active status-inline"><span class="status-dot"></span>{{ 'TABLES.ACTIVE' | translate }}</span>
+                    } @else if (table.upcoming_reservation) {
+                      <div class="status-stack">
+                        <span class="status-badge status-warning status-inline"><span class="status-dot"></span>Reserved</span>
+                        <span class="table-reservation-inline table-reservation-inline--status">{{ tableReservationBadge(table) }}</span>
+                      </div>
+                    } @else if (table.is_active) {
                       <span class="status-badge status-active status-inline"><span class="status-dot"></span>{{ 'TABLES.ACTIVE' | translate }}</span>
                     } @else {
                       <span class="status-badge status-inactive status-inline"><span class="status-dot"></span>{{ 'TABLES.INACTIVE' | translate }}</span>
@@ -258,19 +381,19 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                       </div>
                     }
                   </td>
-                  <td class="td-actions">
+                  <td class="td-actions td-actions--row">
                     @if (editingTableId() === table.id) {
                       <button type="button" class="icon-btn icon-btn-success" (click)="saveTable(table)" [title]="'COMMON.SAVE' | translate">✓</button>
                       <button type="button" class="icon-btn" (click)="cancelEdit()" [title]="'COMMON.CANCEL' | translate">✕</button>
                     } @else {
                       <button type="button" class="icon-btn icon-btn-edit" (click)="startEdit(table)" [title]="'COMMON.EDIT' | translate">✎</button>
                       @if (table.is_active) {
-                        <button type="button" class="btn btn-sm btn-ghost" (click)="regeneratePin(table)" [disabled]="activatingTableId() === table.id" [title]="'TABLES.NEW_PIN' | translate">↻</button>
-                        <button type="button" class="btn btn-sm btn-warning" (click)="confirmCloseTable(table)" [disabled]="activatingTableId() === table.id" [title]="'TABLES.CLOSE_TABLE' | translate">⌫</button>
+                        <button type="button" class="btn btn-sm btn-ghost btn-square" (click)="regeneratePin(table)" [disabled]="activatingTableId() === table.id" [title]="'TABLES.NEW_PIN' | translate">↻</button>
+                        <button type="button" class="btn btn-sm btn-warning btn-square" (click)="confirmCloseTable(table)" [disabled]="activatingTableId() === table.id" [title]="'TABLES.CLOSE_TABLE' | translate">⌫</button>
                       } @else {
-                        <button type="button" class="btn btn-sm btn-success" (click)="activateTableSession(table)" [disabled]="activatingTableId() === table.id" [title]="'TABLES.ACTIVATE' | translate">▶</button>
+                        <button type="button" class="btn btn-sm btn-success btn-square" (click)="activateTableSession(table)" [disabled]="activatingTableId() === table.id" [title]="'TABLES.ACTIVATE' | translate">▶</button>
                       }
-                      <button type="button" class="btn btn-secondary btn-sm" (click)="openStaffMenu(table)"
+                      <button type="button" class="btn btn-secondary btn-sm btn-square" (click)="openStaffMenu(table)"
                         [disabled]="staffMenuOpeningTableId() === table.id"
                         [title]="'TABLES.OPEN_MENU' | translate">↗</button>
                       <button type="button" class="icon-btn" (click)="copyLink(table)" [title]="'COMMON.COPY' | translate">⎘</button>
@@ -482,6 +605,8 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   </div>
                   @if (table.active_order_id) {
                     <span class="table-operator-chip">Bill #{{ table.active_order_id }}</span>
+                  } @else if (tableReservationBadge(table)) {
+                    <span class="table-operator-chip table-operator-chip--reservation">{{ tableReservationBadge(table) }}</span>
                   }
                 </div>
                 <div class="table-operator-summary">
@@ -491,6 +616,8 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   }
                   @if (table.order_pin) {
                     <span>PIN {{ table.order_pin }}</span>
+                  } @else if (tableReservationHint(table)) {
+                    <span>{{ tableReservationHint(table) }}</span>
                   }
                 </div>
               </div>
@@ -740,6 +867,179 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     .form-actions-inline { display: flex; gap: var(--space-2); }
 
     .error-banner { background: rgba(220, 38, 38, 0.1); color: var(--color-error); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); margin-bottom: var(--space-4); }
+    .queue-pulse-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(280px, 1fr) auto;
+      gap: var(--space-4);
+      align-items: center;
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(34, 197, 94, 0.06));
+      border: 1px solid rgba(14, 165, 233, 0.18);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4) var(--space-5);
+      margin-bottom: var(--space-5);
+    }
+    .queue-pulse-copy h3 {
+      margin: 0 0 var(--space-1);
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: var(--color-text);
+    }
+    .queue-pulse-copy p {
+      margin: 0;
+      color: var(--color-text-muted);
+      max-width: 48ch;
+    }
+    .queue-pulse-eyebrow {
+      display: inline-flex;
+      margin-bottom: var(--space-2);
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(14, 165, 233, 0.12);
+      color: #0f766e;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .queue-pulse-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-3);
+    }
+    .queue-pulse-metric {
+      padding: var(--space-3);
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .queue-pulse-metric-value {
+      font-size: 1.375rem;
+      font-weight: 700;
+      color: var(--color-text);
+      line-height: 1.1;
+    }
+    .queue-pulse-metric-label {
+      font-size: 0.8125rem;
+      color: var(--color-text-muted);
+    }
+    .queue-pulse-actions {
+      display: flex;
+      justify-content: flex-end;
+    }
+    .service-bridge-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-4);
+      margin-bottom: var(--space-5);
+    }
+    .service-bridge-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4) var(--space-5);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      box-shadow: var(--shadow-sm);
+    }
+    .service-bridge-head {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-3);
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .service-bridge-head h3 {
+      margin: 0 0 var(--space-1);
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--color-text);
+    }
+    .service-bridge-head p {
+      margin: 0;
+      color: var(--color-text-muted);
+      max-width: 44ch;
+    }
+    .service-bridge-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    .service-bridge-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3);
+      border-radius: var(--radius-md);
+      background: var(--color-bg);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+    }
+    .service-bridge-primary,
+    .service-bridge-secondary {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+    .service-bridge-primary strong {
+      font-size: 0.95rem;
+      color: var(--color-text);
+    }
+    .service-bridge-primary span,
+    .service-time {
+      color: var(--color-text-muted);
+      font-size: 0.8125rem;
+    }
+    .service-bridge-secondary {
+      align-items: flex-end;
+      text-align: right;
+    }
+    .service-bridge-secondary--stack {
+      gap: 2px;
+    }
+    .service-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      background: rgba(148, 163, 184, 0.14);
+      color: var(--color-text);
+    }
+    .service-chip--amber {
+      background: rgba(245, 158, 11, 0.12);
+      color: #b45309;
+    }
+    .service-chip--rose {
+      background: rgba(239, 68, 68, 0.12);
+      color: #be123c;
+    }
+    .service-chip--green {
+      background: rgba(34, 197, 94, 0.12);
+      color: #15803d;
+    }
+    .service-warning {
+      color: #b45309;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .queue-pulse-eyebrow--amber {
+      background: rgba(245, 158, 11, 0.12);
+      color: #b45309;
+    }
+    .queue-pulse-eyebrow--green {
+      background: rgba(34, 197, 94, 0.12);
+      color: #15803d;
+    }
 
     .toast {
       position: fixed; bottom: var(--space-4); right: var(--space-4);
@@ -809,6 +1109,32 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
       grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
       gap: var(--space-4);
       align-items: stretch;
+    }
+
+    @media (max-width: 1080px) {
+      .queue-pulse-card {
+        grid-template-columns: 1fr;
+      }
+      .queue-pulse-actions {
+        justify-content: flex-start;
+      }
+      .service-bridge-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .queue-pulse-metrics {
+        grid-template-columns: 1fr;
+      }
+      .service-bridge-row {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .service-bridge-secondary {
+        align-items: flex-start;
+        text-align: left;
+      }
     }
 
     .btn-expand-group {
@@ -1016,6 +1342,10 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
       letter-spacing: 0.01em;
       white-space: nowrap;
     }
+    .table-operator-chip--reservation {
+      background: rgba(245, 158, 11, 0.12);
+      color: #b45309;
+    }
     .table-operator-summary {
       display: flex;
       flex-wrap: wrap;
@@ -1062,6 +1392,34 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     }
     .status-inactive .status-dot {
       background: #9ca3af;
+    }
+    .status-warning {
+      background: rgba(245, 158, 11, 0.12);
+      color: #b45309;
+    }
+    .status-warning .status-dot {
+      background: #f59e0b;
+    }
+    .status-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.25rem;
+    }
+    .table-name-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+    .table-reservation-inline {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #b45309;
+      line-height: 1.2;
+    }
+    .table-reservation-inline--status {
+      font-size: 0.7rem;
+      letter-spacing: 0.01em;
     }
     @keyframes pulse {
       0%, 100% { opacity: 1; }
@@ -1218,12 +1576,22 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     .tables-data-table { width: 100%; border-collapse: collapse; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
     .tables-data-table th, .tables-data-table td { padding: var(--space-3) var(--space-4); text-align: left; border-bottom: 1px solid var(--color-border); }
     .tables-data-table th { background: var(--color-bg); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); }
-    .tables-data-table th.th-actions { text-align: right; }
-    .tables-data-table td.td-actions { text-align: right; }
+    .tables-data-table th.th-actions {
+      text-align: right;
+      width: 11rem;
+      min-width: 11rem;
+    }
+    .tables-data-table td.td-actions {
+      text-align: right;
+      width: 11rem;
+      min-width: 11rem;
+      vertical-align: middle;
+    }
     .tables-data-table tbody tr:hover td { background: var(--color-bg); }
     .tables-data-table .table-name { font-weight: 600; cursor: pointer; }
     .tables-data-table .table-name:hover { color: var(--color-primary); }
     .tables-data-table .pin-cell { font-family: ui-monospace, monospace; font-weight: 600; letter-spacing: 0.05em; }
+    .tables-data-table .status-stack { min-width: 8rem; }
     .tables-data-table .waiter-select-inline { padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.8125rem; background: var(--color-surface); color: var(--color-text); min-width: 120px; }
     .tables-data-table .waiter-inherited-inline { font-size: 0.6875rem; color: var(--color-text-muted); font-style: italic; margin-top: 2px; }
     .tables-data-table .waiter-readonly-inline { font-size: 0.8125rem; color: var(--color-text); }
@@ -1233,7 +1601,53 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     .tables-data-table .edit-select-inline { padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.875rem; }
     .tables-data-table .edit-input-inline.edit-seats { width: 56px; }
     .tables-data-table .edit-select-inline { min-width: 100px; background: var(--color-bg); }
-    .tables-data-table .td-actions { display: flex; gap: var(--space-1); justify-content: flex-end; flex-wrap: wrap; }
+    .tables-data-table .td-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      justify-content: flex-end;
+      align-items: center;
+      align-content: center;
+    }
+    .tables-data-table .td-actions--row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 2.35rem));
+      grid-auto-rows: 2.35rem;
+      justify-content: end;
+      justify-items: end;
+      gap: 0.45rem;
+    }
+    .tables-data-table .td-actions--row .btn-square,
+    .tables-data-table .td-actions--row .icon-btn {
+      width: 2.35rem;
+      min-width: 2.35rem;
+      max-width: 2.35rem;
+      height: 2.35rem;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-md);
+      margin: 0;
+    }
+    .tables-data-table .td-actions--row .btn-square.btn-secondary,
+    .tables-data-table .td-actions--row .btn-square.btn-ghost,
+    .tables-data-table .td-actions--row .btn-square.btn-warning,
+    .tables-data-table .td-actions--row .btn-square.btn-success {
+      font-size: 0.95rem;
+      line-height: 1;
+    }
+    .tables-data-table .td-actions--row .icon-btn {
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
+    }
+    .tables-data-table .td-actions--row .icon-btn:hover {
+      background: var(--color-bg);
+    }
+    .tables-data-table .td-actions--row .btn svg,
+    .tables-data-table .td-actions--row .icon-btn svg {
+      flex-shrink: 0;
+    }
 
     @media (max-width: 768px) {
       .table-grid { grid-template-columns: 1fr; }
@@ -1245,6 +1659,22 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
       }
       .table-actions--primary .btn {
         width: 100%;
+      }
+      .tables-data-table th.th-actions,
+      .tables-data-table td.td-actions {
+        min-width: 7rem;
+        width: 7rem;
+      }
+      .tables-data-table .td-actions--row {
+        gap: 0.35rem;
+        grid-template-columns: repeat(2, minmax(0, 2.25rem));
+      }
+      .tables-data-table .td-actions--row .btn-square,
+      .tables-data-table .td-actions--row .icon-btn {
+        width: 2.25rem;
+        min-width: 2.25rem;
+        max-width: 2.25rem;
+        height: 2.25rem;
       }
     }
   `]
@@ -1260,7 +1690,7 @@ export class TablesComponent implements OnInit {
   /** When true, skip restoring view mode from localStorage (URL ?view= had priority). */
   private viewResolvedFromQuery = false;
 
-  tables = signal<Table[]>([]);
+  tables = signal<CanvasTable[]>([]);
   floors = signal<Floor[]>([]);
   loading = signal(true);
   error = signal('');
@@ -1279,6 +1709,8 @@ export class TablesComponent implements OnInit {
   /** While fetching staff menu token for open-in-new-tab. */
   staffMenuOpeningTableId = signal<number | null>(null);
   waiters = signal<User[]>([]);
+  queueSummary = signal<GuestQueueSummary | null>(null);
+  queueEntries = signal<GuestQueueEntry[]>([]);
 
   // Confirmation Modal State
   confirmationModal = signal<{
@@ -1321,6 +1753,61 @@ export class TablesComponent implements OnInit {
   expandedTileGroupMemberKeys = signal<string[]>([]);
   /** Warn before activate / open menu when another group member already has a session or order. */
   groupSafetyModal = signal<{ table: Table; action: 'activate' | 'menu'; siblingNames: string } | null>(null);
+
+  reservationArrivals = computed<FloorReservationArrival[]>(() => {
+    return this.tables()
+      .filter((table) => !!table.upcoming_reservation && !!table.id)
+      .map((table) => {
+        const reservation = table.upcoming_reservation!;
+        const minutesUntil = this.minutesUntilReservation(reservation.reservation_time) ?? 9999;
+        return {
+          tableId: table.id!,
+          tableName: table.name,
+          floorName: this.getFloorName(table.floor_id),
+          guestName: reservation.customer_name?.trim() || 'Reserved guest',
+          timeLabel: this.formatReservationTime(reservation.reservation_time),
+          minutesUntil,
+          ...this.reservationUrgencyMeta(reservation.reservation_time),
+        };
+      })
+      .sort((a, b) => a.minutesUntil - b.minutesUntil)
+      .slice(0, 4)
+      .map(({ minutesUntil, ...row }) => row);
+  });
+
+  queueSeatSuggestions = computed<QueueSeatingSuggestion[]>(() => {
+    const tables = this.tables()
+      .filter((table) => table.id != null)
+      .filter((table) => this.isTableReadyForQueue(table))
+      .sort((a, b) => (a.seat_count ?? 0) - (b.seat_count ?? 0));
+
+    const entries = this.queueEntries()
+      .filter((entry) => entry.status === 'waiting' || entry.status === 'notified')
+      .slice(0, 4);
+
+    const usedTableIds = new Set<number>();
+    const suggestions: QueueSeatingSuggestion[] = [];
+
+    for (const entry of entries) {
+      const bestTable = this.bestQueueTableForEntry(entry, tables, usedTableIds);
+      if (!bestTable?.id) continue;
+      usedTableIds.add(bestTable.id);
+      suggestions.push({
+        entryId: entry.id,
+        guestName: entry.customer_name,
+        partySize: entry.party_size,
+        floorName: this.getFloorName(bestTable.floor_id),
+        tableId: bestTable.id,
+        tableName: bestTable.name,
+        matchLabel: this.queueMatchLabel(entry, bestTable),
+        cautionLabel: bestTable.upcoming_reservation
+          ? `Reserved ${this.formatReservationTime(bestTable.upcoming_reservation.reservation_time)}`
+          : undefined,
+      });
+    }
+
+    return suggestions;
+  });
 
   constructor() {
     effect(() => {
@@ -1387,6 +1874,10 @@ export class TablesComponent implements OnInit {
   /** Owner/admin: can change table/floor waiter assignment (requires user list API). */
   canManageTableAssignments(): boolean {
     return this.permissions.hasPermission(this.api.getCurrentUser(), 'table:write');
+  }
+
+  canOpenQueue(): boolean {
+    return this.permissions.canAccessRoute(this.api.getCurrentUser(), '/queue');
   }
 
   /** Rename/reorder/deactivate floors for public booking zones. */
@@ -1458,7 +1949,7 @@ export class TablesComponent implements OnInit {
   }
 
   /** Double-click a tile: open staff orders filtered to this table. */
-  onTableCardDoubleClick(table: Table) {
+  onTableCardDoubleClick(table: CanvasTable) {
     if (!this.permissions.canAccessRoute(this.api.getCurrentUser(), '/staff/orders') || !table.id) return;
     void this.router.navigate(['/staff/orders'], {
       queryParams: { focusTableId: table.id, table: table.id },
@@ -1469,7 +1960,7 @@ export class TablesComponent implements OnInit {
     return this.permissions.canAccessRoute(this.api.getCurrentUser(), '/staff/orders');
   }
 
-  openOrdersForTable(table: Table): void {
+  openOrdersForTable(table: CanvasTable): void {
     if (!table.id || !this.canOpenStaffOrders()) return;
     void this.router.navigate(['/staff/orders'], {
       queryParams: {
@@ -1479,7 +1970,7 @@ export class TablesComponent implements OnInit {
     });
   }
 
-  openPosForTable(table: Table): void {
+  openPosForTable(table: CanvasTable): void {
     if (!table.id) return;
     void this.router.navigate(['/pos'], {
       queryParams: {
@@ -1489,9 +1980,12 @@ export class TablesComponent implements OnInit {
     });
   }
 
-  tableOperatorStateLabel(table: Table): string {
+  tableOperatorStateLabel(table: CanvasTable): string {
     if (table.active_order_id) {
       return 'Live bill';
+    }
+    if (table.upcoming_reservation) {
+      return 'Reserved soon';
     }
     if (table.is_active) {
       return 'Ready for bill';
@@ -1499,26 +1993,140 @@ export class TablesComponent implements OnInit {
     return 'Idle table';
   }
 
-  tablePrimaryActionLabel(table: Table): string {
+  tablePrimaryActionLabel(table: CanvasTable): string {
     if (table.active_order_id) {
       return 'Resume bill';
     }
-    if (table.is_active) {
+    if (table.is_active || table.upcoming_reservation) {
       return 'Start bill';
     }
     return 'Open POS';
   }
 
+  tableReservationBadge(table: CanvasTable): string | null {
+    if (!table.upcoming_reservation?.reservation_time) return null;
+    return `Reserved ${this.formatReservationTime(table.upcoming_reservation.reservation_time)}`;
+  }
+
+  tableReservationHint(table: CanvasTable): string | null {
+    if (!table.upcoming_reservation) return null;
+    const time = table.upcoming_reservation.reservation_time
+      ? this.formatReservationTime(table.upcoming_reservation.reservation_time)
+      : null;
+    const guest = table.upcoming_reservation.customer_name?.trim();
+    if (guest && time) return `${guest} • ${time}`;
+    if (guest) return guest;
+    if (time) return `Reserved ${time}`;
+    return 'Upcoming reservation';
+  }
+
+  private formatReservationTime(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(date);
+  }
+
+  private reservationUrgencyMeta(value: string): Pick<FloorReservationArrival, 'urgencyLabel' | 'urgencyTone'> {
+    const minutes = this.minutesUntilReservation(value);
+    if (minutes != null && minutes <= 15) {
+      return { urgencyLabel: 'Due now', urgencyTone: 'due' };
+    }
+    if (minutes != null && minutes <= 45) {
+      return { urgencyLabel: `In ${minutes} min`, urgencyTone: 'soon' };
+    }
+    return { urgencyLabel: 'Upcoming', urgencyTone: 'upcoming' };
+  }
+
+  private minutesUntilReservation(value: string): number | null {
+    if (!value) return null;
+    let date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      const timeMatch = value.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+      if (!timeMatch) return null;
+      date = new Date();
+      date.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
+    }
+    const diff = Math.round((date.getTime() - Date.now()) / 60000);
+    return diff >= 0 ? diff : 0;
+  }
+
+  private isTableReadyForQueue(table: CanvasTable): boolean {
+    const status = table.operational_status ?? table.status ?? 'available';
+    if (status !== 'available') return false;
+    const minutes = table.upcoming_reservation?.reservation_time
+      ? this.minutesUntilReservation(table.upcoming_reservation.reservation_time)
+      : null;
+    return minutes == null || minutes > 20;
+  }
+
+  private bestQueueTableForEntry(
+    entry: GuestQueueEntry,
+    tables: CanvasTable[],
+    usedTableIds: Set<number>,
+  ): CanvasTable | null {
+    const candidates = tables
+      .filter((table) => table.id != null && !usedTableIds.has(table.id))
+      .filter((table) => (table.seat_count ?? 0) >= entry.party_size);
+
+    if (!candidates.length) return null;
+
+    const preferredFloorId = entry.preferred_floor_id ?? null;
+    const preferredTableSize = entry.preferred_table_size ?? null;
+
+    return [...candidates].sort((a, b) => {
+      const scoreA = this.queueTableScore(a, entry.party_size, preferredFloorId, preferredTableSize);
+      const scoreB = this.queueTableScore(b, entry.party_size, preferredFloorId, preferredTableSize);
+      return scoreA - scoreB;
+    })[0] ?? null;
+  }
+
+  private queueTableScore(
+    table: CanvasTable,
+    partySize: number,
+    preferredFloorId: number | null,
+    preferredTableSize: number | null,
+  ): number {
+    let score = Math.abs((table.seat_count ?? partySize) - partySize) * 10;
+    if (preferredFloorId != null && table.floor_id === preferredFloorId) score -= 14;
+    if (preferredTableSize != null && table.seat_count === preferredTableSize) score -= 8;
+    if (table.upcoming_reservation) score += 30;
+    return score;
+  }
+
+  private queueMatchLabel(entry: GuestQueueEntry, table: CanvasTable): string {
+    const parts = [`${table.name}`, `${table.seat_count ?? entry.party_size} seats`];
+    if (entry.preferred_floor_name && table.floor_id === entry.preferred_floor_id) {
+      parts.push('preferred floor');
+    }
+    return parts.join(' • ');
+  }
+
   loadData() {
     this.loading.set(true);
     // Use forkJoin if needed, but sequential is fine for now
+    if (this.canOpenQueue()) {
+      this.api.getGuestQueueSummary().subscribe({
+        next: summary => this.queueSummary.set(summary),
+        error: () => this.queueSummary.set(null),
+      });
+      this.api.getGuestQueue(false).subscribe({
+        next: entries => this.queueEntries.set(entries),
+        error: () => this.queueEntries.set([]),
+      });
+    } else {
+      this.queueSummary.set(null);
+      this.queueEntries.set([]);
+    }
     this.api.getFloors().subscribe({
       next: floors => {
         this.floors.set(floors);
         if (floors.length > 0) {
           this.selectedFloorId = floors[0].id!;
         }
-        this.api.getTables().subscribe({
+        this.api.getTablesWithStatus().subscribe({
           next: tables => { this.tables.set(tables); this.loading.set(false); },
           error: err => { this.error.set(this.apiErr.fromHttpError(err, 'COMMON.API_REQUEST_FAILED')); this.loading.set(false); }
         });
@@ -1527,7 +2135,7 @@ export class TablesComponent implements OnInit {
     });
   }
 
-  getTablesByFloor(floorId: number): Table[] {
+  getTablesByFloor(floorId: number): CanvasTable[] {
     return this.tables().filter(t => t.floor_id === floorId);
   }
 
@@ -1538,19 +2146,19 @@ export class TablesComponent implements OnInit {
   }
 
   /** Sorted member names for a joined group (matches backend display). */
-  private groupLabelFromMembers(members: Table[]): string {
+  private groupLabelFromMembers(members: CanvasTable[]): string {
     const names = members.map(m => m.name ?? '').filter(Boolean).sort((a, b) => a.localeCompare(b));
     return names.join(' + ');
   }
 
-  tableHasActiveSessionOrOpenOrder(t: Table): boolean {
+  tableHasActiveSessionOrOpenOrder(t: CanvasTable): boolean {
     if (t.is_active) return true;
     const oid = t.active_order_id;
     return oid != null && oid > 0;
   }
 
   /** Other members of the same group that already have an active session or open order. */
-  getGroupSiblingActivityOthers(table: Table): Table[] {
+  getGroupSiblingActivityOthers(table: CanvasTable): CanvasTable[] {
     if (!table.table_group_id || table.id == null) return [];
     const gid = table.table_group_id;
     return this.tables().filter(
@@ -1562,17 +2170,17 @@ export class TablesComponent implements OnInit {
     );
   }
 
-  groupMembersHaveActivity(members: Table[]): boolean {
+  groupMembersHaveActivity(members: CanvasTable[]): boolean {
     return members.some(m => this.tableHasActiveSessionOrOpenOrder(m));
   }
 
-  groupMembersHaveActiveSession(members: Table[]): boolean {
+  groupMembersHaveActiveSession(members: CanvasTable[]): boolean {
     return members.some(m => m.is_active);
   }
 
   listViewRows(): TablesListRow[] {
     const tables = this.tables();
-    const byGroup = new Map<number, Table[]>();
+    const byGroup = new Map<number, CanvasTable[]>();
     for (const t of tables) {
       if (t.table_group_id != null && t.id != null) {
         const arr = byGroup.get(t.table_group_id) ?? [];
@@ -1625,7 +2233,7 @@ export class TablesComponent implements OnInit {
 
   tileBlocksForFloor(floorId: number): TablesTileBlock[] {
     const onFloor = this.getTablesByFloor(floorId);
-    const byGroup = new Map<number, Table[]>();
+    const byGroup = new Map<number, CanvasTable[]>();
     for (const t of onFloor) {
       if (t.table_group_id != null && t.id != null) {
         const arr = byGroup.get(t.table_group_id) ?? [];

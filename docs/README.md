@@ -15,6 +15,7 @@ This folder contains deployment guides, feature documentation, implementation pl
 | Set up CI/CD (amvara9) | [0001-ci-cd-amvara9.md](0001-ci-cd-amvara9.md) |
 | Configure Gmail for email | [0018-gmail-setup.md](0018-gmail-setup.md) |
 | Understand reservations (staff + public) | [0011-table-reservation-user-guide.md](0011-table-reservation-user-guide.md) |
+| Plan Sakorio reservation + queue integration | [0054-sakorio-reservation-queue-integration-brief.md](0054-sakorio-reservation-queue-integration-brief.md) |
 | Rate limits (production) | [0020-rate-limiting-production.md](0020-rate-limiting-production.md) |
 | Capture screenshots | [screenshots/README.md](screenshots/README.md) |
 
@@ -70,6 +71,7 @@ This folder contains deployment guides, feature documentation, implementation pl
 | [0032-github-issues-roadmap.md](0032-github-issues-roadmap.md) | GitHub **#52–#54**: umbrella roadmap (warehouses, kitchen SLAs, marketing/comms). |
 | [0050-github-issue-52-split-plan.md](0050-github-issue-52-split-plan.md) | GitHub **#52**: dedicated child-issue specs, phases, dependencies, copy-paste bodies for filing. |
 | [0051-cashier-pos-module-plan.md](0051-cashier-pos-module-plan.md) | Dedicated cashier POS module brief: current gaps, reusable APIs, route plan, UX architecture, and phased build path. |
+| [0054-sakorio-reservation-queue-integration-brief.md](0054-sakorio-reservation-queue-integration-brief.md) | Sakorio integration brief for the repo's existing reservation system plus the new FOH queue/waitlist layer. |
 
 ---
 

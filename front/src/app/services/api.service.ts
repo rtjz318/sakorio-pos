@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+﻿import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import {
   Observable,
@@ -214,7 +214,7 @@ export interface ShiftBulkResult {
   skipped_existing_count: number;
 }
 
-/** Copy one Mon–Sun week of shifts to another week (both starts must be Mondays). */
+/** Copy one Monâ€“Sun week of shifts to another week (both starts must be Mondays). */
 export interface ShiftWeekCopy {
   source_week_start: string;
   target_week_start: string;
@@ -479,7 +479,7 @@ export interface PublicTenantMenuCategory {
   products: PublicTenantMenuProduct[];
 }
 
-/** GET /public/tenants/{id}/menu — read-only grouped menu (no auth). */
+/** GET /public/tenants/{id}/menu â€” read-only grouped menu (no auth). */
 export interface PublicTenantMenuResponse {
   tenant_id: number;
   tenant_name: string;
@@ -552,13 +552,13 @@ export interface OpeningHoursScheduleResponse {
   overrides: OpeningHoursOverrideRow[];
 }
 
-/** GET /public/legal-urls — product-wide defaults from server config. */
+/** GET /public/legal-urls â€” product-wide defaults from server config. */
 export interface PublicLegalUrls {
   terms_of_service_url: string | null;
   privacy_policy_url: string | null;
 }
 
-/** GET /reservations/book-calendar — one month of open/closed days from opening hours. */
+/** GET /reservations/book-calendar â€” one month of open/closed days from opening hours. */
 export interface ReservationBookCalendarDay {
   date: string;
   state: 'open' | 'closed';
@@ -570,7 +570,7 @@ export interface ReservationBookCalendarResponse {
   days: ReservationBookCalendarDay[];
 }
 
-/** GET /reservations/book-week-slots — Mon–Sun grid of slot states for public booking. */
+/** GET /reservations/book-week-slots â€” Monâ€“Sun grid of slot states for public booking. */
 export type ReservationBookWeekSlotState =
   | 'available'
   | 'full'
@@ -591,7 +591,7 @@ export interface ReservationBookWeekSlotsResponse {
   days: ReservationBookWeekDay[];
 }
 
-/** GET /reservations/book-month-day-states — one month of aggregate day states for the public month grid. */
+/** GET /reservations/book-month-day-states â€” one month of aggregate day states for the public month grid. */
 export interface ReservationBookMonthDayState {
   date: string;
   state: ReservationBookWeekSlotState;
@@ -603,12 +603,12 @@ export interface ReservationBookMonthDayStatesResponse {
   days: ReservationBookMonthDayState[];
 }
 
-/** GET /public/tenants/{id}/reservation-book-zones — active floors with tables for public /book. */
+/** GET /public/tenants/{id}/reservation-book-zones â€” active floors with tables for public /book. */
 export interface ReservationBookZone {
   id: number;
   name: string;
   sort_order: number;
-  /** indoor | outdoor | any — matches reservation seating preference */
+  /** indoor | outdoor | any â€” matches reservation seating preference */
   seating_zone?: string;
 }
 
@@ -616,7 +616,7 @@ export interface ReservationBookZonesResponse {
   floors: ReservationBookZone[];
 }
 
-/** GET /reservations/book-day-slots — times + cells for one day (dropdown after date pick). */
+/** GET /reservations/book-day-slots â€” times + cells for one day (dropdown after date pick). */
 export interface ReservationBookDaySlotsResponse {
   date: string;
   times: string[];
@@ -631,7 +631,7 @@ export interface PublicTableLookupChoice {
   table_name: string;
 }
 
-/** GET /public/table-lookup — token or printed name (e.g. T01) → menu token. */
+/** GET /public/table-lookup â€” token or printed name (e.g. T01) â†’ menu token. */
 export interface PublicTableLookupResponse {
   table_token: string | null;
   ambiguous: boolean;
@@ -759,7 +759,7 @@ export interface DeliveryIntegrationEventRow {
   created_at: string | null;
 }
 
-/** Marketing — Meta / future networks (Settings → Social posts) */
+/** Marketing â€” Meta / future networks (Settings â†’ Social posts) */
 export interface SocialChannelInfo {
   key: string;
   label: string;
@@ -796,7 +796,7 @@ export interface SocialPostPublic {
   targets: SocialPostTargetPublic[];
 }
 
-/** Product customization question (e.g. meat doneness, spice 1–10, multi toppings) */
+/** Product customization question (e.g. meat doneness, spice 1â€“10, multi toppings) */
 export interface ProductBulkImportPreviewRow {
   row_index: number;
   name: string;
@@ -1046,6 +1046,98 @@ export interface ReservationUpdate {
   preferred_floor_id?: number | null;
 }
 
+export type GuestQueueStatus =
+  | 'waiting'
+  | 'notified'
+  | 'seated'
+  | 'converted_to_reservation'
+  | 'cancelled'
+  | 'no_show'
+  | 'expired';
+
+export type GuestQueueSource =
+  | 'walk_in'
+  | 'phone'
+  | 'web_waitlist'
+  | 'staff_manual';
+
+export interface GuestQueueEntry {
+  id: number;
+  tenant_id: number;
+  customer_name: string;
+  customer_phone?: string | null;
+  party_size: number;
+  quoted_wait_minutes?: number | null;
+  status: GuestQueueStatus;
+  source: GuestQueueSource;
+  requested_at: string;
+  notified_at?: string | null;
+  arrived_at?: string | null;
+  seated_at?: string | null;
+  completed_at?: string | null;
+  preferred_floor_id?: number | null;
+  preferred_floor_name?: string | null;
+  preferred_table_size?: number | null;
+  notes?: string | null;
+  linked_reservation_id?: number | null;
+  seated_table_id?: number | null;
+  seated_table_name?: string | null;
+  seated_order_id?: number | null;
+  cancel_reason?: string | null;
+  created_by_user_id?: number | null;
+  updated_at?: string | null;
+}
+
+export interface GuestQueueCreate {
+  customer_name: string;
+  customer_phone?: string | null;
+  party_size: number;
+  quoted_wait_minutes?: number | null;
+  source?: GuestQueueSource;
+  arrived_now?: boolean;
+  preferred_floor_id?: number | null;
+  preferred_table_size?: number | null;
+  linked_reservation_id?: number | null;
+  notes?: string | null;
+}
+
+export interface GuestQueueUpdate {
+  customer_name?: string;
+  customer_phone?: string | null;
+  party_size?: number;
+  quoted_wait_minutes?: number | null;
+  source?: GuestQueueSource;
+  preferred_floor_id?: number | null;
+  preferred_table_size?: number | null;
+  notes?: string | null;
+}
+
+export interface GuestQueueStatusUpdate {
+  status: GuestQueueStatus;
+  reason?: string | null;
+}
+
+export interface GuestQueueSeat {
+  table_id: number;
+}
+
+export interface GuestQueueConvertToReservation {
+  reservation_date: string;
+  reservation_time: string;
+  customer_email?: string | null;
+  client_notes?: string | null;
+  customer_notes?: string | null;
+  service_type?: string | null;
+  seating_preference?: string | null;
+}
+
+export interface GuestQueueSummary {
+  total_entries: number;
+  waiting_guests: number;
+  notified_guests: number;
+  counts: Record<string, number>;
+}
+
 /** Public update by token: delay notice, reservation notes, customer notes. */
 export interface PublicReservationUpdate {
   delay_notice?: string | null;
@@ -1069,7 +1161,7 @@ export interface OrderItem {
   notes?: string;
   /** Answers to product questions: { question_id: value } */
   customization_answers?: Record<string, string | number | string[]> | null;
-  /** Snapshot "Label: value � �" at order time */
+  /** Snapshot "Label: value · …" at order time */
   customization_summary?: string | null;
   line_modifiers?: OrderLineModifiers | null;
   /** Human-readable remove/add/sub snapshot for kitchen and invoices */
@@ -1140,7 +1232,7 @@ export interface Order {
   removed_items_count?: number;
   paid_at?: string | null;
   payment_method?: string | null;
-  /** Waiter marked urgent — guest waiting (kitchen/bar). */
+  /** Waiter marked urgent â€” guest waiting (kitchen/bar). */
   staff_urgent?: boolean;
   /** When set, joined tables label e.g. "T1 + T2" for staff context */
   table_group_label?: string | null;
@@ -1258,7 +1350,7 @@ export interface TenantSettings {
   public_privacy_policy_url?: string | null;
   /** Up to 4 tip percentages for POS checkout; empty array disables tips; omit/null = default 5/10/15/20 */
   tip_preset_percents?: number[] | null;
-  /** VAT rate 0–100 on tip for invoice breakdown (tax-inclusive tip) */
+  /** VAT rate 0â€“100 on tip for invoice breakdown (tax-inclusive tip) */
   tip_tax_rate_percent?: number | null;
   /** POS checkout: preset % buttons vs card overpayment difference */
   tip_entry_mode?: 'preset' | 'overpayment' | string | null;
@@ -1355,6 +1447,23 @@ export interface SalesReport {
     by_source: { source: string; count: number }[];
     by_status?: { status: string; count: number }[];
     overbooking_slots_count?: number;
+  };
+  queue?: {
+    total: number;
+    waiting_count: number;
+    notified_count: number;
+    seated_count: number;
+    converted_to_reservation_count: number;
+    cancelled_count: number;
+    no_show_count: number;
+    expired_count: number;
+    average_quoted_wait_minutes: number;
+    average_actual_wait_minutes: number;
+    seat_conversion_pct: number;
+    converted_to_reservation_pct: number;
+    by_source: { source: string; count: number }[];
+    by_status: { status: string; count: number }[];
+    daily: { date: string; count: number; seated_count: number }[];
   };
 }
 
@@ -1489,11 +1598,13 @@ export class ApiService {
 
   private orderUpdates = new Subject<any>();
   private reservationUpdates = new Subject<any>();
+  private queueUpdates = new Subject<any>();
   private ws: WebSocket | null = null;
 
   user$ = this.userSubject.asObservable();
   orderUpdates$ = this.orderUpdates.asObservable();
   reservationUpdates$ = this.reservationUpdates.asObservable();
+  queueUpdates$ = this.queueUpdates.asObservable();
 
   constructor() {
     if (isCustomerPublicHost()) {
@@ -1906,6 +2017,49 @@ export class ApiService {
 
   finishReservation(id: number): Observable<Reservation> {
     return this.http.put<Reservation>(`${this.apiUrl}/reservations/${id}/finish`, {});
+  }
+
+  // Guest queue / waitlist
+  getGuestQueue(includeClosed = false): Observable<GuestQueueEntry[]> {
+    let params = new HttpParams();
+    if (includeClosed) {
+      params = params.set('include_closed', 'true');
+    }
+    return this.http.get<GuestQueueEntry[]>(`${this.apiUrl}/queue`, { params });
+  }
+
+  getGuestQueueSummary(): Observable<GuestQueueSummary> {
+    return this.http.get<GuestQueueSummary>(`${this.apiUrl}/queue/summary`);
+  }
+
+  getGuestQueueEntry(id: number): Observable<GuestQueueEntry> {
+    return this.http.get<GuestQueueEntry>(`${this.apiUrl}/queue/${id}`);
+  }
+
+  createGuestQueueEntry(data: GuestQueueCreate): Observable<GuestQueueEntry> {
+    return this.http.post<GuestQueueEntry>(`${this.apiUrl}/queue`, data);
+  }
+
+  updateGuestQueueEntry(id: number, data: GuestQueueUpdate): Observable<GuestQueueEntry> {
+    return this.http.put<GuestQueueEntry>(`${this.apiUrl}/queue/${id}`, data);
+  }
+
+  updateGuestQueueStatus(id: number, data: GuestQueueStatusUpdate): Observable<GuestQueueEntry> {
+    return this.http.put<GuestQueueEntry>(`${this.apiUrl}/queue/${id}/status`, data);
+  }
+
+  seatGuestQueueEntry(id: number, tableId: number): Observable<GuestQueueEntry> {
+    return this.http.put<GuestQueueEntry>(`${this.apiUrl}/queue/${id}/seat`, { table_id: tableId });
+  }
+
+  convertGuestQueueToReservation(
+    id: number,
+    data: GuestQueueConvertToReservation,
+  ): Observable<{ queue_entry: GuestQueueEntry; reservation: Reservation }> {
+    return this.http.put<{ queue_entry: GuestQueueEntry; reservation: Reservation }>(
+      `${this.apiUrl}/queue/${id}/convert-to-reservation`,
+      data,
+    );
   }
 
   /** Response indicates which channel(s) were used. */
@@ -2729,7 +2883,7 @@ export class ApiService {
   }
 
   /** Get one tenant's public info (for book/menu branding). Public, no auth. */
-  /** Public: list bookable seating zones (active floors with ≥1 table). */
+  /** Public: list bookable seating zones (active floors with â‰¥1 table). */
   getReservationBookZones(tenantId: number): Observable<ReservationBookZonesResponse> {
     return this.http.get<ReservationBookZonesResponse>(
       `${this.apiUrl}/public/tenants/${tenantId}/reservation-book-zones`
@@ -2832,8 +2986,17 @@ export class ApiService {
             'new_reservation', 'reservation_updated', 'reservation_status',
             'reservation_seated', 'reservation_finished', 'reservation_cancelled'
           ].includes(data.type);
+          const isQueue = data?.type && [
+            'queue_created',
+            'queue_updated',
+            'queue_status',
+            'queue_seated',
+            'queue_converted',
+          ].includes(data.type);
           if (isReservation) {
             this.reservationUpdates.next(data);
+          } else if (isQueue) {
+            this.queueUpdates.next(data);
           } else {
             this.orderUpdates.next(data);
           }
@@ -3337,4 +3500,5 @@ export class ApiService {
     return this.http.get(`${this.apiUrl}/changelog`, { responseType: 'text' });
   }
 }
+
 

@@ -1513,18 +1513,24 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     return this.getTimerColorClass(order).replace('timer-', 'timer-fill-');
   }
 
-  /** Format waiting time with seconds (mm:ss or h:mm:ss) so it ticks every second. */
+  /** Format waiting time for live service readability instead of raw giant hour counters. */
   formatWaitingTime(createdAt: string): string {
     const created = this.parseOrderDate(createdAt);
     if (!created) return '—';
-    const totalSeconds = Math.floor((this.now() - created) / 1000);
-    if (totalSeconds < 0) return '0:00';
-    const s = totalSeconds % 60;
-    const m = Math.floor(totalSeconds / 60) % 60;
-    const h = Math.floor(totalSeconds / 3600);
-    const pad = (n: number) => (n < 10 ? '0' + n : String(n));
-    if (h > 0) return `${h}:${pad(m)}:${pad(s)}`;
-    return `${m}:${pad(s)}`;
+    const elapsedMs = Math.max(0, this.now() - created);
+    const totalMinutes = Math.floor(elapsedMs / 60000);
+    const totalHours = Math.floor(totalMinutes / 60);
+    const totalDays = Math.floor(totalHours / 24);
+    if (totalDays > 0) {
+      const remainingHours = totalHours % 24;
+      return `${totalDays}d ${remainingHours}h`;
+    }
+    if (totalHours > 0) {
+      const remainingMinutes = totalMinutes % 60;
+      return remainingMinutes > 0 ? `${totalHours}h ${remainingMinutes}m` : `${totalHours}h`;
+    }
+    if (totalMinutes > 0) return `${totalMinutes}m`;
+    return '<1m';
   }
 
   private parseOrderDate(dateString: string): number | null {
@@ -1764,6 +1770,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     if (diffMs < 60_000) return '< 1m ago';
     if (diffMs < 3600_000) return `${Math.floor(diffMs / 60_000)}m ago`;
     if (diffMs < 86400_000) return `${Math.floor(diffMs / 3600_000)}h ago`;
+    if (diffMs < 604800_000) return `${Math.floor(diffMs / 86400_000)}d ago`;
     return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   }
 

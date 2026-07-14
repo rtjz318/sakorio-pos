@@ -381,6 +381,99 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
         "overbooking_slots_count": overbooking_slots_count,
     }
 
+    # Queue entries in date range (by requested_at) for waitlist / walk-in analytics.
+    queue_entries = session.exec(
+        select(models.GuestQueueEntry)
+        .where(models.GuestQueueEntry.tenant_id == tenant_id)
+    ).all()
+    queue_entries = [
+        entry
+        for entry in queue_entries
+        if _in_range(
+            (entry.requested_at.astimezone(timezone.utc).date() if entry.requested_at else None),
+            from_date,
+            to_date,
+        )
+    ]
+    queue_total = len(queue_entries)
+    queue_by_source: dict[str, int] = defaultdict(int)
+    queue_by_status: dict[str, int] = defaultdict(int)
+    queue_daily: dict[str, dict] = defaultdict(lambda: {"count": 0, "seated_count": 0})
+    quoted_wait_values: list[int] = []
+    actual_wait_values: list[int] = []
+    for entry in queue_entries:
+        source_key = entry.source.value if hasattr(entry.source, "value") else str(entry.source or "unknown")
+        status_key = entry.status.value if hasattr(entry.status, "value") else str(entry.status or "unknown")
+        queue_by_source[source_key] += 1
+        queue_by_status[status_key] += 1
+        if entry.requested_at:
+            day_key = entry.requested_at.astimezone(timezone.utc).strftime("%Y-%m-%d")
+            queue_daily[day_key]["count"] += 1
+            if status_key == models.GuestQueueStatus.seated.value:
+                queue_daily[day_key]["seated_count"] += 1
+        if entry.quoted_wait_minutes is not None:
+            quoted_wait_values.append(int(entry.quoted_wait_minutes))
+        if entry.requested_at and entry.seated_at:
+            actual_wait_minutes = int(
+                max(
+                    0,
+                    round((entry.seated_at - entry.requested_at).total_seconds() / 60),
+                )
+            )
+            actual_wait_values.append(actual_wait_minutes)
+
+    queue_seated_count = queue_by_status.get(models.GuestQueueStatus.seated.value, 0)
+    queue_converted_count = queue_by_status.get(models.GuestQueueStatus.converted_to_reservation.value, 0)
+    queue_cancelled_count = queue_by_status.get(models.GuestQueueStatus.cancelled.value, 0)
+    queue_no_show_count = queue_by_status.get(models.GuestQueueStatus.no_show.value, 0)
+    queue_expired_count = queue_by_status.get(models.GuestQueueStatus.expired.value, 0)
+    queue_waiting_count = queue_by_status.get(models.GuestQueueStatus.waiting.value, 0)
+    queue_notified_count = queue_by_status.get(models.GuestQueueStatus.notified.value, 0)
+    seated_or_converted_count = queue_seated_count + queue_converted_count
+
+    queue_summary = {
+        "total": queue_total,
+        "waiting_count": queue_waiting_count,
+        "notified_count": queue_notified_count,
+        "seated_count": queue_seated_count,
+        "converted_to_reservation_count": queue_converted_count,
+        "cancelled_count": queue_cancelled_count,
+        "no_show_count": queue_no_show_count,
+        "expired_count": queue_expired_count,
+        "average_quoted_wait_minutes": (
+            round(sum(quoted_wait_values) / len(quoted_wait_values), 1)
+            if quoted_wait_values
+            else 0
+        ),
+        "average_actual_wait_minutes": (
+            round(sum(actual_wait_values) / len(actual_wait_values), 1)
+            if actual_wait_values
+            else 0
+        ),
+        "seat_conversion_pct": (
+            round((seated_or_converted_count / queue_total) * 100, 1)
+            if queue_total > 0
+            else 0
+        ),
+        "converted_to_reservation_pct": (
+            round((queue_converted_count / queue_total) * 100, 1)
+            if queue_total > 0
+            else 0
+        ),
+        "by_source": [
+            {"source": key, "count": value}
+            for key, value in sorted(queue_by_source.items(), key=lambda x: -x[1])
+        ],
+        "by_status": [
+            {"status": key, "count": value}
+            for key, value in sorted(queue_by_status.items(), key=lambda x: -x[1])
+        ],
+        "daily": [
+            {"date": day, "count": data["count"], "seated_count": data["seated_count"]}
+            for day, data in sorted(queue_daily.items())
+        ],
+    }
+
     average_revenue_per_order_cents = (
         total_revenue_cents // total_orders if total_orders else 0
     )
@@ -398,6 +491,7 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
             "daily": summary_daily,
         },
         "reservations": reservations_summary,
+        "queue": queue_summary,
         "by_payment_method": by_payment_method_list,
         "by_product": by_product_list,
         "by_category": by_category_list,

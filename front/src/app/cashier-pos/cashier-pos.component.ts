@@ -160,6 +160,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                         <div class="table-card-copy">
                           <span class="table-name">{{ table.name }}</span>
                           <span class="table-meta">{{ table.seat_count || 0 }} seats</span>
+                          @if (tableReservationHint(table)) {
+                            <span class="table-reservation-inline">{{ tableReservationHint(table) }}</span>
+                          }
                         </div>
                         <span class="state-pill" [class]="stateClass(getTableState(table))">
                           {{ getTableStateLabel(table) }}
@@ -167,7 +170,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                       </div>
                       <div class="table-card-bottom">
                         <span class="table-card-summary">{{ getTableSaleSummary(table) }}</span>
-                        <span class="table-card-payment-pill">{{ getPaymentStateLabel(table) }}</span>
+                        @if (getPaymentStateLabel(table); as paymentLabel) {
+                          <span class="table-card-payment-pill">{{ paymentLabel }}</span>
+                        }
                       </div>
                     </button>
 
@@ -452,9 +457,15 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                   <div class="checkout-hero-copy">
                     <strong>{{ checkoutTable.name }}</strong>
                     <small>{{ selectedTableSummary(checkoutTable) }}</small>
+                    @if (tableReservationHint(checkoutTable)) {
+                      <small class="checkout-hero-reservation">{{ tableReservationHint(checkoutTable) }}</small>
+                    }
                   </div>
                   <div class="checkout-hero-pills">
                     <span class="muted-pill">{{ getTableStateLabel(checkoutTable) }}</span>
+                    @if (tableReservationBadge(checkoutTable)) {
+                      <span class="muted-pill muted-pill--soft">{{ tableReservationBadge(checkoutTable) }}</span>
+                    }
                     @if (payableLiveBillOrder(); as liveBill) {
                       <span class="muted-pill muted-pill--accent">Bill #{{ liveBill.id }}</span>
                     }
@@ -490,8 +501,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
             <div class="cart-card">
               <div class="lane-header lane-header--tight">
                 <div>
-                  <p class="eyebrow">Bill lines</p>
-                  <h3>{{ cartTitle() }}</h3>
+                  <p class="eyebrow">{{ cartLines().length > 0 ? 'Cart' : payableLiveBillOrder() ? 'Live bill' : 'Cart' }}</p>
+                  <h3>{{ cartLines().length > 0 ? 'Review items' : cartTitle() }}</h3>
                 </div>
                 @if (cartLines().length > 0) {
                   <div class="cart-header-actions">
@@ -509,18 +520,18 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
               @if (cartLines().length === 0) {
                 <div class="empty-card empty-card--compact">
                   @if (payableLiveBillOrder(); as liveBill) {
-                    <div class="live-bill-summary live-bill-summary--compact">
-                      <div class="live-bill-summary-copy">
-                        <strong>{{ effectiveCheckoutTable()?.name || 'Selected table' }}</strong>
-                        <small>Bill #{{ liveBill.id }}</small>
+                    <div class="live-bill-summary live-bill-summary--compact live-bill-summary--dock">
+                      <div class="live-bill-summary-copy live-bill-summary-copy--dock">
+                        <strong>Bill #{{ liveBill.id }}</strong>
+                        <small>{{ effectiveCheckoutTable()?.name || 'Selected table' }} · {{ liveBill.items.length }} items</small>
                       </div>
-                      <div class="live-bill-summary-meta">
+                      <div class="live-bill-summary-meta live-bill-summary-meta--dock">
                         <span class="muted-pill muted-pill--accent">{{ formatPrice(liveBill.total_cents || 0) }}</span>
                       </div>
                     </div>
                     <div class="action-row action-row--secondary action-row--live-bill">
                       <button type="button" class="btn btn-secondary btn-sm" (click)="focusLiveBillForItems()">Add items</button>
-                      <button type="button" class="btn btn-primary btn-sm" (click)="focusLiveBillForSettlement()">Collect payment</button>
+                      <button type="button" class="btn btn-primary btn-sm" (click)="focusLiveBillForSettlement()">Pay now</button>
                     </div>
                     <div class="line-list line-list--readonly line-list--live-bill">
                       @for (item of liveBill.items; track $index) {
@@ -587,7 +598,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
               <div class="lane-header lane-header--tight">
                 <div>
                   <p class="eyebrow">Payment</p>
-                  <h3>Checkout</h3>
+                  <h3>{{ hasCheckoutWork() ? 'Collect payment' : 'Checkout' }}</h3>
                 </div>
               </div>
               @if (lastCheckoutOutcome() && !hasCheckoutWork()) {
@@ -673,26 +684,15 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                   </div>
                 }
               } @else {
-                <div class="settlement-summary-row settlement-summary-row--active">
-                  <div class="settlement-summary-copy settlement-summary-copy--primary">
-                    <p class="eyebrow">Amount due</p>
+                <div class="payment-dock-topline">
+                  <div class="payment-dock-total">
+                    <span class="micro-label">Amount due</span>
                     <strong>{{ checkoutSummaryTotalCopy() }}</strong>
                     <small>{{ settlementSummaryCaption() }}</small>
-                    <div class="settlement-summary-pills">
-                      <span class="muted-pill muted-pill--accent">{{ checkoutSummaryTableCopy() }}</span>
-                      <span class="muted-pill">{{ checkoutSummaryItemsCopy() }}</span>
-                      <span class="muted-pill">{{ primarySettlementModeLabel() }}</span>
-                    </div>
                   </div>
-                  <div class="settlement-summary-actions">
-                    <button
-                      type="button"
-                      id="cashier-settlement-submit"
-                      class="btn btn-primary btn-lg settlement-submit-btn"
-                      (click)="submitCart(primaryCheckoutMode())"
-                      [disabled]="!canSubmitCart()">
-                      {{ processingCheckout() ? 'Working...' : checkoutPrimaryActionText() }}
-                    </button>
+                  <div class="payment-dock-meta">
+                    <span class="muted-pill muted-pill--accent">{{ checkoutSummaryTableCopy() }}</span>
+                    <span class="muted-pill">{{ checkoutSummaryItemsCopy() }}</span>
                   </div>
                 </div>
                 @if (hitPayFlowState() !== 'idle') {
@@ -734,6 +734,23 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                         <small>Hosted checkout</small>
                       </button>
                   }
+                </div>
+                <div class="settlement-summary-row settlement-summary-row--active settlement-summary-row--cta">
+                  <div class="settlement-summary-copy settlement-summary-copy--primary">
+                    <p class="eyebrow">Selected method</p>
+                    <strong>{{ primarySettlementModeLabel() }}</strong>
+                    <small>Collect {{ checkoutSummaryTotalCopy() }} and close the bill.</small>
+                  </div>
+                  <div class="settlement-summary-actions">
+                    <button
+                      type="button"
+                      id="cashier-settlement-submit"
+                      class="btn btn-primary btn-lg settlement-submit-btn"
+                      (click)="submitCart(primaryCheckoutMode())"
+                      [disabled]="!canSubmitCart()">
+                      {{ processingCheckout() ? 'Working...' : checkoutPrimaryActionText() }}
+                    </button>
+                  </div>
                 </div>
               }
             </div>
@@ -1160,7 +1177,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .cashier-grid {
       display: grid;
-      grid-template-columns: minmax(376px, 432px) minmax(0, 1.18fr) minmax(348px, 392px);
+      grid-template-columns: minmax(336px, 0.96fr) minmax(520px, 1.34fr) minmax(332px, 0.94fr);
       gap: 0.92rem;
       align-items: start;
     }
@@ -1280,6 +1297,11 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       color: var(--color-text-muted);
       line-height: 1.22;
       font-size: 0.82rem;
+    }
+
+    .checkout-hero-reservation {
+      color: var(--color-primary);
+      font-weight: 600;
     }
 
     .checkout-hero-pills {
@@ -1584,12 +1606,12 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: start;
-      gap: 0.42rem;
+      gap: 0.52rem;
     }
 
     .table-card-copy {
       display: grid;
-      gap: 0.22rem;
+      gap: 0.28rem;
       min-width: 0;
       align-content: start;
     }
@@ -1711,12 +1733,12 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .table-card-bottom {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 0.42rem 0.56rem;
+      grid-template-columns: minmax(0, 1fr);
+      align-items: start;
+      gap: 0.34rem;
       font-size: 0.8rem;
       line-height: 1.24;
-      padding-top: 0.22rem;
+      padding-top: 0.26rem;
     }
 
     .table-card-summary,
@@ -1733,8 +1755,17 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       white-space: normal;
       color: var(--color-text-muted);
       font-weight: 600;
-      line-height: 1.28;
+      line-height: 1.32;
       min-width: 0;
+    }
+
+    .table-reservation-inline {
+      display: block;
+      margin-top: 0.14rem;
+      font-size: 0.7rem;
+      line-height: 1.2;
+      color: var(--color-primary);
+      font-weight: 600;
     }
 
     .table-card-payment {
@@ -1745,8 +1776,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .table-card-payment-pill {
-      justify-self: end;
-      align-self: center;
+      justify-self: start;
+      align-self: start;
       width: fit-content;
       border-radius: 999px;
       padding: 0.28rem 0.58rem;
@@ -1755,8 +1786,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       font-size: 0.65rem;
       font-weight: 700;
       line-height: 1.08;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
+      letter-spacing: 0;
+      text-transform: none;
       white-space: nowrap;
       flex-shrink: 0;
     }
@@ -1858,6 +1889,73 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     @media (max-width: 640px) {
+      .page-shell {
+        gap: 0.72rem;
+      }
+
+      .page-header--staff-flow {
+        gap: 0.42rem;
+      }
+
+      .header-copy {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: end;
+        gap: 0.5rem;
+      }
+
+      .header-copy h1 {
+        font-size: 1.42rem;
+        line-height: 1.02;
+      }
+
+      .subcopy {
+        display: none;
+      }
+
+      .header-copy .btn {
+        min-height: 2.05rem;
+        padding-inline: 0.72rem;
+        font-size: 0.74rem;
+      }
+
+      .cashier-grid {
+        grid-template-columns: 1fr;
+        gap: 0.72rem;
+      }
+
+      .lane,
+      .queue-panel {
+        padding: 0.74rem;
+        gap: 0.72rem;
+      }
+
+      .lane--tables,
+      .lane--checkout {
+        position: static;
+        top: auto;
+        max-height: none;
+      }
+
+      .table-stack {
+        max-height: none;
+        padding-right: 0;
+      }
+
+      .lane-header,
+      .lane-header--tight,
+      .lane-header--checkout {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.42rem;
+      }
+
+      .lane-header-actions,
+      .checkout-header-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+
       .table-stack,
       .product-grid {
         grid-template-columns: 1fr;
@@ -1869,15 +1967,20 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
       .cashier-status-strip {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.55rem;
+        gap: 0.48rem;
       }
 
       .status-chip {
-        padding: 0.72rem 0.78rem;
+        padding: 0.56rem 0.62rem;
+        gap: 0.12rem;
       }
 
       .status-chip strong {
-        font-size: 1.02rem;
+        font-size: 0.92rem;
+      }
+
+      .status-chip small {
+        display: none;
       }
 
       .checkout-hero {
@@ -1890,36 +1993,36 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       }
 
       .table-card-main {
-        padding: 0.68rem 0.74rem 0.52rem;
+        padding: 0.58rem 0.66rem 0.46rem;
       }
 
       .table-card-top {
         grid-template-columns: 1fr !important;
-        gap: 0.34rem;
+        gap: 0.28rem;
       }
 
       .table-card-bottom {
-        grid-template-columns: minmax(0, 1fr) auto !important;
-        align-items: center;
-        gap: 0.3rem 0.46rem;
+        grid-template-columns: minmax(0, 1fr) !important;
+        align-items: start;
+        gap: 0.24rem;
       }
 
       .table-card-payment-pill {
-        justify-self: end;
-        padding: 0.22rem 0.5rem;
-        font-size: 0.62rem;
+        justify-self: start;
+        padding: 0.18rem 0.46rem;
+        font-size: 0.58rem;
       }
 
       .table-card-summary {
-        font-size: 0.74rem;
-        line-height: 1.22;
+        font-size: 0.69rem;
+        line-height: 1.16;
       }
 
       .table-card-actions,
       .table-card-actions--triple {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-        gap: 0.44rem !important;
+        gap: 0.36rem !important;
       }
 
       .table-card-actions--triple .btn-table-clear {
@@ -1927,75 +2030,107 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       }
 
       .table-card-actions .btn {
-        min-height: 1.92rem;
-        padding-inline: 0.54rem;
-        font-size: 0.72rem;
+        min-height: 1.78rem;
+        padding-inline: 0.44rem;
+        font-size: 0.68rem;
         white-space: nowrap;
       }
 
+      .table-name {
+        font-size: 1rem;
+      }
+
+      .table-meta {
+        font-size: 0.76rem;
+        line-height: 1.12;
+      }
+
+      .table-card .state-pill {
+        min-height: 1.52rem;
+        padding-inline: 0.56rem;
+        font-size: 0.66rem;
+      }
+
       .lane-inline-pills {
-        gap: 0.3rem;
+        gap: 0.24rem;
       }
 
       .lane-inline-pills .muted-pill {
-        font-size: 0.68rem;
+        min-height: 1.5rem;
+        padding-inline: 0.5rem;
+        font-size: 0.62rem;
       }
 
       .product-card {
         min-height: 0 !important;
-        padding: 0.74rem 0.78rem !important;
+        padding: 0.64rem 0.68rem !important;
       }
 
       .product-card-body {
         display: grid;
-        grid-template-columns: 4.1rem minmax(0, 1fr) !important;
-        gap: 0.68rem !important;
+        grid-template-columns: 3.5rem minmax(0, 1fr) !important;
+        gap: 0.58rem !important;
         align-items: start;
         min-height: 0;
       }
 
       .product-card-media {
-        width: 4.1rem !important;
-        height: 4.1rem !important;
-        min-height: 4.1rem !important;
+        width: 3.5rem !important;
+        height: 3.5rem !important;
+        min-height: 3.5rem !important;
         aspect-ratio: 1 / 1 !important;
       }
 
       .product-card-content {
-        gap: 0.44rem;
+        gap: 0.36rem;
         min-height: 0;
+      }
+
+      .product-card-copy {
+        gap: 0.24rem;
       }
 
       .product-card-top strong {
-        font-size: 0.92rem;
+        font-size: 0.86rem;
         min-height: 0;
-        line-height: 1.22;
+        line-height: 1.14;
       }
 
       .product-card-top span {
-        font-size: 0.7rem;
+        font-size: 0.64rem;
+      }
+
+      .product-card-badges {
+        min-height: 0;
+        gap: 0.22rem;
+      }
+
+      .product-card-badges .muted-pill {
+        min-height: 1.38rem;
+        padding-inline: 0.46rem;
+        font-size: 0.58rem;
       }
 
       .product-notes {
-        min-height: 2.1em;
-        max-height: 2.1em;
-        font-size: 0.72rem;
-        line-height: 1.24;
+        min-height: 1.9em;
+        max-height: 1.9em;
+        font-size: 0.67rem;
+        line-height: 1.18;
       }
 
       .product-card-bottom {
         grid-template-columns: minmax(0, 1fr) auto !important;
         align-items: end;
-        gap: 0.48rem;
-        padding-top: 0.42rem;
+        gap: 0.4rem;
+        padding-top: 0.34rem;
       }
 
       .product-card-bottom .btn {
         width: auto;
-        min-width: 5.1rem;
-        min-height: 1.92rem;
-        padding-inline: 0.7rem;
-        font-size: 0.74rem;
+        min-width: 4.4rem;
+        min-height: 1.74rem;
+        padding-inline: 0.56rem;
+        font-size: 0.66rem;
       }
 
       .product-price-caption {
@@ -2003,7 +2138,12 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       }
 
       .product-price-stack {
-        gap: 0.14rem;
+        gap: 0.08rem;
+      }
+
+      .product-price {
+        font-size: 0.88rem;
+        line-height: 1.06;
       }
 
       .product-dialog-hero,
@@ -2028,6 +2168,244 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
       .product-question-state {
         justify-content: flex-start;
+      }
+
+      .settlement-summary-row,
+      .settlement-summary-row--active,
+      .settlement-summary-row--compact,
+      .checkout-outcome-card,
+      .continue-bill-card {
+        grid-template-columns: 1fr;
+        gap: 0.52rem;
+        padding: 0.58rem 0.64rem;
+      }
+
+      .settlement-summary-row--active {
+        position: static;
+        top: auto;
+        backdrop-filter: none;
+      }
+
+      .settlement-summary-copy {
+        gap: 0.06rem;
+      }
+
+      .settlement-summary-copy strong,
+      .checkout-outcome-copy strong,
+      .continue-bill-copy h3 {
+        font-size: 0.88rem;
+        line-height: 1.14;
+      }
+
+      .settlement-summary-copy small,
+      .checkout-outcome-copy small,
+      .continue-bill-copy small {
+        font-size: 0.69rem;
+        line-height: 1.18;
+      }
+
+      .settlement-summary-pills,
+      .continue-bill-summary,
+      .continue-bill-copy-top {
+        gap: 0.22rem;
+      }
+
+      .checkout-outcome-actions,
+      .settlement-summary-actions,
+      .continue-bill-actions,
+      .queue-group-actions {
+        grid-template-columns: 1fr;
+        gap: 0.34rem;
+        min-width: 0;
+      }
+
+      .checkout-outcome-actions .btn,
+      .settlement-summary-actions .btn,
+      .settlement-summary-actions .btn-primary,
+      .settlement-submit-btn,
+      .continue-bill-actions .btn,
+      .queue-group-actions .btn,
+      .queue-order-row-actions .btn {
+        width: 100%;
+        min-width: 0;
+        min-height: 1.82rem;
+        font-size: 0.68rem;
+      }
+
+      .payment-state-strip {
+        padding: 0.42rem 0.52rem;
+        gap: 0.28rem;
+      }
+
+      .payment-state-strip small {
+        font-size: 0.69rem;
+        line-height: 1.18;
+        flex-basis: 100%;
+      }
+
+      .queue-panel--table-history {
+        gap: 0.58rem;
+        padding: 0.72rem;
+      }
+
+      .queue-history-summary,
+      .queue-history-grid,
+      .queue-group-stack,
+      .queue-group-list {
+        gap: 0.36rem;
+      }
+
+      .queue-history-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-bottom: 0.32rem;
+      }
+
+      .queue-group-card {
+        gap: 0.38rem;
+        padding: 0.54rem;
+      }
+
+      .queue-group-header,
+      .queue-order-row-top,
+      .queue-order-row-meta,
+      .queue-order-row-footer,
+      .queue-order-row-actions {
+        gap: 0.3rem;
+      }
+
+      .queue-group-header,
+      .queue-order-row-top,
+      .queue-order-row-footer,
+      .queue-order-row-actions {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .queue-group-copy {
+        gap: 0.18rem;
+      }
+
+      .queue-group-copy h3 {
+        font-size: 0.88rem;
+        line-height: 1.14;
+      }
+
+      .queue-group-copy small,
+      .queue-group-hint,
+      .queue-order-row-copy small,
+      .queue-order-row-age {
+        font-size: 0.68rem;
+        line-height: 1.16;
+      }
+
+      .queue-group-pills {
+        gap: 0.22rem;
+      }
+
+      .queue-order-row,
+      .queue-order-row--history,
+      .order-card--history {
+        gap: 0.24rem;
+        padding: 0.5rem 0.54rem;
+      }
+
+      .queue-order-row-top strong {
+        font-size: 0.82rem;
+      }
+
+      .queue-group-footer {
+        justify-content: flex-start;
+      }
+
+      .queue-history-collapsed {
+        padding: 0.64rem 0.72rem;
+        gap: 0.42rem;
+        font-size: 0.74rem;
+        line-height: 1.2;
+      }
+
+      .settlement-mode-grid,
+      .settlement-mode-grid--compact {
+        grid-template-columns: 1fr;
+        gap: 0.34rem;
+      }
+
+      .mode-card,
+      .settlement-mode-grid--compact .mode-card {
+        min-height: 0;
+        padding: 0.5rem 0.58rem;
+        gap: 0.06rem;
+      }
+
+      .mode-card strong,
+      .settlement-mode-grid--compact .mode-card strong {
+        font-size: 0.78rem;
+        line-height: 1.14;
+      }
+
+      .mode-card small,
+      .settlement-mode-grid--compact .mode-card small {
+        font-size: 0.58rem;
+        line-height: 1.12;
+      }
+
+      .line-copy {
+        gap: 0.16rem;
+      }
+
+      .line-copy-top {
+        gap: 0.28rem;
+      }
+
+      .line-copy strong,
+      .line-total {
+        font-size: 0.86rem;
+        line-height: 1.12;
+      }
+
+      .line-customization {
+        font-size: 0.68rem;
+        line-height: 1.16;
+      }
+
+      .line-controls {
+        justify-content: flex-start;
+        gap: 0.28rem;
+      }
+
+      .qty-control {
+        gap: 0.18rem;
+        padding: 0.1rem;
+      }
+
+      .qty-btn {
+        width: 1.72rem;
+        height: 1.72rem;
+        font-size: 0.9rem;
+      }
+
+      .qty-value {
+        min-width: 1rem;
+        font-size: 0.82rem;
+      }
+
+      .line-total-stack {
+        min-width: 0;
+        justify-items: start;
+        text-align: left;
+      }
+
+      .line-remove-btn {
+        min-height: 1.66rem;
+        padding-inline: 0.46rem;
+        font-size: 0.68rem;
+      }
+
+      .totals-card,
+      .cart-card,
+      .context-card {
+        padding: 0.74rem;
+        gap: 0.68rem;
       }
     }
 
@@ -2186,6 +2564,11 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       padding-top: 0;
       justify-content: flex-start;
       gap: var(--space-2);
+    }
+
+    .action-row--live-bill .btn {
+      flex: 1 1 0;
+      min-width: 0;
     }
 
     .catalog-toolbar {
@@ -2507,6 +2890,13 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       border-bottom: 1px solid color-mix(in srgb, var(--color-border) 76%, white);
     }
 
+    .live-bill-summary--dock {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.68rem;
+    }
+
     .ticket-context-strip {
       display: flex;
       flex-wrap: wrap;
@@ -2529,8 +2919,23 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       line-height: 1.4;
     }
 
+    .live-bill-summary-copy--dock strong {
+      font-size: 0.96rem;
+      line-height: 1.14;
+    }
+
+    .live-bill-summary-copy--dock small {
+      color: var(--color-text-muted);
+      line-height: 1.22;
+    }
+
     .live-bill-summary-meta {
       align-items: flex-end;
+    }
+
+    .live-bill-summary-meta--dock {
+      justify-content: center;
+      align-self: center;
     }
 
     .live-bill-summary-caption {
@@ -2561,6 +2966,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       top: 0;
       z-index: 3;
       backdrop-filter: blur(6px);
+    }
+
+    .settlement-summary-row--cta {
+      margin-top: 0.2rem;
     }
 
     .settlement-summary-row--compact {
@@ -2597,6 +3006,40 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .settlement-summary-copy--primary strong {
       font-size: 1rem;
+    }
+
+    .payment-dock-topline {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.78rem;
+      align-items: center;
+      padding: 0.78rem 0.84rem;
+      border: 1px solid color-mix(in srgb, var(--color-border) 74%, white);
+      border-radius: var(--radius-lg);
+      background: color-mix(in srgb, var(--color-bg) 72%, white);
+    }
+
+    .payment-dock-total,
+    .payment-dock-meta {
+      display: grid;
+      gap: 0.18rem;
+      min-width: 0;
+    }
+
+    .payment-dock-total strong {
+      font-size: 1.18rem;
+      line-height: 1.06;
+    }
+
+    .payment-dock-total small {
+      color: var(--color-text-muted);
+      line-height: 1.22;
+    }
+
+    .payment-dock-meta {
+      justify-items: end;
+      align-content: center;
+      gap: 0.35rem;
     }
 
     .settlement-summary-pills {
@@ -3659,6 +4102,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     @media (min-width: 641px) and (max-width: 920px) {
       .checkout-hero,
       .settlement-summary-row,
+      .payment-dock-topline,
       .settlement-mode-grid,
       .queue-grid,
       .queue-history-grid,
@@ -3701,6 +4145,14 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
         backdrop-filter: none;
       }
 
+      .payment-dock-topline {
+        grid-template-columns: 1fr;
+      }
+
+      .payment-dock-meta {
+        justify-items: start;
+      }
+
       .payment-state-strip {
         position: static;
         backdrop-filter: none;
@@ -3727,6 +4179,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       .live-bill-summary {
         flex-direction: column;
         align-items: flex-start;
+      }
+
+      .live-bill-summary--dock {
+        grid-template-columns: 1fr;
       }
 
       .continue-bill-actions {
@@ -3812,6 +4268,20 @@ export class CashierPosComponent {
   selectedOrderId = signal<number | null>(null);
   cartTableId = signal<number | null>(null);
   cartLines = signal<PosCartLine[]>([]);
+  reservationPrefill = signal<{
+    reservationId: number | null;
+    guestName: string | null;
+    phone: string | null;
+    partySize: number | null;
+    note: string | null;
+  } | null>(null);
+  queuePrefill = signal<{
+    queueEntryId: number | null;
+    guestName: string | null;
+    phone: string | null;
+    partySize: number | null;
+    note: string | null;
+  } | null>(null);
   selectedSettlementMode = signal<PosSettlementMode>('cash');
   staffAccessCache = signal<Record<number, StaffMenuAccessToken>>({});
   productQuestionDialogProduct = signal<PosSellableProduct | null>(null);
@@ -4114,7 +4584,7 @@ export class CashierPosComponent {
     const amount = this.checkoutSummaryTotalCopy();
     switch (this.primaryCheckoutMode()) {
       case 'card_terminal':
-        return `Use terminal - ${amount}`;
+        return `Charge terminal - ${amount}`;
       case 'hitpay':
         return `Send HitPay - ${amount}`;
       case 'cash':
@@ -4159,14 +4629,14 @@ export class CashierPosComponent {
     ).length;
 
     if (settleCount > 0) {
-      return `${settleCount} to settle | ${liveCount} live | ${freshness}`;
+      return `${settleCount} payment | ${liveCount} live | ${freshness}`;
     }
 
     if (liveCount > 0) {
       return `${liveCount} live bill${liveCount === 1 ? '' : 's'} | ${freshness}`;
     }
 
-    return `${group.orders.length} settled bill${group.orders.length === 1 ? '' : 's'} | ${freshness}`;
+    return `${group.orders.length} paid bill${group.orders.length === 1 ? '' : 's'} | ${freshness}`;
   }
 
   checkoutOutcomeHeadline(): string {
@@ -4198,14 +4668,14 @@ export class CashierPosComponent {
 
   queueOrderActionCopy(order: Order): string {
     if (this.isPaid(order)) {
-      return 'Review order';
+      return 'View order';
     }
 
     if (this.isClosedOrder(order)) {
-      return 'Settle';
+      return 'Collect payment';
     }
 
-    return 'Resume bill';
+    return 'Open bill';
   }
 
   queueOrderAgeLabel(order: Order): string {
@@ -4276,18 +4746,18 @@ export class CashierPosComponent {
       null;
 
     if (!preferredOrder) {
-      return 'No cashier action waiting';
+      return 'No cashier action';
     }
 
     if (!this.isPaid(preferredOrder) && this.isClosedOrder(preferredOrder)) {
-      return 'Settle now';
+      return 'Collect payment now';
     }
 
     if (!this.isPaid(preferredOrder)) {
-      return 'Add items or collect later';
+      return 'Add items or settle later';
     }
 
-    return 'Review receipt if needed';
+    return 'View receipt if needed';
   }
 
   queueGroupStateBreakdownLabel(group: PosQueueOrderGroup): string {
@@ -4308,7 +4778,7 @@ export class CashierPosComponent {
 
   queueGroupOrdersActionLabel(group: PosQueueOrderGroup): string {
     const count = group.orders.length;
-    return count === 1 ? 'Orders' : `Orders ${count}`;
+    return count === 1 ? 'History' : `History ${count}`;
   }
 
   compareQueueGroups(a: PosQueueOrderGroup, b: PosQueueOrderGroup): number {
@@ -4344,9 +4814,58 @@ export class CashierPosComponent {
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       const tableId = Number(params.get('tableId'));
       const orderId = Number(params.get('orderId'));
+      const reservationId = Number(params.get('reservationId'));
+      const reservationGuest = (params.get('reservationGuest') || '').trim();
+      const reservationPhone = (params.get('reservationPhone') || '').trim();
+      const reservationPartySize = Number(params.get('reservationPartySize'));
+      const reservationNote = (params.get('reservationNotes') || '').trim();
+      const queueEntryId = Number(params.get('queueEntryId'));
+      const queueGuest = (params.get('queueGuest') || '').trim();
+      const queuePhone = (params.get('queuePhone') || '').trim();
+      const queuePartySize = Number(params.get('queuePartySize'));
+      const queueNote = (params.get('queueNotes') || '').trim();
       const normalizedTableId = Number.isFinite(tableId) && tableId > 0 ? tableId : null;
       const normalizedOrderId = Number.isFinite(orderId) && orderId > 0 ? orderId : null;
       const hasExplicitSelection = normalizedTableId != null || normalizedOrderId != null;
+      const hasReservationPrefill =
+        (Number.isFinite(reservationId) && reservationId > 0) ||
+        !!reservationGuest ||
+        !!reservationPhone ||
+        (Number.isFinite(reservationPartySize) && reservationPartySize > 0) ||
+        !!reservationNote;
+
+      this.reservationPrefill.set(
+        hasReservationPrefill
+          ? {
+              reservationId: Number.isFinite(reservationId) && reservationId > 0 ? reservationId : null,
+              guestName: reservationGuest || null,
+              phone: reservationPhone || null,
+              partySize:
+                Number.isFinite(reservationPartySize) && reservationPartySize > 0
+                  ? reservationPartySize
+                  : null,
+              note: reservationNote || null,
+            }
+          : null,
+      );
+      const hasQueuePrefill =
+        (Number.isFinite(queueEntryId) && queueEntryId > 0) ||
+        !!queueGuest ||
+        !!queuePhone ||
+        (Number.isFinite(queuePartySize) && queuePartySize > 0) ||
+        !!queueNote;
+
+      this.queuePrefill.set(
+        hasQueuePrefill
+          ? {
+              queueEntryId: Number.isFinite(queueEntryId) && queueEntryId > 0 ? queueEntryId : null,
+              guestName: queueGuest || null,
+              phone: queuePhone || null,
+              partySize: Number.isFinite(queuePartySize) && queuePartySize > 0 ? queuePartySize : null,
+              note: queueNote || null,
+            }
+          : null,
+      );
 
       if (hasExplicitSelection) {
         this.selectedTableId.set(normalizedTableId);
@@ -4686,22 +5205,22 @@ export class CashierPosComponent {
   checkoutIntroCopy(): string {
     const table = this.effectiveCheckoutTable();
     if (this.hasPayableLiveBill()) {
-      return 'Add items to the live bill or collect payment now.';
+      return 'Add items or collect payment.';
     }
     if (table) {
-      return 'Add items to start a new bill.';
+      return 'Add items to start the bill.';
     }
     return 'Choose a table to begin.';
   }
 
   emptyCartHint(): string {
     if (this.payableLiveBillOrder()) {
-      return 'Add items or checkout.';
+      return 'Add items or pay now.';
     }
     if (this.selectedTableHasServiceTicket()) {
-      return 'Add items to continue this bill.';
+      return 'Add items to continue the bill.';
     }
-    return 'Add items to start.';
+    return 'Add items to begin.';
   }
 
   cartTitle(): string {
@@ -4747,13 +5266,13 @@ export class CashierPosComponent {
 
   settlementSummaryCaption(): string {
     if (this.hasPayableLiveBill() && this.cartItemCount() > 0) {
-      return 'Settle the live bill with the new add-ons together.';
+      return 'Settle the live bill with the new items together.';
     }
     if (this.hasPayableLiveBill()) {
-      return 'Live bill ready to settle.';
+      return 'Live bill ready for payment.';
     }
     if (this.cartItemCount() > 0) {
-      return 'Ready to take payment.';
+      return 'Ready for payment.';
     }
     return 'Choose a table and add items.';
   }
@@ -4838,7 +5357,7 @@ export class CashierPosComponent {
   queuePanelTitle(): string {
     const table = this.effectiveCheckoutTable();
     if (table) {
-      return `${table.name} recovery`;
+      return `${table.name} history`;
     }
     return 'Cashier queue';
   }
@@ -4846,9 +5365,9 @@ export class CashierPosComponent {
   queuePanelSubtitle(): string {
     const table = this.effectiveCheckoutTable();
     if (table) {
-      return 'Resume live bills or review past tickets for this table.';
+      return 'Open the live bill or review table history.';
     }
-    return 'Grouped by table for fast payment and service follow-up.';
+    return 'Grouped by table for fast cashier follow-up.';
   }
 
   queuePanelEmptyCopy(): string {
@@ -4861,10 +5380,10 @@ export class CashierPosComponent {
 
   queueHistoryPrimaryActionLabel(order: Order): string {
     if (!this.isPaid(order) && this.isClosedOrder(order)) {
-      return 'Collect';
+      return 'Pay';
     }
     if (!this.isPaid(order)) {
-      return 'Resume';
+      return 'Open';
     }
     return 'Receipt';
   }
@@ -5349,6 +5868,7 @@ export class CashierPosComponent {
       const nextReadyTable = this.nextReadyTableCandidate(tableId);
 
       if (hasCartLines) {
+        const handoffPrefill = this.activeHandoffPrefill();
         const payload = {
           items: this.cartLines().map((line) => ({
             product_id: line.productId,
@@ -5356,6 +5876,8 @@ export class CashierPosComponent {
             source: line.source,
             customization_answers: line.customizationAnswers,
           })),
+          customer_name: handoffPrefill?.guestName?.trim() || undefined,
+          notes: handoffPrefill?.note?.trim() || undefined,
         };
 
         const orderResponse = liveBill
@@ -5803,6 +6325,28 @@ export class CashierPosComponent {
     return this.tableHasOpenService(table);
   }
 
+  tableReservationBadge(table: CanvasTable): string | null {
+    const reservation = table.upcoming_reservation;
+    if (!reservation?.reservation_time) {
+      return null;
+    }
+    return `Reserved ${this.formatReservationTime(reservation.reservation_time)}`;
+  }
+
+  tableReservationHint(table: CanvasTable): string | null {
+    const reservation = table.upcoming_reservation;
+    if (!reservation) {
+      return null;
+    }
+
+    const guest = reservation.customer_name?.trim() || 'Guest';
+    if (!reservation.reservation_time) {
+      return guest;
+    }
+
+    return `${guest} • ${this.formatReservationTime(reservation.reservation_time)}`;
+  }
+
   getTableSaleSummary(table: CanvasTable): string {
     const serviceOrder = this.tableServiceOrder(table);
     if (serviceOrder && !this.isClosedOrder(serviceOrder) && !this.isPaid(serviceOrder)) {
@@ -5814,7 +6358,10 @@ export class CashierPosComponent {
     if (serviceOrder && this.isPaid(serviceOrder)) {
       return `Last bill #${serviceOrder.id}`;
     }
-    return 'Clear';
+    if (table.upcoming_reservation) {
+      return this.tableReservationBadge(table) || 'Reserved soon';
+    }
+    return 'Ready for new bill';
   }
 
   tablePrimaryActionLabel(table: CanvasTable): string {
@@ -5839,7 +6386,10 @@ export class CashierPosComponent {
     if (table.active_order_id && serviceOrder) {
       return `Ticket #${serviceOrder.id}`;
     }
-    return 'No active bill';
+    if (table.upcoming_reservation) {
+      return this.tableReservationHint(table) || 'Reserved guest pending';
+    }
+    return 'Ready for the next cashier bill';
   }
 
   tableLiveOrderCount(table: CanvasTable): number {
@@ -5876,11 +6426,16 @@ export class CashierPosComponent {
     const explicit = String(table.operational_status || table.status || '').toLowerCase();
     const serviceOrder = this.tableServiceOrder(table);
     const paymentState = String(table.payment_status || '').toLowerCase();
+    const activeButIdle = !!table.is_active && !table.active_order_id && !serviceOrder;
+
     if (
       !this.tableHasOpenService(table) &&
       (paymentState === 'paid' || !!(table.active_order_id && serviceOrder && this.isPaid(serviceOrder)))
     ) {
       return 'awaiting_clear';
+    }
+    if (activeButIdle && (explicit === 'closed' || explicit === 'idle' || explicit === 'available')) {
+      return 'available';
     }
     if (explicit) {
       return explicit;
@@ -5901,7 +6456,7 @@ export class CashierPosComponent {
     const state = this.getTableState(table);
     switch (state) {
       case 'awaiting_clear':
-        return 'Ready to clear';
+        return 'Ready';
       case 'open_order':
         return 'Open order';
       case 'ready_to_serve':
@@ -5917,10 +6472,10 @@ export class CashierPosComponent {
     }
   }
 
-  getPaymentStateLabel(table: CanvasTable): string {
+  getPaymentStateLabel(table: CanvasTable): string | null {
     const currentOrder = this.tableServiceOrder(table);
     if (!this.tableHasOpenService(table) && String(table.payment_status || '').toLowerCase() === 'none') {
-      return 'Clear';
+      return null;
     }
     switch (table.payment_status) {
       case 'paid':
@@ -5931,8 +6486,21 @@ export class CashierPosComponent {
         if (table.active_order_id && currentOrder && this.isPaid(currentOrder)) {
           return 'Paid';
         }
-        return table.active_order_id || currentOrder ? 'Open' : 'Clear';
+        return table.active_order_id || currentOrder ? 'Open bill' : null;
     }
+  }
+
+  private formatReservationTime(value: string): string {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+
+    return new Intl.DateTimeFormat('en-SG', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }).format(parsed);
   }
 
   stateClass(state: string): string {
@@ -6054,6 +6622,25 @@ export class CashierPosComponent {
       const table = this.tables().find((item) => item.id === tableId) ?? null;
       if (table) {
         this.selectTable(table);
+        const reservationPrefill = this.reservationPrefill();
+        const queuePrefill = this.queuePrefill();
+        if (reservationPrefill) {
+          const guestLabel =
+            reservationPrefill.guestName ||
+            reservationPrefill.phone ||
+            (reservationPrefill.reservationId ? `reservation #${reservationPrefill.reservationId}` : '');
+          this.notice.set(
+            `${table.name} opened from reservation handoff${guestLabel ? ` for ${guestLabel}` : ''}.`,
+          );
+        } else if (queuePrefill) {
+          const guestLabel =
+            queuePrefill.guestName ||
+            queuePrefill.phone ||
+            (queuePrefill.queueEntryId ? `queue #${queuePrefill.queueEntryId}` : '');
+          this.notice.set(
+            `${table.name} opened from queue handoff${guestLabel ? ` for ${guestLabel}` : ''}.`,
+          );
+        }
         return;
       }
     }
@@ -6155,10 +6742,31 @@ export class CashierPosComponent {
       queryParams: {
         tableId: tableId ?? null,
         orderId: orderId ?? null,
+        reservationId: null,
+        reservationGuest: null,
+        reservationPhone: null,
+        reservationPartySize: null,
+        reservationNotes: null,
+        queueEntryId: null,
+        queueGuest: null,
+        queuePhone: null,
+        queuePartySize: null,
+        queueNotes: null,
       },
       queryParamsHandling: 'merge',
       replaceUrl: true,
     });
+  }
+
+  private activeHandoffPrefill():
+    | {
+        guestName: string | null;
+        phone: string | null;
+        partySize: number | null;
+        note: string | null;
+      }
+    | null {
+    return this.queuePrefill() || this.reservationPrefill();
   }
 
   private buildCashierHitPayReturnPath(tableId: number, orderId: number): string {

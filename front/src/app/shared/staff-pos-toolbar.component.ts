@@ -36,6 +36,15 @@ import { StaffLayoutService } from '../services/staff-layout.service';
               {{ 'NAV.ORDERS' | translate }}
             </a>
           }
+          @if (canQueue()) {
+            <a
+              routerLink="/queue"
+              class="segment-btn"
+              [class.active]="isQueueRoute()"
+              data-testid="staff-flow-queue-link">
+              {{ 'NAV.QUEUE' | translate }}
+            </a>
+          }
           @if (canTables()) {
             <a
               [routerLink]="tablesArea.entryPath()"
@@ -149,6 +158,36 @@ import { StaffLayoutService } from '../services/staff-layout.service';
     .icon-toolbar-btn:hover {
       background: var(--color-bg);
     }
+
+    @media (max-width: 640px) {
+      .staff-pos-toolbar {
+        gap: var(--space-2);
+        margin-bottom: var(--space-2);
+        padding-bottom: var(--space-2);
+      }
+
+      .staff-pos-segment {
+        width: 100%;
+        overflow: auto;
+      }
+
+      .segment-btn {
+        min-height: 36px;
+        padding: 0.5rem 0.8rem;
+        font-size: 0.78rem;
+        white-space: nowrap;
+      }
+
+      .staff-pos-toolbar-actions {
+        width: 100%;
+        justify-content: flex-end;
+      }
+
+      .icon-toolbar-btn {
+        width: 38px;
+        height: 38px;
+      }
+    }
   `]
 })
 export class StaffPosToolbarComponent {
@@ -160,7 +199,7 @@ export class StaffPosToolbarComponent {
   private router = inject(Router);
 
   showBar(): boolean {
-    return this.canPos() || this.canOrders() || this.canTables();
+    return this.canPos() || this.canOrders() || this.canQueue() || this.canTables();
   }
 
   canPos(): boolean {
@@ -176,6 +215,11 @@ export class StaffPosToolbarComponent {
     return this.moduleEnabled('tables') && this.permissions.canAccessRoute(u, '/tables');
   }
 
+  canQueue(): boolean {
+    const u = this.api.getCurrentUser();
+    return this.moduleEnabled('reservations') && this.permissions.canAccessRoute(u, '/queue');
+  }
+
   private moduleEnabled(key: TenantUiModuleKey): boolean {
     return this.api.isUiModuleEnabled(key);
   }
@@ -186,6 +230,10 @@ export class StaffPosToolbarComponent {
 
   isPosRoute(): boolean {
     return this.router.url.split('?')[0].startsWith('/pos');
+  }
+
+  isQueueRoute(): boolean {
+    return this.router.url.split('?')[0].startsWith('/queue');
   }
 
   isTablesRoute(): boolean {

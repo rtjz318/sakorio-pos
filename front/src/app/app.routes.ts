@@ -48,6 +48,7 @@ export const routes: Routes = [
   { path: 'orders', canActivate: [ordersRouteGuard], loadComponent: () => import('./orders-public/orders-public.component').then(m => m.OrdersPublicComponent) },
   // Staff reservations (must be before 'reservation' so /reservations matches here, not the public route)
   { path: 'reservations', canActivate: [authGuard, uiModuleGuard('reservations'), reservationAccessGuard], loadComponent: () => import('./reservations/reservations.component').then(m => m.ReservationsComponent) },
+  { path: 'queue', canActivate: [authGuard, uiModuleGuard('reservations'), reservationAccessGuard], loadComponent: () => import('./queue/queue.component').then(m => m.QueueComponent) },
   { path: 'guest-feedback', canActivate: [authGuard, uiModuleGuard('reservations'), reservationAccessGuard], loadComponent: () => import('./guest-feedback/guest-feedback.component').then(m => m.GuestFeedbackComponent) },
   { path: 'reservation', loadComponent: () => import('./reservation-view/reservation-view.component').then(m => m.ReservationViewComponent) },
 

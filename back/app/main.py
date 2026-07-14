@@ -9680,8 +9680,8 @@ def _seat_queue_entry_on_table(
 
 @app.get("/queue")
 def list_guest_queue(
-    include_closed: bool = Query(False),
     current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_READ))],
+    include_closed: bool = Query(False),
     session: Session = Depends(get_session),
 ) -> list[dict]:
     stmt = select(models.GuestQueueEntry).where(models.GuestQueueEntry.tenant_id == current_user.tenant_id)

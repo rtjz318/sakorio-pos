@@ -974,3 +974,48 @@ Hosts now reach the useful actions faster after tapping a guest:
 - convert to reservation
 
 This should make `/queue` feel more like a real front-desk operator dock than a generic admin form.
+
+## 2026-07-14 Hosted Queue Render Root-Cause Confirmed
+
+Live hosted inspection on `https://app.sakorio.com/queue` confirmed the queue content is present in the DOM, but the visible page remains blank because the queue shell is still rendering outside the sidebar's main content viewport.
+
+### What was observed live
+
+- sidebar renders normally
+- queue text exists in the DOM
+- `app-queue .page-shell` starts below the visible `app-sidebar .main` container on hosted
+- result: the host stand looks empty even though queue content exists
+
+### Root cause
+
+Hosted Sakorio was still serving the old queue layout structure:
+
+- standalone `<app-sidebar></app-sidebar>`
+- separate `<main class="page-shell">`
+
+The queue screen must instead be rendered inside the sidebar shell:
+
+- `<app-sidebar>`
+- inner queue section
+- closing `</app-sidebar>`
+
+### Local fix already prepared
+
+The queue layout fix is already staged in local repo work on:
+
+- [queue.component.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\queue\queue.component.ts)
+
+The same local batch also includes UI density cleanup for:
+
+- [cashier-pos.component.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\cashier-pos\cashier-pos.component.ts)
+- [kitchen-display.component.ts](C:\Users\Rick\Documents\New project\pos\front\src\app\kitchen-display\kitchen-display.component.ts)
+
+### Exact next pickup
+
+1. commit queue + kitchen + cashier local batch
+2. push `development`
+3. redeploy the Sakorio frontend service
+4. re-verify hosted:
+   - `/queue`
+   - `/kitchen`
+   - `/pos`

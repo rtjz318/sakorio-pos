@@ -35,67 +35,66 @@ type QueueTableChoice = {
   standalone: true,
   imports: [CommonModule, FormsModule, SidebarComponent, StaffPosToolbarComponent],
   template: `
-    <app-sidebar></app-sidebar>
+    <app-sidebar>
+      <section class="page-shell">
+        <app-staff-pos-toolbar></app-staff-pos-toolbar>
 
-    <main class="page-shell">
-      <app-staff-pos-toolbar></app-staff-pos-toolbar>
-
-      <section class="page-header card">
-        <div>
-          <p class="eyebrow">Host Stand</p>
-          <h1>Guest queue</h1>
-          <p class="lede">
-            Manage walk-ins, quote wait times, seat guests to tables, and convert them into timed reservations.
-          </p>
-        </div>
-        <div class="header-actions">
-          <button type="button" class="btn btn-secondary" (click)="reload()">Refresh</button>
-          <label class="closed-toggle">
-            <input type="checkbox" [(ngModel)]="includeClosed" (change)="reloadQueue()" />
-            Include closed
-          </label>
-        </div>
-      </section>
-
-      @if (error()) {
-        <section class="error-banner card">
-          {{ error() }}
-        </section>
-      }
-
-      @if (prefillContext()) {
-        <section class="card prefill-banner">
+        <section class="page-header card">
           <div>
-            <p class="eyebrow">Reservation handoff</p>
-            <h2>{{ prefillContext() }}</h2>
-            <p class="lede-inline">Guest details are prefilled so the host stand can move this reservation into the live queue without retyping.</p>
+            <p class="eyebrow">Host Stand</p>
+            <h1>Guest queue</h1>
+            <p class="lede">
+              Manage walk-ins, quote wait times, seat guests to tables, and convert them into timed reservations.
+            </p>
           </div>
-          <button type="button" class="btn btn-secondary" (click)="clearPrefill()">Clear prefill</button>
+          <div class="header-actions">
+            <button type="button" class="btn btn-secondary" (click)="reload()">Refresh</button>
+            <label class="closed-toggle">
+              <input type="checkbox" [(ngModel)]="includeClosed" (change)="reloadQueue()" />
+              Include closed
+            </label>
+          </div>
         </section>
-      }
 
-      <section class="summary-grid">
-        <article class="card stat">
-          <span class="label">Waiting guests</span>
-          <strong>{{ summary()?.waiting_guests ?? 0 }}</strong>
-          <span class="hint">Across the active queue</span>
-        </article>
-        <article class="card stat">
-          <span class="label">Notified</span>
-          <strong>{{ summaryCount('notified') }}</strong>
-          <span class="hint">Ready to be seated now</span>
-        </article>
-        <article class="card stat">
-          <span class="label">Seated</span>
-          <strong>{{ summaryCount('seated') }}</strong>
-          <span class="hint">Already handed to floor service</span>
-        </article>
-        <article class="card stat">
-          <span class="label">Total entries</span>
-          <strong>{{ summary()?.total_entries ?? 0 }}</strong>
-          <span class="hint">Including completed queue records</span>
-        </article>
-      </section>
+        @if (error()) {
+          <section class="error-banner card">
+            {{ error() }}
+          </section>
+        }
+
+        @if (prefillContext()) {
+          <section class="card prefill-banner">
+            <div>
+              <p class="eyebrow">Reservation handoff</p>
+              <h2>{{ prefillContext() }}</h2>
+              <p class="lede-inline">Guest details are prefilled so the host stand can move this reservation into the live queue without retyping.</p>
+            </div>
+            <button type="button" class="btn btn-secondary" (click)="clearPrefill()">Clear prefill</button>
+          </section>
+        }
+
+        <section class="summary-grid">
+          <article class="card stat">
+            <span class="label">Waiting guests</span>
+            <strong>{{ summary()?.waiting_guests ?? 0 }}</strong>
+            <span class="hint">Across the active queue</span>
+          </article>
+          <article class="card stat">
+            <span class="label">Notified</span>
+            <strong>{{ summaryCount('notified') }}</strong>
+            <span class="hint">Ready to be seated now</span>
+          </article>
+          <article class="card stat">
+            <span class="label">Seated</span>
+            <strong>{{ summaryCount('seated') }}</strong>
+            <span class="hint">Already handed to floor service</span>
+          </article>
+          <article class="card stat">
+            <span class="label">Total entries</span>
+            <strong>{{ summary()?.total_entries ?? 0 }}</strong>
+            <span class="hint">Including completed queue records</span>
+          </article>
+        </section>
 
       @if (arrivalsDueSoon().length) {
         <section class="card arrivals-card">
@@ -645,7 +644,8 @@ type QueueTableChoice = {
           }
         </article>
       </section>
-    </main>
+    </section>
+    </app-sidebar>
   `,
   styles: [`
     :host {
@@ -657,7 +657,6 @@ type QueueTableChoice = {
     }
 
     .page-shell {
-      margin-left: 280px;
       padding: 1.5rem;
       display: grid;
       gap: 1rem;

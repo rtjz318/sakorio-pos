@@ -595,8 +595,8 @@ function getWorkflowSortWeight(
     }
     .lane-board {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(308px, 1fr));
-      gap: var(--space-3);
+      grid-template-columns: repeat(auto-fit, minmax(292px, 1fr));
+      gap: 0.8rem;
       align-items: start;
       grid-auto-rows: minmax(0, auto);
     }
@@ -604,16 +604,16 @@ function getWorkflowSortWeight(
       box-sizing: border-box;
       min-width: 0;
       min-height: 0;
-      padding: 0.9rem 0.9rem 0.82rem;
+      padding: 0.78rem 0.78rem 0.72rem;
       border-radius: calc(var(--radius-lg) + 2px);
       border: 1px solid var(--color-border);
       background: color-mix(in srgb, var(--color-surface) 96%, white);
       box-shadow: var(--shadow-sm);
       display: flex;
       flex-direction: column;
-      gap: 0.72rem;
+      gap: 0.6rem;
       align-self: start;
-      max-height: calc(100vh - 11.4rem);
+      max-height: calc(100vh - 10.7rem);
       overflow: hidden;
     }
     .service-lane--pending { border-top: 5px solid var(--color-warning); }
@@ -623,11 +623,11 @@ function getWorkflowSortWeight(
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: flex-start;
-      gap: 0.75rem;
+      gap: 0.58rem;
       position: sticky;
       top: 0;
       z-index: 3;
-      padding-bottom: 0.25rem;
+      padding-bottom: 0.18rem;
       background: inherit;
     }
     .service-lane-header > div {
@@ -636,9 +636,9 @@ function getWorkflowSortWeight(
       gap: 0.2rem;
     }
     .service-lane-header h2 {
-      margin: 0.15rem 0 0;
-      font-size: 1.04rem;
-      line-height: 1.15;
+      margin: 0.12rem 0 0;
+      font-size: 0.98rem;
+      line-height: 1.12;
       color: var(--color-text);
       overflow-wrap: anywhere;
     }
@@ -650,14 +650,14 @@ function getWorkflowSortWeight(
       color: var(--color-text-muted);
     }
     .service-lane-count {
-      min-width: 2.2rem;
-      min-height: 2.2rem;
+      min-width: 2rem;
+      min-height: 2rem;
       border-radius: 999px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 0.2rem 0.65rem;
-      font-size: 0.86rem;
+      padding: 0.16rem 0.56rem;
+      font-size: 0.8rem;
       font-weight: 800;
       color: var(--color-text);
       background: color-mix(in srgb, var(--color-primary) 10%, white);
@@ -667,12 +667,12 @@ function getWorkflowSortWeight(
     .service-lane-list {
       display: flex;
       flex-direction: column;
-      gap: 0.7rem;
+      gap: 0.55rem;
       align-items: stretch;
-      max-height: calc(100vh - 15.9rem);
+      max-height: calc(100vh - 14.2rem);
       overflow: auto;
-      padding-right: 0.2rem;
-      padding-bottom: 0.55rem;
+      padding-right: 0.18rem;
+      padding-bottom: 0.42rem;
       min-height: 0;
       scrollbar-gutter: stable;
     }
@@ -750,8 +750,8 @@ function getWorkflowSortWeight(
     .order-card.timer-red { border-left-color: #ef4444; }
     .order-header {
       display: grid;
-      gap: 0.5rem;
-      padding: 0.72rem 0.82rem 0.68rem;
+      gap: 0.36rem;
+      padding: 0.62rem 0.72rem 0.58rem;
       border-bottom: 1px solid var(--color-border);
       background: color-mix(in srgb, var(--color-bg) 82%, white);
       min-width: 0;
@@ -777,22 +777,22 @@ function getWorkflowSortWeight(
       gap: 0.35rem 0.65rem;
     }
     .order-id {
-      font-size: 0.98rem;
+      font-size: 0.92rem;
       font-weight: 700;
       color: var(--color-text);
       overflow-wrap: anywhere;
-      line-height: 1.1;
+      line-height: 1.06;
     }
     .order-table {
-      font-size: 0.86rem;
+      font-size: 0.8rem;
       font-weight: 700;
       color: var(--color-primary);
       overflow-wrap: anywhere;
     }
     .order-customer {
-      font-size: 0.76rem;
+      font-size: 0.72rem;
       color: var(--color-text-muted);
-      padding: 0.2rem 0.55rem;
+      padding: 0.16rem 0.5rem;
       border-radius: 999px;
       background: color-mix(in srgb, var(--color-primary) 8%, white);
       border: 1px solid color-mix(in srgb, var(--color-primary) 14%, var(--color-border));
@@ -803,7 +803,7 @@ function getWorkflowSortWeight(
     }
     .order-time,
     .order-waiting {
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       color: var(--color-text-muted);
     }
     .order-waiting {
@@ -816,15 +816,15 @@ function getWorkflowSortWeight(
       overflow-wrap: anywhere;
     }
     .status-badge {
-      padding: 0.3rem 0.62rem;
+      padding: 0.24rem 0.54rem;
       border-radius: 20px;
-      font-size: 0.7rem;
+      font-size: 0.66rem;
       font-weight: 700;
       flex-shrink: 0;
       text-align: center;
       white-space: normal;
-      line-height: 1.1;
-      max-width: 9rem;
+      line-height: 1.06;
+      max-width: 8.2rem;
       overflow-wrap: anywhere;
     }
     .status-badge.status-pending { background: rgba(245, 158, 11, 0.2); color: var(--color-warning); }
@@ -834,28 +834,28 @@ function getWorkflowSortWeight(
     .order-items {
       list-style: none;
       margin: 0;
-      padding: 0.1rem 0.82rem 0.68rem;
+      padding: 0.04rem 0.72rem 0.56rem;
       display: grid;
-      gap: 0.05rem;
+      gap: 0.04rem;
       min-width: 0;
     }
     .order-item {
       display: grid;
-      grid-template-columns: 2.05rem minmax(0, 1fr);
+      grid-template-columns: 1.9rem minmax(0, 1fr);
       align-items: start;
-      gap: 0.36rem 0.6rem;
-      padding: 0.55rem 0;
-      font-size: 0.84rem;
-      line-height: 1.2;
+      gap: 0.28rem 0.5rem;
+      padding: 0.44rem 0;
+      font-size: 0.8rem;
+      line-height: 1.14;
       border-bottom: 1px solid var(--color-border);
     }
     .order-item:last-child { border-bottom: none; }
     .item-qty {
       font-weight: 700;
       color: var(--color-primary);
-      font-size: 0.82rem;
-      padding-top: 0.12rem;
-      min-width: 2rem;
+      font-size: 0.76rem;
+      padding-top: 0.08rem;
+      min-width: 1.8rem;
     }
     .item-name {
       font-weight: 600;
@@ -879,13 +879,13 @@ function getWorkflowSortWeight(
       min-width: 0;
     }
     .item-notes {
-      font-size: 0.76rem;
+      font-size: 0.7rem;
       color: var(--color-text-muted);
       font-style: italic;
       overflow-wrap: anywhere;
     }
     .item-customization {
-      font-size: 0.74rem;
+      font-size: 0.69rem;
       color: var(--color-text-muted);
       overflow-wrap: anywhere;
     }

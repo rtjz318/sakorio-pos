@@ -1177,27 +1177,27 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .cashier-grid {
       display: grid;
-      grid-template-columns: minmax(336px, 0.96fr) minmax(520px, 1.34fr) minmax(332px, 0.94fr);
-      gap: 0.92rem;
+      grid-template-columns: minmax(304px, 0.88fr) minmax(560px, 1.42fr) minmax(336px, 0.96fr);
+      gap: 0.82rem;
       align-items: start;
     }
 
     .lane,
     .queue-panel {
-      padding: 0.88rem;
+      padding: 0.82rem;
       display: flex;
       flex-direction: column;
-      gap: 0.85rem;
+      gap: 0.74rem;
     }
 
     .lane--tables {
-      gap: var(--space-2);
+      gap: 0.56rem;
       min-width: 0;
       position: sticky;
       top: 1rem;
       max-height: calc(100vh - 1.5rem);
       overflow: hidden;
-      padding-inline: 0.96rem;
+      padding-inline: 0.84rem;
     }
 
     .lane--catalog {
@@ -1446,11 +1446,11 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .table-stack {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
-      max-height: calc(100vh - 12.1rem);
+      max-height: calc(100vh - 11.35rem);
       overflow: auto;
-      padding-right: 0.2rem;
+      padding-right: 0.16rem;
       align-content: start;
-      gap: 0.7rem;
+      gap: 0.54rem;
     }
 
     .table-card,
@@ -1477,10 +1477,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       text-align: left;
       border: 0;
       background: transparent;
-      padding: 0.82rem 0.88rem 0.62rem;
+      padding: 0.72rem 0.78rem 0.52rem;
       display: grid;
       align-content: start;
-      gap: 0.36rem;
+      gap: 0.3rem;
       min-width: 0;
       min-height: 0;
       cursor: pointer;
@@ -1488,18 +1488,18 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .product-card {
-      padding: 0.94rem 0.96rem;
+      padding: 0.82rem 0.84rem;
       display: flex;
       flex-direction: column;
-      min-height: 9.5rem;
+      min-height: 8.65rem;
       height: 100%;
       overflow: hidden;
     }
 
     .product-card-body {
       display: grid;
-      grid-template-columns: 5rem minmax(0, 1fr);
-      gap: 0.9rem;
+      grid-template-columns: 4.4rem minmax(0, 1fr);
+      gap: 0.72rem;
       align-items: stretch;
       height: 100%;
       min-height: 100%;
@@ -1508,7 +1508,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .product-card-content {
       display: grid;
       grid-template-rows: minmax(0, 1fr) auto;
-      gap: 0.56rem;
+      gap: 0.44rem;
       min-width: 0;
       min-height: 100%;
       height: 100%;
@@ -1518,7 +1518,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .product-card-copy {
       display: flex;
       flex-direction: column;
-      gap: 0.4rem;
+      gap: 0.32rem;
       min-width: 0;
       min-height: 0;
       flex: 1;
@@ -1533,9 +1533,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
         color-mix(in srgb, var(--color-primary-light) 22%, white),
         color-mix(in srgb, var(--color-bg) 84%, white)
       );
-      width: 5rem;
-      height: 5rem;
-      min-height: 5rem;
+      width: 4.4rem;
+      height: 4.4rem;
+      min-height: 4.4rem;
       aspect-ratio: 1 / 1;
       display: flex;
       align-items: center;
@@ -1590,9 +1590,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .catalog-toolbar {
       display: grid;
-      grid-template-columns: minmax(0, 1.16fr) minmax(224px, 0.84fr) auto;
+      grid-template-columns: minmax(0, 1.18fr) minmax(214px, 0.82fr) auto;
       align-items: stretch;
-      gap: 0.64rem;
+      gap: 0.54rem;
     }
 
     .table-card-top,
@@ -1692,11 +1692,11 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .table-card-actions {
       margin-top: auto;
-      padding: 0.68rem 0.88rem 0.88rem;
+      padding: 0.58rem 0.78rem 0.72rem;
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       align-items: stretch;
-      gap: 0.46rem;
+      gap: 0.38rem;
       border-top: 1px solid color-mix(in srgb, var(--color-border) 74%, white);
     }
 
@@ -1706,15 +1706,15 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .table-card-actions .btn {
       width: 100%;
-      min-height: 2.2rem;
+      min-height: 2.05rem;
       justify-content: center;
-      padding-inline: 0.68rem;
+      padding-inline: 0.58rem;
       text-align: center;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      font-size: 0.77rem;
-      line-height: 1.14;
+      font-size: 0.72rem;
+      line-height: 1.1;
     }
 
     .btn-table-clear {
@@ -1735,10 +1735,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       display: grid;
       grid-template-columns: minmax(0, 1fr);
       align-items: start;
-      gap: 0.34rem;
-      font-size: 0.8rem;
-      line-height: 1.24;
-      padding-top: 0.26rem;
+      gap: 0.26rem;
+      font-size: 0.76rem;
+      line-height: 1.18;
+      padding-top: 0.18rem;
     }
 
     .table-card-summary,
@@ -1755,15 +1755,15 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       white-space: normal;
       color: var(--color-text-muted);
       font-weight: 600;
-      line-height: 1.32;
+      line-height: 1.22;
       min-width: 0;
     }
 
     .table-reservation-inline {
       display: block;
-      margin-top: 0.14rem;
-      font-size: 0.7rem;
-      line-height: 1.2;
+      margin-top: 0.1rem;
+      font-size: 0.66rem;
+      line-height: 1.14;
       color: var(--color-primary);
       font-weight: 600;
     }
@@ -1780,12 +1780,12 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       align-self: start;
       width: fit-content;
       border-radius: 999px;
-      padding: 0.28rem 0.58rem;
+      padding: 0.22rem 0.5rem;
       background: color-mix(in srgb, var(--color-bg) 72%, white);
       color: var(--color-text-muted);
-      font-size: 0.65rem;
+      font-size: 0.61rem;
       font-weight: 700;
-      line-height: 1.08;
+      line-height: 1.04;
       letter-spacing: 0;
       text-transform: none;
       white-space: nowrap;
@@ -1795,9 +1795,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .table-card .state-pill {
       justify-self: end;
       max-width: 100%;
-      min-height: 1.7rem;
-      padding-inline: 0.66rem;
-      font-size: 0.72rem;
+      min-height: 1.62rem;
+      padding-inline: 0.58rem;
+      font-size: 0.66rem;
     }
 
     .table-card-actions .btn-secondary {
@@ -1805,19 +1805,19 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .product-card-top strong {
-      font-size: 1.02rem;
-      line-height: 1.18;
+      font-size: 0.94rem;
+      line-height: 1.12;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
-      min-height: 2.38em;
+      min-height: 2.18em;
       text-wrap: balance;
     }
 
     .product-card-top span {
-      font-size: 0.76rem;
-      line-height: 1.18;
+      font-size: 0.71rem;
+      line-height: 1.12;
       color: var(--color-text-muted);
       display: -webkit-box;
       -webkit-line-clamp: 1;
@@ -1828,10 +1828,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .product-notes {
       margin: 0;
-      font-size: 0.78rem;
-      line-height: 1.32;
-      min-height: 2.64em;
-      max-height: 2.64em;
+      font-size: 0.72rem;
+      line-height: 1.22;
+      min-height: 2.42em;
+      max-height: 2.42em;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
@@ -1848,8 +1848,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: end;
-      padding-top: 0.62rem;
-      gap: 0.72rem;
+      padding-top: 0.48rem;
+      gap: 0.48rem;
       border-top: 1px solid color-mix(in srgb, var(--color-border) 70%, white);
       margin-top: auto;
     }
@@ -1868,20 +1868,20 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .product-card-bottom .btn {
       width: auto;
-      min-width: 6.1rem;
-      min-height: 2.14rem;
+      min-width: 5.3rem;
+      min-height: 1.96rem;
       justify-content: center;
       align-self: end;
       flex-shrink: 0;
-      padding-inline: 0.82rem;
+      padding-inline: 0.68rem;
       font-weight: 700;
       white-space: nowrap;
-      font-size: 0.8rem;
+      font-size: 0.74rem;
     }
 
     .product-price {
-      font-size: 1.06rem;
-      line-height: 1.12;
+      font-size: 0.94rem;
+      line-height: 1.06;
     }
 
     .product-source {

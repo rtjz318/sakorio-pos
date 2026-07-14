@@ -9680,7 +9680,7 @@ def _seat_queue_entry_on_table(
 
 @app.get("/queue")
 def list_guest_queue(
-    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_READ))],
+    current_user: models.User = Depends(require_permission(Permission.RESERVATION_READ)),
     include_closed: bool = Query(False),
     session: Session = Depends(get_session),
 ) -> list[dict]:
@@ -9701,7 +9701,7 @@ def list_guest_queue(
 
 @app.get("/queue/summary")
 def guest_queue_summary(
-    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_READ))],
+    current_user: models.User = Depends(require_permission(Permission.RESERVATION_READ)),
     session: Session = Depends(get_session),
 ) -> dict:
     rows = session.exec(
@@ -9727,7 +9727,7 @@ def guest_queue_summary(
 @app.post("/queue")
 def create_guest_queue_entry(
     body: models.GuestQueueCreate,
-    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_WRITE))],
+    current_user: models.User = Depends(require_permission(Permission.RESERVATION_WRITE)),
     session: Session = Depends(get_session),
 ) -> dict:
     if body.preferred_floor_id is not None:
@@ -9775,7 +9775,7 @@ def create_guest_queue_entry(
 @app.get("/queue/{queue_entry_id}")
 def get_guest_queue_entry(
     queue_entry_id: int,
-    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_READ))],
+    current_user: models.User = Depends(require_permission(Permission.RESERVATION_READ)),
     session: Session = Depends(get_session),
 ) -> dict:
     queue_entry = session.exec(
@@ -9793,7 +9793,7 @@ def get_guest_queue_entry(
 def update_guest_queue_entry(
     queue_entry_id: int,
     body: models.GuestQueueUpdate,
-    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_WRITE))],
+    current_user: models.User = Depends(require_permission(Permission.RESERVATION_WRITE)),
     session: Session = Depends(get_session),
 ) -> dict:
     queue_entry = session.exec(
@@ -9831,7 +9831,7 @@ def update_guest_queue_entry(
 def update_guest_queue_status(
     queue_entry_id: int,
     body: models.GuestQueueStatusUpdate,
-    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_WRITE))],
+    current_user: models.User = Depends(require_permission(Permission.RESERVATION_WRITE)),
     session: Session = Depends(get_session),
 ) -> dict:
     queue_entry = session.exec(
@@ -9865,7 +9865,7 @@ def update_guest_queue_status(
 def seat_guest_queue_entry(
     queue_entry_id: int,
     body: models.GuestQueueSeat,
-    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_WRITE))],
+    current_user: models.User = Depends(require_permission(Permission.RESERVATION_WRITE)),
     session: Session = Depends(get_session),
 ) -> dict:
     queue_entry = session.exec(
@@ -9891,7 +9891,7 @@ def seat_guest_queue_entry(
 def convert_guest_queue_to_reservation(
     queue_entry_id: int,
     body: models.GuestQueueConvertToReservation,
-    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_WRITE))],
+    current_user: models.User = Depends(require_permission(Permission.RESERVATION_WRITE)),
     session: Session = Depends(get_session),
 ) -> dict:
     queue_entry = session.exec(

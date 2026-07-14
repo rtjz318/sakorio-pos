@@ -44,7 +44,7 @@ type QueueTableChoice = {
             <p class="eyebrow">Host Stand</p>
             <h1>Guest queue</h1>
             <p class="lede">
-              Manage walk-ins, quote wait times, seat guests to tables, and convert them into timed reservations.
+              Run walk-ins, quote waits, seat guests, and turn overflow into timed reservations.
             </p>
           </div>
           <div class="header-actions">
@@ -194,6 +194,7 @@ type QueueTableChoice = {
             <div>
               <p class="eyebrow">New walk-in</p>
               <h2>Add to queue</h2>
+              <p class="lede-inline">Capture the guest once, then work the rest from the board.</p>
             </div>
             <div class="chips">
               <span class="chip">{{ floors().length || 0 }} floors</span>
@@ -258,6 +259,7 @@ type QueueTableChoice = {
             <div>
               <p class="eyebrow">Live board</p>
               <h2>Queue lanes</h2>
+              <p class="lede-inline">Waiting, notified, then seated handoff.</p>
             </div>
             <div class="chips">
               <span class="chip">{{ filteredActiveEntries().length }} active</span>
@@ -384,6 +386,16 @@ type QueueTableChoice = {
                         @if (entry.customer_phone) {
                           <span>{{ entry.customer_phone }}</span>
                         }
+                      </div>
+                      <div class="queue-stat-row">
+                        <div class="queue-stat-pill">
+                          <span class="label">Fit</span>
+                          <strong>{{ entry.preferred_table_size ? entry.preferred_table_size + ' seats' : 'Any table' }}</strong>
+                        </div>
+                        <div class="queue-stat-pill">
+                          <span class="label">Ready tables</span>
+                          <strong>{{ readyTablesForEntry(entry) }}</strong>
+                        </div>
                       </div>
                       @if (queueCardActionLabel(entry); as actionLabel) {
                         <div class="queue-card-action">
@@ -522,7 +534,7 @@ type QueueTableChoice = {
                 @if (bestTableChoice(); as bestChoice) {
                   <div class="best-fit-banner" [class.best-fit-banner--caution]="bestChoice.urgencyTone !== 'clear'">
                     <div>
-                      <span class="label">Best next seat</span>
+                      <span class="label">Recommended table</span>
                       <strong>{{ bestChoice.table.name }}</strong>
                       <p>{{ bestChoiceSummary(bestChoice) }}</p>
                     </div>
@@ -555,16 +567,24 @@ type QueueTableChoice = {
                         <span>{{ choice.floorName }}</span>
                         <span>{{ choice.fitLabel }}</span>
                       </div>
-                      <div class="table-choice-foot">
-                        <span>{{ tableChoiceDecisionCopy(choice, bestTableChoice() || choice) }}</span>
-                        @if (choice.urgencyLabel) {
-                          <span
-                            class="chip"
-                            [class.chip--warn]="choice.urgencyTone === 'soon'"
-                            [class.chip--danger]="choice.urgencyTone === 'due'">
-                            {{ choice.urgencyLabel }}
-                          </span>
-                        }
+                      <div class="table-choice-body">
+                        <p class="table-choice-copy">{{ tableChoiceDecisionCopy(choice, bestTableChoice() || choice) }}</p>
+                        <div class="chips table-choice-badges">
+                          @if (choice.urgencyLabel) {
+                            <span
+                              class="chip"
+                              [class.chip--warn]="choice.urgencyTone === 'soon'"
+                              [class.chip--danger]="choice.urgencyTone === 'due'">
+                              {{ choice.urgencyLabel }}
+                            </span>
+                          } @else {
+                            <span class="chip chip--good">Ready now</span>
+                          }
+                        </div>
+                      </div>
+                      <div class="table-choice-action">
+                        <span>Seat guest here</span>
+                        <span aria-hidden="true">→</span>
                       </div>
                     </button>
                   } @empty {
@@ -657,24 +677,24 @@ type QueueTableChoice = {
     }
 
     .page-shell {
-      padding: 1.5rem;
+      padding: 1.25rem;
       display: grid;
-      gap: 1rem;
+      gap: 0.85rem;
     }
 
     .card {
       background: #fff;
       border: 1px solid #e5e7eb;
       border-radius: 24px;
-      padding: 1.1rem;
+      padding: 1rem;
       box-shadow: 0 14px 38px rgba(15, 23, 42, 0.05);
     }
 
     .page-header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 1rem;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 0.9rem 1rem;
     }
 
     .eyebrow {
@@ -691,9 +711,9 @@ type QueueTableChoice = {
     }
 
     h1 {
-      font-size: 2rem;
-      line-height: 1.1;
-      margin-bottom: 0.35rem;
+      font-size: 1.9rem;
+      line-height: 1.08;
+      margin-bottom: 0.25rem;
     }
 
     h2 {
@@ -713,20 +733,22 @@ type QueueTableChoice = {
     }
 
     .header-actions {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 0.55rem;
       flex-wrap: wrap;
       justify-content: flex-end;
+      padding-top: 0.2rem;
     }
 
     .closed-toggle,
     .checkbox {
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.45rem;
       color: #475569;
-      font-size: 0.95rem;
+      font-size: 0.84rem;
+      font-weight: 600;
     }
 
     .error-banner {
@@ -738,8 +760,8 @@ type QueueTableChoice = {
 
     .summary-grid {
       display: grid;
-      gap: 0.8rem;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.65rem;
+      grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
     }
 
     .arrivals-card {
@@ -835,16 +857,19 @@ type QueueTableChoice = {
 
     .stat {
       display: grid;
-      gap: 0.35rem;
+      gap: 0.18rem;
+      min-height: 92px;
+      align-content: start;
+      padding: 0.85rem 0.95rem;
     }
 
     .stat strong {
-      font-size: 1.8rem;
+      font-size: 1.35rem;
       line-height: 1;
     }
 
     .label {
-      font-size: 0.78rem;
+      font-size: 0.74rem;
       text-transform: uppercase;
       letter-spacing: 0.12em;
       color: #94a3b8;
@@ -853,14 +878,32 @@ type QueueTableChoice = {
 
     .hint {
       color: #64748b;
-      font-size: 0.92rem;
+      font-size: 0.78rem;
+      line-height: 1.3;
     }
 
     .queue-layout {
       display: grid;
-      gap: 0.9rem;
-      grid-template-columns: 332px minmax(0, 1fr) 430px;
+      gap: 0.85rem;
+      grid-template-columns: minmax(0, 1.25fr) 390px;
+      grid-template-areas:
+        "board detail"
+        "create detail";
       align-items: start;
+    }
+
+    .create-card {
+      grid-area: create;
+    }
+
+    .board-card {
+      grid-area: board;
+    }
+
+    .detail-card {
+      grid-area: detail;
+      position: sticky;
+      top: 1rem;
     }
 
     .card-head,
@@ -868,27 +911,27 @@ type QueueTableChoice = {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: 0.75rem;
-      margin-bottom: 0.8rem;
+      gap: 0.65rem;
+      margin-bottom: 0.7rem;
     }
 
     .form-grid {
       display: grid;
-      gap: 0.7rem;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.65rem;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .board-controls {
       display: grid;
-      gap: 0.7rem;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      margin-bottom: 0.85rem;
+      gap: 0.65rem;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-bottom: 0.75rem;
     }
 
     .board-summary {
       display: grid;
-      gap: 0.35rem;
-      margin-bottom: 0.9rem;
+      gap: 0.3rem;
+      margin-bottom: 0.75rem;
     }
 
     .board-summary-chips {
@@ -903,7 +946,7 @@ type QueueTableChoice = {
 
     label {
       display: grid;
-      gap: 0.4rem;
+      gap: 0.35rem;
       font-weight: 600;
       color: #334155;
     }
@@ -915,7 +958,7 @@ type QueueTableChoice = {
       border: 1px solid #dbe3ee;
       border-radius: 14px;
       background: #fff;
-      padding: 0.72rem 0.9rem;
+      padding: 0.68rem 0.82rem;
       font: inherit;
       color: #0f172a;
     }
@@ -932,9 +975,9 @@ type QueueTableChoice = {
     .card-actions,
     .action-grid {
       display: flex;
-      gap: 0.75rem;
+      gap: 0.65rem;
       flex-wrap: wrap;
-      margin-top: 0.8rem;
+      margin-top: 0.7rem;
       align-items: center;
     }
 
@@ -946,7 +989,7 @@ type QueueTableChoice = {
     .btn {
       border: 1px solid transparent;
       border-radius: 14px;
-      padding: 0.72rem 1rem;
+      padding: 0.68rem 0.92rem;
       font: inherit;
       font-weight: 700;
       cursor: pointer;
@@ -980,7 +1023,7 @@ type QueueTableChoice = {
 
     .chips {
       display: flex;
-      gap: 0.5rem;
+      gap: 0.4rem;
       flex-wrap: wrap;
       justify-content: flex-end;
     }
@@ -992,8 +1035,8 @@ type QueueTableChoice = {
       border-radius: 999px;
       background: #f1f5f9;
       color: #475569;
-      padding: 0.4rem 0.7rem;
-      font-size: 0.82rem;
+      padding: 0.34rem 0.62rem;
+      font-size: 0.76rem;
       font-weight: 700;
     }
 
@@ -1028,19 +1071,20 @@ type QueueTableChoice = {
 
     .lane-grid {
       display: grid;
-      gap: 0.8rem;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.75rem;
+      grid-template-columns: repeat(3, minmax(240px, 1fr));
+      align-items: start;
     }
 
     .lane {
       border: 1px solid #eef2f7;
       border-radius: 18px;
-      padding: 0.8rem;
+      padding: 0.72rem;
       background: #f8fafc;
-      min-height: 460px;
+      min-height: 320px;
       display: grid;
       grid-template-rows: auto 1fr;
-      gap: 0.7rem;
+      gap: 0.6rem;
     }
 
     .lane-header {
@@ -1052,14 +1096,17 @@ type QueueTableChoice = {
 
     .lane-header p {
       color: #64748b;
-      margin-top: 0.2rem;
-      font-size: 0.85rem;
+      margin-top: 0.15rem;
+      font-size: 0.8rem;
     }
 
     .lane-list {
       display: grid;
-      gap: 0.6rem;
+      gap: 0.55rem;
       align-content: start;
+      max-height: 640px;
+      overflow: auto;
+      padding-right: 0.15rem;
     }
 
     .queue-card {
@@ -1067,7 +1114,7 @@ type QueueTableChoice = {
       border: 1px solid #e2e8f0;
       border-radius: 18px;
       background: #fff;
-      padding: 0.8rem;
+      padding: 0.78rem;
       display: grid;
       gap: 0.45rem;
       cursor: pointer;
@@ -1106,7 +1153,7 @@ type QueueTableChoice = {
 
     .queue-card-subtitle {
       color: #64748b;
-      font-size: 0.78rem;
+      font-size: 0.74rem;
       font-weight: 600;
       letter-spacing: 0.04em;
       text-transform: uppercase;
@@ -1115,14 +1162,35 @@ type QueueTableChoice = {
     .queue-meta {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.35rem;
-      font-size: 0.84rem;
+      gap: 0.3rem;
+      font-size: 0.8rem;
       color: #334155;
     }
 
     .queue-meta--muted {
       color: #64748b;
-      font-size: 0.78rem;
+      font-size: 0.74rem;
+    }
+
+    .queue-stat-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.45rem;
+    }
+
+    .queue-stat-pill {
+      display: grid;
+      gap: 0.08rem;
+      border-radius: 14px;
+      background: #f8fafc;
+      border: 1px solid #edf2f7;
+      padding: 0.38rem 0.5rem;
+    }
+
+    .queue-stat-pill strong {
+      font-size: 0.82rem;
+      line-height: 1.2;
+      color: #0f172a;
     }
 
     .queue-card-action {
@@ -1153,11 +1221,11 @@ type QueueTableChoice = {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: 0.8rem;
+      gap: 0.7rem;
       border: 1px solid #e2e8f0;
       border-radius: 18px;
       background: linear-gradient(180deg, #fffaf5 0%, #ffffff 100%);
-      padding: 0.9rem 1rem;
+      padding: 0.82rem 0.92rem;
     }
 
     .decision-banner strong {
@@ -1175,8 +1243,8 @@ type QueueTableChoice = {
 
     .detail-grid {
       display: grid;
-      gap: 0.75rem;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.65rem;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .detail-chip-strip {
@@ -1225,7 +1293,7 @@ type QueueTableChoice = {
 
     .sub-panel--actions {
       display: grid;
-      gap: 0.8rem;
+      gap: 0.7rem;
       background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
     }
 
@@ -1306,13 +1374,44 @@ type QueueTableChoice = {
       font-size: 0.84rem;
     }
 
+    .table-choice-body {
+      display: grid;
+      gap: 0.42rem;
+    }
+
+    .table-choice-copy {
+      color: #475569;
+      font-size: 0.84rem;
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    .table-choice-badges {
+      justify-content: flex-start;
+    }
+
+    .table-choice-action {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.65rem;
+      margin-top: 0.1rem;
+      padding-top: 0.2rem;
+      color: #c2410c;
+      font-size: 0.84rem;
+      font-weight: 800;
+    }
+
     @media (max-width: 1440px) {
       .queue-layout {
-        grid-template-columns: 320px minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr) 360px;
+        grid-template-areas:
+          "board detail"
+          "create detail";
       }
 
       .detail-card {
-        grid-column: 1 / -1;
+        grid-column: auto;
       }
 
       .lane-grid {
@@ -1326,13 +1425,11 @@ type QueueTableChoice = {
         padding: 1rem;
       }
 
-      .summary-grid,
-      .queue-layout,
-      .lane-grid,
-      .table-list,
-      .detail-grid,
-      .form-grid,
-      .board-controls {
+      .queue-layout {
+        grid-template-areas:
+          "board"
+          "detail"
+          "create";
         grid-template-columns: 1fr;
       }
 
@@ -1344,9 +1441,52 @@ type QueueTableChoice = {
         flex-direction: column;
       }
 
+      .summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .lane-grid,
+      .table-list,
       .detail-card .action-grid,
-      .detail-grid {
+      .detail-grid,
+      .queue-stat-row {
         grid-template-columns: 1fr;
+      }
+
+      .form-grid,
+      .board-controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .detail-card {
+        position: static;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .page-header,
+      .card-head,
+      .sub-panel-head,
+      .header-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .page-header {
+        display: flex;
+      }
+
+      .form-grid,
+      .board-controls,
+      .summary-grid,
+      .detail-grid,
+      .table-list,
+      .detail-card .action-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .lane-list {
+        max-height: none;
       }
     }
   `],
@@ -1492,36 +1632,15 @@ export class QueueComponent implements OnInit {
       ).length,
   );
 
+  readyTablesForEntry(entry: GuestQueueEntry): number {
+    return this.seatingChoicesForEntry(entry).length;
+  }
+
   matchingTableChoices = computed<QueueTableChoice[]>(() => {
     const entry = this.selectedEntry();
     if (!entry || !this.canSeat(entry)) return [];
 
-    return this.tables()
-      .filter((table) => table.is_active !== false)
-      .filter((table) => (table.operational_status ?? table.status ?? 'available') === 'available')
-      .filter((table) => (entry.preferred_floor_id ? table.floor_id === entry.preferred_floor_id : true))
-      .filter((table) => (table.seat_count ?? 0) >= entry.party_size)
-      .map((table) => {
-        const seats = table.seat_count ?? entry.party_size;
-        const urgency = this.tableUrgency(table);
-        const score =
-          Math.abs(seats - entry.party_size) +
-          (entry.preferred_floor_id && table.floor_id !== entry.preferred_floor_id ? 12 : 0) +
-          (urgency === 'due' ? 50 : urgency === 'soon' ? 18 : 0);
-        return {
-          table,
-          seats,
-          seatGap: Math.max(0, seats - entry.party_size),
-          floorName: this.floorNameForTable(table),
-          preferredFloorMatch: entry.preferred_floor_id ? table.floor_id === entry.preferred_floor_id : true,
-          fitLabel: this.tableFitLabel(table, entry.party_size),
-          riskCopy: this.tableRiskCopy(table),
-          urgencyLabel: this.tableUrgencyLabel(table),
-          urgencyTone: urgency,
-          suggested: false,
-          score,
-        } satisfies QueueTableChoice;
-      })
+    return this.seatingChoicesForEntry(entry)
       .sort((a, b) => a.score - b.score || a.table.name.localeCompare(b.table.name))
       .map((choice, index) => ({ ...choice, suggested: index === 0 }));
   });
@@ -2051,6 +2170,37 @@ export class QueueComponent implements OnInit {
   floorNameForTable(table: CanvasTable): string {
     if (!table.floor_id) return 'Floor';
     return this.floors().find((floor) => floor.id === table.floor_id)?.name || 'Floor';
+  }
+
+  private seatingChoicesForEntry(entry: GuestQueueEntry): QueueTableChoice[] {
+    if (!this.canSeat(entry)) return [];
+
+    return this.tables()
+      .filter((table) => table.is_active !== false)
+      .filter((table) => (table.operational_status ?? table.status ?? 'available') === 'available')
+      .filter((table) => (entry.preferred_floor_id ? table.floor_id === entry.preferred_floor_id : true))
+      .filter((table) => (table.seat_count ?? 0) >= entry.party_size)
+      .map((table) => {
+        const seats = table.seat_count ?? entry.party_size;
+        const urgency = this.tableUrgency(table);
+        const score =
+          Math.abs(seats - entry.party_size) +
+          (entry.preferred_floor_id && table.floor_id !== entry.preferred_floor_id ? 12 : 0) +
+          (urgency === 'due' ? 50 : urgency === 'soon' ? 18 : 0);
+        return {
+          table,
+          seats,
+          seatGap: Math.max(0, seats - entry.party_size),
+          floorName: this.floorNameForTable(table),
+          preferredFloorMatch: entry.preferred_floor_id ? table.floor_id === entry.preferred_floor_id : true,
+          fitLabel: this.tableFitLabel(table, entry.party_size),
+          riskCopy: this.tableRiskCopy(table),
+          urgencyLabel: this.tableUrgencyLabel(table),
+          urgencyTone: urgency,
+          suggested: false,
+          score,
+        } satisfies QueueTableChoice;
+      });
   }
 
   private tableUrgency(table: CanvasTable): 'clear' | 'soon' | 'due' {

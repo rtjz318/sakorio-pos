@@ -960,3 +960,30 @@ This means the selected-guest rail now exposes:
 - what the host should do next
 
 without forcing extra scrolling before the seat / convert actions.
+
+### Queue hosted density cleanup stop point on 2026-07-14
+
+The next hosted Sakorio `/queue` polish slice has now started inside:
+
+- `front/src/app/queue/queue.component.ts`
+
+Completed in this pass:
+
+- tightened the top host-stand header into a denser two-column layout
+- reduced the vertical weight of summary cards so the queue page stops stacking into oversized tiles on the hosted operator viewport
+- preserved two-column summary behavior through the medium-width Sakorio layout instead of collapsing too early
+- shortened top-of-page copy in:
+  - host stand header
+  - new walk-in card
+  - live board card
+- upgraded seating recommendation cards so each option now reads as:
+  - table identity
+  - fit summary
+  - risk / urgency badge
+  - explicit "Seat guest here" action row
+
+This means the next live hosted QA should focus on:
+
+1. whether `/queue` now feels dense enough inside the real Sakorio staff viewport
+2. whether the seating-choice cards are easier to scan under pressure
+3. whether the next remaining queue issue is now true product flow, not just spacing

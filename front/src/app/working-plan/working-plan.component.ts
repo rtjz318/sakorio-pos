@@ -239,6 +239,29 @@ function isValidView(v: string | null): v is ViewMode {
         <p class="export-hint export-hint-muted">{{ 'WORKING_PLAN.EXPORT_NO_STAFF_HINT' | translate }}</p>
       }
 
+      <section class="timetable-control-strip" data-testid="timetable-control-strip">
+        <article class="timetable-control-card timetable-control-card--scope">
+          <span>Timetable scope</span>
+          <strong>{{ timetableScopeLabel() }}</strong>
+          <small>{{ viewMode() === 'calendar' ? 'Monthly roster planning' : 'Weekly service planning' }}</small>
+        </article>
+        <article class="timetable-control-card">
+          <span>Scheduled shifts</span>
+          <strong>{{ shifts().length }}</strong>
+          <small>{{ formatMinutes(totalPlannedMinutes()) }} planned</small>
+        </article>
+        <article class="timetable-control-card" [class.timetable-control-card--attention]="unscheduledRosterCount() > 0">
+          <span>Unscheduled staff</span>
+          <strong>{{ unscheduledRosterCount() }}</strong>
+          <small>{{ unscheduledRosterCount() ? 'Tap Schedule or drag into the calendar' : 'Every visible staff member has coverage' }}</small>
+        </article>
+        <article class="timetable-control-card" [class.timetable-control-card--danger]="complianceWarnings().length > 0">
+          <span>Coverage status</span>
+          <strong>{{ coverageStatusLabel() }}</strong>
+          <small>{{ complianceWarnings().length ? 'Review warnings before service' : 'Opening-hours requirements are covered' }}</small>
+        </article>
+      </section>
+
       @if (scheduleUsers().length) {
         <section class="timetable-command-grid" data-testid="timetable-command-grid">
           <article class="timetable-roster-panel">
@@ -777,6 +800,50 @@ function isValidView(v: string | null): v is ViewMode {
     .export-worker-select { min-width: 10rem; max-width: 14rem; padding: 0.35rem 0.5rem; border: 1px solid var(--border-color, #ccc); border-radius: 6px; font-size: 0.875rem; }
     .export-hint { font-size: 0.75rem; color: var(--text-muted, #666); margin: 0 0 1rem 0; }
     .export-hint-muted { font-style: italic; }
+    .timetable-control-strip {
+      display: grid;
+      grid-template-columns: minmax(15rem, 1.2fr) repeat(3, minmax(10rem, 1fr));
+      gap: 0.75rem;
+      margin: 0 0 1rem 0;
+    }
+    .timetable-control-card {
+      min-width: 0;
+      padding: 0.9rem 1rem;
+      border: 1px solid rgba(15, 118, 110, 0.16);
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(240, 253, 250, 0.92), rgba(255, 255, 255, 0.96));
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.045);
+    }
+    .timetable-control-card span {
+      display: block;
+      color: var(--text-muted, #666);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .timetable-control-card strong {
+      display: block;
+      margin: 0.22rem 0 0.18rem;
+      font-size: 1.22rem;
+      line-height: 1.1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .timetable-control-card small { color: var(--text-muted, #666); line-height: 1.35; }
+    .timetable-control-card--scope {
+      border-color: rgba(37, 99, 235, 0.18);
+      background: linear-gradient(135deg, rgba(239, 246, 255, 0.95), rgba(255, 255, 255, 0.96));
+    }
+    .timetable-control-card--attention {
+      border-color: rgba(217, 119, 6, 0.28);
+      background: linear-gradient(135deg, rgba(255, 251, 235, 0.95), rgba(255, 255, 255, 0.96));
+    }
+    .timetable-control-card--danger {
+      border-color: rgba(220, 38, 38, 0.28);
+      background: linear-gradient(135deg, rgba(254, 242, 242, 0.95), rgba(255, 255, 255, 0.96));
+    }
     .timetable-command-grid {
       display: grid;
       grid-template-columns: minmax(20rem, 1.25fr) minmax(18rem, 0.9fr);
@@ -858,7 +925,11 @@ function isValidView(v: string | null): v is ViewMode {
     .leave-balance-card small { display: block; color: var(--text-muted, #666); line-height: 1.4; }
     .leave-balance-card--ready { background: rgba(236, 253, 245, 0.85); }
     @media (max-width: 1050px) {
+      .timetable-control-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .timetable-command-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 620px) {
+      .timetable-control-strip { grid-template-columns: 1fr; }
     }
     .staff-readiness-panel {
       display: grid;
@@ -1259,6 +1330,26 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
         (a.user.full_name || a.user.email).localeCompare(b.user.full_name || b.user.email),
       );
   });
+
+  totalPlannedMinutes = computed(() =>
+    this.shifts().reduce(
+      (total, shift) => total + this.shiftDurationMinutes(shift.start_time, shift.end_time),
+      0,
+    ),
+  );
+
+  unscheduledRosterCount = computed(() =>
+    this.timetableRosterRows().filter((row) => row.shiftCount === 0).length,
+  );
+
+  coverageStatusLabel = computed(() => {
+    const warningCount = this.complianceWarnings().length;
+    return warningCount ? `${warningCount} warning${warningCount === 1 ? '' : 's'}` : 'Clear';
+  });
+
+  timetableScopeLabel = computed(() =>
+    this.viewMode() === 'calendar' ? this.calendarMonthLabel() : this.weekLabel(),
+  );
 
   /** Time options for bulk apply (Monday opening hours as template, or full day). */
   timeOptsForBulk(): string[] {

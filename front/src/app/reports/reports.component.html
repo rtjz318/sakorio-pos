@@ -55,6 +55,31 @@
   @if (loading() && !report()) {
     <div class="loading-state">{{ 'REPORTS.LOADING' | translate }}</div>
   } @else if (report(); as r) {
+    <section class="manager-handover-strip" data-testid="reports-manager-handover">
+      <article class="handover-card handover-card--range">
+        <span>Report range</span>
+        <strong>{{ fromDate() }} - {{ toDate() }}</strong>
+        <small>Use presets for fast daily, weekly or monthly checks.</small>
+      </article>
+      <article class="handover-card">
+        <span>Collected</span>
+        <strong>{{ formatCurrency(r.summary.total_collected_cents ?? r.summary.total_revenue_cents) }}</strong>
+        <small>{{ r.by_payment_method.length || 0 }} payment method{{ r.by_payment_method.length === 1 ? '' : 's' }}</small>
+      </article>
+      <article class="handover-card">
+        <span>Average ticket</span>
+        <strong>{{ formatCurrency(r.summary.average_revenue_per_order_cents) }}</strong>
+        <small>{{ r.summary.total_orders }} order{{ r.summary.total_orders === 1 ? '' : 's' }} in this range</small>
+      </article>
+      @if (canViewAttendance()) {
+        <article class="handover-card" [class.handover-card--attention]="attendancePayrollTotals().openSessions || attendancePayrollTotals().missingPhotos">
+          <span>Attendance audit</span>
+          <strong>{{ attendancePayrollTotals().openSessions }} open</strong>
+          <small>{{ attendancePayrollTotals().missingPhotos }} missing photo{{ attendancePayrollTotals().missingPhotos === 1 ? '' : 's' }}</small>
+        </article>
+      }
+    </section>
+
     <!-- Summary cards (always shown: revenue, orders, reservations) -->
     <section class="report-section summary-section">
         <h2>{{ 'REPORTS.SUMMARY' | translate }}</h2>

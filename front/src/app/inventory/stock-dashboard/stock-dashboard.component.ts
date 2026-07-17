@@ -47,6 +47,24 @@ import { TranslateModule } from '@ngx-translate/core';
           </div>
         </div>
 
+        <section class="inventory-ops-strip" data-testid="inventory-ops-strip">
+          <article class="inventory-ops-card" [class.inventory-ops-card--warning]="lowStockCount() > 0">
+            <span>Stock action</span>
+            <strong>{{ lowStockCount() ? lowStockCount() + ' item(s) need reorder' : 'Stock levels healthy' }}</strong>
+            <small>{{ lowStockCount() ? 'Create purchase orders before service stock-out.' : 'No low-stock alerts in the current dashboard.' }}</small>
+          </article>
+          <article class="inventory-ops-card">
+            <span>Current view</span>
+            <strong>{{ filteredStockLevels().length }} item{{ filteredStockLevels().length === 1 ? '' : 's' }}</strong>
+            <small>{{ categoryFilter ? 'Filtered category selected' : 'Showing all inventory categories' }}</small>
+          </article>
+          <nav class="inventory-quick-actions" aria-label="Inventory quick actions">
+            <a routerLink="/inventory/items" class="btn btn-secondary btn-sm">Manage items</a>
+            <a routerLink="/inventory/purchase-orders" class="btn btn-primary btn-sm">Create PO</a>
+            <a routerLink="/inventory/suppliers" class="btn btn-secondary btn-sm">Suppliers</a>
+          </nav>
+        </section>
+
         <!-- Low Stock Alerts -->
         @if (lowStockItems().length > 0) {
           <div class="section">

@@ -1,8 +1,12 @@
+import hashlib
+import hmac
+import json
 import unittest
 from unittest.mock import patch
 
 import requests
 from pg_client_mixin import PgClientTestCase
+from sqlmodel import select
 
 from app import main, models
 
@@ -18,6 +22,7 @@ class TestPaymentSecurity(PgClientTestCase):
             currency_code="SGD",
             currency="$",
             hitpay_api_key="hitpay_test_key",
+            hitpay_webhook_salt="hitpay_webhook_salt",
             hitpay_mode="sandbox",
         )
         self.session.add(self.tenant)
@@ -206,6 +211,56 @@ class TestPaymentSecurity(PgClientTestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "paid")
+
+    def test_hitpay_webhook_replay_is_idempotent(self):
+        order_id = self._create_order_with_hitpay_request()
+        payload = {
+            "id": "hp_req_123",
+            "status": "completed",
+            "amount": "100.00",
+            "currency": "SGD",
+            "reference_number": f"pos-order-{order_id}",
+        }
+        raw_body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        signature = hmac.new(
+            b"hitpay_webhook_salt", raw_body, hashlib.sha256
+        ).hexdigest()
+        headers = {
+            "Content-Type": "application/json",
+            "Hitpay-Signature": signature,
+            "Hitpay-Event-Type": "payment_request.completed",
+            "Hitpay-Event-Object": "payment_request",
+        }
+
+        first = self.client.post(
+            "/payments/hitpay/webhook",
+            content=raw_body,
+            headers=headers,
+        )
+        second = self.client.post(
+            "/payments/hitpay/webhook",
+            content=raw_body,
+            headers=headers,
+        )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(first.json()["status"], "paid")
+        self.assertEqual(second.json()["status"], "paid")
+
+        self.session.expire_all()
+        order = self.session.get(models.Order, order_id)
+        self.assertIsNotNone(order)
+        self.assertEqual(order.status, models.OrderStatus.paid)
+        self.assertEqual(order.payment_method, "hitpay")
+
+        jobs = self.session.exec(
+            select(models.PrintJob).where(models.PrintJob.order_id == order_id)
+        ).all()
+        customer_receipts = [
+            job for job in jobs if job.job_type == "customer_receipt"
+        ]
+        self.assertEqual(len(customer_receipts), 1)
 
     def test_public_menu_order_history_does_not_expose_previous_diners(self):
         old_order = models.Order(

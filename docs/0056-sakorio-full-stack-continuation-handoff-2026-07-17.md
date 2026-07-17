@@ -349,6 +349,7 @@ Hosted browser verification after Render deployed `c85618d8`:
 - Kitchen received the paid QR/POS tickets once each with table/order context and HitPay provider references.
 - Reports separated HitPay from Terminal and Cash after the sandbox settlements.
 - Render API logs showed no fresh payment 500/traceback after the fix; the only visible log errors during the check were unrelated missing demo product image uploads returning 404.
+- `test_hitpay_webhook_replay_is_idempotent` now covers duplicate signed webhook replay and asserts only one customer receipt job is queued.
 
 The original failure is no longer the blocker. Keep the remaining payment acceptance notes below for idempotency, failure-mode, and production-account readiness.
 
@@ -356,9 +357,8 @@ Next developer actions:
 
 1. Keep provider status/error logging sanitized; never log keys or salts.
 2. Re-test failed/cancelled HitPay checkout recovery from public QR and POS.
-3. Verify webhook idempotency by replaying or triggering duplicate sandbox webhook payloads against `/payments/hitpay/webhook`.
-4. Confirm customer receipt print job behavior for HitPay after a printer agent is available.
-5. Before production, swap to production HitPay credentials/base URL only in Render environment variables and repeat the end-to-end checkout with a low-value live transaction.
+3. Confirm customer receipt print job delivery for HitPay after a printer agent is available.
+4. Before production, swap to production HitPay credentials/base URL only in Render environment variables and repeat the end-to-end checkout with a low-value live transaction.
 
 Relevant endpoints include:
 
@@ -366,7 +366,7 @@ Relevant endpoints include:
 - `POST /orders/{order_id}/confirm-hitpay-payment`
 - `POST /payments/hitpay/webhook`
 
-Do not mark online payments fully production-accepted until duplicate webhook/idempotency and printer receipt behavior are validated. Hosted sandbox checkout and redirect reconciliation have passed for both public QR and cashier POS.
+Do not mark online payments fully production-accepted until failed/cancelled recovery and printer receipt delivery are validated. Hosted sandbox checkout, redirect reconciliation, reports separation, and duplicate webhook idempotency coverage have passed for both public QR and cashier POS where applicable.
 
 ### P0: Physical printing has not been accepted
 

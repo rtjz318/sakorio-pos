@@ -22,6 +22,13 @@ Local verification before deploy:
 - `docker compose -f docker-compose.yml -f docker-compose.dev.yml exec back python -m pytest -q tests/test_payment_security.py tests/test_cashier_order_lifecycle.py`
 - Result: `10 passed, 1 warning`
 
+Follow-up hardening after hosted QA:
+
+- Added `test_hitpay_webhook_replay_is_idempotent` to verify that duplicate signed HitPay webhooks keep the order paid but queue only one customer receipt.
+- Re-ran the focused suite:
+  - `docker compose -f docker-compose.yml -f docker-compose.dev.yml exec back python -m pytest -q tests/test_payment_security.py tests/test_cashier_order_lifecycle.py`
+  - Result: `11 passed, 1 warning`
+
 Hosted verification after Render deployed `c85618d8`:
 
 - Render API service showed `Deploy live for c85618d: Fix rate-limited payment endpoints`.
@@ -94,8 +101,7 @@ Render logs:
 
 HitPay is now usable in sandbox from both public QR and POS, but the following should still be completed before production acceptance:
 
-1. Replay or trigger duplicate sandbox webhooks to prove `/payments/hitpay/webhook` is idempotent.
-2. Test cancelled/failed HitPay checkout recovery from both public QR and POS.
-3. Verify HitPay customer receipt print jobs once a printer agent or physical printer is available.
-4. Repeat with production HitPay credentials/base URL in Render environment variables before real launch.
-5. Clean up or replace missing hosted demo product images that currently generate `/uploads/1/products/...` 404s.
+1. Test cancelled/failed HitPay checkout recovery from both public QR and POS.
+2. Verify HitPay customer receipt print jobs with a printer agent or physical printer.
+3. Repeat with production HitPay credentials/base URL in Render environment variables before real launch.
+4. Clean up or replace missing hosted demo product images that currently generate `/uploads/1/products/...` 404s.

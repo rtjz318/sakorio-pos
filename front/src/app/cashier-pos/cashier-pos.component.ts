@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, HostListener, computed, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, HostListener, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -128,7 +128,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
         </section>
 
         <div class="cashier-grid" [class.cashier-grid--workspace-open]="tableWorkspaceOpen()">
-          <section class="lane lane--tables">
+          <section class="lane lane--tables" id="cashier-floor">
             <div class="lane-header">
               <div>
                 <p class="eyebrow">Tables</p>
@@ -4475,7 +4475,6 @@ export class CashierPosComponent {
   private focusNextClearTableAfterReload = false;
   private preferredReadyTableIdAfterReload: number | null = null;
   private scrollTargetAfterReload: 'catalog' | 'payment' | null = null;
-  private defaultFocusHandle: number | null = null;
   private processedHitPayReturnKey: string | null = null;
   private brokenProductImageKeys = signal<Record<string, true>>({});
 
@@ -4518,9 +4517,7 @@ export class CashierPosComponent {
   };
 
   activeTables = computed(() => this.tables().filter((table) => !!table.is_active));
-  readyTables = computed(() => this.sortedTables().filter((table) => this.isReadyForCashier(table)));
   availableTargetTables = computed(() => this.sortedTables().filter((table) => this.canStartCashierBill(table)));
-  occupiedTicketTables = computed(() => this.sortedTables().filter((table) => this.tableHasOpenService(table)));
   openOrders = computed(() =>
     this.orders().filter((order) => !this.isClosedOrder(order) && !this.isPaid(order)),
   );
@@ -5095,6 +5092,7 @@ export class CashierPosComponent {
       if (hasExplicitSelection) {
         this.selectedTableId.set(normalizedTableId);
         this.selectedOrderId.set(normalizedOrderId);
+        this.tableWorkspaceOpen.set(true);
       } else if (this.loading()) {
         this.selectedTableId.set(null);
         this.selectedOrderId.set(null);
@@ -5103,18 +5101,7 @@ export class CashierPosComponent {
       if (!this.loading()) {
         if (hasExplicitSelection) {
           this.applyFocusFromQuery();
-        } else if (!this.selectedTable()) {
-          this.scheduleDefaultTableFocus();
         }
-      }
-    });
-
-    effect(() => {
-      if (this.loading()) return;
-      if (this.selectedTable()) return;
-      const preferred = this.resolvePreferredTableForFocus();
-      if (preferred) {
-        this.selectTable(preferred);
       }
     });
 
@@ -5232,9 +5219,9 @@ export class CashierPosComponent {
           this.focusReadyTableAfterReload();
           return;
         }
-        this.hydrateDefaultTableSelection();
-        this.applyFocusFromQuery();
-        this.scheduleDefaultTableFocus();
+        if (this.routeHasExplicitSelection()) {
+          this.applyFocusFromQuery();
+        }
         void this.processHitPayReturnFromQuery();
       },
       error: (err) => {
@@ -5259,9 +5246,19 @@ export class CashierPosComponent {
   }
 
   closeTableWorkspace(): void {
+    if (this.cartItemCount() > 0) {
+      const tableName = this.cartBoundTable()?.name || this.selectedTable()?.name || 'this table';
+      this.notice.set(`Finish or clear ${tableName}'s current ticket before returning to the floor.`);
+      this.scrollToPaymentDock();
+      return;
+    }
     this.tableWorkspaceOpen.set(false);
     this.productQuestionDialogProduct.set(null);
     this.productQuestionAnswers.set({});
+    this.tableHistoryExpanded.set(false);
+    this.selectedTableId.set(null);
+    this.selectedOrderId.set(null);
+    this.syncSelectionToQuery(null, null);
   }
 
   selectTableById(rawValue: string | number | null): void {
@@ -5270,9 +5267,6 @@ export class CashierPosComponent {
       this.selectedTableId.set(null);
       this.selectedOrderId.set(null);
       this.syncSelectionToQuery(null, null);
-      if (this.tables().length > 0) {
-        this.focusBestReadyTable();
-      }
       return;
     }
 
@@ -5876,21 +5870,10 @@ export class CashierPosComponent {
     customizationAnswers?: Record<string, string | number | string[]>,
   ): void {
     let table = this.selectedTable();
-    let autoSelectedTable = false;
     if (!table?.id) {
-      const preferredTable =
-        this.availableTargetTables()[0] ||
-        this.readyTables()[0] ||
-        this.sortedTables().find((candidate) => !!candidate.id) ||
-        null;
-      if (!preferredTable?.id) {
-        this.error.set('No table is ready yet. Create or activate a table before adding items.');
-        return;
-      }
-      this.selectTable(preferredTable);
-      table = preferredTable;
-      autoSelectedTable = true;
-      this.notice.set(`${preferredTable.name} was selected automatically so you can keep ordering.`);
+      this.error.set('Select a table from the floor before adding menu items.');
+      this.notice.set(null);
+      return;
     }
 
     const cartTableId = this.cartTableId();
@@ -5900,9 +5883,7 @@ export class CashierPosComponent {
     }
 
     this.error.set(null);
-    if (!autoSelectedTable) {
-      this.notice.set(null);
-    }
+    this.notice.set(null);
 
     if (cartTableId == null) {
       this.cartTableId.set(table.id!);
@@ -6051,10 +6032,7 @@ export class CashierPosComponent {
       return true;
     }
 
-    if (!this.selectedTable()) {
-      return this.hasReadyTableForNewCart();
-    }
-    return true;
+    return !!this.selectedTable();
   }
 
   hasReadyTableForNewCart(): boolean {
@@ -6068,7 +6046,7 @@ export class CashierPosComponent {
   }
 
   effectiveCheckoutTable(): CanvasTable | null {
-    return this.cartBoundTable() || this.selectedTable() || this.resolvePreferredTableForFocus();
+    return this.cartBoundTable() || this.selectedTable();
   }
 
   effectiveCheckoutTableHasLiveBill(): boolean {
@@ -6434,6 +6412,7 @@ export class CashierPosComponent {
       return;
     }
 
+    this.tableWorkspaceOpen.set(true);
     this.selectTable(candidate);
     this.notice.set(`${candidate.name} is ready for the next order.`);
     this.scrollToCatalog();
@@ -6461,23 +6440,24 @@ export class CashierPosComponent {
     const preferredId = this.preferredReadyTableIdAfterReload;
     this.preferredReadyTableIdAfterReload = null;
 
+    const scrollTarget = this.scrollTargetAfterReload;
+    this.scrollTargetAfterReload = null;
+    this.tableWorkspaceOpen.set(false);
+    this.selectedTableId.set(null);
+    this.selectedOrderId.set(null);
+    this.syncSelectionToQuery(null, null);
+
     if (preferredId != null) {
       const preferredTable = this.tables().find((table) => table.id === preferredId) ?? null;
       if (preferredTable) {
-        this.selectTable(preferredTable);
-      } else {
-        this.focusBestReadyTable();
+        const existingNotice = this.notice();
+        const nextTableHint = `${preferredTable.name} is ready for the next order.`;
+        this.notice.set(existingNotice ? `${existingNotice} ${nextTableHint}` : nextTableHint);
       }
-    } else {
-      this.focusBestReadyTable();
     }
 
-    const scrollTarget = this.scrollTargetAfterReload;
-    this.scrollTargetAfterReload = null;
-    if (scrollTarget === 'payment') {
-      this.scrollToPaymentDock();
-    } else if (scrollTarget === 'catalog') {
-      this.scrollToCatalog();
+    if (scrollTarget === 'payment' || scrollTarget === 'catalog') {
+      this.scrollToElement('cashier-floor');
     }
   }
 
@@ -6929,48 +6909,9 @@ export class CashierPosComponent {
       }
     }
 
-    if (!this.selectedTable() && this.sortedTables().length > 0) {
-      this.focusBestReadyTable();
-    }
-  }
-
-  private hydrateDefaultTableSelection(): void {
-    if (this.selectedTable()) {
-      return;
-    }
-
-    const preferredTable = this.resolvePreferredTableForFocus();
-    if (!preferredTable?.id) {
-      return;
-    }
-
-    this.selectedTableId.set(preferredTable.id);
-    const linkedOrder = this.tableCurrentOrder(preferredTable);
-    this.selectedOrderId.set(linkedOrder?.id ?? null);
-  }
-
-  private resolvePreferredTableForFocus(): CanvasTable | null {
-    return (
-      this.sortedTables().find((table) => table.is_active && !table.active_order_id) ||
-      this.sortedTables().find((table) => this.getTableState(table) === 'available') ||
-      this.occupiedTicketTables()[0] ||
-      this.sortedTables().find((table) => table.is_active) ||
-      this.sortedTables()[0] ||
-      null
-    );
-  }
-
-  private focusBestReadyTable(): void {
-    const preferredTable = this.resolvePreferredTableForFocus();
-
-    if (preferredTable) {
-      this.selectedTableId.set(preferredTable.id ?? null);
-      const linkedOrder = this.tableCurrentOrder(preferredTable);
-      this.selectedOrderId.set(linkedOrder?.id ?? null);
-    } else {
-      this.selectedTableId.set(null);
-      this.selectedOrderId.set(null);
-    }
+    this.selectedTableId.set(null);
+    this.selectedOrderId.set(null);
+    this.tableWorkspaceOpen.set(false);
   }
 
   private tableCurrentOrder(table: CanvasTable): Order | null {
@@ -6997,18 +6938,13 @@ export class CashierPosComponent {
     );
   }
 
-  private scheduleDefaultTableFocus(): void {
-    if (typeof window === 'undefined') return;
-    if (this.defaultFocusHandle != null) {
-      window.clearTimeout(this.defaultFocusHandle);
-    }
-
-    this.defaultFocusHandle = window.setTimeout(() => {
-      this.defaultFocusHandle = null;
-      if (!this.selectedTable()) {
-        this.focusBestReadyTable();
-      }
-    }, 80);
+  private routeHasExplicitSelection(): boolean {
+    const tableId = Number(this.route.snapshot.queryParamMap.get('tableId'));
+    const orderId = Number(this.route.snapshot.queryParamMap.get('orderId'));
+    return (
+      (Number.isFinite(tableId) && tableId > 0) ||
+      (Number.isFinite(orderId) && orderId > 0)
+    );
   }
 
   private syncSelectionToQuery(tableId: number | null, orderId: number | null): void {

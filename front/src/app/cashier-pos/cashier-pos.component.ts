@@ -127,10 +127,6 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
           </article>
         </section>
 
-        @if (tableWorkspaceOpen()) {
-          <div class="pos-workspace-backdrop" (click)="closeTableWorkspace()"></div>
-        }
-
         <div class="cashier-grid" [class.cashier-grid--workspace-open]="tableWorkspaceOpen()">
           <section class="lane lane--tables">
             <div class="lane-header">
@@ -1187,14 +1183,6 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       min-height: calc(100vh - 11.5rem);
     }
 
-    .pos-workspace-backdrop {
-      position: fixed;
-      inset: 0;
-      z-index: 70;
-      background: rgba(15, 23, 42, 0.46);
-      backdrop-filter: blur(3px);
-    }
-
     .lane,
     .queue-panel {
       padding: 0.82rem;
@@ -1222,30 +1210,32 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       gap: 0.72rem;
     }
 
+    .cashier-grid--workspace-open {
+      grid-template-columns: minmax(0, 1fr) minmax(24rem, 31.5rem);
+      gap: 0.92rem;
+    }
+
+    .cashier-grid--workspace-open .lane--tables {
+      display: none;
+    }
+
     .cashier-grid--workspace-open .lane--catalog,
     .cashier-grid--workspace-open .lane--checkout {
       display: flex;
-      position: fixed;
-      z-index: 80;
-      top: clamp(1rem, 3vh, 2rem);
-      bottom: clamp(1rem, 3vh, 2rem);
-      max-height: none;
+      position: static;
+      min-width: 0;
       overflow: auto;
-      box-shadow: 0 24px 72px rgba(15, 23, 42, 0.24);
     }
 
     .cashier-grid--workspace-open .lane--catalog {
-      left: clamp(1rem, 3vw, 2rem);
-      right: min(34rem, 34vw);
-      border-top-right-radius: 0;
-      border-bottom-right-radius: 0;
+      min-height: calc(100vh - 12rem);
     }
 
     .cashier-grid--workspace-open .lane--checkout {
-      right: clamp(1rem, 3vw, 2rem);
-      width: min(31.5rem, calc(100vw - 2rem));
-      border-top-left-radius: 0;
-      border-bottom-left-radius: 0;
+      position: sticky;
+      top: 0.9rem;
+      align-self: start;
+      max-height: calc(100vh - 1.8rem);
     }
 
     .lane-header,
@@ -4106,6 +4096,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
         grid-template-columns: minmax(0, 1fr);
       }
 
+      .cashier-grid--workspace-open {
+        grid-template-columns: minmax(0, 1fr) minmax(22rem, 29rem);
+      }
+
       .catalog-toolbar {
         grid-template-columns: minmax(0, 1fr) minmax(220px, 0.72fr);
       }
@@ -4126,10 +4120,20 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
         grid-template-columns: 1fr;
       }
 
+      .cashier-grid--workspace-open {
+        grid-template-columns: minmax(0, 1fr) minmax(21rem, 26rem);
+      }
+
       .lane--tables,
       .lane--checkout {
         position: static;
         max-height: none;
+      }
+
+      .cashier-grid--workspace-open .lane--checkout {
+        position: sticky;
+        top: 0.75rem;
+        max-height: calc(100vh - 1.5rem);
       }
 
       .table-stack {
@@ -4146,22 +4150,14 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     @media (max-width: 920px) {
+      .cashier-grid--workspace-open {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
       .cashier-grid--workspace-open .lane--catalog,
       .cashier-grid--workspace-open .lane--checkout {
-        left: 0.7rem;
-        right: 0.7rem;
-        width: auto;
-        border-radius: var(--radius-xl);
-      }
-
-      .cashier-grid--workspace-open .lane--catalog {
-        top: 0.7rem;
-        bottom: 39vh;
-      }
-
-      .cashier-grid--workspace-open .lane--checkout {
-        top: 63vh;
-        bottom: 0.7rem;
+        position: static;
+        max-height: none;
       }
 
       .workspace-header-actions {

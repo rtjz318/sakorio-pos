@@ -983,6 +983,34 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                   </div>
                 </header>
 
+                <section class="pos-service-loop" aria-label="Selected table service loop">
+                  <div class="pos-service-loop-copy">
+                    <span class="pos-service-eyebrow">Service loop</span>
+                    <strong>{{ posNextStepCopy(serviceTable) }}</strong>
+                    <small>{{ posLoopSupportCopy(serviceTable) }}</small>
+                  </div>
+                  <div class="pos-service-loop-metrics">
+                    <span class="muted-pill">{{ posCurrentTicketsCopy() }}</span>
+                    <span class="muted-pill">{{ posCartStateCopy() }}</span>
+                    <span class="muted-pill muted-pill--accent">{{ checkoutSummaryTotalCopy() }}</span>
+                  </div>
+                  <div class="pos-service-loop-actions">
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="closeTableWorkspace()">Back to tables</button>
+                    <button type="button" class="btn btn-secondary btn-sm" (click)="setPosDrawerView('orders')">
+                      Current orders
+                    </button>
+                    @if (canClearTable(serviceTable)) {
+                      <button type="button" class="btn btn-primary btn-sm" (click)="clearTable(serviceTable)" [disabled]="pendingTableId() === serviceTable.id">
+                        {{ pendingTableId() === serviceTable.id ? 'Clearing...' : 'Clear table' }}
+                      </button>
+                    } @else if (hasCheckoutWork()) {
+                      <button type="button" class="btn btn-primary btn-sm" (click)="setPosDrawerView('checkout')">Checkout</button>
+                    } @else {
+                      <button type="button" class="btn btn-primary btn-sm" (click)="setPosDrawerView('menu')">Add items</button>
+                    }
+                  </div>
+                </section>
+
                 <nav class="pos-service-tabs" aria-label="POS table views">
                   <button type="button" [class.active]="posDrawerView() === 'menu'" (click)="setPosDrawerView('menu')">
                     Add items
@@ -1672,6 +1700,15 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
     .service-status--live {
       background: color-mix(in srgb, var(--color-primary-light) 34%, white);
       color: var(--color-primary-strong);
+    }
+
+    .pos-service-loop {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(17rem, 0.85fr) auto;
+      gap: 0.75rem;
+      align-items: center;
+      padding: 0.72rem 0.9rem;
+      border-bottom: 1px solid color-mix(in srgb, var(--color-border) 76%, white);
     }
 
     .pos-service-close {
@@ -4734,6 +4771,12 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
         padding: 0.86rem 0.9rem 0.72rem;
       }
 
+      .pos-service-loop {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+        padding: 0.72rem 0.75rem;
+      }
+
       .pos-service-tabs {
         padding: 0.62rem 0.75rem;
       }
@@ -5664,6 +5707,58 @@ export class CashierPosComponent {
       return 'Orders';
     }
     return `Orders (${count})`;
+  }
+
+  posCurrentTicketsCopy(): string {
+    const count = this.posCurrentSessionOrders().length;
+    if (count <= 0) {
+      return 'No tickets yet';
+    }
+    return `${count} current ticket${count === 1 ? '' : 's'}`;
+  }
+
+  posCartStateCopy(): string {
+    const cartCount = this.cartItemCount();
+    if (cartCount > 0) {
+      return `${cartCount} in cart`;
+    }
+
+    const liveBill = this.payableLiveBillOrder();
+    if (liveBill) {
+      return `Bill #${liveBill.id} payable`;
+    }
+
+    if (this.canClearTable(this.effectiveCheckoutTable())) {
+      return 'Paid - clear next';
+    }
+
+    return 'Ready for items';
+  }
+
+  posNextStepCopy(table: CanvasTable): string {
+    if (this.canClearTable(table)) {
+      return 'Payment received - clear the table';
+    }
+    if (this.hasCheckoutWork()) {
+      return 'Collect payment or add more items';
+    }
+    if (this.posCurrentSessionOrders().length > 0) {
+      return 'Review current tickets or add another round';
+    }
+    return 'Start this table order';
+  }
+
+  posLoopSupportCopy(table: CanvasTable): string {
+    if (this.canClearTable(table)) {
+      return `${table.name} is settled. Clear it to move this visit into History.`;
+    }
+    if (this.hasCheckoutWork()) {
+      return `${this.checkoutSummaryTableCopy()} · ${this.checkoutSummaryItemsCopy()} · ${this.checkoutSummaryTotalCopy()}`;
+    }
+    if (this.posCurrentSessionOrders().length > 0) {
+      return 'Current-session tickets stay here until the table is cleared.';
+    }
+    return 'Choose items, review the cart, then checkout without leaving this table drawer.';
   }
 
   queueGroupSummaryLabel(group: PosQueueOrderGroup): string {

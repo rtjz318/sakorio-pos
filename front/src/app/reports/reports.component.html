@@ -80,8 +80,18 @@
       }
     </section>
 
+    <nav class="report-jump-nav" aria-label="Report sections">
+      <a href="#reports-summary">Summary</a>
+      <a href="#reports-products">Products</a>
+      <a href="#reports-categories">Categories</a>
+      <a href="#reports-tables">Tables</a>
+      @if (canViewAttendance()) {
+        <a href="#reports-attendance">Attendance</a>
+      }
+    </nav>
+
     <!-- Summary cards (always shown: revenue, orders, reservations) -->
-    <section class="report-section summary-section">
+    <section class="report-section summary-section" id="reports-summary">
         <h2>{{ 'REPORTS.SUMMARY' | translate }}</h2>
         <div class="summary-cards">
           <div class="summary-card revenue">
@@ -352,7 +362,7 @@
 
       @if (r.summary.total_orders > 0) {
       <!-- By product -->
-      <section class="report-section" data-testid="reports-by-product">
+      <section class="report-section" id="reports-products" data-testid="reports-by-product">
         <h2>{{ 'REPORTS.BY_PRODUCT' | translate }}</h2>
         <div class="data-table-wrap">
           <table class="data-table">
@@ -392,7 +402,7 @@
       </section>
 
       <!-- By category -->
-      <section class="report-section">
+      <section class="report-section" id="reports-categories">
         <h2>{{ 'REPORTS.BY_CATEGORY' | translate }}</h2>
         <div class="data-table-wrap">
           <table class="data-table">
@@ -432,7 +442,7 @@
       </section>
 
       <!-- By table -->
-      <section class="report-section">
+      <section class="report-section" id="reports-tables">
         <h2>{{ 'REPORTS.BY_TABLE' | translate }}</h2>
         <div class="data-table-wrap">
           <table class="data-table">
@@ -515,7 +525,7 @@
     }
 
     @if (canViewAttendance()) {
-      <section class="report-section" data-testid="reports-attendance-excel">
+      <section class="report-section" id="reports-attendance" data-testid="reports-attendance-excel">
         <h2>{{ 'REPORTS.ATTENDANCE_EXCEL_TITLE' | translate }}</h2>
         <p class="muted work-sessions-hint">{{ 'REPORTS.ATTENDANCE_EXCEL_HINT' | translate }}</p>
         <p class="muted work-sessions-hint">{{ 'REPORTS.ATTENDANCE_REGISTRO_HORARIO_HINT' | translate }}</p>

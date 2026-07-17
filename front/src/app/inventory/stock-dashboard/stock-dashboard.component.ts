@@ -48,10 +48,10 @@ import { TranslateModule } from '@ngx-translate/core';
         </div>
 
         <section class="inventory-ops-strip" data-testid="inventory-ops-strip">
-          <article class="inventory-ops-card" [class.inventory-ops-card--warning]="lowStockCount() > 0">
+          <article class="inventory-ops-card" [class.inventory-ops-card--warning]="lowStockCount() > 0 || totalItems() === 0">
             <span>Stock action</span>
-            <strong>{{ lowStockCount() ? lowStockCount() + ' item(s) need reorder' : 'Stock levels healthy' }}</strong>
-            <small>{{ lowStockCount() ? 'Create purchase orders before service stock-out.' : 'No low-stock alerts in the current dashboard.' }}</small>
+            <strong>{{ totalItems() === 0 ? 'Inventory setup needed' : lowStockCount() ? lowStockCount() + ' item(s) need reorder' : 'Stock levels healthy' }}</strong>
+            <small>{{ totalItems() === 0 ? 'Add launch stock items first, or keep inventory hidden from day-one staff.' : lowStockCount() ? 'Create purchase orders before service stock-out.' : 'No low-stock alerts in the current dashboard.' }}</small>
           </article>
           <article class="inventory-ops-card">
             <span>Current view</span>

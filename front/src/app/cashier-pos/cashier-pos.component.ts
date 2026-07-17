@@ -128,21 +128,6 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
           </article>
         </section>
 
-        @if (false) {
-          <section class="tablet-pos-bar tablet-pos-bar--legacy-hidden" aria-label="Tablet POS quick actions">
-            <div class="tablet-pos-bar-copy">
-              <span class="micro-label">Active table</span>
-              <strong>{{ effectiveCheckoutTable()?.name || 'Pick a table' }}</strong>
-              <small>{{ checkoutSummaryItemsCopy() }} · {{ checkoutSummaryTotalCopy() }}</small>
-            </div>
-            <div class="tablet-pos-bar-actions">
-              <button type="button" class="btn btn-secondary btn-sm" (click)="scrollToCatalog()">Menu</button>
-              <button type="button" class="btn btn-primary btn-sm" (click)="scrollToPaymentDock()">Bill / Pay</button>
-              <button type="button" class="btn btn-ghost btn-sm" (click)="closeTableWorkspace()">Floor</button>
-            </div>
-          </section>
-        }
-
         <div class="cashier-grid" [class.cashier-grid--workspace-open]="tableWorkspaceOpen()">
           <section class="lane lane--tables" id="cashier-floor">
             <div class="lane-header">
@@ -747,9 +732,9 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                     [class.mode-card--selected]="primaryCheckoutMode() === 'cash'"
                     (click)="selectSettlementMode('cash')"
                     [disabled]="processingCheckout()">
-                      <span class="micro-label">Cash</span>
-                      <strong>Take cash</strong>
-                      <small>Counter payment</small>
+                      <span class="micro-label">Staff cash</span>
+                      <strong>Cash (staff)</strong>
+                      <small>Internal counter settlement</small>
                   </button>
                   <button
                     type="button"
@@ -995,7 +980,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                     <span class="muted-pill muted-pill--accent">{{ checkoutSummaryTotalCopy() }}</span>
                   </div>
                   <div class="pos-service-loop-actions action-row action-row--checkout-compact">
-                    <button type="button" class="btn btn-ghost btn-sm" (click)="closeTableWorkspace()">Back to tables</button>
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="closeTableWorkspace()">Back / switch table</button>
                     <button type="button" class="btn btn-secondary btn-sm" (click)="setPosDrawerView('orders')">
                       Current orders
                     </button>
@@ -1207,9 +1192,9 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                           [class.mode-card--selected]="primaryCheckoutMode() === 'cash'"
                           (click)="selectSettlementMode('cash')"
                           [disabled]="processingCheckout()">
-                          <span class="micro-label">Cash</span>
-                          <strong>Take cash</strong>
-                          <small>Counter payment</small>
+                          <span class="micro-label">Staff cash</span>
+                          <strong>Cash (staff)</strong>
+                          <small>Internal counter settlement</small>
                         </button>
                         <button
                           type="button"
@@ -1623,14 +1608,14 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 1rem;
+      padding: 0.5rem;
       background: rgba(15, 23, 42, 0.38);
       backdrop-filter: blur(4px);
     }
 
     .pos-service-drawer {
-      width: min(72rem, calc(100vw - 2rem));
-      height: min(46rem, calc(100dvh - 2rem));
+      width: min(76rem, calc(100vw - 1rem));
+      height: min(54rem, calc(100dvh - 1rem));
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -1704,10 +1689,10 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 
     .pos-service-loop {
       display: grid;
-      grid-template-columns: minmax(0, 1.2fr) minmax(17rem, 0.85fr) auto;
+      grid-template-columns: minmax(0, 1.1fr) minmax(14rem, 0.75fr) auto;
       gap: 0.75rem;
       align-items: center;
-      padding: 0.72rem 0.9rem;
+      padding: 0.6rem 0.8rem;
       border-bottom: 1px solid color-mix(in srgb, var(--color-border) 76%, white);
     }
 
@@ -1726,7 +1711,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
     .pos-service-tabs {
       display: flex;
       gap: 0.45rem;
-      padding: 0.72rem 0.92rem;
+      padding: 0.58rem 0.8rem;
       overflow-x: auto;
       border-bottom: 1px solid color-mix(in srgb, var(--color-border) 76%, white);
       background: color-mix(in srgb, var(--color-bg) 72%, white);
@@ -1766,7 +1751,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       min-height: 0;
       flex: 1;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(20rem, 24rem);
+      grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
       overflow: hidden;
     }
 
@@ -1780,7 +1765,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
     }
 
     .pos-service-menu-pane {
-      padding: 0.9rem;
+      padding: 0.72rem;
     }
 
     .pos-service-toolbar {
@@ -1850,19 +1835,19 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 
     .pos-service-product-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(10.6rem, 1fr));
-      gap: 0.62rem;
+      grid-template-columns: repeat(auto-fill, minmax(8.9rem, 1fr));
+      gap: 0.52rem;
     }
 
     .pos-service-product-card {
       position: relative;
       min-width: 0;
-      min-height: 6.6rem;
+      min-height: 5.65rem;
       display: grid;
-      grid-template-columns: 3.7rem minmax(0, 1fr);
-      gap: 0.65rem;
+      grid-template-columns: 3.15rem minmax(0, 1fr);
+      gap: 0.55rem;
       align-items: stretch;
-      padding: 0.62rem;
+      padding: 0.52rem;
       border: 1px solid color-mix(in srgb, var(--color-border) 78%, white);
       border-radius: 18px;
       background: white;
@@ -1878,7 +1863,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
     }
 
     .pos-service-product-media {
-      width: 3.7rem;
+      width: 3.15rem;
       min-height: 100%;
       overflow: hidden;
       border-radius: 14px;
@@ -1915,7 +1900,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
     .pos-service-product-copy strong {
       overflow: hidden;
       color: var(--color-text);
-      font-size: 0.93rem;
+      font-size: 0.86rem;
       font-weight: 900;
       line-height: 1.16;
       display: -webkit-box;
@@ -4782,16 +4767,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       }
 
       .pos-service-workspace {
-        display: flex;
-        flex-direction: column;
-        overflow: auto;
-      }
-
-      .pos-service-menu-pane {
-        flex: 0 0 auto;
-        width: 100%;
-        overflow: visible;
-        padding: 0.75rem;
+        grid-template-columns: minmax(0, 1fr) minmax(17rem, 20rem);
       }
 
       .pos-service-product-grid {
@@ -4808,16 +4784,6 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       .pos-service-product-media {
         width: 3.2rem;
         border-radius: 13px;
-      }
-
-      .pos-service-cart-pane {
-        position: relative;
-        z-index: 1;
-        flex: 0 0 auto;
-        width: 100%;
-        min-height: 19rem;
-        border-left: 0;
-        border-top: 1px solid color-mix(in srgb, var(--color-border) 76%, white);
       }
 
       .pos-service-payment-grid {
@@ -4850,6 +4816,23 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 
       .pos-service-product-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .pos-service-workspace {
+        display: flex;
+        flex-direction: column;
+        overflow: auto;
+      }
+
+      .pos-service-menu-pane {
+        overflow: visible;
+      }
+
+      .pos-service-cart-pane {
+        flex: 0 0 auto;
+        min-height: 18rem;
+        border-left: 0;
+        border-top: 1px solid color-mix(in srgb, var(--color-border) 76%, white);
       }
 
       .pos-service-product-card {

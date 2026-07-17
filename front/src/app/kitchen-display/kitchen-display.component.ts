@@ -295,8 +295,8 @@ function getWorkflowSortWeight(
         }
         @if (!showBacklog() && staleTicketCount() > 0) {
           <div class="backlog-notice" role="status">
-            <span><strong>{{ staleTicketCount() }}</strong> older unresolved ticket{{ staleTicketCount() === 1 ? '' : 's' }} hidden from the live shift.</span>
-            <button type="button" (click)="showBacklog.set(true)">Review backlog</button>
+            <span><strong>{{ staleTicketCount() }}</strong> older unresolved ticket{{ staleTicketCount() === 1 ? '' : 's' }} hidden from the live shift. Clear training/test backlog before launch service.</span>
+            <button type="button" (click)="showBacklog.set(true)">Review / clear backlog</button>
           </div>
         }
         @if (loading()) {

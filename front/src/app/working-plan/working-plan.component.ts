@@ -253,7 +253,7 @@ function isValidView(v: string | null): v is ViewMode {
         <article class="timetable-control-card" [class.timetable-control-card--attention]="unscheduledRosterCount() > 0">
           <span>Unscheduled staff</span>
           <strong>{{ unscheduledRosterCount() }}</strong>
-          <small>{{ unscheduledRosterCount() ? 'Tap Schedule or drag into the calendar' : 'Every visible staff member has coverage' }}</small>
+          <small>{{ unscheduledRosterCount() ? 'iPad: tap Schedule. Desktop: drag into the calendar.' : 'Every visible staff member has coverage' }}</small>
         </article>
         <article class="timetable-control-card" [class.timetable-control-card--danger]="complianceWarnings().length > 0">
           <span>Coverage status</span>
@@ -269,7 +269,7 @@ function isValidView(v: string | null): v is ViewMode {
               <div>
                 <span class="staff-readiness-eyebrow">Smart scheduling</span>
                 <h2>Employee roster</h2>
-                <p>Drag a staff member onto a calendar day, or tap Schedule to create a shift fast.</p>
+                <p>Tap Schedule on iPad, or drag a staff member onto a calendar day on desktop.</p>
               </div>
               <button type="button" class="btn btn-secondary btn-sm" (click)="openCreate()">Add shift</button>
             </div>

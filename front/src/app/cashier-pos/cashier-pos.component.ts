@@ -989,12 +989,12 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                     <strong>{{ posNextStepCopy(serviceTable) }}</strong>
                     <small>{{ posLoopSupportCopy(serviceTable) }}</small>
                   </div>
-                  <div class="pos-service-loop-metrics">
+                  <div class="pos-service-loop-metrics lane-inline-pills">
                     <span class="muted-pill">{{ posCurrentTicketsCopy() }}</span>
                     <span class="muted-pill">{{ posCartStateCopy() }}</span>
                     <span class="muted-pill muted-pill--accent">{{ checkoutSummaryTotalCopy() }}</span>
                   </div>
-                  <div class="pos-service-loop-actions">
+                  <div class="pos-service-loop-actions action-row action-row--checkout-compact">
                     <button type="button" class="btn btn-ghost btn-sm" (click)="closeTableWorkspace()">Back to tables</button>
                     <button type="button" class="btn btn-secondary btn-sm" (click)="setPosDrawerView('orders')">
                       Current orders

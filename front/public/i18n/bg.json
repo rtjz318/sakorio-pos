@@ -1730,8 +1730,6 @@
     "SUCCESS_MESSAGE": "Thank you. Your payment has been received.",
     "PAY_CARD_TERMINAL": "Плащане с карта на маса",
     "PAY_CARD_TERMINAL_DESC": "Сервитьор ще донесе терминала за карти",
-    "PAY_CASH": "Плащане в брой",
-    "PAY_CASH_DESC": "Сервитьор ще дойде да вземе плащането",
     "CALL_WAITER": "Обаждане до сервитьора",
     "CALL_WAITER_DESC": "Нуждаете се от помощ или имате въпрос$",
     "WAITER_CALLED_WAIT": "Waiter has been called, please wait...",

@@ -1552,8 +1552,6 @@
     "SUCCESS_MESSAGE": "Gràcies. El teu pagament s'ha rebut.",
     "PAY_CARD_TERMINAL": "Pagar amb Targeta a la Taula",
     "PAY_CARD_TERMINAL_DESC": "Un cambrer portarà el datàfon",
-    "PAY_CASH": "Pagar en Efectiu",
-    "PAY_CASH_DESC": "Un cambrer vindrà a cobrar",
     "CALL_WAITER": "Cridar el Cambrer",
     "CALL_WAITER_DESC": "Necessites ajuda o tens alguna pregunta$",
     "WAITER_CALLED_WAIT": "Cambrer avisat, si us plau espera...",

@@ -1568,8 +1568,6 @@
     "SUCCESS_MESSAGE": "Merci. Votre paiement a bien été reçu.",
     "PAY_CARD_TERMINAL": "Payer par carte à table",
     "PAY_CARD_TERMINAL_DESC": "Un serveur apportera le terminal",
-    "PAY_CASH": "Payer en espèces",
-    "PAY_CASH_DESC": "Un serveur viendra encaisser",
     "CALL_WAITER": "Appeler le serveur",
     "CALL_WAITER_DESC": "Besoin d'aide ou une question $",
     "WAITER_CALLED_WAIT": "Le serveur a été appelé, merci d'attendre…",

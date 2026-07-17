@@ -1531,8 +1531,6 @@
     "PAY_ONLINE_DESC": "使用银行卡安全支付",
     "PAY_CARD_TERMINAL": "在餐桌刷卡支付",
     "PAY_CARD_TERMINAL_DESC": "服务员将带来刷卡机",
-    "PAY_CASH": "现金支付",
-    "PAY_CASH_DESC": "服务员将来收取现金",
     "CALL_WAITER": "呼叫服务员",
     "CALL_WAITER_DESC": "需要帮助或有问题？",
     "WAITER_CALLED_WAIT": "已呼叫服务员，请稍等...",

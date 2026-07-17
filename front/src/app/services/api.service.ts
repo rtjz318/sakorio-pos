@@ -2698,7 +2698,12 @@ export class ApiService {
     );
   }
 
-  requestPayment(tableToken: string, orderId: number, paymentMethod: string, message?: string): Observable<any> {
+  requestPayment(
+    tableToken: string,
+    orderId: number,
+    paymentMethod: 'card_terminal',
+    message?: string,
+  ): Observable<any> {
     return this.http.post(`${this.apiUrl}/menu/${tableToken}/order/${orderId}/request-payment`, {
       payment_method: paymentMethod,
       message: message || null,

@@ -1752,8 +1752,6 @@
     "SUCCESS_MESSAGE": "Gracias. Tu pago ha sido recibido.",
     "PAY_CARD_TERMINAL": "Pagar con Tarjeta en Mesa",
     "PAY_CARD_TERMINAL_DESC": "Un camarero traerá el datáfono",
-    "PAY_CASH": "Pagar en Efectivo",
-    "PAY_CASH_DESC": "Un camarero vendrá a cobrar",
     "CALL_WAITER": "Llamar al Camarero",
     "CALL_WAITER_DESC": "¿Necesitas ayuda o tienes alguna pregunta$",
     "WAITER_CALLED_WAIT": "Camarero avisado, por favor espera...",

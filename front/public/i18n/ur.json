@@ -1755,8 +1755,6 @@
     "SUCCESS_MESSAGE": "شکریہ آپ. آپ کا ادائیگی ہے ہو چکا وصول.",
     "PAY_CARD_TERMINAL": "ادا کریں کے ساتھ کارڈ پر میز",
     "PAY_CARD_TERMINAL_DESC": "ویٹر گا bring کارڈ ٹرمینل",
-    "PAY_CASH": "ادا کریں کے ساتھ نقد",
-    "PAY_CASH_DESC": "ویٹر گا آئیں کو collect ادائیگی",
     "CALL_WAITER": "کال کریں ویٹر",
     "CALL_WAITER_DESC": "ضرورت مدد یا ہے سوال$",
     "WAITER_CALLED_WAIT": "ویٹر ہے ہو چکا کال کیا گیا, براہ کرم انتظار...",

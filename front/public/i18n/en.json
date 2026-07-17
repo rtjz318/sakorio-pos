@@ -1771,8 +1771,6 @@
     "SUCCESS_MESSAGE": "Thank you. Your payment has been received.",
     "PAY_CARD_TERMINAL": "Pay with Card at Table",
     "PAY_CARD_TERMINAL_DESC": "A waiter will bring the card terminal",
-    "PAY_CASH": "Pay with Cash",
-    "PAY_CASH_DESC": "A waiter will come to collect payment",
     "CALL_WAITER": "Call Waiter",
     "CALL_WAITER_DESC": "Need help or have a question?",
     "WAITER_CALLED_WAIT": "Waiter has been called, please wait...",

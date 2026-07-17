@@ -1631,8 +1631,6 @@
     "SUCCESS_MESSAGE": "Vielen Dank. Ihre Zahlung wurde empfangen.",
     "PAY_CARD_TERMINAL": "Mit Karte am Tisch bezahlen",
     "PAY_CARD_TERMINAL_DESC": "Ein Kellner bringt das Kartenlesegerät",
-    "PAY_CASH": "Bar bezahlen",
-    "PAY_CASH_DESC": "Ein Kellner kommt zum Kassieren",
     "CALL_WAITER": "Kellner rufen",
     "CALL_WAITER_DESC": "Brauchen Sie Hilfe oder haben eine Frage$",
     "WAITER_CALLED_WAIT": "Kellner wurde gerufen, bitte warten...",

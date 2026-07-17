@@ -4337,7 +4337,6 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
       .cashier-grid--workspace-open {
         grid-template-areas:
-          "tables tables"
           "catalog checkout";
         grid-template-columns: minmax(0, 1fr) minmax(21rem, 26rem);
         gap: 0.68rem;
@@ -4350,59 +4349,13 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       }
 
       .cashier-grid--workspace-open .lane--tables {
-        grid-area: tables;
-        grid-column: 1 / -1;
-        position: sticky;
-        top: 5.8rem;
-        z-index: 5;
-        max-height: none;
-        padding-block: 0.62rem;
-        background: color-mix(in srgb, var(--color-surface) 96%, white);
-        box-shadow: var(--shadow-md);
-      }
-
-      .cashier-grid--workspace-open .lane--tables .table-stack {
-        display: flex;
-        flex-direction: row;
-        gap: 0.52rem;
-        overflow-x: auto;
-        overflow-y: hidden;
-        padding: 0.05rem 0.12rem 0.2rem;
-        scroll-snap-type: x proximity;
-      }
-
-      .cashier-grid--workspace-open .lane--tables .table-card {
-        flex: 0 0 11.4rem;
-        scroll-snap-align: start;
-      }
-
-      .cashier-grid--workspace-open .lane--tables .table-card-main {
-        padding: 0.56rem 0.58rem 0.42rem;
-      }
-
-      .cashier-grid--workspace-open .lane--tables .table-card-actions,
-      .cashier-grid--workspace-open .lane--tables .table-card-actions--triple {
-        grid-template-columns: 1fr;
-        padding: 0.42rem 0.52rem 0.56rem;
-      }
-
-      .cashier-grid--workspace-open .lane--tables .table-card-bottom {
-        gap: 0.28rem;
-      }
-
-      .cashier-grid--workspace-open .lane--tables .table-card-summary {
-        font-size: 0.8rem;
-        line-height: 1.18;
-      }
-
-      .cashier-grid--workspace-open .lane--tables .state-pill,
-      .cashier-grid--workspace-open .lane--tables .table-card-payment-pill {
-        font-size: 0.72rem;
+        display: none;
       }
 
       .cashier-grid--workspace-open .lane--catalog {
         grid-area: catalog;
-        min-height: calc(100vh - 14rem);
+        min-height: calc(100vh - 7rem);
+        padding: 0.68rem;
       }
 
       .cashier-grid--workspace-open .lane--checkout {
@@ -4417,33 +4370,87 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       }
 
       .catalog-toolbar {
-        grid-template-columns: minmax(0, 1fr) minmax(220px, 0.82fr);
+        grid-template-columns: minmax(0, 1fr) minmax(10rem, 0.62fr);
+        gap: 0.42rem;
       }
 
       .catalog-toolbar-actions {
         grid-column: 1 / -1;
       }
 
+      .category-chip-row {
+        gap: 0.38rem;
+      }
+
+      .category-chip {
+        min-height: 2.25rem;
+        padding: 0.42rem 0.58rem;
+        font-size: 0.82rem;
+      }
+
       .product-grid {
-        grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(9.6rem, 1fr));
+        gap: 0.46rem;
+      }
+
+      .product-card {
+        min-height: 7.15rem;
+        padding: 0.54rem;
+        border-radius: var(--radius-lg);
       }
 
       .product-card-body {
-        grid-template-columns: 3.8rem minmax(0, 1fr);
-        gap: 0.58rem;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.38rem;
       }
 
       .product-card-media {
-        width: 3.8rem;
-        height: 3.8rem;
-        min-height: 3.8rem;
+        display: none;
+      }
+
+      .product-card-content {
+        gap: 0.32rem;
+      }
+
+      .product-title-stack strong {
+        font-size: 0.94rem;
+        line-height: 1.12;
+      }
+
+      .product-title-stack span,
+      .product-price-caption,
+      .product-notes {
+        font-size: 0.74rem;
+        line-height: 1.18;
+      }
+
+      .product-notes {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        min-height: 1.75rem;
+      }
+
+      .product-card-bottom {
+        align-items: end;
+        gap: 0.42rem;
+      }
+
+      .product-price {
+        font-size: 0.96rem;
+      }
+
+      .product-card-bottom .btn {
+        min-height: 2.35rem;
+        padding-inline: 0.62rem;
       }
 
       .settlement-mode-grid--compact {
         grid-template-columns: 1fr;
       }
 
-      #cashier-floor,
       #cashier-catalog,
       #payment-dock {
         scroll-margin-top: 6.1rem;
@@ -4476,37 +4483,15 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       }
 
       .cashier-grid--workspace-open .lane--tables {
-        position: static;
-        max-height: none;
-        padding-block: 0.62rem;
-      }
-
-      .cashier-grid--workspace-open .lane--tables .table-stack {
-        display: flex;
-        flex-direction: row;
-        overflow-x: auto;
-        overflow-y: hidden;
-        gap: 0.52rem;
-        padding-bottom: 0.18rem;
-        scroll-snap-type: x proximity;
-      }
-
-      .cashier-grid--workspace-open .lane--tables .table-card {
-        flex: 0 0 min(72vw, 14rem);
-        scroll-snap-align: start;
-      }
-
-      .cashier-grid--workspace-open .lane--tables .table-card-actions,
-      .cashier-grid--workspace-open .lane--tables .table-card-actions--triple {
-        grid-template-columns: 1fr;
+        display: none;
       }
 
       .cashier-grid--workspace-open .lane--checkout {
-        order: 2;
+        order: 1;
       }
 
       .cashier-grid--workspace-open .lane--catalog {
-        order: 3;
+        order: 2;
       }
 
       .cashier-grid--workspace-open .lane--catalog,
@@ -4524,7 +4509,6 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
         top: 8.9rem;
       }
 
-      #cashier-floor,
       #cashier-catalog,
       #payment-dock {
         scroll-margin-top: 9.35rem;
@@ -4595,13 +4579,30 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
         grid-template-columns: 1fr;
       }
 
+      .product-grid {
+        grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+        gap: 0.5rem;
+      }
+
+      .product-card {
+        min-height: 7.6rem;
+        padding: 0.58rem;
+      }
+
       .product-card-body {
         grid-template-columns: 1fr;
       }
 
       .product-card-media {
-        min-height: 8.25rem;
-        aspect-ratio: 16 / 9;
+        display: none;
+      }
+
+      .product-notes {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
       }
 
       .inline-hint--compact {

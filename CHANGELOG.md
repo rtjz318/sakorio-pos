@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ### Fixed
 
+- **Realtime:** Normalized malformed runtime WebSocket URLs and redacted token-bearing WebSocket URLs from console diagnostics so HTTPS staff pages can connect safely.
 - **Kitchen & beverages:** Added a clear production-route switcher so staff can filter the board to All, Kitchen, or Beverages, with station filters scoped to the selected route.
 - **Orders:** Made the active Orders view table-first by default; tables now appear as compact overview cards and ticket-level detail stays collapsed until staff choose a table.
 - **POS / tables:** Replaced the floating POS overlay with a clean selected-table workspace so the menu stays in the main lane and the payment dock remains anchored on the right without overlapping content.

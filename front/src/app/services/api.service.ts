@@ -3112,23 +3112,7 @@ export class ApiService {
   private connectWebSocketWithToken(tenantId: number, token: string | null): void {
     if (this.ws) return;
 
-    let wsUrl = this.wsUrl;
-    
-    // Handle relative URLs (e.g. '/ws')
-    if (wsUrl.startsWith('/')) {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      wsUrl = `${protocol}//${window.location.host}${wsUrl}`;
-    }
-    // Handle absolute HTTP URLs
-    else if (wsUrl.startsWith('http://')) {
-      wsUrl = wsUrl.replace('http://', 'ws://');
-    } else if (wsUrl.startsWith('https://')) {
-      wsUrl = wsUrl.replace('https://', 'wss://');
-    }
-    // Handle implicit protocol
-    else if (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) {
-      wsUrl = `ws://${wsUrl}`;
-    }
+    const wsUrl = this.normalizeWebSocketBaseUrl(this.wsUrl);
 
     const base = `${wsUrl}/tenant/${tenantId}`;
     const wsEndpoint = token ? `${base}?token=${encodeURIComponent(token)}` : base;
@@ -3187,13 +3171,13 @@ export class ApiService {
 
       this.ws.onerror = (error) => {
         console.error('WebSocket error:', error);
-        console.error('WebSocket URL attempted:', wsEndpoint);
+        console.error('WebSocket URL attempted:', this.redactWebSocketUrl(wsEndpoint));
         console.error('Tenant id:', tenantId);
         // Try to get more error details
         if (this.ws) {
           console.error('WebSocket readyState:', this.ws.readyState);
           console.error('WebSocket protocol:', this.ws.protocol);
-          console.error('WebSocket url:', this.ws.url);
+          console.error('WebSocket url:', this.redactWebSocketUrl(this.ws.url));
         }
         this.ws?.close();
       };
@@ -3201,12 +3185,47 @@ export class ApiService {
       this.ws.onopen = () => {
         if (!environment.production) {
           console.log('WebSocket connection opened successfully');
-          console.log('WebSocket URL:', wsEndpoint);
+          console.log('WebSocket URL:', this.redactWebSocketUrl(wsEndpoint));
         }
       };
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
-      console.error('WebSocket URL attempted:', wsEndpoint);
+      console.error('WebSocket URL attempted:', this.redactWebSocketUrl(wsEndpoint));
+    }
+  }
+
+  private normalizeWebSocketBaseUrl(rawUrl: string | null | undefined): string {
+    let wsUrl = (rawUrl || '/ws').trim();
+    const assignmentMatch = wsUrl.match(/^(?:WS_URL|__WS_URL__)\s*=\s*(.+)$/i);
+    if (assignmentMatch?.[1]) {
+      wsUrl = assignmentMatch[1].trim();
+    }
+
+    // Handle relative URLs (e.g. '/ws')
+    if (wsUrl.startsWith('/')) {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//${window.location.host}${wsUrl}`;
+    } else if (wsUrl.startsWith('http://')) {
+      wsUrl = wsUrl.replace('http://', 'ws://');
+    } else if (wsUrl.startsWith('https://')) {
+      wsUrl = wsUrl.replace('https://', 'wss://');
+    } else if (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) {
+      const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+      wsUrl = `${protocol}${wsUrl}`;
+    }
+
+    return wsUrl.replace(/\/+$/, '');
+  }
+
+  private redactWebSocketUrl(url: string): string {
+    try {
+      const parsed = new URL(url);
+      if (parsed.searchParams.has('token')) {
+        parsed.searchParams.set('token', 'redacted');
+      }
+      return parsed.toString();
+    } catch {
+      return url.replace(/([?&]token=)[^&]+/i, '$1redacted');
     }
   }
 

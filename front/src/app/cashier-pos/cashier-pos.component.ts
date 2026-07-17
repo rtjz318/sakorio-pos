@@ -4745,6 +4745,8 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       }
 
       .pos-service-menu-pane {
+        flex: 0 0 auto;
+        width: 100%;
         overflow: visible;
         padding: 0.75rem;
       }
@@ -4766,6 +4768,10 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       }
 
       .pos-service-cart-pane {
+        position: relative;
+        z-index: 1;
+        flex: 0 0 auto;
+        width: 100%;
         min-height: 19rem;
         border-left: 0;
         border-top: 1px solid color-mix(in srgb, var(--color-border) 76%, white);

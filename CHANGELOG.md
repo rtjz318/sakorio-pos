@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ### Fixed
 
+- **Public table ordering:** Removed the table PIN gate, staff PIN display, and PIN regeneration controls so guests can place orders from an active table QR/menu without asking staff for a code.
 - **Payments / HitPay:** Created hosted checkout requests with HitPay's form-encoded API contract and returned sanitized provider failures so checkout errors no longer expose raw provider response bodies.
 
 - **Products / categories:** Translated category strings (e.g. **Entrantes**, **Plat principal**, **Vorspeisen**) are normalized to canonical English keys on product create/update, bulk import, and catalog merge — staff no longer see duplicate category options for the same logical category; existing data is repaired idempotently on migrate (#265).

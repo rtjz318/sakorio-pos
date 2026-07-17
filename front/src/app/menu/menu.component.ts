@@ -121,11 +121,6 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   // Table session
   tableIsActive = signal(true);  // Default true for backward compatibility
-  tableRequiresPin = signal(false);
-  showPinModal = signal(false);
-  pinValue = signal('');
-  pinError = signal('');
-  private currentPin = '';  // Stored after successful validation
 
   // Payment options
   showPaymentOptions = signal(false);
@@ -300,8 +295,6 @@ export class MenuComponent implements OnInit, OnDestroy {
 
         // Table session status
         this.tableIsActive.set(data.table_is_active !== false);  // Default true for backward compatibility
-        this.tableRequiresPin.set(data.table_requires_pin === true);
-
         // Check if the table session has changed (table was closed and reopened).
         // If active_order_id differs from what we stored, clear stale data and
         // start a fresh customer session so new customers don't inherit old data.
@@ -310,11 +303,9 @@ export class MenuComponent implements OnInit, OnDestroy {
 
         if (currentOrderId && storedOrderId !== currentOrderId) {
           // Table session changed -- clear all stale data
-          sessionStorage.removeItem(`pin_${this.tableToken}`);
           localStorage.removeItem(`session_${this.tableToken}`);
           localStorage.removeItem(`customer_name_${this.tableToken}`);
           localStorage.removeItem(`orders_${this.tableToken}`);
-          this.currentPin = '';
           this.placedOrders.set([]);
           this.customerName.set('');
 
@@ -327,12 +318,8 @@ export class MenuComponent implements OnInit, OnDestroy {
           // Store new active_order_id
           localStorage.setItem(`active_order_${this.tableToken}`, currentOrderId);
         } else if (currentOrderId) {
-          // Same session -- restore stored PIN
+          // Same session -- keep the active order marker for stale-session detection.
           localStorage.setItem(`active_order_${this.tableToken}`, currentOrderId);
-          const storedPin = sessionStorage.getItem(`pin_${this.tableToken}`);
-          if (storedPin) {
-            this.currentPin = storedPin;
-          }
         }
 
         this.loading.set(false);
@@ -391,8 +378,6 @@ export class MenuComponent implements OnInit, OnDestroy {
           this.closedTenantLogo.set(this.tenantLogo());
           this.closedTableName.set(this.tableName());
           // Clear stored session data for this table
-          sessionStorage.removeItem(`pin_${this.tableToken}`);
-          this.currentPin = '';
           this.ws?.close();
           return;
         } else if (data.type === 'status_update') {
@@ -944,35 +929,8 @@ export class MenuComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Check if PIN is required and we don't have one
-    if (this.tableRequiresPin() && !this.currentPin) {
-      this.showPinModal.set(true);
-      this.pinValue.set('');
-      this.pinError.set('');
-      return;
-    }
-
     // Proceed with order submission
     this.doSubmitOrder();
-  }
-
-  // PIN Modal handlers
-  confirmPin() {
-    const pin = this.pinValue().trim();
-    if (pin.length !== 4 || !/^\d+$/.test(pin)) {
-      this.pinError.set('Please enter a 4-digit PIN');
-      return;
-    }
-    this.currentPin = pin;
-    sessionStorage.setItem(`pin_${this.tableToken}`, pin);
-    this.showPinModal.set(false);
-    this.doSubmitOrder();
-  }
-
-  cancelPinModal() {
-    this.showPinModal.set(false);
-    this.pinValue.set('');
-    this.pinError.set('');
   }
 
   private async doSubmitOrder() {
@@ -1009,7 +967,6 @@ export class MenuComponent implements OnInit, OnDestroy {
       notes: this.orderNotes || undefined,
       session_id: this.sessionId,
       customer_name: this.customerName() || undefined,
-      pin: this.currentPin || undefined,
       staff_access: this.staffAccess ?? undefined,
       qr_access: this.qrAccess ?? undefined,
       latitude,
@@ -1053,22 +1010,7 @@ export class MenuComponent implements OnInit, OnDestroy {
         const detail = err.error?.detail;
         const errorMsg = typeof detail === 'string' ? detail : 'Failed to place order.';
 
-        if (err.status === 429) {
-          this.currentPin = '';
-          sessionStorage.removeItem(`pin_${this.tableToken}`);
-          this.pinError.set(errorMsg);
-          this.showPinModal.set(true);
-          return;
-        }
-
-        // Check if it's a PIN error
-        if (errorMsg.includes('PIN') || errorMsg.includes('pin')) {
-          // Clear the stored PIN and show modal again
-          this.currentPin = '';
-          sessionStorage.removeItem(`pin_${this.tableToken}`);
-          this.pinError.set(errorMsg);
-          this.showPinModal.set(true);
-        } else if (errorMsg.includes('active') || errorMsg.includes('accepting')) {
+        if (errorMsg.includes('active') || errorMsg.includes('accepting')) {
           alert('This table is not accepting orders. Please ask staff for assistance.');
         } else {
           alert(errorMsg);

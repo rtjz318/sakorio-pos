@@ -638,8 +638,8 @@ class Table(TenantMixin, table=True):
     # Waiter assignment (overrides floor-level default)
     assigned_waiter_id: int | None = Field(default=None, foreign_key="user.id")
 
-    # Table session and PIN security
-    order_pin: str | None = Field(default=None)  # 4-digit PIN for ordering
+    # Legacy table session PIN field; public customer ordering no longer requires it.
+    order_pin: str | None = Field(default=None)
     is_active: bool = Field(default=False, index=True)  # Whether table is accepting orders
     active_order_id: int | None = Field(default=None)  # Current shared order for this table
     activated_at: datetime | None = Field(default=None)  # When table was activated
@@ -1270,8 +1270,7 @@ class OrderCreate(SQLModel):
     notes: str | None = None
     session_id: str | None = None  # Session identifier for order isolation
     customer_name: str | None = None  # Optional customer name
-    pin: str | None = None  # Required PIN for table ordering
-    staff_access: str | None = None  # Staff link token: when valid, PIN is not required
+    staff_access: str | None = None  # Staff link token for opening public menu from staff UI
     qr_access: str | None = None  # Signed credential from the permanent printed table QR
     latitude: float | None = None  # Optional GPS latitude for location verification
     longitude: float | None = None  # Optional GPS longitude for location verification

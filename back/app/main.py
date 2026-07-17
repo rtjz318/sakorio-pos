@@ -602,17 +602,6 @@ def get_redis() -> redis.Redis | None:
     return redis_client
 
 
-PIN_MAX_ATTEMPTS = 5
-PIN_ATTEMPT_WINDOW_SECONDS = 600
-PIN_LOCKOUT_SECONDS = 600
-
-
-def get_pin_client_key(request: Request, session_id: str | None) -> str:
-    ip = request.client.host if request.client else "unknown"
-    if session_id:
-        return f"{ip}:{session_id}"
-    return ip
-
 def publish_order_update(tenant_id: int, order_data: dict, table_id: int | None = None) -> None:
     """Publish order update to Redis for WebSocket bridge.
     
@@ -744,19 +733,19 @@ TAKE_AWAY_TABLE_NAMES = ("take away", "home ordering", "takeaway", "take-away")
 
 
 def _is_take_away_table(table) -> bool:
-    """True if table name indicates take-away/home ordering (no PIN required for ordering)."""
+    """True if table name indicates take-away/home ordering."""
     if not table or not getattr(table, "name", None):
         return False
     return (table.name or "").strip().lower() in TAKE_AWAY_TABLE_NAMES
 
 
-# Staff menu link: time-limited signed token so staff can open public menu without PIN
+# Staff menu link: time-limited signed token so staff can open the public menu.
 STAFF_MENU_TOKEN_EXPIRY = 3600  # 1 hour
 PUBLIC_TABLE_QR_PURPOSE = "table-order-qr-v1"
 
 
 def _sign_staff_menu_token(table_token: str) -> str:
-    """Produce a signed token for staff to open menu for this table without PIN."""
+    """Produce a signed token for staff to open the menu for this table."""
     expiry = int(_time.time()) + STAFF_MENU_TOKEN_EXPIRY
     payload = f"{table_token}:{expiry}"
     sig = hmac.new(
@@ -10794,9 +10783,7 @@ def convert_guest_queue_to_reservation(
 
 def _activate_table_for_seated_party(table: models.Table) -> None:
     """Start a clean table session as part of a queue or reservation handoff."""
-    import secrets
-
-    table.order_pin = str(secrets.randbelow(9000) + 1000)
+    table.order_pin = None
     table.is_active = True
     table.active_order_id = None
     table.activated_at = datetime.now(timezone.utc)
@@ -10815,7 +10802,7 @@ def activate_table(
 ) -> dict:
     """
     Activate a table for ordering.
-    Generates a PIN; no order is created until the first item is added via the menu.
+    No order is created until the first item is added via the menu.
     """
     table = session.exec(
         select(models.Table).where(
@@ -10836,7 +10823,6 @@ def activate_table(
     return JSONResponse(content={
         "id": table.id,
         "name": table.name,
-        "pin": table.order_pin,
         "is_active": True,
         "active_order_id": None,
         "activated_at": table.activated_at.isoformat() if table.activated_at else None,
@@ -10856,7 +10842,7 @@ def close_table(
 ) -> dict:
     """
     Close a table session.
-    Clears the PIN and deactivates the table. Deletes the active order if it has no items.
+    Deactivates the table. Deletes the active order if it has no items.
     Finishes any seated reservation on this table so floor status matches staff closing the session.
     """
     table = session.exec(
@@ -10953,51 +10939,6 @@ def close_table(
         "is_active": False,
         "completed_queue_entries": len(completed_queue_entry_ids),
         "message": "Table closed successfully",
-    })
-
-
-@app.post("/tables/{table_id}/regenerate-pin")
-@limiter.limit(
-    f"{getattr(settings, 'rate_limit_admin_per_minute', 30)}/minute",
-    key_func=_rate_limit_key_user,
-)
-def regenerate_table_pin(
-    request: Request,
-    table_id: int,
-    current_user: Annotated[models.User, Depends(require_permission(Permission.TABLE_ACTIVATE))],
-    session: Session = Depends(get_session),
-) -> dict:
-    """
-    Generate a new PIN for an active table without closing it.
-    Useful when staff suspects PIN has been shared.
-    """
-    import secrets
-
-    table = session.exec(
-        select(models.Table).where(
-            models.Table.id == table_id,
-            models.Table.tenant_id == current_user.tenant_id,
-        )
-    ).first()
-
-    if not table:
-        raise HTTPException(status_code=404, detail="Table not found")
-
-    if not table.is_active:
-        raise HTTPException(status_code=400, detail="Table is not active. Activate it first.")
-
-    # Generate a cryptographically random 4-digit PIN
-    pin = str(secrets.randbelow(9000) + 1000)
-    table.order_pin = pin
-
-    session.commit()
-    session.refresh(table)
-
-    return JSONResponse(content={
-        "id": table.id,
-        "name": table.name,
-        "pin": pin,
-        "is_active": True,
     })
 
 
@@ -11587,13 +11528,8 @@ def get_menu(
         if tenant
         else False,
         "tenant_public_background_color": tenant.public_background_color if tenant else None,
-        # Printed QR and staff links are bearer credentials. Manual table lookup still requires a PIN.
         "table_is_active": table.is_active,
-        "table_requires_pin": False
-        if _is_take_away_table(table)
-        or (staff_access and _verify_staff_menu_token(table.token, staff_access))
-        or (qr_access and _verify_public_table_qr_access(table.token, qr_access))
-        else (table.is_active and table.order_pin is not None),
+        "table_requires_pin": False,
         "active_order_id": table.active_order_id,
         "products": products_list,
     }
@@ -11976,63 +11912,13 @@ def create_order(
     if not tenant:
         raise HTTPException(status_code=404, detail="Restaurant not found")
 
-    # ============ TABLE ACTIVATION & PIN VALIDATION ============
+    # ============ TABLE ACTIVATION ============
     # Check if table is active (staff has opened it)
     if not table.is_active:
         raise HTTPException(
             status_code=403, 
             detail="Table is not accepting orders. Please ask staff to activate the table."
         )
-
-    # Validate PIN for manually resolved tables. Signed staff and printed-QR links skip it.
-    staff_skip_pin = order_data.staff_access and _verify_staff_menu_token(table_token, order_data.staff_access)
-    qr_skip_pin = order_data.qr_access and _verify_public_table_qr_access(table_token, order_data.qr_access)
-    if not _is_take_away_table(table) and not staff_skip_pin and not qr_skip_pin:
-        redis_conn = get_redis()
-        attempts_key = None
-        lock_key = None
-        if redis_conn:
-            client_key = get_pin_client_key(request, order_data.session_id)
-            attempts_key = f"pin_attempts:{table_token}:{client_key}"
-            lock_key = f"pin_lock:{table_token}:{client_key}"
-            lock_ttl = redis_conn.ttl(lock_key)
-            if lock_ttl and lock_ttl > 0:
-                raise HTTPException(
-                    status_code=429,
-                    detail=f"Too many PIN attempts. Try again in {lock_ttl} seconds."
-                )
-        else:
-            logger.warning(
-                "Redis is unavailable -- PIN rate limiting is disabled. "
-                "Brute-force protection will not work until Redis is restored."
-            )
-
-        if not order_data.pin:
-            raise HTTPException(
-                status_code=403,
-                detail="PIN required. Please enter the table PIN to place an order."
-            )
-
-        if order_data.pin != table.order_pin:
-            if redis_conn and attempts_key and lock_key:
-                attempts = redis_conn.incr(attempts_key)
-                if attempts == 1:
-                    redis_conn.expire(attempts_key, PIN_ATTEMPT_WINDOW_SECONDS)
-                if attempts >= PIN_MAX_ATTEMPTS:
-                    redis_conn.setex(lock_key, PIN_LOCKOUT_SECONDS, "1")
-                    redis_conn.delete(attempts_key)
-                    raise HTTPException(
-                        status_code=429,
-                        detail=f"Too many PIN attempts. Try again in {PIN_LOCKOUT_SECONDS} seconds."
-                    )
-            raise HTTPException(
-                status_code=403,
-                detail="Invalid PIN. Please check the PIN displayed at your table."
-            )
-
-        if redis_conn and attempts_key and lock_key:
-            redis_conn.delete(attempts_key)
-            redis_conn.delete(lock_key)
 
     # ============ GET OR CREATE SHARED ORDER ============
     # Order is created when table is activated only as a slot; we create it on first item add.

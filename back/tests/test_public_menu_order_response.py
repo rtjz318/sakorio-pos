@@ -19,7 +19,7 @@ class TestPublicMenuOrderResponse(PgClientTestCase):
         self.session.commit()
 
         self.table = models.Table(
-            name="Take Away",
+            name="T01",
             tenant_id=self.tenant.id,
             floor_id=self.floor.id,
             is_active=True,

@@ -2,7 +2,7 @@ import { afterNextRender, Component, effect, inject, signal, computed, OnInit } 
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { QRCodeComponent } from 'angularx-qrcode';
-import { ApiService, Table, CanvasTable, TenantSettings, Floor, TableActivateResponse, User, GuestQueueSummary, GuestQueueEntry, Product, ProductQuestion, Order, OrderItemCreate } from '../services/api.service';
+import { ApiService, Table, CanvasTable, TenantSettings, Floor, User, GuestQueueSummary, GuestQueueEntry, Product, ProductQuestion, Order, OrderItemCreate } from '../services/api.service';
 import { PermissionService } from '../services/permission.service';
 import { SidebarComponent } from '../shared/sidebar.component';
 import { StaffPosToolbarComponent } from '../shared/staff-pos-toolbar.component';
@@ -269,7 +269,6 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                     <th>{{ 'TABLES.FLOOR' | translate }}</th>
                     <th>{{ 'TABLES.SEATS' | translate }}</th>
                     <th>{{ 'TABLES.COL_STATUS' | translate }}</th>
-                    <th>{{ 'TABLES.PIN' | translate }}</th>
                     <th>{{ 'TABLES.ASSIGNED_WAITER' | translate }}</th>
                     <th class="th-actions">{{ 'COMMON.ACTIONS' | translate }}</th>
                   </tr>
@@ -302,7 +301,6 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                             <span class="status-badge status-inactive status-inline"><span class="status-dot"></span>{{ 'TABLES.INACTIVE' | translate }}</span>
                           }
                         </td>
-                        <td class="pin-cell">—</td>
                         <td>—</td>
                         <td class="td-actions">
                           <button type="button" class="btn btn-ghost btn-sm" (click)="toggleListGroupExpand(row.groupId); $event.stopPropagation()">
@@ -365,7 +363,6 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                       <span class="status-badge status-inactive status-inline"><span class="status-dot"></span>{{ 'TABLES.INACTIVE' | translate }}</span>
                     }
                   </td>
-                  <td class="pin-cell">{{ table.order_pin ?? '—' }}</td>
                   <td>
                     @if (canManageTableAssignments()) {
                       <select class="waiter-select-inline" (change)="onWaiterAssign(table, $event)">
@@ -396,7 +393,6 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                     } @else {
                       <button type="button" class="icon-btn icon-btn-edit" (click)="startEdit(table)" [title]="'COMMON.EDIT' | translate">✎</button>
                       @if (table.is_active) {
-                        <button type="button" class="btn btn-sm btn-ghost btn-square" (click)="regeneratePin(table)" [disabled]="activatingTableId() === table.id" [title]="'TABLES.NEW_PIN' | translate">↻</button>
                         <button type="button" class="btn btn-sm btn-warning btn-square" (click)="confirmCloseTable(table)" [disabled]="activatingTableId() === table.id" [title]="'TABLES.CLOSE_TABLE' | translate">⌫</button>
                       } @else {
                         <button type="button" class="btn btn-sm btn-success btn-square" (click)="activateTableSession(table)" [disabled]="activatingTableId() === table.id" [title]="'TABLES.ACTIVATE' | translate">▶</button>
@@ -519,9 +515,6 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                                       <span class="status-dot"></span>{{ 'TABLES.INACTIVE' | translate }}
                                     </span>
                                   }
-                                  @if (table.is_active && table.order_pin) {
-                                    <span class="group-tile-member-pin">PIN {{ table.order_pin }}</span>
-                                  }
                                 </button>
                                 @if (isTileGroupMemberExpanded(block.groupId, table.id!)) {
                                   <div class="group-tile-member-detail" (dblclick)="onTableCardDoubleClick(table)">
@@ -627,9 +620,7 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   @if (table.assigned_waiter_name || table.effective_waiter_name) {
                     <span>{{ table.assigned_waiter_name || table.effective_waiter_name }}</span>
                   }
-                  @if (table.order_pin) {
-                    <span>PIN {{ table.order_pin }}</span>
-                  } @else if (tableReservationHint(table)) {
+                  @if (tableReservationHint(table)) {
                     <span>{{ tableReservationHint(table) }}</span>
                   }
                 </div>
@@ -697,23 +688,8 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   </div>
 
                   <div class="session-actions"
-                    [class.session-actions--inactive]="!table.is_active"
-                    [class.session-actions--single]="table.is_active && !!table.order_pin">
+                    [class.session-actions--inactive]="!table.is_active">
                     @if (table.is_active) {
-                      @if (!table.order_pin) {
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-ghost"
-                          (click)="regeneratePin(table)"
-                          [disabled]="activatingTableId() === table.id"
-                          [title]="'TABLES.NEW_PIN' | translate">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M23 4v6h-6M1 20v-6h6"/>
-                            <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-                          </svg>
-                          {{ 'TABLES.NEW_PIN' | translate }}
-                        </button>
-                      }
                       <button
                         type="button"
                         class="btn btn-sm btn-warning"
@@ -1428,13 +1404,6 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
       align-items: center;
       gap: var(--space-1);
     }
-    .group-tile-member-pin {
-      font-size: 0.75rem;
-      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-      font-weight: 600;
-      letter-spacing: 0.1em;
-      color: var(--color-primary);
-    }
     .group-tile-member-detail {
       padding-top: var(--space-2);
       border-top: 1px dashed var(--color-border);
@@ -1511,34 +1480,7 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     .icon-btn:hover { background: var(--color-bg); color: var(--color-text); }
     .icon-btn-danger:hover { background: rgba(220, 38, 38, 0.1); color: var(--color-error); }
 
-    /* Status and PIN Section */
-    .pin-display {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: var(--space-2);
-      width: 100%;
-      padding: var(--space-2) var(--space-3);
-      background: white;
-      border: 2px dashed var(--color-primary);
-      border-radius: var(--radius-md);
-    }
-    .btn-pin-renew {
-      flex-shrink: 0;
-      white-space: nowrap;
-    }
-    .pin-label {
-      font-size: 0.875rem;
-      color: var(--color-text-muted);
-    }
-    .pin-value {
-      font-size: 1.5rem;
-      font-weight: 700;
-      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-      letter-spacing: 0.2em;
-      color: var(--color-primary);
-    }
+    /* Status Section */
     .status-section {
       display: flex;
       flex-direction: column;
@@ -1776,12 +1718,6 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
       width: auto;
       min-width: 8rem;
     }
-    .session-actions--single {
-      grid-template-columns: 1fr;
-    }
-    .session-actions--single .btn {
-      max-width: 100%;
-    }
     .btn-success {
       background: #22c55e;
       color: white;
@@ -1823,7 +1759,6 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     .tables-data-table tbody tr:hover td { background: var(--color-bg); }
     .tables-data-table .table-name { font-weight: 600; cursor: pointer; }
     .tables-data-table .table-name:hover { color: var(--color-primary); }
-    .tables-data-table .pin-cell { font-family: ui-monospace, monospace; font-weight: 600; letter-spacing: 0.05em; }
     .tables-data-table .status-stack { min-width: 8rem; }
     .tables-data-table .waiter-select-inline { padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.8125rem; background: var(--color-surface); color: var(--color-text); min-width: 120px; }
     .tables-data-table .waiter-inherited-inline { font-size: 0.6875rem; color: var(--color-text-muted); font-style: italic; margin-top: 2px; }
@@ -2700,7 +2635,7 @@ export class TablesComponent implements OnInit {
     }
     this.api.activateTable(table.id).subscribe({
       next: (response) => {
-        const activated = { ...table, is_active: true, order_pin: response.pin, active_order_id: response.active_order_id };
+        const activated = { ...table, is_active: true, order_pin: null, active_order_id: response.active_order_id };
         this.quickOrderTable.set(activated);
         this.tables.update((tables) => tables.map((candidate) => candidate.id === table.id ? activated : candidate));
         send();
@@ -3294,7 +3229,7 @@ export class TablesComponent implements OnInit {
     this.toast.set(null);
   }
 
-  /** Public customer URL (QR code, copy link). Staff should use {@link openStaffMenu} to skip the table PIN. */
+  /** Public customer URL (QR code, copy link). Staff should use {@link openStaffMenu}. */
   getMenuUrl(table: Table): string {
     const baseUrl = `${getCustomerPublicOrigin()}/menu/${table.token}`;
     return table.qr_access
@@ -3444,7 +3379,7 @@ export class TablesComponent implements OnInit {
       next: response => {
         this.tables.update(tables => tables.map(t =>
           t.id === table.id
-            ? { ...t, is_active: true, order_pin: response.pin, active_order_id: response.active_order_id, activated_at: response.activated_at }
+            ? { ...t, is_active: true, order_pin: null, active_order_id: response.active_order_id, activated_at: response.activated_at }
             : t
         ));
         this.activatingTableId.set(null);
@@ -3478,25 +3413,6 @@ export class TablesComponent implements OnInit {
         this.activatingTableId.set(null);
       },
       error: err => {
-        this.error.set(this.apiErr.fromHttpError(err, 'COMMON.API_REQUEST_FAILED'));
-        this.activatingTableId.set(null);
-      }
-    });
-  }
-
-  regeneratePin(table: Table) {
-    if (!table.id) return;
-    this.activatingTableId.set(table.id);
-    this.api.regenerateTablePin(table.id).subscribe({
-      next: (response: TableActivateResponse) => {
-        this.tables.update(tables => tables.map(t =>
-          t.id === table.id
-            ? { ...t, order_pin: response.pin }
-            : t
-        ));
-        this.activatingTableId.set(null);
-      },
-      error: (err: any) => {
         this.error.set(this.apiErr.fromHttpError(err, 'COMMON.API_REQUEST_FAILED'));
         this.activatingTableId.set(null);
       }

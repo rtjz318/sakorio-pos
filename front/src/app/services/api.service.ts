@@ -971,7 +971,7 @@ export interface Table {
   width?: number;
   height?: number;
   seat_count?: number;
-  // Table session and PIN security
+  // Table session
   order_pin?: string | null;
   is_active?: boolean;
   active_order_id?: number | null;
@@ -990,7 +990,6 @@ export interface Table {
 export interface TableActivateResponse {
   id: number;
   name: string;
-  pin: string;
   is_active: boolean;
   active_order_id: number;
   activated_at: string | null;
@@ -1376,6 +1375,7 @@ export interface MenuResponse {
   tenant_header_background_filename?: string | null;
   // Table session status
   table_is_active?: boolean;
+  /** Deprecated: public customer ordering no longer requires table PINs. */
   table_requires_pin?: boolean;
   active_order_id?: number | null;
   products: Product[];
@@ -1496,8 +1496,7 @@ export interface OrderCreate {
   notes?: string;
   session_id?: string;  // Session identifier for order isolation
   customer_name?: string;  // Optional customer name
-  pin?: string;  // Required PIN for table ordering
-  staff_access?: string;  // Staff link token: when valid, PIN is not required
+  staff_access?: string;  // Staff link token for opening the public menu from staff UI
   qr_access?: string;  // Signed credential from the permanent printed table QR
   latitude?: number | null;  // Optional GPS latitude for location verification
   longitude?: number | null;  // Optional GPS longitude for location verification
@@ -2363,10 +2362,6 @@ export class ApiService {
     return this.http.post<TableCloseResponse>(`${this.apiUrl}/tables/${tableId}/close`, {});
   }
 
-  regenerateTablePin(tableId: number): Observable<TableActivateResponse> {
-    return this.http.post<TableActivateResponse>(`${this.apiUrl}/tables/${tableId}/regenerate-pin`, {});
-  }
-
   assignWaiterToTable(tableId: number, waiterId: number | null): Observable<any> {
     return this.http.put(`${this.apiUrl}/tables/${tableId}/assign-waiter`, { waiter_id: waiterId });
   }
@@ -2655,7 +2650,7 @@ export class ApiService {
     });
   }
 
-  // Public Menu (no auth). Signed staff and printed-QR links bypass the manual lookup PIN.
+  // Public Menu (no auth).
   getMenu(tableToken: string, staffAccess?: string, qrAccess?: string): Observable<MenuResponse> {
     let params = new HttpParams();
     if (staffAccess) {

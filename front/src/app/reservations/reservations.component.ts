@@ -119,7 +119,7 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
         <div class="empty-state">
           <p>{{ 'RESERVATIONS.NONE' | translate }}</p>
           @if (canWrite()) {
-            <button class="btn btn-primary" (click)="openCreate()">{{ 'RESERVATIONS.NEW' | translate }}</button>
+            <button class="btn btn-primary" (click)="openCreate()">{{ 'RESERVATIONS.CREATE_FIRST' | translate }}</button>
           }
         </div>
       } @else {

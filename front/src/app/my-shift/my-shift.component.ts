@@ -12,7 +12,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { EMPTY, forkJoin, from, Observable, of } from 'rxjs';
-import { catchError, finalize, switchMap } from 'rxjs/operators';
+import { catchError, finalize, map, switchMap } from 'rxjs/operators';
 import { Html5Qrcode } from 'html5-qrcode';
 import { SidebarComponent } from '../shared/sidebar.component';
 import {
@@ -21,6 +21,7 @@ import {
   ClockQrStatus,
   Shift,
   StaffProfile,
+  User,
   WorkSession,
   WorkSessionClockPayload,
   workSessionNetWorkSeconds,
@@ -39,7 +40,7 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
           <div>
             <p class="eyebrow">Attendance</p>
             <h1>My shift</h1>
-            <p class="lede">Choose your scheduled shift, take a live photo, and clock in.</p>
+            <p class="lede">Choose a staff profile, select the scheduled shift, take a live photo, and clock in.</p>
           </div>
           <div class="connection-pill" [class.ready]="!loading()">
             <span></span>{{ loading() ? 'Syncing' : 'Live' }}
@@ -50,6 +51,24 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
           <div class="alert" role="alert">{{ error() }}</div>
         }
 
+        @if (staffProfiles().length > 1) {
+          <section class="panel profile-switcher-panel" aria-label="Staff profile selector">
+            <div>
+              <p class="eyebrow">Staff profile</p>
+              <h2>Who is clocking in?</h2>
+              <p class="status-copy">Pick the staff member first, then choose their scheduled shift below.</p>
+            </div>
+            <label class="profile-select">
+              Profile
+              <select [ngModel]="selectedUserId()" (ngModelChange)="onSelectedProfileChange($event)" [disabled]="loading() || actionLoading()">
+                @for (staff of staffProfiles(); track staff.id) {
+                  <option [ngValue]="staff.id">{{ staff.full_name || staff.email }} — {{ formatRole(staff.role) }}</option>
+                }
+              </select>
+            </label>
+          </section>
+        }
+
         <section class="overview-grid">
           <article class="panel profile-panel">
             <div class="panel-head">
@@ -57,9 +76,13 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
                 <p class="eyebrow">Employee profile</p>
                 <h2>{{ profile()?.full_name || 'Complete your profile' }}</h2>
               </div>
-              <button class="text-btn" type="button" (click)="editingProfile.set(!editingProfile())">
-                {{ editingProfile() ? 'Cancel' : 'Edit' }}
-              </button>
+              @if (isSelfProfile()) {
+                <button class="text-btn" type="button" (click)="editingProfile.set(!editingProfile())">
+                  {{ editingProfile() ? 'Cancel' : 'Edit' }}
+                </button>
+              } @else {
+                <span class="managed-profile-pill">Selected profile</span>
+              }
             </div>
             @if (editingProfile()) {
               <form class="profile-form" (ngSubmit)="saveProfile()">
@@ -111,10 +134,12 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
                 {{ session.shift_label || 'Scheduled shift' }} | {{ formatDt(session.started_at) }}
               </p>
               <div class="action-row">
-                @if (session.on_break) {
-                  <button class="secondary-btn" type="button" (click)="endBreak()" [disabled]="actionLoading()">End break</button>
-                } @else {
-                  <button class="secondary-btn" type="button" (click)="startBreak()" [disabled]="actionLoading()">Start break</button>
+                @if (isSelfProfile()) {
+                  @if (session.on_break) {
+                    <button class="secondary-btn" type="button" (click)="endBreak()" [disabled]="actionLoading()">End break</button>
+                  } @else {
+                    <button class="secondary-btn" type="button" (click)="startBreak()" [disabled]="actionLoading()">Start break</button>
+                  }
                 }
                 <button class="danger-btn" type="button" (click)="requestCamera('clock_out')" [disabled]="actionLoading()">
                   Clock out
@@ -265,6 +290,10 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
     .connection-pill,.status-badge,.summary-chips span,.shift-state,.proofs span { border-radius:999px; background:#edf1ef; padding:8px 12px; font-size:.75rem; font-weight:800; }
     .connection-pill span { display:inline-block; width:7px; height:7px; margin-right:7px; border-radius:50%; background:#d39a21; } .connection-pill.ready span { background:#27a171; }
     .alert { margin:18px 0; padding:13px 16px; border:1px solid #efb3a3; border-radius:14px; background:#fff0ec; color:#a43d28; font-weight:700; }
+    .profile-switcher-panel { display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,420px); align-items:end; gap:18px; margin-top:24px; }
+    .profile-select { display:block; }
+    .profile-select select { width:100%; box-sizing:border-box; margin-top:7px; padding:12px; border:1px solid var(--line); border-radius:12px; background:#fff; color:var(--ink); font:inherit; }
+    .managed-profile-pill { border-radius:999px; background:#edf1ef; padding:8px 12px; color:var(--muted); font-size:.75rem; font-weight:800; }
     .overview-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(380px,.8fr); gap:18px; margin-top:24px; }
     .panel,.metric-card { border:1px solid var(--line); border-radius:22px; background:#fff; box-shadow:0 16px 42px rgba(27,45,41,.06); }
     .panel { padding:22px; } .text-btn,.close-btn { border:0; background:transparent; color:var(--teal); font-weight:800; cursor:pointer; }
@@ -295,7 +324,7 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
     .camera-actions { flex:0 0 auto; padding-top:14px; background:#fff; } .camera-actions .alert { margin:0 0 10px; } .camera-actions .wide { margin-top:0; }
     .face-guide { position:absolute; top:12%; left:27%; width:46%; height:69%; border:2px solid rgba(255,255,255,.72); border-radius:48%; box-shadow:0 0 0 999px rgba(0,0,0,.13); }
     .qr-reader { min-height:300px; margin-top:18px; overflow:hidden; border-radius:18px; }
-    @media (max-width:900px) { .overview-grid { grid-template-columns:1fr; } .metrics-grid { grid-template-columns:repeat(2,1fr); } .history-row { grid-template-columns:1.4fr 1fr 1fr; } .history-row > div:nth-child(4),.proofs { display:none; } }
+    @media (max-width:900px) { .profile-switcher-panel,.overview-grid { grid-template-columns:1fr; } .metrics-grid { grid-template-columns:repeat(2,1fr); } .history-row { grid-template-columns:1.4fr 1fr 1fr; } .history-row > div:nth-child(4),.proofs { display:none; } }
     @media (max-width:600px) { .attendance-shell { padding:20px 14px 44px; } .page-heading,.panel-head.timetable-head { align-items:flex-start; flex-direction:column; } .profile-form,.profile-details { grid-template-columns:1fr; } .profile-form label:first-child { grid-column:auto; } .metrics-grid { grid-template-columns:1fr 1fr; } .shift-list { grid-template-columns:1fr; } .shift-state { display:none; } .selected-shift-context { grid-template-columns:auto 1fr; } .shift-window-state { grid-column:1/-1; justify-self:start; } .history-row { grid-template-columns:1.5fr 1fr 1fr; font-size:.83rem; } .modal-backdrop { padding:10px; } .camera-modal { max-height:calc(100dvh - 20px); padding:16px; border-radius:18px; } .camera-modal > p { margin-bottom:10px; font-size:.88rem; } .camera-frame { max-height:42dvh; } .camera-actions { padding-top:10px; } }
   `,
 })
@@ -314,6 +343,8 @@ export class MyShiftComponent implements OnInit, OnDestroy {
   actionLoading = signal(false);
   profileSaving = signal(false);
   error = signal<string | null>(null);
+  staffProfiles = signal<User[]>([]);
+  selectedUserId = signal<number | null>(null);
   profile = signal<StaffProfile | null>(null);
   shifts = signal<Shift[]>([]);
   history = signal<WorkSession[]>([]);
@@ -330,10 +361,16 @@ export class MyShiftComponent implements OnInit, OnDestroy {
   scanError = signal<string | null>(null);
   clockQrToken = signal<string | null>(null);
   tick = signal(0);
+  private preferredShiftId: number | null = null;
   profileName = '';
   profilePhone = '';
   profileJob = '';
 
+  selectedStaffProfile = computed(() => {
+    const id = this.selectedUserId();
+    return this.staffProfiles().find((staff) => staff.id === id) || null;
+  });
+  isSelfProfile = computed(() => this.isSelfUserId(this.selectedUserId()));
   selectedShift = computed(() => this.shifts().find((shift) => shift.id === this.selectedShiftId()) || null);
   upcomingShifts = computed(() => {
     this.tick();
@@ -344,7 +381,14 @@ export class MyShiftComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     const token = (this.route.snapshot.queryParamMap.get('clock_qr') || '').trim();
     if (token) this.clockQrToken.set(token);
-    this.loadAll();
+    const requestedUserId = Number(
+      this.route.snapshot.queryParamMap.get('staffId') ||
+        this.route.snapshot.queryParamMap.get('userId') ||
+        0,
+    );
+    const requestedShiftId = Number(this.route.snapshot.queryParamMap.get('shiftId') || 0);
+    this.preferredShiftId = Number.isFinite(requestedShiftId) && requestedShiftId > 0 ? requestedShiftId : null;
+    this.loadStaffProfiles(Number.isFinite(requestedUserId) && requestedUserId > 0 ? requestedUserId : null);
     this.elapsedTimer = setInterval(() => this.tick.update((value) => value + 1), 1000);
   }
 
@@ -371,26 +415,81 @@ export class MyShiftComponent implements OnInit, OnDestroy {
     return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
   }
 
+  private loadStaffProfiles(requestedUserId: number | null = null): void {
+    this.api.getUsersForSchedule().pipe(catchError(() => of([] as User[]))).subscribe((users) => {
+      const staff = users.filter((user) => user.id != null);
+      this.staffProfiles.set(staff);
+      const currentId = this.currentUserId();
+      const requestedExists = requestedUserId != null && staff.some((user) => user.id === requestedUserId);
+      const nextId = requestedExists ? requestedUserId : (currentId ?? staff[0]?.id ?? null);
+      this.selectedUserId.set(nextId);
+      this.loadAll();
+    });
+  }
+
+  onSelectedProfileChange(value: number | string | null): void {
+    const next = Number(value);
+    if (!Number.isFinite(next) || next <= 0 || next === this.selectedUserId()) return;
+    this.selectedUserId.set(next);
+    this.selectedShiftId.set(null);
+    this.open.set(null);
+    this.editingProfile.set(false);
+    this.loadAll();
+  }
+
   loadAll(): void {
     this.loading.set(true); this.error.set(null);
     const range = this.dateRange();
+    const selectedUserId = this.selectedUserId() ?? this.currentUserId();
+    const selectedUser = this.staffProfiles().find((staff) => staff.id === selectedUserId) || null;
+    const isSelf = this.isSelfUserId(selectedUserId);
+    const profile$ = isSelf
+      ? this.api.getMyStaffProfile()
+      : of(this.userToStaffProfile(selectedUser, selectedUserId));
+    const shifts$ = isSelf
+      ? this.api.getMyShifts(range.shiftFrom, range.shiftTo)
+      : this.api
+          .getSchedule(range.shiftFrom, range.shiftTo)
+          .pipe(map((shifts) => shifts.filter((shift) => shift.user_id === selectedUserId)));
+    const open$ = isSelf
+      ? this.api.getMyOpenWorkSession()
+      : selectedUserId != null
+        ? this.api.getUserOpenWorkSession(selectedUserId)
+        : of(null);
+    const history$ = isSelf
+      ? this.api.getMyWorkSessions(range.historyFrom, range.shiftTo)
+      : selectedUserId != null
+        ? this.api.getUserWorkSessions(selectedUserId, range.historyFrom, range.shiftTo)
+        : of([] as WorkSession[]);
+    const summary$ = isSelf
+      ? this.api.getMyAttendanceSummary(range.monthFrom, range.monthTo)
+      : selectedUserId != null
+        ? this.api
+            .getAttendancePaySummary(range.monthFrom, range.monthTo, selectedUserId)
+            .pipe(map((rows) => rows[0] || this.emptyAttendanceSummary(selectedUser, selectedUserId)))
+        : of(this.emptyAttendanceSummary(selectedUser, null));
     forkJoin({
-      profile: this.api.getMyStaffProfile(),
-      shifts: this.api.getMyShifts(range.shiftFrom, range.shiftTo),
-      open: this.api.getMyOpenWorkSession(),
-      history: this.api.getMyWorkSessions(range.historyFrom, range.shiftTo),
-      summary: this.api.getMyAttendanceSummary(range.monthFrom, range.monthTo),
+      profile: profile$,
+      shifts: shifts$,
+      open: open$,
+      history: history$,
+      summary: summary$,
       qr: this.api.getMyClockQrStatus(),
     }).subscribe({
       next: (data) => {
         this.profile.set(data.profile); this.shifts.set(data.shifts); this.open.set(data.open);
         this.history.set(data.history); this.summary.set(data.summary); this.clockStatus.set(data.qr);
         this.profileName = data.profile.full_name || ''; this.profilePhone = data.profile.phone || ''; this.profileJob = data.profile.job_title || '';
+        const preferred = this.preferredShiftId
+          ? data.shifts.find((shift) => shift.id === this.preferredShiftId)
+          : null;
+        this.preferredShiftId = null;
         if (data.open?.shift_id) this.selectedShiftId.set(data.open.shift_id);
+        else if (preferred) this.selectedShiftId.set(preferred.id);
         else {
           const eligible = data.shifts.filter((shift) => !this.shiftRecordedFrom(data.history, shift.id) && this.isWithinShiftWindow(shift));
-          const preferred = eligible.find((shift) => this.isToday(shift.date)) || eligible[0];
-          this.selectedShiftId.set(preferred?.id || null);
+          const preferredEligible = eligible.find((shift) => this.isToday(shift.date)) || eligible[0];
+          this.selectedShiftId.set(preferredEligible?.id || null);
         }
         this.loading.set(false);
       },
@@ -398,7 +497,50 @@ export class MyShiftComponent implements OnInit, OnDestroy {
     });
   }
 
+  private currentUserId(): number | null {
+    return this.api.getCurrentUser()?.id ?? null;
+  }
+
+  private isSelfUserId(userId: number | null | undefined): boolean {
+    const currentId = this.currentUserId();
+    return userId == null || currentId == null || userId === currentId;
+  }
+
+  private userToStaffProfile(user: User | null, userId: number | null | undefined): StaffProfile {
+    return {
+      id: userId ?? user?.id ?? 0,
+      email: user?.email || '',
+      full_name: user?.full_name || user?.email || 'Selected staff',
+      tenant_id: user?.tenant_id ?? null,
+      provider_id: user?.provider_id ?? null,
+      role: user?.role || 'waiter',
+      employee_number: user?.employee_number ?? null,
+      job_title: user?.job_title ?? null,
+      phone: user?.phone ?? null,
+      hourly_rate_cents: user?.hourly_rate_cents ?? 0,
+      employment_start_date: user?.employment_start_date ?? null,
+      profile_completed_at: user?.profile_completed_at ?? null,
+    };
+  }
+
+  private emptyAttendanceSummary(user: User | null, userId: number | null): AttendancePaySummary {
+    return {
+      user_id: userId ?? user?.id ?? 0,
+      user_name: user?.full_name || user?.email || 'Selected staff',
+      employee_number: user?.employee_number ?? null,
+      job_title: user?.job_title ?? null,
+      hourly_rate_cents: user?.hourly_rate_cents ?? 0,
+      completed_sessions: 0,
+      open_sessions: 0,
+      worked_minutes: 0,
+      estimated_pay_cents: 0,
+      missing_clock_in_photos: 0,
+      missing_clock_out_photos: 0,
+    };
+  }
+
   saveProfile(): void {
+    if (!this.isSelfProfile()) { this.error.set('Open Users to edit another staff profile.'); return; }
     if (this.profileName.trim().length < 2) { this.error.set('Enter your full name.'); return; }
     this.profileSaving.set(true); this.error.set(null);
     this.api.updateMyStaffProfile({ full_name: this.profileName.trim(), phone: this.profilePhone.trim() || null, job_title: this.profileJob.trim() || null })
@@ -480,7 +622,14 @@ export class MyShiftComponent implements OnInit, OnDestroy {
     this.buildVenuePayload().pipe(
       switchMap((payload) => {
         const fullPayload = { ...payload, shift_id: shiftId, photo_data_url: photo, photo_captured_at: capturedAt };
-        return this.pendingAction() === 'clock_in' ? this.api.startMyWorkSession(fullPayload) : this.api.endMyWorkSession(fullPayload);
+        const selectedUserId = this.selectedUserId();
+        if (this.isSelfUserId(selectedUserId)) {
+          return this.pendingAction() === 'clock_in' ? this.api.startMyWorkSession(fullPayload) : this.api.endMyWorkSession(fullPayload);
+        }
+        if (!selectedUserId) throw new Error('Selected staff profile is missing.');
+        return this.pendingAction() === 'clock_in'
+          ? this.api.startUserWorkSession(selectedUserId, fullPayload)
+          : this.api.endUserWorkSession(selectedUserId, fullPayload);
       }), finalize(() => this.actionLoading.set(false))
     ).subscribe({
       next: () => { this.closeCamera(); this.loadAll(); },
@@ -488,8 +637,14 @@ export class MyShiftComponent implements OnInit, OnDestroy {
     });
   }
 
-  startBreak(): void { this.actionLoading.set(true); this.api.startMyWorkSessionBreak().pipe(finalize(() => this.actionLoading.set(false))).subscribe({ next: (row) => this.open.set(row), error: (err) => this.error.set(err?.error?.detail || 'Break could not be started.') }); }
-  endBreak(): void { this.actionLoading.set(true); this.buildVenuePayload().pipe(switchMap((payload) => this.api.endMyWorkSessionBreak(payload)), finalize(() => this.actionLoading.set(false))).subscribe({ next: (row) => this.open.set(row), error: (err) => this.error.set(err?.error?.detail || 'Break could not be ended.') }); }
+  startBreak(): void {
+    if (!this.isSelfProfile()) { this.error.set('Break actions are only available for your own active shift.'); return; }
+    this.actionLoading.set(true); this.api.startMyWorkSessionBreak().pipe(finalize(() => this.actionLoading.set(false))).subscribe({ next: (row) => this.open.set(row), error: (err) => this.error.set(err?.error?.detail || 'Break could not be started.') });
+  }
+  endBreak(): void {
+    if (!this.isSelfProfile()) { this.error.set('Break actions are only available for your own active shift.'); return; }
+    this.actionLoading.set(true); this.buildVenuePayload().pipe(switchMap((payload) => this.api.endMyWorkSessionBreak(payload)), finalize(() => this.actionLoading.set(false))).subscribe({ next: (row) => this.open.set(row), error: (err) => this.error.set(err?.error?.detail || 'Break could not be ended.') });
+  }
 
   private buildVenuePayload(): Observable<WorkSessionClockPayload> {
     const payload: WorkSessionClockPayload = {}; const qr = this.effectiveClockQr(); if (qr) payload.clock_qr = qr;

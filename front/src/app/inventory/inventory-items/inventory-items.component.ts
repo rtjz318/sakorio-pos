@@ -114,7 +114,7 @@ import {
             </div>
             <h3>{{ 'INVENTORY.ITEMS.NO_ITEMS_YET' | translate }}</h3>
             <p>{{ 'INVENTORY.ITEMS.NO_ITEMS_DESC' | translate }}</p>
-            <button class="btn btn-primary" (click)="openCreateModal()">{{ 'INVENTORY.ITEMS.ADD_ITEM' | translate }}</button>
+            <button class="btn btn-primary" (click)="openCreateModal()">{{ 'INVENTORY.ITEMS.CREATE_FIRST_ITEM' | translate }}</button>
           </div>
         } @else {
           <div class="table-card">

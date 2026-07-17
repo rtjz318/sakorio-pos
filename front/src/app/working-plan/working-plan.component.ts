@@ -375,7 +375,19 @@ function isValidView(v: string | null): v is ViewMode {
                     [class.calendar-day-ok]="cell.showOk"
                   >
                     @if (cell.day) {
-                      <span class="calendar-day-num">{{ cell.day }}</span>
+                      <div class="calendar-day-head">
+                        <span class="calendar-day-num">{{ cell.day }}</span>
+                        @if (canWriteSchedule()) {
+                          <button
+                            type="button"
+                            class="calendar-add-shift"
+                            (click)="openCreateForDate(cell.dateStr!)"
+                            [attr.aria-label]="'Add shift on ' + cell.dateStr"
+                          >
+                            + Add
+                          </button>
+                        }
+                      </div>
                       @if (cell.isClosed) {
                         <span class="calendar-closed-label">{{ 'WORKING_PLAN.CLOSED_DAY' | translate }}</span>
                       }
@@ -457,6 +469,9 @@ function isValidView(v: string | null): v is ViewMode {
                   <span class="shift-user">{{ s.user_name }} ({{ getRoleLabel(s.user_role) }})</span>
                 </div>
                 <div class="shift-actions">
+                  @if (canOpenShiftAttendance(s)) {
+                    <button class="btn btn-ghost btn-sm" (click)="openShiftAttendance(s)">Clock in</button>
+                  }
                   @if (canEditShift(s)) {
                     <button class="btn btn-ghost btn-sm" (click)="openEdit(s)">{{ 'COMMON.EDIT' | translate }}</button>
                     <button class="btn btn-ghost btn-sm danger" (click)="confirmDelete(s)">{{ 'COMMON.DELETE' | translate }}</button>
@@ -819,7 +834,22 @@ function isValidView(v: string | null): v is ViewMode {
     .calendar-cell-closed:not(.calendar-day-matches) { background: var(--bg-muted, #ececec); color: var(--text-muted, #666); }
     .calendar-day-matches { background: rgba(220, 38, 38, 0.25); border-color: var(--danger, #dc2626); }
     .calendar-day-ok { background: rgba(22, 163, 74, 0.2); border-color: var(--color-success, #16a34a); }
+    .calendar-day-head { display: flex; align-items: center; justify-content: space-between; gap: 0.35rem; flex-shrink: 0; }
     .calendar-day-num { font-weight: 600; flex-shrink: 0; }
+    .calendar-add-shift {
+      border: 1px solid var(--border-color, #ddd);
+      border-radius: 999px;
+      background: var(--card-bg, #fff);
+      color: var(--primary-color, #0f766e);
+      cursor: pointer;
+      font-size: 0.65rem;
+      font-weight: 700;
+      line-height: 1;
+      padding: 0.22rem 0.4rem;
+      white-space: nowrap;
+    }
+    .calendar-add-shift:hover { border-color: currentColor; background: rgba(15, 118, 110, 0.08); }
+    .calendar-add-shift:focus-visible { outline: 2px solid var(--focus-ring, #2563eb); outline-offset: 1px; }
     .calendar-closed-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.02em; opacity: 0.85; }
     .calendar-shift-lines { list-style: none; margin: 0; padding: 0; font-size: 0.65rem; line-height: 1.3; overflow: hidden; display: flex; flex-direction: column; gap: 0.12rem; }
     .calendar-shift-line {
@@ -1851,6 +1881,17 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
     return s.user_id === this.api.getCurrentUser()?.id;
   }
 
+  canOpenShiftAttendance(s: Shift): boolean {
+    if (this.canManageAllSchedules()) return true;
+    return s.user_id === this.api.getCurrentUser()?.id;
+  }
+
+  openShiftAttendance(s: Shift): void {
+    this.router.navigate(['/my-shift'], {
+      queryParams: { staffId: s.user_id, shiftId: s.id },
+    });
+  }
+
   calendarShiftLineTrack(line: CalendarShiftLineRow, idx: number): string {
     if (line.shift) return `s-${line.shift.id}`;
     return `o-${idx}`;
@@ -1914,6 +1955,12 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
     this.formError.set(null);
     this.showModal.set(true);
     this.onFormDateChange(this.formDate);
+  }
+
+  openCreateForDate(date: string): void {
+    this.openCreate();
+    this.formDate = date;
+    this.onFormDateChange(date);
   }
 
   openEdit(s: Shift): void {

@@ -728,6 +728,7 @@
   "CUSTOMERS": {
     "TITLE": "Customers (Invoice)",
     "ADD": "Add customer",
+    "CREATE_FIRST": "Create first customer",
     "EDIT": "Edit customer",
     "CREATE": "Create",
     "NAME": "Name",
@@ -1162,6 +1163,7 @@
     "EDIT_RESERVATION_OPTIONS": "Edit reservation options",
     "RESERVATION_NUMBER": "Reservation number",
     "NEW": "New reservation",
+    "CREATE_FIRST": "Create first reservation",
     "LOADING": "Loading...",
     "NONE": "No reservations",
     "ALL_STATUSES": "All statuses",
@@ -1794,6 +1796,7 @@
     "ITEMS": {
       "TITLE": "Inventory Items",
       "ADD_ITEM": "Add Item",
+      "CREATE_FIRST_ITEM": "Create first item",
       "EDIT_ITEM": "Edit Item",
       "NEW_ITEM": "New Item",
       "DELETE_ITEM": "Delete Item",

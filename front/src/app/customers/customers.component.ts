@@ -66,7 +66,7 @@ import { TranslateModule } from '@ngx-translate/core';
             <h3>{{ 'CUSTOMERS.NONE' | translate }}</h3>
             <p>{{ 'CUSTOMERS.NONE_DESC' | translate }}</p>
             @if (canWrite()) {
-              <button class="btn btn-primary" (click)="openModal(null)">{{ 'CUSTOMERS.ADD' | translate }}</button>
+              <button class="btn btn-primary" (click)="openModal(null)">{{ 'CUSTOMERS.CREATE_FIRST' | translate }}</button>
             }
           </div>
         } @else {

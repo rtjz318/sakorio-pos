@@ -1676,7 +1676,7 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
     }
 
     /* ==========================================
-       TABS - Mobile First (Horizontal Scroll)
+       TABS - Mobile First, wrapped on larger screens
        ========================================== */
     .tabs-container {
       margin-bottom: var(--space-4);
@@ -1742,8 +1742,25 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
 
     /* Tablet+: Show text labels */
     @media (min-width: 480px) {
+      .tabs-container {
+        margin-left: 0;
+        margin-right: 0;
+        padding: 0;
+        overflow-x: visible;
+        max-width: 100%;
+      }
+
+      .tabs {
+        flex-wrap: wrap;
+        width: 100%;
+        min-width: 0;
+        padding-bottom: 0;
+      }
+
       .tab {
         padding: var(--space-3) var(--space-4);
+        flex: 1 1 180px;
+        min-width: min(100%, 180px);
       }
       
       .tab span {

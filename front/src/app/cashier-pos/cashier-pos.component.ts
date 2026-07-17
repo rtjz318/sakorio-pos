@@ -4317,8 +4317,10 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       }
 
       .tablet-pos-bar {
-        position: sticky;
+        position: fixed;
         top: 0.45rem;
+        left: 1rem;
+        right: 1rem;
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
@@ -4351,7 +4353,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
         grid-area: tables;
         grid-column: 1 / -1;
         position: sticky;
-        top: 5.35rem;
+        top: 5.8rem;
         z-index: 5;
         max-height: none;
         padding-block: 0.62rem;
@@ -4406,8 +4408,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       .cashier-grid--workspace-open .lane--checkout {
         grid-area: checkout;
         position: sticky;
-        top: 5.35rem;
-        max-height: calc(100vh - 5.8rem);
+        top: 5.8rem;
+        max-height: calc(100vh - 6.25rem);
       }
 
       .table-stack {
@@ -4440,12 +4442,20 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       .settlement-mode-grid--compact {
         grid-template-columns: 1fr;
       }
+
+      #cashier-floor,
+      #cashier-catalog,
+      #payment-dock {
+        scroll-margin-top: 6.1rem;
+      }
     }
 
     @media (max-width: 920px) {
       .tablet-pos-bar {
-        position: sticky;
+        position: fixed;
         top: 0.35rem;
+        left: 1rem;
+        right: 1rem;
         display: grid;
       }
 
@@ -4511,7 +4521,13 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
       .settlement-summary-row--active {
         position: sticky;
-        top: 5.2rem;
+        top: 8.9rem;
+      }
+
+      #cashier-floor,
+      #cashier-catalog,
+      #payment-dock {
+        scroll-margin-top: 9.35rem;
       }
     }
 
@@ -4558,7 +4574,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       .settlement-summary-row--active {
         grid-template-columns: 1fr;
         position: sticky;
-        top: 5.2rem;
+        top: 8.9rem;
         backdrop-filter: none;
       }
 

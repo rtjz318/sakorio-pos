@@ -39,6 +39,8 @@ type FullscreenDocument = Document & {
 };
 
 type KitchenLaneKey = 'pending' | 'preparing' | 'ready';
+type ProductionRouteKey = 'all' | 'kitchen' | 'bar';
+type ProductionRouteFilterKey = 'kitchen' | 'bar';
 
 function getFullscreenElement(): Element | null {
   const d = document as FullscreenDocument;
@@ -186,6 +188,32 @@ function getWorkflowSortWeight(
           {{ 'KITCHEN_DISPLAY.TITLE' | translate }}
         </h1>
         <div class="header-actions">
+          <div class="route-switcher" aria-label="Production route">
+            <button
+              type="button"
+              class="route-switcher-btn"
+              [class.active]="productionRoute() === 'all'"
+              (click)="setProductionRoute('all')">
+              All
+              <span>{{ routeTicketCount('all') }}</span>
+            </button>
+            <button
+              type="button"
+              class="route-switcher-btn"
+              [class.active]="productionRoute() === 'kitchen'"
+              (click)="setProductionRoute('kitchen')">
+              Kitchen
+              <span>{{ routeTicketCount('kitchen') }}</span>
+            </button>
+            <button
+              type="button"
+              class="route-switcher-btn"
+              [class.active]="productionRoute() === 'bar'"
+              (click)="setProductionRoute('bar')">
+              Beverages
+              <span>{{ routeTicketCount('bar') }}</span>
+            </button>
+          </div>
           @if (stationsForCurrentView().length > 0) {
             <label class="station-filter">
               <span class="station-filter-label">{{ 'KITCHEN_DISPLAY.STATION' | translate }}</span>
@@ -458,6 +486,56 @@ function getWorkflowSortWeight(
       justify-content: flex-end;
       gap: var(--space-3);
       flex-wrap: wrap;
+    }
+    .route-switcher {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.22rem;
+      padding: 0.2rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--color-bg) 82%, white);
+      border: 1px solid var(--color-border);
+    }
+    .route-switcher-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.38rem;
+      min-height: 2.1rem;
+      padding: 0.32rem 0.74rem;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--color-text-muted);
+      font-weight: 800;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .route-switcher-btn span {
+      min-width: 1.42rem;
+      padding: 0.08rem 0.38rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--color-surface) 92%, white);
+      color: var(--color-text);
+      font-size: 0.72rem;
+      font-weight: 900;
+      line-height: 1.25;
+      border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+    }
+    .route-switcher-btn:hover {
+      color: var(--color-text);
+      background: color-mix(in srgb, var(--color-primary) 7%, white);
+    }
+    .route-switcher-btn.active {
+      color: white;
+      background: var(--color-primary);
+      box-shadow: 0 8px 18px rgba(211, 82, 51, 0.22);
+    }
+    .route-switcher-btn.active span {
+      color: var(--color-primary);
+      background: white;
+      border-color: transparent;
     }
     .backlog-filter-btn,
     .timer-settings-btn,
@@ -1176,6 +1254,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   kitchenStations = signal<KitchenStation[]>([]);
   /** KDS station filter across every production station. */
   stationSelection = signal<number | 'all'>('all');
+  /** Visible route for the production board. */
+  productionRoute = signal<ProductionRouteKey>('all');
   /** Current time for live timer (updates every second). */
   now = signal(Date.now());
   /** Historical unresolved tickets stay available without overwhelming the live shift. */
@@ -1202,7 +1282,9 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   );
 
   stationsForCurrentView = computed(() => {
+    const route = this.productionRoute();
     return [...this.kitchenStations()]
+      .filter((station) => route === 'all' || station.display_route === route)
       .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
   });
 
@@ -1278,6 +1360,11 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     return this.stationsForCurrentView().some((station) => station.id === selection);
   }
 
+  private selectedProductionRouteFilter(): ProductionRouteFilterKey | undefined {
+    const route = this.productionRoute();
+    return route === 'all' ? undefined : route;
+  }
+
   private isCurrentKitchenOrder(order: Order): boolean {
     const createdAt = new Date(order.created_at).getTime();
     return Number.isFinite(createdAt) && this.now() - createdAt <= KITCHEN_CURRENT_WINDOW_MS;
@@ -1288,7 +1375,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       if (this.isCurrentKitchenOrder(order)) {
         return count;
       }
-      return this.getKitchenRenderableItems(order).length > 0 ? count + 1 : count;
+      const routeKey = this.selectedProductionRouteFilter();
+      return this.getKitchenRenderableItems(order, { routeKey }).length > 0 ? count + 1 : count;
     }, 0)
   );
 
@@ -1303,9 +1391,11 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     const useStations = this.stationsForCurrentView().length > 0;
     const sel = this.stationSelection();
     const enforceStationSelection = useStations && this.hasStationSelectionForCurrentView(sel);
+    const routeKey = this.selectedProductionRouteFilter();
 
     const list = this.kitchenSourceOrders().filter((o) => {
       const items = this.getKitchenRenderableItems(o, {
+        routeKey,
         selectedStation: sel,
         enforceStationSelection,
       });
@@ -1315,6 +1405,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       ...o,
       staff_urgent: !!o.staff_urgent,
       items: this.getKitchenRenderableItems(o, {
+        routeKey,
         selectedStation: sel,
         enforceStationSelection,
       }),
@@ -1472,6 +1563,26 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     document.removeEventListener('mozfullscreenchange', this.onFullscreenChange);
     document.removeEventListener('MSFullscreenChange', this.onFullscreenChange);
     void this.exitFullscreenIfActive();
+  }
+
+  setProductionRoute(route: ProductionRouteKey): void {
+    this.productionRoute.set(route);
+    if (this.stationSelection() !== 'all' && !this.hasStationSelectionForCurrentView(this.stationSelection())) {
+      this.stationSelection.set('all');
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { station: undefined },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    }
+  }
+
+  routeTicketCount(route: ProductionRouteKey): number {
+    const routeKey: ProductionRouteFilterKey | undefined = route === 'all' ? undefined : route;
+    return this.kitchenSourceOrders().reduce((count, order) => {
+      return count + (this.getKitchenRenderableItems(order, { routeKey }).length > 0 ? 1 : 0);
+    }, 0);
   }
 
   onStationSelectChange(value: number | 'all'): void {

@@ -2700,21 +2700,48 @@ export class OrdersComponent implements OnInit, OnDestroy {
       next: orders => {
         this.orders.set(orders);
         this.loading.set(false);
-        this.applyStaffOrdersFocusFromQuery();
+        const focusApplied = this.applyStaffOrdersFocusFromQuery();
+        if (!focusApplied) {
+          this.ensureVisibleOrdersView();
+        }
       },
       error: () => this.loading.set(false)
     });
+  }
+
+  private ensureVisibleOrdersView(): void {
+    const mode = this.viewMode();
+    if (mode === 'active' && this.activeOrders().length === 0) {
+      if (this.notPaidOrders().length > 0) {
+        this.viewMode.set('not_paid');
+        return;
+      }
+      if (this.completedOrders().length > 0) {
+        this.viewMode.set('history');
+      }
+      return;
+    }
+
+    if (mode === 'not_paid' && this.notPaidOrders().length === 0) {
+      if (this.activeOrders().length > 0) {
+        this.viewMode.set('active');
+        return;
+      }
+      if (this.completedOrders().length > 0) {
+        this.viewMode.set('history');
+      }
+    }
   }
 
   /**
    * Deep-link from floor plan (and similar): ?focusOrder=123 or ?focusTableId=45
    * Picks the right tab, scrolls to the card when possible, or opens edit for history-only orders.
    */
-  private applyStaffOrdersFocusFromQuery() {
+  private applyStaffOrdersFocusFromQuery(): boolean {
     const q = this.route.snapshot.queryParamMap;
     const focusOrderRaw = q.get('focusOrder');
     const focusTableRaw = q.get('focusTableId');
-    if (!focusOrderRaw && !focusTableRaw) return;
+    if (!focusOrderRaw && !focusTableRaw) return false;
 
     const focusOrderId =
       focusOrderRaw != null && focusOrderRaw !== ''
@@ -2818,6 +2845,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     } else {
       clearParams();
     }
+    return true;
   }
 
   /** Refresh orders list and update editOrder with the latest order so the edit modal stays in sync. */

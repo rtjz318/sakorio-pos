@@ -1,0 +1,133 @@
+<main class="waitlist-page">
+  <header class="brand-bar">
+    <a routerLink="/" class="brand">Sakorio</a>
+    <span>Live waitlist</span>
+  </header>
+
+  <section class="waitlist-shell">
+    @if (loading()) {
+      <div class="state-card" aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span>
+        <p>Loading the restaurant queue...</p>
+      </div>
+    } @else if (status(); as current) {
+      <section class="status-card" [class.status-card--alert]="current.status === 'notified'">
+        <div class="status-topline">
+          <span class="restaurant-name">{{ current.tenant_name }}</span>
+          <span class="reference">{{ current.reference }}</span>
+        </div>
+        <div class="status-icon" aria-hidden="true">
+          @if (current.status === 'notified') { ! } @else if (current.status === 'seated') { ✓ } @else { {{ current.position ?? '•' }} }
+        </div>
+        <p class="eyebrow">Live queue status</p>
+        <h1>{{ statusTitle() }}</h1>
+        <p class="status-copy">{{ statusCopy() }}</p>
+
+        @if (isActive()) {
+          <div class="position-grid">
+            <div>
+              <span>Position</span>
+              <strong>{{ current.position ?? 'Updating' }}</strong>
+            </div>
+            <div>
+              <span>Party</span>
+              <strong>{{ current.party_size }} guests</strong>
+            </div>
+            <div>
+              <span>Quoted wait</span>
+              <strong>{{ current.quoted_wait_minutes != null ? current.quoted_wait_minutes + ' min' : 'Host confirming' }}</strong>
+            </div>
+          </div>
+        }
+
+        <div class="status-actions">
+          @if (isActive()) {
+            <button type="button" class="btn btn-secondary" (click)="copyStatusLink()">
+              {{ copied() ? 'Link copied' : 'Save status link' }}
+            </button>
+            <button type="button" class="btn btn-text" [disabled]="cancelling()" (click)="cancelQueue()">
+              {{ cancelling() ? 'Cancelling...' : 'Leave queue' }}
+            </button>
+          } @else {
+            <button type="button" class="btn btn-primary" (click)="startAgain()">Join again</button>
+          }
+        </div>
+      </section>
+    } @else {
+      <section class="intro-card">
+        <div>
+          <p class="eyebrow">{{ info()?.tenant_name }}</p>
+          <h1>Join the queue</h1>
+          <p class="intro-copy">Add your party from your phone. The host will update this page when your table is ready.</p>
+        </div>
+        <div class="queue-pulse">
+          <div>
+            <strong>{{ info()?.active_entries ?? 0 }}</strong>
+            <span>parties ahead</span>
+          </div>
+          <div>
+            <strong>{{ info()?.estimated_wait_minutes != null ? info()?.estimated_wait_minutes + ' min' : 'Live' }}</strong>
+            <span>current estimate</span>
+          </div>
+        </div>
+      </section>
+
+      <form class="join-card" (ngSubmit)="joinQueue()" #joinForm="ngForm">
+        <div class="form-heading">
+          <span>Party details</span>
+          <small>Fields marked * are required</small>
+        </div>
+
+        <label>
+          <span>Name *</span>
+          <input name="customerName" [(ngModel)]="form.customer_name" required minlength="2" maxlength="120" autocomplete="name" placeholder="Your name" />
+        </label>
+
+        <div class="form-row">
+          <label>
+            <span>Mobile number *</span>
+            <input name="customerPhone" [(ngModel)]="form.customer_phone" required minlength="6" maxlength="64" inputmode="tel" autocomplete="tel" placeholder="e.g. 8123 4567" />
+          </label>
+          <label>
+            <span>Party size *</span>
+            <select name="partySize" [(ngModel)]="form.party_size" required>
+              @for (size of [1,2,3,4,5,6,7,8,9,10,11,12]; track size) {
+                <option [ngValue]="size">{{ size }} {{ size === 1 ? 'guest' : 'guests' }}</option>
+              }
+            </select>
+          </label>
+        </div>
+
+        @if ((info()?.floors?.length ?? 0) > 1) {
+          <label>
+            <span>Preferred seating area</span>
+            <select name="preferredFloor" [(ngModel)]="form.preferred_floor_id">
+              <option [ngValue]="null">No preference</option>
+              @for (floor of info()?.floors ?? []; track floor.id) {
+                <option [ngValue]="floor.id">{{ floor.name }}</option>
+              }
+            </select>
+          </label>
+        }
+
+        <label>
+          <span>Notes for the host</span>
+          <textarea name="notes" [(ngModel)]="form.notes" maxlength="500" rows="3" placeholder="High chair, accessibility needs, or seating request"></textarea>
+        </label>
+
+        @if (error()) {
+          <div class="error-message" role="alert">{{ error() }}</div>
+        }
+
+        <button type="submit" class="btn btn-primary btn-submit" [disabled]="joinForm.invalid || submitting()">
+          {{ submitting() ? 'Joining queue...' : 'Join queue' }}
+        </button>
+        <p class="privacy-note">Your mobile number is used only for this visit and queue updates.</p>
+      </form>
+    }
+
+    @if (error() && status()) {
+      <div class="error-message standalone" role="alert">{{ error() }}</div>
+    }
+  </section>
+</main>

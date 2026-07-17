@@ -62,6 +62,19 @@ export const SUPPORT_USER_EMAIL = 'support@sakario.sg';
                     @if (isSupportUser(user)) {
                       <span class="user-support-badge">{{ 'USERS.SUPPORT_BADGE' | translate }}</span>
                     }
+                    @if (user.job_title) {
+                      <span class="employment-badge">{{ user.job_title }}</span>
+                    }
+                  </div>
+                  <div class="employment-summary">
+                    @if (isPayrollEmployee(user)) {
+                      <span>{{ formatHourlyRate(user.hourly_rate_cents) }}/hr</span>
+                      <span [class.incomplete]="!user.profile_completed_at">
+                        {{ user.profile_completed_at ? 'Profile ready' : 'Profile incomplete' }}
+                      </span>
+                    } @else {
+                      <span>Administrative account</span>
+                    }
                   </div>
                 </div>
                 <div class="user-actions">
@@ -137,6 +150,51 @@ export const SUPPORT_USER_EMAIL = 'support@sakario.sg';
                       <option [value]="role">{{ getRoleDisplayName(role) }}</option>
                     }
                   </select>
+                </div>
+                <div class="employment-form-grid">
+                  <div class="form-group">
+                    <label for="jobTitle">Job title</label>
+                    <input
+                      type="text"
+                      id="jobTitle"
+                      [(ngModel)]="formJobTitle"
+                      name="jobTitle"
+                      maxlength="128"
+                      placeholder="e.g. Senior waiter"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label for="phone">Phone</label>
+                    <input
+                      type="tel"
+                      id="phone"
+                      [(ngModel)]="formPhone"
+                      name="phone"
+                      maxlength="32"
+                      placeholder="Employee contact number"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label for="hourlyRate">Hourly pay (SGD)</label>
+                    <input
+                      type="number"
+                      id="hourlyRate"
+                      [(ngModel)]="formHourlyRate"
+                      name="hourlyRate"
+                      min="0"
+                      step="0.01"
+                    />
+                    <p class="field-hint">Used to estimate salary from completed clocked hours.</p>
+                  </div>
+                  <div class="form-group">
+                    <label for="employmentStartDate">Employment start date</label>
+                    <input
+                      type="date"
+                      id="employmentStartDate"
+                      [(ngModel)]="formEmploymentStartDate"
+                      name="employmentStartDate"
+                    />
+                  </div>
                 </div>
                 @if (editingUser() && (formPassword || formPasswordConfirm)) {
                   <div class="form-group">
@@ -399,6 +457,47 @@ export const SUPPORT_USER_EMAIL = 'support@sakario.sg';
       color: #5b21b6;
     }
 
+    .employment-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      background: #ecfdf5;
+      color: #047857;
+    }
+
+    .employment-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 12px;
+      margin-top: 8px;
+      color: var(--color-text-muted);
+      font-size: 0.75rem;
+    }
+
+    .employment-summary .incomplete {
+      color: #b45309;
+      font-weight: 600;
+    }
+
+    .employment-form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0 var(--space-4);
+      padding: var(--space-4);
+      margin-bottom: var(--space-4);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: color-mix(in srgb, var(--color-bg) 70%, white);
+    }
+
+    @media (max-width: 640px) {
+      .employment-form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .role-owner {
       background: #fef3c7;
       color: #92400e;
@@ -634,6 +733,10 @@ export class UsersComponent implements OnInit {
   formEmail = '';
   formFullName = '';
   formRole: UserRole = 'waiter';
+  formJobTitle = '';
+  formPhone = '';
+  formHourlyRate = 0;
+  formEmploymentStartDate = '';
   formPassword = '';
   formPasswordConfirm = '';
   formActorCurrentPassword = '';
@@ -725,6 +828,10 @@ export class UsersComponent implements OnInit {
     return user.email.trim().toLowerCase() === SUPPORT_USER_EMAIL;
   }
 
+  isPayrollEmployee(user: User): boolean {
+    return user.role !== 'owner' && user.role !== 'admin';
+  }
+
   isSupportEmailForm(): boolean {
     return this.formEmail.trim().toLowerCase() === SUPPORT_USER_EMAIL;
   }
@@ -754,6 +861,7 @@ export class UsersComponent implements OnInit {
     this.formEmail = '';
     this.formFullName = '';
     this.formRole = 'waiter';
+    this.resetEmploymentFields();
     this.formPassword = '';
     this.formPasswordConfirm = '';
     this.formActorCurrentPassword = '';
@@ -772,6 +880,7 @@ export class UsersComponent implements OnInit {
     this.formEmail = SUPPORT_USER_EMAIL;
     this.formFullName = this.translate.instant('USERS.SUPPORT_DEFAULT_NAME');
     this.formRole = 'admin';
+    this.resetEmploymentFields();
     this.formPassword = '';
     this.formPasswordConfirm = '';
     this.formActorCurrentPassword = '';
@@ -785,6 +894,10 @@ export class UsersComponent implements OnInit {
     this.formEmail = user.email;
     this.formFullName = user.full_name || '';
     this.formRole = user.role;
+    this.formJobTitle = user.job_title || '';
+    this.formPhone = user.phone || '';
+    this.formHourlyRate = (user.hourly_rate_cents || 0) / 100;
+    this.formEmploymentStartDate = user.employment_start_date || '';
     this.formPassword = '';
     this.formPasswordConfirm = '';
     this.formActorCurrentPassword = '';
@@ -796,6 +909,21 @@ export class UsersComponent implements OnInit {
     this.showModal.set(false);
     this.editingUser.set(null);
     this.supportAccessFromShortcut.set(false);
+  }
+
+  private resetEmploymentFields(): void {
+    this.formJobTitle = '';
+    this.formPhone = '';
+    this.formHourlyRate = 0;
+    this.formEmploymentStartDate = '';
+  }
+
+  formatHourlyRate(cents: number | null | undefined): string {
+    return new Intl.NumberFormat('en-SG', {
+      style: 'currency',
+      currency: 'SGD',
+      minimumFractionDigits: 2,
+    }).format((cents || 0) / 100);
   }
 
   saveUser() {
@@ -841,6 +969,11 @@ export class UsersComponent implements OnInit {
       if (this.formRole !== editing.role) {
         updateData.role = this.formRole;
       }
+      const hourlyRateCents = Math.max(0, Math.round((Number(this.formHourlyRate) || 0) * 100));
+      updateData.job_title = this.formJobTitle.trim() || null;
+      updateData.phone = this.formPhone.trim() || null;
+      updateData.hourly_rate_cents = hourlyRateCents;
+      updateData.employment_start_date = this.formEmploymentStartDate || null;
       if (this.formPassword) {
         updateData.password = this.formPassword;
         updateData.actor_current_password = this.formActorCurrentPassword.trim();
@@ -864,6 +997,10 @@ export class UsersComponent implements OnInit {
         password: this.formPassword,
         full_name: this.formFullName || undefined,
         role: this.formRole,
+        job_title: this.formJobTitle.trim() || null,
+        phone: this.formPhone.trim() || null,
+        hourly_rate_cents: Math.max(0, Math.round((Number(this.formHourlyRate) || 0) * 100)),
+        employment_start_date: this.formEmploymentStartDate || null,
       };
 
       this.api.createUser(createData).subscribe({

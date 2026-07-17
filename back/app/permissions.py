@@ -80,6 +80,27 @@ class Permission(str, Enum):
 
 
 # Map roles to their permissions
+SMALL_OUTLET_OPERATOR_PERMISSIONS: set[Permission] = {
+    Permission.PRODUCT_READ,
+    Permission.CATALOG_READ,
+    Permission.TABLE_READ,
+    Permission.TABLE_ACTIVATE,
+    Permission.FLOOR_READ,
+    Permission.RESERVATION_READ,
+    Permission.RESERVATION_WRITE,
+    Permission.ORDER_READ,
+    Permission.ORDER_UPDATE_STATUS,
+    Permission.ORDER_ITEM_STATUS,
+    Permission.ORDER_MARK_PAID,
+    Permission.ORDER_REMOVE_ITEM,
+    Permission.BILLING_CUSTOMER_READ,
+    Permission.BILLING_CUSTOMER_WRITE,
+    Permission.SCHEDULE_READ,
+    Permission.SCHEDULE_WRITE,
+    Permission.STAFF_CONTRACT_READ,
+}
+
+
 ROLE_PERMISSIONS: dict[UserRole, set[Permission]] = {
     UserRole.owner: set(Permission),  # Owner has ALL permissions
     
@@ -159,50 +180,9 @@ ROLE_PERMISSIONS: dict[UserRole, set[Permission]] = {
         Permission.STAFF_CONTRACT_READ,
     },
     
-    UserRole.waiter: {
-        # Products (read-only)
-        Permission.PRODUCT_READ,
-        Permission.CATALOG_READ,
-        # Tables (view and activate)
-        Permission.TABLE_READ,
-        Permission.TABLE_ACTIVATE,
-        Permission.FLOOR_READ,
-        # Reservations
-        Permission.RESERVATION_READ,
-        Permission.RESERVATION_WRITE,
-        # Orders (full order management except cancel)
-        Permission.ORDER_READ,
-        Permission.ORDER_UPDATE_STATUS,
-        Permission.ORDER_ITEM_STATUS,
-        Permission.ORDER_MARK_PAID,
-        Permission.ORDER_REMOVE_ITEM,
-        Permission.BILLING_CUSTOMER_READ,
-        Permission.BILLING_CUSTOMER_WRITE,
-        # Working plan (add/edit shifts)
-        Permission.SCHEDULE_READ,
-        Permission.SCHEDULE_WRITE,
-        Permission.STAFF_CONTRACT_READ,
-    },
-    
-    UserRole.receptionist: {
-        # Products (read-only)
-        Permission.PRODUCT_READ,
-        Permission.CATALOG_READ,
-        # Tables (view and activate)
-        Permission.TABLE_READ,
-        Permission.TABLE_ACTIVATE,
-        Permission.FLOOR_READ,
-        # Reservations
-        Permission.RESERVATION_READ,
-        Permission.RESERVATION_WRITE,
-        # Orders (view only)
-        Permission.ORDER_READ,
-        Permission.BILLING_CUSTOMER_READ,
-        # Working plan (add/edit shifts)
-        Permission.SCHEDULE_READ,
-        Permission.SCHEDULE_WRITE,
-        Permission.STAFF_CONTRACT_READ,
-    },
+    # Small outlets use waiter and receptionist as equivalent cashier/host operators.
+    UserRole.waiter: set(SMALL_OUTLET_OPERATOR_PERMISSIONS),
+    UserRole.receptionist: set(SMALL_OUTLET_OPERATOR_PERMISSIONS),
 
     # Courier portal uses dedicated endpoints; no staff RBAC permissions in Phase 1.
     UserRole.courier: set(),

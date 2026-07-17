@@ -239,6 +239,34 @@ function isValidView(v: string | null): v is ViewMode {
         <p class="export-hint export-hint-muted">{{ 'WORKING_PLAN.EXPORT_NO_STAFF_HINT' | translate }}</p>
       }
 
+      @if (scheduleUsers().length) {
+        <section class="staff-readiness-panel" data-testid="working-plan-staff-readiness">
+          <div class="staff-readiness-copy">
+            <span class="staff-readiness-eyebrow">Attendance setup</span>
+            @if (payrollStaffUsers().length) {
+              <strong>Payroll-ready staff before scheduling</strong>
+              <p>Employees clock in from their assigned timetable shift. Keep names, job titles, and hourly rates ready before service.</p>
+            } @else {
+              <strong>Add hourly employees when the team is ready</strong>
+              <p>Owners and admins can still be scheduled, but only employee profiles contribute to payroll readiness.</p>
+            }
+          </div>
+          <div class="staff-readiness-stats">
+            <article><span>Hourly staff</span><strong>{{ payrollStaffUsers().length }}</strong></article>
+            <article><span>Payroll ready</span><strong>{{ payrollReadyUsers().length }}</strong></article>
+            <article [class.needs-attention]="missingRateUsers().length > 0"><span>No rate</span><strong>{{ missingRateUsers().length }}</strong></article>
+            <article [class.needs-attention]="incompleteProfileUsers().length > 0"><span>Profile gaps</span><strong>{{ incompleteProfileUsers().length }}</strong></article>
+          </div>
+          @if (staffSetupWarnings().length) {
+            <div class="staff-readiness-warnings">
+              @for (warning of staffSetupWarnings(); track warning) {
+                <span>{{ warning }}</span>
+              }
+            </div>
+          }
+        </section>
+      }
+
       @if (complianceWarnings().length) {
         <div class="compliance-banner" role="alert" data-testid="working-plan-compliance">
           <strong>{{ 'WORKING_PLAN.COMPLIANCE_TITLE' | translate }}</strong>
@@ -662,6 +690,72 @@ function isValidView(v: string | null): v is ViewMode {
     .export-worker-select { min-width: 10rem; max-width: 14rem; padding: 0.35rem 0.5rem; border: 1px solid var(--border-color, #ccc); border-radius: 6px; font-size: 0.875rem; }
     .export-hint { font-size: 0.75rem; color: var(--text-muted, #666); margin: 0 0 1rem 0; }
     .export-hint-muted { font-style: italic; }
+    .staff-readiness-panel {
+      display: grid;
+      grid-template-columns: minmax(16rem, 1fr) minmax(24rem, 1.3fr);
+      gap: 1rem;
+      align-items: stretch;
+      margin: 0 0 1rem 0;
+      padding: 1rem;
+      border: 1px solid var(--border-color, #e5e7eb);
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(20, 184, 166, 0.09), rgba(255, 255, 255, 0.92));
+    }
+    .staff-readiness-copy { display: flex; flex-direction: column; justify-content: center; gap: 0.25rem; min-width: 0; }
+    .staff-readiness-eyebrow {
+      color: var(--primary-color, #0f766e);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .staff-readiness-copy strong { font-size: 1rem; }
+    .staff-readiness-copy p { margin: 0; color: var(--text-muted, #666); font-size: 0.875rem; line-height: 1.45; }
+    .staff-readiness-stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.6rem;
+    }
+    .staff-readiness-stats article {
+      padding: 0.75rem;
+      border: 1px solid rgba(15, 118, 110, 0.16);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.82);
+      min-width: 0;
+    }
+    .staff-readiness-stats span {
+      display: block;
+      color: var(--text-muted, #666);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .staff-readiness-stats strong { display: block; margin-top: 0.25rem; font-size: 1.4rem; line-height: 1; }
+    .staff-readiness-stats article.needs-attention {
+      border-color: rgba(217, 119, 6, 0.28);
+      background: rgba(254, 243, 199, 0.7);
+    }
+    .staff-readiness-warnings {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: -0.25rem;
+    }
+    .staff-readiness-warnings span {
+      padding: 0.32rem 0.6rem;
+      border-radius: 999px;
+      background: rgba(254, 243, 199, 0.9);
+      color: #92400e;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+    @media (max-width: 900px) {
+      .staff-readiness-panel { grid-template-columns: 1fr; }
+      .staff-readiness-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
     .week-label { min-width: 12rem; font-weight: 500; }
     .empty-state { text-align: center; padding: 2rem; color: var(--text-muted, #666); }
     .empty-state .btn { margin-top: 0.5rem; }
@@ -920,6 +1014,35 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
     const id = this.api.getCurrentUser()?.id;
     if (id == null) return [];
     return users.filter((u) => u.id === id);
+  });
+
+  payrollStaffUsers = computed(() =>
+    this.scheduleUsers().filter((u) => u.role !== 'owner' && u.role !== 'admin'),
+  );
+
+  payrollReadyUsers = computed(() =>
+    this.payrollStaffUsers().filter((u) => !!u.full_name?.trim() && (u.hourly_rate_cents ?? 0) > 0),
+  );
+
+  missingRateUsers = computed(() =>
+    this.payrollStaffUsers().filter((u) => (u.hourly_rate_cents ?? 0) <= 0),
+  );
+
+  incompleteProfileUsers = computed(() =>
+    this.payrollStaffUsers().filter((u) => !u.full_name?.trim() || !u.profile_completed_at),
+  );
+
+  staffSetupWarnings = computed(() => {
+    const warnings: string[] = [];
+    const missingRate = this.missingRateUsers();
+    const incomplete = this.incompleteProfileUsers();
+    if (missingRate.length) {
+      warnings.push(`${missingRate.length} staff ${missingRate.length === 1 ? 'member has' : 'members have'} no hourly rate.`);
+    }
+    if (incomplete.length) {
+      warnings.push(`${incomplete.length} staff ${incomplete.length === 1 ? 'profile needs' : 'profiles need'} completion.`);
+    }
+    return warnings.slice(0, 2);
   });
 
   /** Time options for bulk apply (Monday opening hours as template, or full day). */
@@ -1415,6 +1538,13 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
       const m = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
       datesInRange.push(`${y}-${m}-${day}`);
+    }
+
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayIndex = datesInRange.indexOf(today);
+    if (todayIndex > 0) {
+      datesInRange.push(...datesInRange.splice(0, todayIndex));
     }
 
     if (staffKey) {

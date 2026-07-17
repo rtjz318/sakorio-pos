@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import unittest
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from io import BytesIO
 
 from openpyxl import load_workbook
@@ -37,6 +37,11 @@ class TestScheduleExport(PgClientTestCase):
             full_name="Sara Waiter",
             tenant_id=self.tenant_id,
             role=models.UserRole.waiter,
+            employee_number="SE-001",
+            job_title="Senior Waiter",
+            hourly_rate_cents=2400,
+            employment_start_date=date(2025, 1, 2),
+            profile_completed_at=datetime(2025, 1, 2, 8, 30, tzinfo=timezone.utc),
         )
         self.session.add(self.waiter)
         self.session.commit()
@@ -139,6 +144,12 @@ class TestScheduleExport(PgClientTestCase):
         ids = {u["id"] for u in data}
         self.assertIn(self.waiter.id, ids)
         self.assertIn(self.admin.id, ids)
+        waiter = next(u for u in data if u["id"] == self.waiter.id)
+        self.assertEqual(waiter["employee_number"], "SE-001")
+        self.assertEqual(waiter["job_title"], "Senior Waiter")
+        self.assertEqual(waiter["hourly_rate_cents"], 2400)
+        self.assertEqual(waiter["employment_start_date"], "2025-01-02")
+        self.assertIsNotNone(waiter["profile_completed_at"])
 
     def test_plan_users_admin_ok(self) -> None:
         h = _bearer_headers(self.admin)

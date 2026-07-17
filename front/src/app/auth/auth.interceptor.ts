@@ -24,6 +24,7 @@ function isPublicRoute(url: string): boolean {
     path.startsWith('/provider/forgot-password') ||
     path.startsWith('/menu/') ||
     path.startsWith('/book/') ||
+    path.startsWith('/waitlist/') ||
     path.startsWith('/feedback/') ||
     path === '/reservation'
   );

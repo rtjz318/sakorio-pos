@@ -1036,6 +1036,7 @@
     "reserved": "محفوظ"
   },
   "BOOK": {
+    "GUEST_DETAILS": "مہمان کی تفصیلات",
     "TITLE": "میز بک کریں",
     "OPENING_HOURS": "کھل رہا ہے گھنٹے",
     "SUBMIT": "میز بک کریں",

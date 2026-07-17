@@ -44,6 +44,12 @@ export interface User {
   tenant_id?: number | null;
   provider_id?: number | null;
   role: UserRole;
+  employee_number?: string | null;
+  job_title?: string | null;
+  phone?: string | null;
+  hourly_rate_cents?: number;
+  employment_start_date?: string | null;
+  profile_completed_at?: string | null;
 }
 
 export interface UserCreate {
@@ -51,6 +57,10 @@ export interface UserCreate {
   password: string;
   full_name?: string;
   role: UserRole;
+  job_title?: string | null;
+  phone?: string | null;
+  hourly_rate_cents?: number;
+  employment_start_date?: string | null;
 }
 
 export interface UserUpdate {
@@ -60,6 +70,21 @@ export interface UserUpdate {
   password?: string;
   /** Required when setting password: caller's current password (re-auth). */
   actor_current_password?: string;
+  job_title?: string | null;
+  phone?: string | null;
+  hourly_rate_cents?: number;
+  employment_start_date?: string | null;
+}
+
+export interface StaffProfile extends User {
+  id: number;
+  hourly_rate_cents: number;
+}
+
+export interface StaffProfileUpdate {
+  full_name: string;
+  phone?: string | null;
+  job_title?: string | null;
 }
 
 export type StaffContractKind = 'employee' | 'freelancer';
@@ -270,6 +295,29 @@ export interface WorkSession {
   /** Total break seconds (completed + in-progress), server-computed. */
   break_seconds_total?: number;
   user_role?: string | null;
+  shift_id?: number | null;
+  shift_date?: string | null;
+  shift_start_time?: string | null;
+  shift_end_time?: string | null;
+  shift_label?: string | null;
+  clock_in_photo_present?: boolean;
+  clock_out_photo_present?: boolean;
+  hourly_rate_cents?: number;
+  estimated_pay_cents?: number;
+}
+
+export interface AttendancePaySummary {
+  user_id: number;
+  user_name: string;
+  employee_number?: string | null;
+  job_title?: string | null;
+  hourly_rate_cents: number;
+  completed_sessions: number;
+  open_sessions: number;
+  worked_minutes: number;
+  estimated_pay_cents: number;
+  missing_clock_in_photos: number;
+  missing_clock_out_photos: number;
 }
 
 export interface ClockQrStatus {
@@ -281,6 +329,9 @@ export interface WorkSessionClockPayload {
   clock_qr?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  shift_id?: number | null;
+  photo_data_url?: string | null;
+  photo_captured_at?: string | null;
 }
 
 /** Net worked seconds from wall time minus server break total (keeps UI in sync between polls). */
@@ -712,6 +763,31 @@ export interface KitchenStationDefaults {
   default_bar_station_id: number | null;
 }
 
+export interface PrinterAgent {
+  id: number;
+  name: string;
+  kitchen_station_id: number | null;
+  active: boolean;
+  last_seen_at: string | null;
+  created_at: string;
+}
+
+export interface PrinterAgentCreated extends PrinterAgent {
+  token: string;
+}
+
+export interface PrintJob {
+  id: number;
+  order_id: number;
+  kitchen_station_id: number | null;
+  job_type: string;
+  status: 'pending' | 'leased' | 'completed' | 'failed';
+  attempts: number;
+  last_error: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
 /** Delivery marketplace (Uber Eats / Glovo / Deliveroo-style) admin integration */
 export interface DeliveryProviderCatalogRow {
   provider_key: string;
@@ -885,6 +961,7 @@ export interface Table {
   id?: number;
   name: string;
   token?: string;
+  qr_access?: string;
   tenant_id?: number;
   floor_id?: number;
   x_position?: number;
@@ -928,8 +1005,15 @@ export interface TableCloseResponse {
 
 export interface UpcomingReservationOnTable {
   reservation_id: number;
+  reservation_date: string;
   reservation_time: string;
   customer_name: string;
+}
+
+export interface SeatedReservationOnTable {
+  reservation_id: number;
+  customer_name: string;
+  party_size: number;
 }
 
 export type TableOperationalStatus =
@@ -953,6 +1037,7 @@ export interface CanvasTable extends Table {
   effective_waiter_id?: number | null;
   effective_waiter_name?: string | null;
   upcoming_reservation?: UpcomingReservationOnTable | null;
+  seated_reservation?: SeatedReservationOnTable | null;
 }
 
 export interface OverbookingSlot {
@@ -1050,6 +1135,7 @@ export type GuestQueueStatus =
   | 'waiting'
   | 'notified'
   | 'seated'
+  | 'completed'
   | 'converted_to_reservation'
   | 'cancelled'
   | 'no_show'
@@ -1099,6 +1185,39 @@ export interface GuestQueueCreate {
   preferred_table_size?: number | null;
   linked_reservation_id?: number | null;
   notes?: string | null;
+}
+
+export interface PublicQueueInfo {
+  tenant_id: number;
+  tenant_name: string;
+  active_entries: number;
+  waiting_guests: number;
+  estimated_wait_minutes?: number | null;
+  floors: Array<{ id: number; name: string }>;
+}
+
+export interface PublicQueueCreate {
+  customer_name: string;
+  customer_phone: string;
+  party_size: number;
+  preferred_floor_id?: number | null;
+  notes?: string | null;
+}
+
+export interface PublicQueueStatus {
+  token: string;
+  reference: string;
+  tenant_id: number;
+  tenant_name: string;
+  customer_name: string;
+  party_size: number;
+  quoted_wait_minutes?: number | null;
+  status: GuestQueueStatus;
+  position?: number | null;
+  requested_at?: string | null;
+  notified_at?: string | null;
+  seated_at?: string | null;
+  completed_at?: string | null;
 }
 
 export interface GuestQueueUpdate {
@@ -1379,6 +1498,7 @@ export interface OrderCreate {
   customer_name?: string;  // Optional customer name
   pin?: string;  // Required PIN for table ordering
   staff_access?: string;  // Staff link token: when valid, PIN is not required
+  qr_access?: string;  // Signed credential from the permanent printed table QR
   latitude?: number | null;  // Optional GPS latitude for location verification
   longitude?: number | null;  // Optional GPS longitude for location verification
 }
@@ -2011,6 +2131,10 @@ export class ApiService {
     return this.http.put<Reservation>(`${this.apiUrl}/reservations/${id}/status`, { status });
   }
 
+  assignReservationTable(id: number, tableId: number): Observable<Reservation> {
+    return this.http.put<Reservation>(`${this.apiUrl}/reservations/${id}/assign-table`, { table_id: tableId });
+  }
+
   seatReservation(id: number, tableId: number): Observable<Reservation> {
     return this.http.put<Reservation>(`${this.apiUrl}/reservations/${id}/seat`, { table_id: tableId });
   }
@@ -2531,11 +2655,14 @@ export class ApiService {
     });
   }
 
-  // Public Menu (no auth). staffAccess: when set (from staff link), backend returns table_requires_pin false.
-  getMenu(tableToken: string, staffAccess?: string): Observable<MenuResponse> {
+  // Public Menu (no auth). Signed staff and printed-QR links bypass the manual lookup PIN.
+  getMenu(tableToken: string, staffAccess?: string, qrAccess?: string): Observable<MenuResponse> {
     let params = new HttpParams();
     if (staffAccess) {
       params = params.set('staff_access', staffAccess);
+    }
+    if (qrAccess) {
+      params = params.set('qr_access', qrAccess);
     }
     return this.http.get<MenuResponse>(`${this.apiUrl}/menu/${tableToken}`, { params });
   }
@@ -2716,6 +2843,22 @@ export class ApiService {
     return this.http.put<KitchenStationDefaults>(`${this.apiUrl}/tenant/kitchen-station-defaults`, body);
   }
 
+  getPrinterAgents(): Observable<PrinterAgent[]> {
+    return this.http.get<PrinterAgent[]>(`${this.apiUrl}/printing/agents`);
+  }
+
+  createPrinterAgent(body: { name: string; kitchen_station_id: number | null }): Observable<PrinterAgentCreated> {
+    return this.http.post<PrinterAgentCreated>(`${this.apiUrl}/printing/agents`, body);
+  }
+
+  disablePrinterAgent(id: number): Observable<{ status: string; agent_id: number }> {
+    return this.http.delete<{ status: string; agent_id: number }>(`${this.apiUrl}/printing/agents/${id}`);
+  }
+
+  getPrintJobs(limit = 50): Observable<PrintJob[]> {
+    return this.http.get<PrintJob[]>(`${this.apiUrl}/printing/jobs`, { params: { limit } });
+  }
+
   getDeliveryIntegrationCatalog(): Observable<DeliveryProviderCatalogRow[]> {
     return this.http.get<DeliveryProviderCatalogRow[]>(`${this.apiUrl}/tenant/delivery-integrations/catalog`);
   }
@@ -2892,6 +3035,25 @@ export class ApiService {
 
   getPublicTenant(tenantId: number): Observable<TenantSummary> {
     return this.http.get<TenantSummary>(`${this.apiUrl}/public/tenants/${tenantId}`);
+  }
+
+  getPublicQueueInfo(tenantId: number): Observable<PublicQueueInfo> {
+    return this.http.get<PublicQueueInfo>(`${this.apiUrl}/public/tenants/${tenantId}/queue`);
+  }
+
+  joinPublicQueue(tenantId: number, body: PublicQueueCreate): Observable<PublicQueueStatus> {
+    return this.http.post<PublicQueueStatus>(`${this.apiUrl}/public/tenants/${tenantId}/queue`, body);
+  }
+
+  getPublicQueueStatus(token: string): Observable<PublicQueueStatus> {
+    return this.http.get<PublicQueueStatus>(`${this.apiUrl}/public/queue/${encodeURIComponent(token)}`);
+  }
+
+  cancelPublicQueue(token: string): Observable<PublicQueueStatus> {
+    return this.http.post<PublicQueueStatus>(
+      `${this.apiUrl}/public/queue/${encodeURIComponent(token)}/cancel`,
+      {},
+    );
   }
 
   /** Read-only grouped menu for a tenant (public marketing / QR menu page). */
@@ -3398,6 +3560,52 @@ export class ApiService {
   /** Whether venue QR and GPS are required for clock actions. */
   getMyClockQrStatus(): Observable<ClockQrStatus> {
     return this.http.get<ClockQrStatus>(`${this.apiUrl}/users/me/clock-qr-status`);
+  }
+
+  getMyStaffProfile(): Observable<StaffProfile> {
+    return this.http.get<StaffProfile>(`${this.apiUrl}/users/me/staff-profile`);
+  }
+
+  updateMyStaffProfile(payload: StaffProfileUpdate): Observable<StaffProfile> {
+    return this.http.patch<StaffProfile>(`${this.apiUrl}/users/me/staff-profile`, payload);
+  }
+
+  getMyShifts(fromDate: string, toDate: string): Observable<Shift[]> {
+    const params = new HttpParams().set('from_date', fromDate).set('to_date', toDate);
+    return this.http.get<Shift[]>(`${this.apiUrl}/users/me/shifts`, { params });
+  }
+
+  getMyAttendanceSummary(fromDate: string, toDate: string): Observable<AttendancePaySummary> {
+    const params = new HttpParams().set('from_date', fromDate).set('to_date', toDate);
+    return this.http.get<AttendancePaySummary>(`${this.apiUrl}/users/me/attendance-summary`, { params });
+  }
+
+  getAttendancePaySummary(
+    fromDate: string,
+    toDate: string,
+    userId?: number
+  ): Observable<AttendancePaySummary[]> {
+    let params = new HttpParams().set('from_date', fromDate).set('to_date', toDate);
+    if (userId != null) params = params.set('user_id', String(userId));
+    return this.http.get<AttendancePaySummary[]>(`${this.apiUrl}/reports/attendance-pay-summary`, { params });
+  }
+
+  getMyWorkSessionPhoto(workSessionId: number, proofType: 'clock_in' | 'clock_out'): Observable<Blob> {
+    return this.http.get(
+      `${this.apiUrl}/users/me/work-sessions/${workSessionId}/photo/${proofType}`,
+      { responseType: 'blob' }
+    );
+  }
+
+  getUserWorkSessionPhoto(
+    userId: number,
+    workSessionId: number,
+    proofType: 'clock_in' | 'clock_out'
+  ): Observable<Blob> {
+    return this.http.get(
+      `${this.apiUrl}/users/${userId}/work-sessions/${workSessionId}/photo/${proofType}`,
+      { responseType: 'blob' }
+    );
   }
 
   startMyWorkSession(payload?: WorkSessionClockPayload): Observable<WorkSession> {

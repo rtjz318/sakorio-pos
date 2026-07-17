@@ -38,6 +38,13 @@ _PAYMENT_METHOD_ORDER = {
 }
 
 
+def _as_utc(value: datetime) -> datetime:
+    """Normalize legacy naive timestamps and current aware timestamps to UTC."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def _revenue_date(order: models.Order) -> datetime | None:
     """Date used for attributing revenue (paid_at if set, else created_at)."""
     return order.paid_at or order.created_at
@@ -390,7 +397,7 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
         entry
         for entry in queue_entries
         if _in_range(
-            (entry.requested_at.astimezone(timezone.utc).date() if entry.requested_at else None),
+            (_as_utc(entry.requested_at).date() if entry.requested_at else None),
             from_date,
             to_date,
         )
@@ -407,7 +414,7 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
         queue_by_source[source_key] += 1
         queue_by_status[status_key] += 1
         if entry.requested_at:
-            day_key = entry.requested_at.astimezone(timezone.utc).strftime("%Y-%m-%d")
+            day_key = _as_utc(entry.requested_at).strftime("%Y-%m-%d")
             queue_daily[day_key]["count"] += 1
             if status_key == models.GuestQueueStatus.seated.value:
                 queue_daily[day_key]["seated_count"] += 1
@@ -417,7 +424,10 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
             actual_wait_minutes = int(
                 max(
                     0,
-                    round((entry.seated_at - entry.requested_at).total_seconds() / 60),
+                    round(
+                        (_as_utc(entry.seated_at) - _as_utc(entry.requested_at)).total_seconds()
+                        / 60
+                    ),
                 )
             )
             actual_wait_values.append(actual_wait_minutes)

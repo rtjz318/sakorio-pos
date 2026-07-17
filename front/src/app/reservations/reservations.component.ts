@@ -1,6 +1,5 @@
 ﻿import { Component, inject, signal, computed, OnInit, OnDestroy, ViewChild } from '@angular/core';
 import { Subscription } from 'rxjs';
-import { LowerCasePipe } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import {
@@ -36,13 +35,17 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
     TranslateModule,
     ConfirmationModalComponent,
     FocusFirstInputDirective,
-    LowerCasePipe,
     ReservationWeekSlotGridComponent,
   ],
   template: `
     <app-sidebar>
+      <section class="reservation-command">
       <div class="page-header">
-        <h1>{{ 'RESERVATIONS.TITLE' | translate }}</h1>
+        <div>
+          <span class="eyebrow">Front of house</span>
+          <h1>{{ 'RESERVATIONS.TITLE' | translate }}</h1>
+          <p class="page-subtitle">Run arrivals, seating, and guest handoffs from one service-day view.</p>
+        </div>
         <div class="page-header-actions">
           <a [routerLink]="['/settings']" [queryParams]="{ section: 'reservations' }" class="btn btn-ghost btn-sm btn-icon" [title]="'RESERVATIONS.EDIT_RESERVATION_OPTIONS' | translate" aria-label="{{ 'RESERVATIONS.EDIT_RESERVATION_OPTIONS' | translate }}">
             <svg class="icon-settings" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -51,8 +54,7 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
             <span class="btn-icon-label">{{ 'RESERVATIONS.EDIT_RESERVATION_OPTIONS' | translate }}</span>
           </a>
           @if (tenantId != null) {
-            <a [routerLink]="['/book', tenantId]" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">{{ 'RESERVATIONS.VIEW_PUBLIC_PAGE' | translate }}</a>
-            <a [routerLink]="['/feedback', tenantId]" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">{{ 'RESERVATIONS.VIEW_FEEDBACK_PAGE' | translate }}</a>
+            <a [routerLink]="['/book', tenantId]" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">Public booking page</a>
           }
           @if (canWrite()) {
           <button class="btn btn-primary" (click)="openCreate()">
@@ -65,9 +67,17 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
         </div>
       </div>
 
-      <div class="filters">
-        <input type="date" [(ngModel)]="filterDate" (ngModelChange)="load()" class="filter-input" />
-        <input type="text" [(ngModel)]="filterPhone" (ngModelChange)="load()" placeholder="{{ 'RESERVATIONS.SEARCH_PHONE' | translate }}" class="filter-input" />
+      <div class="service-toolbar">
+        <div class="date-control">
+          <button type="button" class="date-step" (click)="moveDate(-1)" aria-label="Previous day">&#8249;</button>
+          <div class="date-input-wrap">
+            <span>Service date</span>
+            <input type="date" [(ngModel)]="filterDate" (ngModelChange)="load()" class="filter-input" />
+          </div>
+          <button type="button" class="date-step" (click)="moveDate(1)" aria-label="Next day">&#8250;</button>
+          <button type="button" class="today-button" (click)="goToToday()">Today</button>
+        </div>
+        <input type="search" [(ngModel)]="filterPhone" (ngModelChange)="load()" placeholder="Search phone" class="filter-input guest-search" />
         <select [(ngModel)]="filterStatus" (ngModelChange)="load()" class="filter-select">
           <option value="">{{ 'RESERVATIONS.ALL_STATUSES' | translate }}</option>
           <option value="booked">{{ 'RESERVATIONS.STATUS_BOOKED' | translate }}</option>
@@ -78,6 +88,30 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
         </select>
         <button class="btn btn-ghost btn-sm" (click)="load()">{{ 'ORDERS.REFRESH' | translate }}</button>
       </div>
+      </section>
+
+      <section class="service-metrics" aria-label="Reservation summary">
+        <article class="metric-card">
+          <span>Expected guests</span>
+          <strong>{{ expectedGuestCount() }}</strong>
+          <small>Across {{ activeReservationCount() }} active bookings</small>
+        </article>
+        <article class="metric-card booked-metric">
+          <span>Awaiting arrival</span>
+          <strong>{{ bookedCount() }}</strong>
+          <small>Bookings still to welcome</small>
+        </article>
+        <article class="metric-card seated-metric">
+          <span>Now seated</span>
+          <strong>{{ seatedCount() }}</strong>
+          <small>Guests currently in service</small>
+        </article>
+        <article class="metric-card warning-metric" [class.has-warning]="unassignedCount() > 0">
+          <span>Needs a table</span>
+          <strong>{{ unassignedCount() }}</strong>
+          <small>{{ unassignedCount() === 0 ? 'All arrivals are covered' : 'Assign before arrival' }}</small>
+        </article>
+      </section>
 
       @if (loading()) {
         <div class="empty-state"><p>{{ 'RESERVATIONS.LOADING' | translate }}</p></div>
@@ -89,42 +123,60 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
           }
         </div>
       } @else {
-        <div class="reservation-grid">
-          @for (r of reservations(); track r.id) {
-            <div class="reservation-card" [class]="'status-' + r.status">
-              <div class="card-header">
-                <span class="res-id">#{{ r.id }}</span>
-                <span class="res-name">{{ r.customer_name }}</span>
-                <span class="status-badge" [class]="r.status">{{ getStatusLabel(r.status) | translate }}</span>
-                @if (isSlotOverbooked(r)) {
-                  <span class="overbooked-badge">{{ 'RESERVATIONS.OVERBOOKED' | translate }}</span>
-                }
+        <section class="reservation-board">
+          <div class="board-heading">
+            <div>
+              <span class="eyebrow">Service timeline</span>
+              <h2>{{ serviceDateLabel() }}</h2>
+            </div>
+            <span class="board-count">{{ reservations().length }} reservations</span>
+          </div>
+          <div class="reservation-list">
+          @for (r of sortedReservations(); track r.id) {
+            <article
+              class="reservation-card"
+              [class.status-booked]="r.status === 'booked'"
+              [class.status-seated]="r.status === 'seated'"
+              [class.status-finished]="r.status === 'finished'"
+              [class.status-cancelled]="r.status === 'cancelled'"
+              [class.status-no_show]="r.status === 'no_show'"
+            >
+              <div class="arrival-time">
+                <strong>{{ displayTime(r.reservation_time) }}</strong>
+                <span>#{{ r.id }}</span>
               </div>
-              <div class="card-body">
-                <div>{{ r.reservation_date }} {{ r.reservation_time }}</div>
-                <div>{{ 'RESERVATIONS.PARTY_SIZE' | translate }}: {{ r.party_size }}</div>
+              <div class="reservation-main">
+                <div class="card-header">
+                  <span class="res-name">{{ r.customer_name }}</span>
+                  <span class="status-badge" [class]="r.status">{{ getStatusLabel(r.status) | translate }}</span>
+                  @if (isSlotOverbooked(r)) {
+                    <span class="overbooked-badge">{{ 'RESERVATIONS.OVERBOOKED' | translate }}</span>
+                  }
+                </div>
+                <div class="reservation-facts">
+                  <span class="party-fact">{{ r.party_size }} guests</span>
+                  <span [class.needs-table]="!r.table_id">{{ getTableDisplay(r) }}</span>
+                  @if (r.service_type) { <span>{{ serviceTypeLabel(r.service_type) }}</span> }
+                  @if (r.seating_preference) { <span>{{ seatingLabel(r.seating_preference) }}</span> }
+                </div>
+                <div class="contact-row">
+                  <a [href]="'tel:' + r.customer_phone">{{ r.customer_phone }}</a>
+                  @if (r.customer_email) { <a [href]="'mailto:' + r.customer_email">{{ r.customer_email }}</a> }
+                </div>
                 @if (r.service_type) {
-                  <div class="res-meta">{{ 'BOOK.SERVICE_TYPE' | translate }}: {{ serviceTypeLabel(r.service_type) }}</div>
-                }
-                @if (r.seating_preference) {
-                  <div class="res-meta">{{ 'BOOK.SEATING_PREFERENCE' | translate }}: {{ seatingLabel(r.seating_preference) }}</div>
-                }
-                <div>{{ r.customer_phone }}</div>
-                @if (r.customer_email) {
-                  <div>{{ r.customer_email }}</div>
+                  <span class="sr-only">{{ 'BOOK.SERVICE_TYPE' | translate }}: {{ serviceTypeLabel(r.service_type) }}</span>
                 }
                 @if (r.client_notes) {
-                  <div class="res-notes client-notes"><strong>{{ 'RESERVATIONS.RESERVATION_NOTES' | translate }}:</strong> {{ r.client_notes }}</div>
+                  <div class="res-notes client-notes">{{ r.client_notes }}</div>
                 }
                 @if (dietaryNotesLine(r); as dn) {
-                  <div class="res-notes client-notes"><strong>{{ 'RESERVATIONS.CUSTOMER_NOTES' | translate }}:</strong> {{ dn }}</div>
+                  <div class="dietary-alert"><strong>Guest requirement</strong><span>{{ dn }}</span></div>
                 } @else if (r.allergies_has) {
-                  <div class="res-meta">{{ 'BOOK.ALLERGIES_HAS' | translate }}</div>
+                  <div class="dietary-alert"><strong>Allergy noted</strong></div>
                 }
                 @if (r.owner_notes) {
                   <div class="res-notes owner-notes"><strong>{{ 'RESERVATIONS.OWNER_NOTES' | translate }}:</strong> {{ r.owner_notes }}</div>
                 }
-                <div class="table-assigned">{{ 'RESERVATIONS.TABLE' | translate }}: {{ getTableDisplay(r) }}</div>
                 @if (latestQueueMatch(r); as queueMatch) {
                   <div class="queue-handoff-summary">
                     <span class="queue-handoff-chip">{{ queueStatusLabel(queueMatch) }}</span>
@@ -134,41 +186,32 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
                     </span>
                   </div>
                 }
-                @if (r.client_ip || r.client_user_agent || r.client_fingerprint != null || r.client_screen_width != null) {
-                  <details class="client-tech">
-                    <summary>{{ 'RESERVATIONS.CLIENT_TECH_SUMMARY' | translate }}</summary>
-                    <div class="client-tech-inner">
-                      @if (r.client_ip) { <div><strong>{{ 'RESERVATIONS.CLIENT_TECH_IP' | translate }}:</strong> {{ r.client_ip }}</div> }
-                      @if (r.client_user_agent) { <div class="ua" title="{{ r.client_user_agent }}"><strong>{{ 'RESERVATIONS.CLIENT_TECH_USER_AGENT' | translate }}:</strong> {{ r.client_user_agent.length > 60 ? r.client_user_agent.slice(0, 60) + '…' : r.client_user_agent }}</div> }
-                      @if (r.client_fingerprint) { <div><strong>{{ 'RESERVATIONS.CLIENT_TECH_FINGERPRINT' | translate }}:</strong> {{ r.client_fingerprint }}</div> }
-                      @if (r.client_screen_width != null || r.client_screen_height != null) { <div><strong>{{ 'RESERVATIONS.CLIENT_TECH_SCREEN' | translate }}:</strong> {{ r.client_screen_width }}Ã—{{ r.client_screen_height }}</div> }
+                </div>
+              <div class="card-actions">
+                @if (r.status === 'booked' && canWrite()) {
+                  <button class="btn btn-primary primary-reservation-action" (click)="openReservationTable(r)">{{ reservationTableActionLabel(r) }}</button>
+                  <details class="more-actions">
+                    <summary>More</summary>
+                    <div class="more-actions-menu">
+                      <button type="button" (click)="openQueueForReservation(r)">{{ hasActiveQueueMatch(r) ? 'Open queue' : 'Send to queue' }}</button>
+                      @if (r.customer_email || r.customer_phone) {
+                        <button type="button" (click)="sendReminder(r)" [disabled]="sendingReminderId() === r.id">{{ sendingReminderId() === r.id ? ('COMMON.LOADING' | translate) : ('RESERVATIONS.SEND_REMINDER' | translate) }}</button>
+                      }
+                      <button type="button" (click)="openEdit(r)">{{ 'RESERVATIONS.EDIT' | translate }}</button>
+                      <button type="button" class="no-show-btn" (click)="confirmNoShow(r)">{{ 'RESERVATIONS.NO_SHOW' | translate }}</button>
+                      <button type="button" class="danger" (click)="confirmCancel(r)">{{ 'RESERVATIONS.CANCEL' | translate }}</button>
                     </div>
                   </details>
                 }
-              </div>
-              <div class="card-actions">
-                @if (r.status === 'booked' && canWrite()) {
-                  <button class="btn btn-ghost btn-sm" (click)="openQueueForReservation(r)">
-                    {{ hasActiveQueueMatch(r) ? 'Open queue' : 'Send to queue' }}
-                  </button>
-                  @if (r.customer_email || r.customer_phone) {
-                    <button class="btn btn-ghost btn-sm" (click)="sendReminder(r)" [disabled]="sendingReminderId() === r.id" [title]="'RESERVATIONS.SEND_REMINDER' | translate">
-                      {{ sendingReminderId() === r.id ? ('COMMON.LOADING' | translate) : ('RESERVATIONS.SEND_REMINDER' | translate) }}
-                    </button>
-                  }
-                  <button class="btn btn-ghost btn-sm" (click)="openEdit(r)">{{ 'RESERVATIONS.EDIT' | translate }}</button>
-                  <button class="btn btn-ghost btn-sm" (click)="openSeat(r)">{{ 'RESERVATIONS.SEAT' | translate }}</button>
-                  <button class="btn btn-ghost btn-sm no-show-btn" (click)="confirmNoShow(r)">{{ 'RESERVATIONS.NO_SHOW' | translate }}</button>
-                  <button class="btn btn-ghost btn-sm danger" (click)="confirmCancel(r)">{{ 'RESERVATIONS.CANCEL' | translate }}</button>
-                }
                 @if (r.status === 'seated' && canWrite()) {
-                  <button class="btn btn-ghost btn-sm" (click)="openPosForReservation(r)">Open POS</button>
+                  <button class="btn btn-primary primary-reservation-action" (click)="openPosForReservation(r)">Open POS</button>
                   <button class="btn btn-ghost btn-sm" (click)="finish(r)">{{ 'RESERVATIONS.FINISH' | translate }}</button>
                 }
               </div>
-            </div>
+            </article>
           }
-        </div>
+          </div>
+        </section>
       }
 
       <!-- Create/Edit modal -->
@@ -331,35 +374,61 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
         </div>
       }
 
-      <!-- Seat modal -->
+      <!-- Reservation table assignment / seating modal -->
       @if (reservationToSeat()) {
         <div class="modal-overlay">
           <div class="modal-content" (click)="$event.stopPropagation()">
             <div class="modal-header">
-              <h3>{{ 'RESERVATIONS.SEAT_AT_TABLE' | translate }}</h3>
+              <div>
+                <p class="modal-eyebrow">{{ reservationTableMode() === 'seat' ? 'Arrival handoff' : 'Floor planning' }}</p>
+                <h3>{{ reservationTableMode() === 'seat' ? 'Seat at a table' : (reservationToSeat()?.table_id ? 'Change assigned table' : 'Assign a table') }}</h3>
+              </div>
               <button class="close-btn" (click)="closeSeatModal()">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
               </button>
             </div>
             <div class="modal-body">
-              @if (upcomingNoTableCount() !== null && upcomingNoTableCount()! > 0) {
+              <p class="table-action-intro">
+                <strong>{{ reservationToSeat()?.customer_name }}</strong>
+                · {{ reservationToSeat()?.party_size }} guests
+                · {{ reservationToSeat()?.reservation_date }} at {{ reservationToSeat()?.reservation_time }}
+              </p>
+              @if (reservationTableMode() === 'seat' && upcomingNoTableCount() !== null && upcomingNoTableCount()! > 0) {
                 <p class="upcoming-no-table-warning">{{ 'RESERVATIONS.UPCOMING_NO_TABLE' | translate: { count: upcomingNoTableCount()! } }}</p>
               }
-              <p>{{ 'RESERVATIONS.PARTY_SIZE' | translate }}: {{ reservationToSeat()?.party_size }}</p>
+              @if (reservationTableError()) {
+                <p class="table-action-error" role="alert">{{ reservationTableError() }}</p>
+              }
               <div class="table-list">
                 @for (t of availableTablesForSeat(); track t.id) {
                   <div class="table-option-wrap">
                     @if (t.upcoming_reservation) {
                       <p class="table-upcoming-warning">{{ 'RESERVATIONS.TABLE_UPCOMING' | translate: { table: t.name, time: t.upcoming_reservation.reservation_time, name: t.upcoming_reservation.customer_name } }}</p>
                     }
-                    <button class="table-option" (click)="seatAt(t.id!)">
-                      {{ t.name }} ({{ t.seat_count }} {{ 'TABLES.SEATS' | translate | lowercase }})
+                    <button
+                      class="table-option"
+                      [class.current-assignment]="reservationToSeat()?.table_id === t.id"
+                      [disabled]="reservationTableSubmittingId() !== null"
+                      (click)="applyReservationTable(t.id!)">
+                      <span>
+                        <strong>{{ t.name }}</strong>
+                        <small>{{ tableCapacity(t) }} seats · {{ tableOperationalLabel(t) }}</small>
+                      </span>
+                      <span class="table-option-action">
+                        @if (reservationToSeat()?.table_id === t.id && reservationTableMode() === 'assign') {
+                          Assigned
+                        } @else if (reservationTableSubmittingId() === t.id) {
+                          Saving…
+                        } @else {
+                          {{ reservationTableMode() === 'seat' ? 'Seat here' : 'Assign' }}
+                        }
+                      </span>
                     </button>
                   </div>
                 }
               </div>
               @if (availableTablesForSeat().length === 0) {
-                <p class="no-tables">{{ 'RESERVATIONS.NO_AVAILABLE_TABLES' | translate }}</p>
+                <p class="no-tables">No table with enough capacity is available for this action.</p>
               }
             </div>
           </div>
@@ -394,50 +463,119 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
     </app-sidebar>
   `,
   styles: [`
-    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    :host { --reservation-ink: #18201f; --reservation-muted: #6f7775; --reservation-line: #e4e7e4; --reservation-soft: #f5f7f5; --reservation-accent: #d95132; display: block; }
+    .reservation-command { padding: 1.4rem; border: 1px solid var(--reservation-line); border-radius: 22px; background: linear-gradient(135deg, #fff 0%, #fbf8f4 100%); box-shadow: 0 14px 36px rgba(24,32,31,.06); }
+    .page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1.5rem; margin-bottom: 1.25rem; }
+    .page-header h1 { margin: .15rem 0 .2rem; color: var(--reservation-ink); font-size: clamp(1.75rem, 3vw, 2.45rem); letter-spacing: -.045em; }
+    .eyebrow { color: #a64229; font-size: .72rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .page-subtitle { max-width: 650px; margin: 0; color: var(--reservation-muted); line-height: 1.5; }
     .page-header-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
     .btn-icon { display: inline-flex; align-items: center; gap: 0.35rem; }
     .btn-icon .icon-settings { flex-shrink: 0; }
-    .filters { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
-    .filter-input, .filter-select { padding: 0.35rem 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
-    .reservation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
-    .reservation-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; background: #fff; }
-    .reservation-card.status-booked { border-left: 4px solid #3b82f6; }
-    .reservation-card.status-seated { border-left: 4px solid #16a34a; }
-    .reservation-card.status-finished { border-left: 4px solid #6b7280; }
-    .reservation-card.status-cancelled { border-left: 4px solid #dc2626; opacity: 0.85; }
-    .reservation-card.status-no_show { border-left: 4px solid #b45309; opacity: 0.9; }
-    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
-    .res-id { font-weight: 600; color: #6b7280; }
-    .res-name { font-weight: 600; }
-    .status-badge { font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; }
+    .service-toolbar { display: grid; grid-template-columns: auto minmax(220px, 1fr) minmax(150px, 190px) auto; gap: .75rem; align-items: stretch; }
+    .date-control { display: flex; align-items: stretch; border: 1px solid var(--reservation-line); border-radius: 14px; background: #fff; overflow: hidden; }
+    .date-step, .today-button { border: 0; background: #fff; color: var(--reservation-ink); font-weight: 750; cursor: pointer; }
+    .date-step { width: 38px; font-size: 1.5rem; }
+    .date-step:hover, .today-button:hover { background: #f7f2ed; }
+    .today-button { padding: 0 .85rem; border-left: 1px solid var(--reservation-line); }
+    .date-input-wrap { display: grid; gap: .05rem; min-width: 165px; padding: .35rem .45rem; border-left: 1px solid var(--reservation-line); }
+    .date-input-wrap span { padding-left: .35rem; color: var(--reservation-muted); font-size: .66rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+    .filter-input, .filter-select { min-height: 48px; padding: .65rem .85rem; border: 1px solid var(--reservation-line); border-radius: 14px; background: #fff; color: var(--reservation-ink); }
+    .date-input-wrap .filter-input { min-height: 0; padding: 0 .3rem; border: 0; border-radius: 0; }
+    .service-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; margin: 1rem 0; }
+    .metric-card { display: grid; gap: .2rem; min-height: 112px; padding: 1rem 1.1rem; border: 1px solid var(--reservation-line); border-radius: 18px; background: #fff; box-shadow: 0 10px 28px rgba(24,32,31,.045); }
+    .metric-card span { color: var(--reservation-muted); font-size: .76rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .metric-card strong { color: var(--reservation-ink); font-size: 2rem; letter-spacing: -.04em; }
+    .metric-card small { color: var(--reservation-muted); }
+    .booked-metric { border-top: 3px solid #4b7bec; }
+    .seated-metric { border-top: 3px solid #2f9e73; }
+    .warning-metric { border-top: 3px solid #cbd5d1; }
+    .warning-metric.has-warning { border-top-color: #e79032; background: #fffaf2; }
+    .reservation-board { border: 1px solid var(--reservation-line); border-radius: 22px; background: #fff; overflow: hidden; box-shadow: 0 16px 40px rgba(24,32,31,.06); }
+    .board-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.2rem 1.35rem; border-bottom: 1px solid var(--reservation-line); background: #fbfcfb; }
+    .board-heading h2 { margin: .15rem 0 0; color: var(--reservation-ink); font-size: 1.35rem; }
+    .board-count { padding: .45rem .75rem; border-radius: 999px; background: #edf1ef; color: #53605c; font-size: .8rem; font-weight: 750; }
+    .reservation-list { display: grid; }
+    .reservation-card { display: grid; grid-template-columns: 90px minmax(0, 1fr) auto; gap: 1rem; align-items: center; padding: 1.05rem 1.35rem; border-bottom: 1px solid var(--reservation-line); background: #fff; transition: background .18s ease, box-shadow .18s ease; }
+    .reservation-card:last-child { border-bottom: 0; }
+    .reservation-card:hover { position: relative; z-index: 1; background: #fdfcfb; box-shadow: inset 4px 0 0 #e8aa98; }
+    .reservation-card.status-finished, .reservation-card.status-cancelled, .reservation-card.status-no_show { background: #fafafa; opacity: .78; }
+    .arrival-time { display: grid; align-content: center; gap: .2rem; min-height: 68px; padding-right: 1rem; border-right: 1px solid var(--reservation-line); }
+    .arrival-time strong { color: var(--reservation-ink); font-size: 1.25rem; letter-spacing: -.02em; }
+    .arrival-time span { color: var(--reservation-muted); font-size: .76rem; }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: .4rem; flex-wrap: wrap; }
+    .res-name { color: var(--reservation-ink); font-size: 1.05rem; font-weight: 800; }
+    .status-badge { font-size: 0.7rem; font-weight: 800; letter-spacing: .04em; padding: 0.28rem 0.58rem; border-radius: 999px; text-transform: uppercase; }
     .status-badge.booked { background: #dbeafe; color: #1d4ed8; }
     .status-badge.seated { background: #dcfce7; color: #15803d; }
     .status-badge.finished { background: #f3f4f6; color: #4b5563; }
     .status-badge.cancelled { background: #fee2e2; color: #b91c1c; }
     .status-badge.no_show { background: #ffedd5; color: #c2410c; }
-    .card-body { font-size: 0.9rem; color: #4b5563; margin-bottom: 0.75rem; }
-    .table-assigned { font-weight: 500; }
+    .reservation-facts, .contact-row { display: flex; flex-wrap: wrap; gap: .45rem .85rem; align-items: center; }
+    .reservation-facts span { color: #57615e; font-size: .85rem; }
+    .reservation-facts span + span::before { content: ''; display: inline-block; width: 4px; height: 4px; margin: 0 .6rem .15rem 0; border-radius: 50%; background: #c1c8c5; }
+    .reservation-facts .party-fact { color: var(--reservation-ink); font-weight: 750; }
+    .reservation-facts .needs-table { color: #b55a1d; font-weight: 750; }
+    .contact-row { margin-top: .38rem; }
+    .contact-row a { color: #64716d; font-size: .82rem; text-decoration: none; }
+    .contact-row a:hover { color: var(--reservation-accent); text-decoration: underline; }
+    .dietary-alert { display: inline-flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; padding: .35rem .55rem; border-radius: 8px; background: #fff3e5; color: #9a4819; font-size: .78rem; }
     .queue-handoff-summary { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.55rem; }
     .queue-handoff-chip { display: inline-flex; align-items: center; border-radius: 999px; background: #fff7ed; color: #c2410c; font-size: 0.75rem; font-weight: 700; padding: 0.28rem 0.6rem; }
     .queue-handoff-copy { font-size: 0.82rem; color: #64748b; }
-    .card-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .card-actions { position: relative; display: flex; justify-content: flex-end; gap: .5rem; align-items: center; }
+    .primary-reservation-action { min-width: 108px; }
+    .more-actions { position: relative; }
+    .more-actions summary { min-width: 70px; padding: .65rem .8rem; border: 1px solid var(--reservation-line); border-radius: 10px; background: #fff; color: var(--reservation-ink); font-size: .85rem; font-weight: 750; text-align: center; cursor: pointer; list-style: none; }
+    .more-actions summary::-webkit-details-marker { display: none; }
+    .more-actions-menu { position: absolute; z-index: 20; top: calc(100% + .4rem); right: 0; display: grid; min-width: 180px; padding: .4rem; border: 1px solid var(--reservation-line); border-radius: 12px; background: #fff; box-shadow: 0 16px 36px rgba(24,32,31,.14); }
+    .more-actions-menu button { padding: .65rem .75rem; border: 0; border-radius: 8px; background: transparent; color: var(--reservation-ink); text-align: left; cursor: pointer; }
+    .more-actions-menu button:hover { background: var(--reservation-soft); }
+    .more-actions-menu button.danger { color: #b42318; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    @media (max-width: 1000px) {
+      .service-toolbar { grid-template-columns: 1fr 1fr; }
+      .service-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 700px) {
+      .reservation-command { padding: 1rem; border-radius: 16px; }
+      .page-header { display: grid; }
+      .service-toolbar { grid-template-columns: 1fr; }
+      .date-control { width: 100%; }
+      .date-input-wrap { flex: 1; }
+      .service-metrics { grid-template-columns: 1fr 1fr; }
+      .metric-card { min-height: 96px; padding: .85rem; }
+      .reservation-card { grid-template-columns: 68px minmax(0, 1fr); padding: 1rem; }
+      .card-actions { grid-column: 1 / -1; justify-content: stretch; padding-left: 84px; }
+      .card-actions > .btn, .card-actions .primary-reservation-action { flex: 1; }
+      .more-actions { flex: 1; }
+      .more-actions summary { width: 100%; box-sizing: border-box; }
+    }
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 1000; }
     .modal-content { background: #fff; border-radius: var(--radius-md, 8px); max-width: min(720px, 96vw); width: 100%; max-height: 90vh; overflow: auto; box-shadow: var(--shadow-lg, 0 12px 32px rgba(0,0,0,0.1)); }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid #e5e7eb; }
-    .modal-body { padding: 1rem; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.15rem 1.25rem; border-bottom: 1px solid #e5e7eb; }
+    .modal-header h3 { margin: .15rem 0 0; color: var(--reservation-ink); }
+    .modal-eyebrow { margin: 0; color: #a64229; font-size: .68rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .modal-body { padding: 1.25rem; }
     .modal-footer { display: flex; justify-content: flex-end; gap: 0.5rem; padding: 1rem; border-top: 1px solid #e5e7eb; }
     .reservation-modal-hint { font-size: 0.875rem; color: var(--color-text-muted); margin: 0 0 var(--space-3) 0; line-height: 1.45; }
     .form-error { color: var(--color-error); font-size: 0.875rem; margin-top: var(--space-2); }
     .form-hint-block { margin-bottom: 0.5rem; }
-    .table-list { display: flex; flex-direction: column; gap: 0.5rem; }
-    .table-option { padding: 0.5rem 1rem; text-align: left; border: 1px solid #e5e7eb; border-radius: 4px; background: #fff; cursor: pointer; }
-    .table-option:hover { background: #f3f4f6; }
+    .table-action-intro { margin: 0 0 1rem; color: var(--reservation-muted); }
+    .table-action-error { margin: 0 0 1rem; padding: .75rem .85rem; border: 1px solid #efb4a7; border-radius: 10px; background: #fff4f1; color: #9f2e1a; }
+    .table-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; }
+    .table-option { display: flex; justify-content: space-between; align-items: center; gap: 1rem; width: 100%; min-height: 74px; padding: .8rem .9rem; text-align: left; border: 1px solid #dfe4e1; border-radius: 12px; background: #fff; cursor: pointer; }
+    .table-option span:first-child { display: grid; gap: .15rem; }
+    .table-option small { color: var(--reservation-muted); }
+    .table-option-action { color: #a64229; font-size: .8rem; font-weight: 800; white-space: nowrap; }
+    .table-option:hover { border-color: #dc9d8c; background: #fff9f6; }
+    .table-option.current-assignment { border-color: #70a69a; background: #f0f8f6; }
+    .table-option:disabled { cursor: wait; opacity: .7; }
     .no-tables { color: #6b7280; }
     .overbooked-badge { font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 4px; background: #fef2f2; color: #b91c1c; margin-left: 0.25rem; }
     .slot-capacity { font-size: 0.875rem; color: #4b5563; margin-bottom: 0.5rem; }
     .upcoming-no-table-warning { background: #fef3c7; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.75rem; font-size: 0.875rem; }
-    .table-option-wrap { margin-bottom: 0.5rem; }
+    .table-option-wrap { min-width: 0; }
     .table-upcoming-warning { font-size: 0.8rem; color: #b45309; margin-bottom: 0.25rem; }
     .empty-state { text-align: center; padding: 2rem; color: #6b7280; }
     .btn.danger { color: #dc2626; }
@@ -448,6 +586,11 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
     .client-tech { margin-top: 0.5rem; font-size: 0.8rem; color: #6b7280; }
     .client-tech summary { cursor: pointer; }
     .client-tech-inner { margin-top: 0.25rem; padding-left: 0.5rem; }
+    @media (max-width: 600px) {
+      .table-list { grid-template-columns: 1fr; }
+      .modal-overlay { align-items: flex-end; }
+      .modal-content { max-width: 100vw; max-height: 88vh; border-radius: 18px 18px 0 0; }
+    }
     .client-tech .ua { word-break: break-all; }
     .phone-with-prefill { display: flex; gap: 0.5rem; align-items: center; }
     .phone-with-prefill input { flex: 1; min-width: 0; width: auto; }
@@ -501,6 +644,9 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   bookZones = signal<ReservationBookZone[]>([]);
   formError = signal<string | null>(null);
   reservationToSeat = signal<Reservation | null>(null);
+  reservationTableMode = signal<'assign' | 'seat'>('assign');
+  reservationTableError = signal<string | null>(null);
+  reservationTableSubmittingId = signal<number | null>(null);
   reservationToCancel = signal<Reservation | null>(null);
   reservationToNoShow = signal<Reservation | null>(null);
   sendingReminderId = signal<number | null>(null);
@@ -521,6 +667,67 @@ export class ReservationsComponent implements OnInit, OnDestroy {
     if (cap != null && cap > 0) return Math.min(20, cap);
     return 20;
   });
+
+  sortedReservations = computed(() => [...this.reservations()].sort((a, b) => {
+    const statusRank: Record<ReservationStatus, number> = {
+      booked: 0,
+      seated: 1,
+      finished: 2,
+      no_show: 3,
+      cancelled: 4,
+    };
+    const statusDelta = statusRank[a.status] - statusRank[b.status];
+    if (statusDelta !== 0) return statusDelta;
+    return `${a.reservation_date}T${a.reservation_time}`.localeCompare(`${b.reservation_date}T${b.reservation_time}`);
+  }));
+
+  activeReservationCount = computed(() => this.reservations().filter((r) => r.status === 'booked' || r.status === 'seated').length);
+  expectedGuestCount = computed(() => this.reservations()
+    .filter((r) => r.status === 'booked' || r.status === 'seated')
+    .reduce((total, r) => total + r.party_size, 0));
+  bookedCount = computed(() => this.reservations().filter((r) => r.status === 'booked').length);
+  seatedCount = computed(() => this.reservations().filter((r) => r.status === 'seated').length);
+  unassignedCount = computed(() => this.reservations().filter((r) => r.status === 'booked' && !r.table_id).length);
+
+  displayTime(value: string): string {
+    const match = /^(\d{1,2}):(\d{2})/.exec(value || '');
+    if (!match) return value;
+    const hour = Number(match[1]);
+    const minute = match[2];
+    const suffix = hour >= 12 ? 'PM' : 'AM';
+    return `${hour % 12 || 12}:${minute} ${suffix}`;
+  }
+
+  serviceDateLabel(): string {
+    const date = this.parseCalendarDate(this.filterDate);
+    if (!date) return 'All service dates';
+    return new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' }).format(date);
+  }
+
+  moveDate(days: number): void {
+    const current = this.parseCalendarDate(this.filterDate) ?? new Date();
+    current.setDate(current.getDate() + days);
+    this.filterDate = this.formatCalendarDate(current);
+    this.load();
+  }
+
+  goToToday(): void {
+    this.filterDate = this.localCalendarTodayYyyyMmDd();
+    this.load();
+  }
+
+  private parseCalendarDate(value: string): Date | null {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+    if (!match) return null;
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
+
+  private formatCalendarDate(value: Date): string {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
 
   get tenantId(): number | undefined {
     const tid = this.permissions.getCurrentUser()?.tenant_id;
@@ -897,40 +1104,102 @@ export class ReservationsComponent implements OnInit, OnDestroy {
     }
   }
 
-  openSeat(r: Reservation) {
+  reservationIsReadyToSeat(r: Reservation): boolean {
+    const reservationAt = new Date(`${r.reservation_date.slice(0, 10)}T${r.reservation_time.slice(0, 5)}:00`);
+    if (Number.isNaN(reservationAt.getTime())) return false;
+    return reservationAt.getTime() - Date.now() <= 2 * 60 * 60 * 1000;
+  }
+
+  reservationTableActionLabel(r: Reservation): string {
+    if (this.reservationIsReadyToSeat(r)) return 'Seat now';
+    return r.table_id ? 'Change table' : 'Assign table';
+  }
+
+  openReservationTable(r: Reservation) {
     this.reservationToSeat.set(r);
+    this.reservationTableMode.set(this.reservationIsReadyToSeat(r) ? 'seat' : 'assign');
+    this.reservationTableError.set(null);
+    this.reservationTableSubmittingId.set(null);
     this.upcomingNoTableCount.set(null);
     this.loadTables();
-    const dateStr = r.reservation_date.slice(0, 10);
-    this.api.getUpcomingNoTableCount(dateStr, r.id).subscribe({
-      next: (res) => this.upcomingNoTableCount.set(res.count),
-      error: () => this.upcomingNoTableCount.set(0),
-    });
+    if (this.reservationTableMode() === 'seat') {
+      const dateStr = r.reservation_date.slice(0, 10);
+      this.api.getUpcomingNoTableCount(dateStr, r.id).subscribe({
+        next: (res) => this.upcomingNoTableCount.set(res.count),
+        error: () => this.upcomingNoTableCount.set(0),
+      });
+    }
   }
 
   closeSeatModal() {
     this.reservationToSeat.set(null);
+    this.reservationTableError.set(null);
+    this.reservationTableSubmittingId.set(null);
     this.upcomingNoTableCount.set(null);
+  }
+
+  tableCapacity(table: CanvasTable): number {
+    return table.group_seat_total ?? table.seat_count ?? 0;
+  }
+
+  tableOperationalLabel(table: CanvasTable): string {
+    if (table.operational_status === 'open_order') return 'Open order';
+    if (table.operational_status === 'ready_to_serve') return 'Ready to serve';
+    if (table.status === 'occupied') return 'Occupied';
+    if (table.status === 'reserved') return 'Reserved';
+    return 'Available';
   }
 
   availableTablesForSeat = computed(() => {
     const r = this.reservationToSeat();
     const tables = this.tablesWithStatus();
     if (!r) return [];
-    return tables.filter(t => (t.status === 'available' || t.status === 'reserved') && (t.seat_count ?? 0) >= r.party_size);
+    const capacityMatches = tables.filter(t => this.tableCapacity(t) >= r.party_size);
+    const eligible = this.reservationTableMode() === 'assign'
+      ? capacityMatches
+      : capacityMatches.filter(t =>
+          t.id === r.table_id || t.status === 'available' || t.status === 'reserved'
+        );
+    return [...eligible].sort((a, b) => {
+      if (a.id === r.table_id) return -1;
+      if (b.id === r.table_id) return 1;
+      return this.tableCapacity(a) - this.tableCapacity(b) || a.name.localeCompare(b.name);
+    });
   });
 
-  seatAt(tableId: number) {
+  applyReservationTable(tableId: number) {
     const r = this.reservationToSeat();
     if (!r) return;
-    this.api.seatReservation(r.id, tableId).subscribe({
+    if (this.reservationTableMode() === 'assign' && r.table_id === tableId) {
+      this.closeSeatModal();
+      return;
+    }
+    this.reservationTableError.set(null);
+    this.reservationTableSubmittingId.set(tableId);
+    const request = this.reservationTableMode() === 'seat'
+      ? this.api.seatReservation(r.id, tableId)
+      : this.api.assignReservationTable(r.id, tableId);
+    request.subscribe({
       next: () => {
+        const mode = this.reservationTableMode();
         this.closeSeatModal();
         this.load();
         this.loadTables();
-        this.openPosForReservation({ ...r, table_id: tableId, status: 'seated' }, tableId);
+        if (mode === 'seat') {
+          this.openPosForReservation({ ...r, table_id: tableId, status: 'seated' }, tableId);
+        }
       },
-      error: (e) => alert(this.apiErr.fromHttpError(e, 'RESERVATIONS.ERROR_FAILED_SEAT')),
+      error: (e) => {
+        this.reservationTableSubmittingId.set(null);
+        this.reservationTableError.set(
+          this.apiErr.fromHttpError(
+            e,
+            this.reservationTableMode() === 'seat'
+              ? 'RESERVATIONS.ERROR_FAILED_SEAT'
+              : 'Could not assign this table.',
+          ),
+        );
+      },
     });
   }
 
@@ -1014,6 +1283,8 @@ export class ReservationsComponent implements OnInit, OnDestroy {
         return 'Notified';
       case 'seated':
         return 'Seated';
+      case 'completed':
+        return 'Completed';
       case 'converted_to_reservation':
         return 'Converted';
       case 'cancelled':

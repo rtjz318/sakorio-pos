@@ -987,3 +987,24 @@ This means the next live hosted QA should focus on:
 1. whether `/queue` now feels dense enough inside the real Sakorio staff viewport
 2. whether the seating-choice cards are easier to scan under pressure
 3. whether the next remaining queue issue is now true product flow, not just spacing
+
+## Implementation Status On 2026-07-15
+
+The reservation and queue integration described in this brief is now implemented in application code.
+
+Completed beyond the earlier stop points:
+
+- permanent public queue token per tenant
+- entrance QR generation and printable/copyable staff controls
+- customer mobile waitlist join, status, and cancellation pages
+- reservation-arrival visibility and contextual handoff from the host board
+- queue seating and POS handoff using existing table safeguards
+- operator-density polish across queue, tables, POS, orders, and kitchen
+
+This brief should now be treated as an implementation reference, not an open build plan. Remaining work is deployment and acceptance testing:
+
+1. apply the public queue token migration
+2. deploy backend, staff frontend, and public frontend
+3. validate the QR journey on a mobile device
+4. validate queue-to-table-to-POS and reservation-to-table-to-POS journeys with production-like data
+5. capture only concrete hosted defects for follow-up rather than reopening the architecture

@@ -102,7 +102,7 @@
     "TRANSLATIONS": "Translations",
     "SETTINGS": "Settings",
     "USERS": "Users",
-    "KITCHEN_DISPLAY": "Kitchen display",
+    "KITCHEN_DISPLAY": "Kitchen & beverages",
     "BEVERAGES_DISPLAY": "Beverages display",
     "WORKING_PLAN": "Working plan",
     "MY_SHIFT": "My shift",
@@ -227,8 +227,8 @@
     "RESERVATIONS_DESC": "View and manage table reservations",
     "QUEUE_TITLE": "Guest queue",
     "QUEUE_DESC": "Seat waiting guests and move walk-ins onto the floor",
-    "KITCHEN_TITLE": "Kitchen display",
-    "KITCHEN_DESC": "Orders view for kitchen",
+    "KITCHEN_TITLE": "Kitchen & beverage display",
+    "KITCHEN_DESC": "One production board for food and drink stations",
     "BEVERAGES_TITLE": "Beverages display",
     "BEVERAGES_DESC": "Orders view for bar and drinks",
     "CUSTOMERS_TITLE": "Customers (Invoice)",
@@ -767,7 +767,7 @@
     "cancelled": "Cancelled"
   },
   "KITCHEN_DISPLAY": {
-    "TITLE": "Kitchen display",
+    "TITLE": "Kitchen & beverage display",
     "BACK_TO_ORDERS": "Back to orders",
     "SOUND_ON": "Sound on",
     "SOUND_OFF": "Sound off",
@@ -1039,6 +1039,7 @@
     "reserved": "Reserved"
   },
   "BOOK": {
+    "GUEST_DETAILS": "Guest details",
     "TITLE": "Book a table",
     "OPENING_HOURS": "Opening hours",
     "SUBMIT": "Book table",

@@ -37,6 +37,6 @@ export const reservationAccessGuard: CanActivateFn = async () => {
   if (allowedRoles.includes(role)) {
     return true;
   }
-  // Allow any authenticated user; backend will return 403 for list/actions if no permission
-  return true;
+  router.navigate(['/dashboard']);
+  return false;
 };

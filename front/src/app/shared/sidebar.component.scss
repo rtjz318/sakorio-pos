@@ -340,6 +340,14 @@
     }
 }
 
+@media (max-width: 1180px) {
+    .layout.layout--nav-collapsed {
+        .main {
+            padding: var(--space-4);
+        }
+    }
+}
+
 // Mobile responsive
 @include for-phone-only {
     .mobile-header {

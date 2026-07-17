@@ -21,6 +21,7 @@ import { SidebarComponent } from '../shared/sidebar.component';
 import { FocusFirstInputDirective } from '../shared/focus-first-input.directive';
 import { TranslationsComponent } from '../translations/translations.component';
 import { KitchenStationsSettingsComponent } from './kitchen-stations-settings.component';
+import { PrintingSettingsComponent } from './printing-settings.component';
 import { DeliveryIntegrationsSettingsComponent } from './delivery-integrations-settings.component';
 import { SocialPostsSettingsComponent } from './social-posts-settings.component';
 import { ContractTemplatesSettingsComponent } from './contract-templates-settings.component';
@@ -39,6 +40,7 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
     TranslateModule,
     TranslationsComponent,
     KitchenStationsSettingsComponent,
+    PrintingSettingsComponent,
     DeliveryIntegrationsSettingsComponent,
     ContractTemplatesSettingsComponent,
     SocialPostsSettingsComponent,
@@ -175,6 +177,17 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
             <span>{{ 'SETTINGS.KITCHEN_STATIONS_TAB' | translate }}</span>
           </button>
           }
+          <button
+            type="button"
+            class="tab"
+            data-testid="settings-printing-tab"
+            [class.active]="activeSection() === 'printing'"
+            (click)="activeSection.set('printing')">
+            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+            </svg>
+            <span>Printing</span>
+          </button>
           <button
             type="button"
             class="tab"
@@ -528,6 +541,8 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
           }
         } @else if (activeSection() === 'kitchen-stations') {
           <app-kitchen-stations-settings />
+        } @else if (activeSection() === 'printing') {
+          <app-printing-settings />
         } @else if (activeSection() === 'delivery-integrations') {
           <app-delivery-integrations-settings />
         } @else if (activeSection() === 'social-posts') {
@@ -2867,6 +2882,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     | 'reservations'
     | 'taxes'
     | 'kitchen-stations'
+    | 'printing'
     | 'delivery-integrations'
     | 'social-posts'
     | 'contract-templates'

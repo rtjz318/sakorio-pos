@@ -95,7 +95,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   // New UI state
   isScrolled = signal(false);
   cartExpanded = signal(false);
-  /** Product ids in cart — grid/featured cards get a light “in cart” background. */
+  /** Product ids in cart â€” grid/featured cards get a light â€œin cartâ€ background. */
   productIdsInCart = computed(() => {
     const ids = new Set<number>();
     for (const line of this.cart()) {
@@ -146,13 +146,15 @@ export class MenuComponent implements OnInit, OnDestroy {
   private sessionId = '';
   /** When set (from staff link), PIN is not required; sent with getMenu and submitOrder. */
   private staffAccess: string | null = null;
+  /** Permanent signed bearer credential embedded in the printed table QR. */
+  private qrAccess: string | null = null;
 
   // Computed
   tableGreeting = computed(() => {
     const name = this.customerName();
     const table = this.tableName();
     if (name) {
-      return `Hey, ${name}! � ${table}`;
+      return `Hey, ${name}! · ${table}`;
     }
     return table;
   });
@@ -182,6 +184,12 @@ export class MenuComponent implements OnInit, OnDestroy {
       this.route.snapshot.queryParams['staff_access'] ??
       (typeof window !== 'undefined' && window.location.search
         ? new URLSearchParams(window.location.search).get('staff_access')
+        : null) ??
+      null;
+    this.qrAccess =
+      this.route.snapshot.queryParams['qr_access'] ??
+      (typeof window !== 'undefined' && window.location.search
+        ? new URLSearchParams(window.location.search).get('qr_access')
         : null) ??
       null;
     this.initializeSession();
@@ -244,7 +252,11 @@ export class MenuComponent implements OnInit, OnDestroy {
   // MENU LOADING
   // ============================================
   loadMenu() {
-    this.api.getMenu(this.tableToken, this.staffAccess ?? undefined).subscribe({
+    this.api.getMenu(
+      this.tableToken,
+      this.staffAccess ?? undefined,
+      this.qrAccess ?? undefined,
+    ).subscribe({
       next: data => {
         const productsWithSource = data.products.map((product: Product) => ({
           ...product,
@@ -516,7 +528,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     if (wineType === 'Red Wine') return 'WINE_RED';
     if (wineType === 'White Wine') return 'WINE_WHITE';
     if (wineType === 'Sparkling Wine') return 'WINE_SPARKLING';
-    if (wineType === 'Rosé Wine') return 'WINE_ROSE';
+    if (wineType === 'RosÃ© Wine') return 'WINE_ROSE';
     if (wineType === 'Sweet Wine') return 'WINE_SWEET';
     if (wineType === 'Fortified Wine') return 'WINE_FORTIFIED';
     return null;
@@ -562,25 +574,47 @@ export class MenuComponent implements OnInit, OnDestroy {
   // CATEGORY ICONS (for sticky nav)
   // ============================================
   getCategoryIcon(category: string): string {
-    const icons: Record<string, string> = {
-      'Starters': '🥗',
-      'Main Course': '🍝',
-      'Desserts': '🍰',
-      'Beverages': '🍷',
-      'Sides': '🥔',
-      'Wine': '🍷',
-      'Appetizers': '🥗',
-      'Entrees': '🍖',
-      'Pasta': '🍝',
-      'Pizza': '🍕',
-      'Seafood': '🦐',
-      'Meat': '🥩',
-      'Salads': '🥗',
-      'Soups': '🍲',
-      'Coffee': '☕',
-      'Tea': '🍵',
+    const safeIcons: Record<string, string> = {
+      'Starters': '\u{1F957}',
+      'Main Course': '\u{1F35D}',
+      'Desserts': '\u{1F370}',
+      'Beverages': '\u{1F377}',
+      'Sides': '\u{1F954}',
+      'Wine': '\u{1F377}',
+      'Appetizers': '\u{1F957}',
+      'Entrees': '\u{1F356}',
+      'Pasta': '\u{1F35D}',
+      'Pizza': '\u{1F355}',
+      'Seafood': '\u{1F990}',
+      'Meat': '\u{1F969}',
+      'Salads': '\u{1F957}',
+      'Soups': '\u{1F372}',
+      'Coffee': '\u{2615}',
+      'Tea': '\u{1F375}',
     };
-    return icons[category] || '🍽️';
+    return safeIcons[category] || '\u{1F37D}\u{FE0F}';
+
+    /* Legacy mojibake values retained below only to minimize the migration diff.
+    const icons: Record<string, string> = {
+      'Starters': 'ðŸ¥—',
+      'Main Course': 'ðŸ',
+      'Desserts': 'ðŸ°',
+      'Beverages': 'ðŸ·',
+      'Sides': 'ðŸ¥”',
+      'Wine': 'ðŸ·',
+      'Appetizers': 'ðŸ¥—',
+      'Entrees': 'ðŸ–',
+      'Pasta': 'ðŸ',
+      'Pizza': 'ðŸ•',
+      'Seafood': 'ðŸ¦',
+      'Meat': 'ðŸ¥©',
+      'Salads': 'ðŸ¥—',
+      'Soups': 'ðŸ²',
+      'Coffee': 'â˜•',
+      'Tea': 'ðŸµ',
+    };
+    return icons[category] || 'ðŸ½ï¸';
+    */
   }
 
   // ============================================
@@ -631,7 +665,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     if (type.includes('red')) return 'red';
     if (type.includes('white')) return 'white';
     if (type.includes('sparkling')) return 'sparkling';
-    if (type.includes('rosé') || type.includes('rose')) return 'rose';
+    if (type.includes('rosÃ©') || type.includes('rose')) return 'rose';
     if (type.includes('sweet')) return 'sweet';
     if (type.includes('fortified')) return 'fortified';
     return 'other';
@@ -641,7 +675,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     if (wineType.includes('Red')) return 'Tinto';
     if (wineType.includes('White')) return 'Blanco';
     if (wineType.includes('Sparkling')) return 'Espumoso';
-    if (wineType.includes('Rosé') || wineType.includes('Rose')) return 'Rosado';
+    if (wineType.includes('RosÃ©') || wineType.includes('Rose')) return 'Rosado';
     if (wineType.includes('Sweet')) return 'Dulce';
     if (wineType.includes('Fortified')) return 'Generoso';
     return wineType;
@@ -977,6 +1011,7 @@ export class MenuComponent implements OnInit, OnDestroy {
       customer_name: this.customerName() || undefined,
       pin: this.currentPin || undefined,
       staff_access: this.staffAccess ?? undefined,
+      qr_access: this.qrAccess ?? undefined,
       latitude,
       longitude
     }).subscribe({
@@ -1074,7 +1109,7 @@ export class MenuComponent implements OnInit, OnDestroy {
       if (Array.isArray(v)) parts.push(v.join(', '));
       else parts.push(String(v));
     }
-    return parts.join(' � ');
+    return parts.join(' · ');
   }
 
   getItemStatusLabel(status: string): string {

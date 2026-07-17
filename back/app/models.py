@@ -1,9 +1,10 @@
 from datetime import date, datetime, time, timezone
 from enum import Enum
+import secrets
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, Date, DateTime, Enum as SAEnum, Text, Time, UniqueConstraint
+from sqlalchemy import Column, Date, DateTime, Enum as SAEnum, LargeBinary, Text, Time, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -260,6 +261,14 @@ class User(SQLModel, table=True):
     otp_secret: str | None = Field(default=None, exclude=True)  # Never serialized in API responses
     otp_enabled: bool = Field(default=False)
     employee_number: str | None = Field(default=None, max_length=64)
+    job_title: str | None = Field(default=None, max_length=128)
+    phone: str | None = Field(default=None, max_length=32)
+    hourly_rate_cents: int = Field(default=0, ge=0)
+    employment_start_date: date | None = Field(default=None, sa_column=Column(Date, nullable=True))
+    profile_completed_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
 
 
 class PasswordResetToken(SQLModel, table=True):
@@ -309,6 +318,86 @@ class KitchenStationUpdate(SQLModel):
 class KitchenStationDefaultsUpdate(SQLModel):
     default_kitchen_station_id: int | None = None
     default_bar_station_id: int | None = None
+
+
+class PrintJobStatus(str, Enum):
+    pending = "pending"
+    leased = "leased"
+    completed = "completed"
+    failed = "failed"
+
+
+class PrinterAgent(SQLModel, table=True):
+    """A tenant-scoped local bridge that can reach an on-premise receipt printer."""
+
+    __tablename__ = "printer_agent"
+    id: int | None = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    name: str = Field(max_length=128)
+    token_hash: str = Field(max_length=64, unique=True, index=True)
+    kitchen_station_id: int | None = Field(
+        default=None, foreign_key="kitchen_station.id", index=True
+    )
+    active: bool = Field(default=True, index=True)
+    last_seen_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class PrintJob(SQLModel, table=True):
+    """Durable receipt work leased by a local printer agent with retry support."""
+
+    __tablename__ = "print_job"
+    id: int | None = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    order_id: int = Field(foreign_key="order.id", index=True)
+    kitchen_station_id: int | None = Field(
+        default=None, foreign_key="kitchen_station.id", index=True
+    )
+    job_type: str = Field(default="kitchen_receipt", max_length=32, index=True)
+    dedupe_key: str = Field(max_length=160, unique=True, index=True)
+    payload: dict = Field(default_factory=dict, sa_column=Column(JSONB, nullable=False))
+    status: PrintJobStatus = Field(
+        default=PrintJobStatus.pending,
+        sa_column=Column(
+            SAEnum(
+                PrintJobStatus,
+                name="print_job_status",
+                native_enum=True,
+                create_type=False,
+                values_callable=lambda cls: [member.value for member in cls],
+            ),
+            nullable=False,
+            index=True,
+        ),
+    )
+    attempts: int = Field(default=0)
+    available_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    lease_token: str | None = Field(default=None, max_length=64, index=True)
+    leased_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    lease_expires_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    completed_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    failed_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    last_error: str | None = Field(default=None, max_length=1000)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
 
 class Product(TenantMixin, table=True):
@@ -575,12 +664,31 @@ class WorkSession(TenantMixin, table=True):
     __tablename__ = "work_session"
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id", index=True)
+    shift_id: int | None = Field(default=None, foreign_key="shift.id", index=True)
     started_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
     ended_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
     start_ip: str | None = Field(default=None, max_length=45)
     end_ip: str | None = Field(default=None, max_length=45)
     # When set (and session still open), staff is on break; active work timer pauses until break ends
     break_started_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
+
+
+class WorkSessionPhoto(TenantMixin, table=True):
+    """Private, compressed camera proof captured during clock-in or clock-out."""
+
+    __tablename__ = "work_session_photo"
+    __table_args__ = (UniqueConstraint("work_session_id", "proof_type", name="uq_work_session_photo_type"),)
+    id: int | None = Field(default=None, primary_key=True)
+    work_session_id: int = Field(foreign_key="work_session.id", index=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    proof_type: str = Field(max_length=16, index=True)
+    captured_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    content_type: str = Field(default="image/jpeg", max_length=64)
+    image_data: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
 
 class WorkSessionBreak(TenantMixin, table=True):
@@ -620,6 +728,7 @@ class GuestQueueStatus(str, Enum):
     waiting = "waiting"
     notified = "notified"
     seated = "seated"
+    completed = "completed"
     converted_to_reservation = "converted_to_reservation"
     cancelled = "cancelled"
     no_show = "no_show"
@@ -679,6 +788,12 @@ class GuestQueueEntry(TenantMixin, table=True):
     __tablename__ = "guest_queue_entry"
 
     id: int | None = Field(default=None, primary_key=True)
+    public_token: str = Field(
+        default_factory=lambda: secrets.token_urlsafe(24),
+        max_length=64,
+        unique=True,
+        index=True,
+    )
     customer_name: str
     customer_phone: str | None = Field(default=None, max_length=64, index=True)
     party_size: int
@@ -870,6 +985,10 @@ class UserCreate(SQLModel):
     password: str
     full_name: str | None = None
     role: UserRole = UserRole.waiter
+    job_title: str | None = Field(default=None, max_length=128)
+    phone: str | None = Field(default=None, max_length=32)
+    hourly_rate_cents: int = Field(default=0, ge=0)
+    employment_start_date: date | None = None
 
 
 class UserUpdate(SQLModel):
@@ -880,6 +999,10 @@ class UserUpdate(SQLModel):
     password: str | None = None  # Optional: only update if provided
     # Required (non-empty) when password is set: authenticates the caller before changing a password.
     actor_current_password: str | None = None
+    job_title: str | None = None
+    phone: str | None = None
+    hourly_rate_cents: int | None = Field(default=None, ge=0)
+    employment_start_date: date | None = None
 
 
 class UserResponse(SQLModel):
@@ -890,6 +1013,20 @@ class UserResponse(SQLModel):
     role: UserRole
     tenant_id: int | None = None
     provider_id: int | None = None
+    employee_number: str | None = None
+    job_title: str | None = None
+    phone: str | None = None
+    hourly_rate_cents: int = 0
+    employment_start_date: date | None = None
+    profile_completed_at: datetime | None = None
+
+
+class StaffProfileUpdate(SQLModel):
+    """Fields an employee may maintain on their own attendance profile."""
+
+    full_name: str = Field(min_length=2, max_length=255)
+    phone: str | None = Field(default=None, max_length=32)
+    job_title: str | None = Field(default=None, max_length=128)
 
 
 class ProductUpdate(SQLModel):
@@ -985,6 +1122,14 @@ class GuestQueueCreate(SQLModel):
     notes: str | None = None
     source: GuestQueueSource = GuestQueueSource.staff_manual
     arrived_now: bool = True
+
+
+class PublicGuestQueueCreate(SQLModel):
+    customer_name: str = Field(min_length=2, max_length=120)
+    customer_phone: str = Field(min_length=6, max_length=64)
+    party_size: int = Field(ge=1, le=20)
+    preferred_floor_id: int | None = None
+    notes: str | None = Field(default=None, max_length=500)
 
 
 class GuestQueueUpdate(SQLModel):
@@ -1127,6 +1272,7 @@ class OrderCreate(SQLModel):
     customer_name: str | None = None  # Optional customer name
     pin: str | None = None  # Required PIN for table ordering
     staff_access: str | None = None  # Staff link token: when valid, PIN is not required
+    qr_access: str | None = None  # Signed credential from the permanent printed table QR
     latitude: float | None = None  # Optional GPS latitude for location verification
     longitude: float | None = None  # Optional GPS longitude for location verification
 

@@ -871,6 +871,7 @@
     "reserved": "已预订"
   },
   "BOOK": {
+    "GUEST_DETAILS": "客人信息",
     "TITLE": "预订餐桌",
     "OPENING_HOURS": "营业时间",
     "SUBMIT": "预订餐桌",

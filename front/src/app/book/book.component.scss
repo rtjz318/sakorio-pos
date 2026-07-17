@@ -411,6 +411,39 @@
   margin-bottom: var(--space-4);
 }
 
+.booking-step {
+  padding: 0 0 var(--space-5);
+  margin-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.booking-step-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+
+  h2 {
+    margin: 0;
+    color: var(--color-text);
+    font-size: 1.125rem;
+    line-height: 1.25;
+  }
+}
+
+.booking-step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-primary) 12%, white);
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
 .book-booking-controls {
   display: flex;
   flex-direction: column;
@@ -447,6 +480,16 @@
 
 .book-dietary-notes {
   margin-top: var(--space-1);
+}
+
+.guest-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--space-3);
+}
+
+.guest-details-wide {
+  grid-column: 1 / -1;
 }
 
 .book-form label {
@@ -523,6 +566,40 @@
 
   &:hover:not(:disabled) {
     background: var(--color-primary-hover);
+  }
+}
+
+.booking-submit-dock {
+  margin-top: calc(var(--space-5) * -1);
+  padding-top: var(--space-4);
+  background: var(--color-surface);
+}
+
+@media (max-width: 560px) {
+  .book-content {
+    padding: var(--space-3);
+  }
+
+  .book-card {
+    padding: var(--space-4);
+  }
+
+  .guest-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .guest-details-wide {
+    grid-column: auto;
+  }
+
+  .booking-submit-dock {
+    position: sticky;
+    z-index: 5;
+    bottom: 0;
+    margin: 0 calc(var(--space-4) * -1) calc(var(--space-4) * -1);
+    padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--color-border);
+    box-shadow: 0 -12px 28px rgba(28, 24, 20, 0.08);
   }
 }
 

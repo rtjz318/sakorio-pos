@@ -846,6 +846,7 @@
     "reserved": "Reservada"
   },
   "BOOK": {
+    "GUEST_DETAILS": "Dades del client",
     "TITLE": "Reservar una taula",
     "OPENING_HOURS": "Horari",
     "SUBMIT": "Reservar taula",

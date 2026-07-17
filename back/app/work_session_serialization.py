@@ -61,11 +61,34 @@ def serialize_work_session(
         open_duration_minutes = open_work_minutes
         over_contract = open_work_minutes >= WORK_SESSION_CONTRACT_THRESHOLD_MINUTES
 
+    user = session.get(models.User, ws.user_id) if session is not None else None
+    shift = session.get(models.Shift, ws.shift_id) if session is not None and ws.shift_id else None
+    proof_types: set[str] = set()
+    if session is not None and ws.id is not None:
+        proof_types = {
+            row.proof_type
+            for row in session.exec(
+                select(models.WorkSessionPhoto).where(models.WorkSessionPhoto.work_session_id == ws.id)
+            ).all()
+        }
+    worked_minutes = duration_minutes if duration_minutes is not None else open_work_minutes
+    hourly_rate_cents = int(getattr(user, "hourly_rate_cents", 0) or 0)
+    estimated_pay_cents = (
+        (worked_minutes * hourly_rate_cents + 30) // 60
+        if worked_minutes is not None and hourly_rate_cents > 0
+        else 0
+    )
+
     return {
         "id": ws.id,
         "tenant_id": ws.tenant_id,
         "user_id": ws.user_id,
         "user_name": user_name,
+        "shift_id": ws.shift_id,
+        "shift_date": shift.shift_date.isoformat() if shift else None,
+        "shift_start_time": shift.start_time.isoformat() if shift else None,
+        "shift_end_time": shift.end_time.isoformat() if shift else None,
+        "shift_label": shift.label if shift else None,
         "started_at": ws.started_at.isoformat() if ws.started_at else None,
         "ended_at": ws.ended_at.isoformat() if ws.ended_at else None,
         "duration_minutes": duration_minutes,
@@ -77,6 +100,10 @@ def serialize_work_session(
         "on_break": on_break,
         "break_started_at": ws.break_started_at.isoformat() if getattr(ws, "break_started_at", None) else None,
         "break_seconds_total": break_sec,
+        "clock_in_photo_present": "clock_in" in proof_types,
+        "clock_out_photo_present": "clock_out" in proof_types,
+        "hourly_rate_cents": hourly_rate_cents,
+        "estimated_pay_cents": estimated_pay_cents,
     }
 
 

@@ -103,12 +103,6 @@ import { StaffLayoutService } from '../services/staff-layout.service';
                </svg>
                <span>{{ 'NAV.QUEUE' | translate }}</span>
              </a>
-             <a routerLink="/guest-feedback" routerLinkActive="active" class="nav-link" (click)="closeSidebar()">
-               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                 <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-               </svg>
-               <span>{{ 'NAV.GUEST_FEEDBACK' | translate }}</span>
-             </a>
            }
            @if (canViewTables() && moduleEnabled('tables')) {
              <a [routerLink]="tablesArea.entryPath()" class="nav-link" [class.active]="isTablesNavActive()" (click)="closeSidebar()">
@@ -128,13 +122,6 @@ import { StaffLayoutService } from '../services/staff-layout.service';
                <path d="M6 8h.01M10 8h.01M14 8h.01M6 12h12M6 16h8"/>
              </svg>
              <span>{{ 'NAV.KITCHEN_DISPLAY' | translate }}</span>
-           </a>
-           <a routerLink="/bar" routerLinkActive="active" class="nav-link" (click)="closeSidebar()">
-             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-               <path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"/>
-               <path d="M9 14h6M9 18h6"/>
-             </svg>
-             <span>{{ 'NAV.BEVERAGES_DISPLAY' | translate }}</span>
            </a>
            }
            @if (canViewCustomers()) {

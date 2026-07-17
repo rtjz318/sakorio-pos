@@ -61,6 +61,10 @@ front/marketing-flat/
 node_modules/
 dist/
 .angular/cache/
+printer-agent/print-output/
+qa/screenshots/
+test-results/
+tmp_*.png
 
 # Long-running go-ahead-loop.sh log + pid (see scripts/go-ahead-loop.sh)
 .go-ahead-loop.log

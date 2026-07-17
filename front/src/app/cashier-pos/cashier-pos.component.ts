@@ -92,7 +92,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
             <div>
               <p class="eyebrow">Cashier POS</p>
               <h1>Service counter</h1>
-              <p class="subcopy">Pick a table, build the bill, take payment.</p>
+              <p class="subcopy">Pick a table, build the order, take payment.</p>
             </div>
             <button type="button" class="btn btn-secondary" (click)="loadData()" [disabled]="loading()">
               {{ loading() ? 'Refreshing...' : 'Refresh board' }}
@@ -112,22 +112,18 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
           <article class="status-chip">
             <span class="summary-label">Tables loaded</span>
             <strong>{{ tables().length }}</strong>
-            <small>{{ activeTables().length }} active on floor</small>
           </article>
           <article class="status-chip">
             <span class="summary-label">Open bills</span>
             <strong>{{ liveBills().length }}</strong>
-            <small>{{ liveBills().length }} open bills</small>
           </article>
           <article class="status-chip">
             <span class="summary-label">Paid today</span>
             <strong>{{ formatPrice(totalPaidCents()) }}</strong>
-            <small>{{ paidOrders().length }} paid bills</small>
           </article>
           <article class="status-chip">
             <span class="summary-label">Catalog</span>
             <strong>{{ activeProducts().length }}</strong>
-            <small>{{ productCategories().length }} categories</small>
           </article>
         </section>
 
@@ -1064,13 +1060,13 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .page-shell {
       display: flex;
       flex-direction: column;
-      gap: var(--space-6);
+      gap: 0.72rem;
     }
 
     .page-header--staff-flow {
       display: flex;
       flex-direction: column;
-      gap: var(--space-4);
+      gap: 0.55rem;
     }
 
     .header-copy {
@@ -1088,7 +1084,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .header-copy h1 {
-      font-size: clamp(1.75rem, 3vw, 2.4rem);
+      font-size: clamp(1.45rem, 2vw, 1.9rem);
     }
 
     .subcopy {
@@ -1122,7 +1118,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .cashier-status-strip {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: var(--space-3);
+      gap: 0.55rem;
     }
 
     .status-chip,
@@ -1140,14 +1136,16 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .status-chip {
-      padding: 0.9rem 1rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.2rem;
+      min-height: 2.8rem;
+      padding: 0.55rem 0.75rem;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.6rem;
     }
 
     .status-chip strong {
-      font-size: 1.18rem;
+      font-size: 1rem;
       line-height: 1;
     }
 
@@ -1178,8 +1176,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .cashier-grid {
       display: grid;
       grid-template-columns: minmax(304px, 0.88fr) minmax(560px, 1.42fr) minmax(336px, 0.96fr);
-      gap: 0.82rem;
+      gap: 0.7rem;
       align-items: start;
+      min-height: calc(100vh - 11.5rem);
     }
 
     .lane,
@@ -4952,7 +4951,7 @@ export class CashierPosComponent {
 
     forkJoin({
       settings: this.api.getTenantSettings(),
-      tables: this.api.getTables(),
+      tables: this.api.getTablesWithStatus(),
       orders: this.api.getOrders(),
       tenantProducts: this.api.getTenantProducts(true).pipe(catchError(() => of([]))),
       legacyProducts: this.api.getProducts().pipe(
@@ -5176,7 +5175,7 @@ export class CashierPosComponent {
       return 'Select table';
     }
     if (this.hasPayableLiveBill()) {
-      return this.hasProductQuestions(product) ? 'Customize bill' : 'Add to bill';
+      return this.hasProductQuestions(product) ? 'Customize item' : 'Add to order';
     }
     if (this.hasProductQuestions(product)) {
       return 'Customize';
@@ -5208,7 +5207,7 @@ export class CashierPosComponent {
       return 'Add items or collect payment.';
     }
     if (table) {
-      return 'Add items to start the bill.';
+      return 'Add items to start the order.';
     }
     return 'Choose a table to begin.';
   }
@@ -5218,20 +5217,20 @@ export class CashierPosComponent {
       return 'Add items or pay now.';
     }
     if (this.selectedTableHasServiceTicket()) {
-      return 'Add items to continue the bill.';
+      return 'Add items to continue the order.';
     }
     return 'Add items to begin.';
   }
 
   cartTitle(): string {
     if (this.payableLiveBillOrder() && this.cartItemCount() > 0) {
-      return 'Live bill + add-ons';
+      return 'Live order + add-ons';
     }
-    return this.payableLiveBillOrder() ? 'Live bill' : 'Current ticket';
+    return this.payableLiveBillOrder() ? 'Live order' : 'Current ticket';
   }
 
   confirmProductButtonLabel(): string {
-    return this.hasPayableLiveBill() ? 'Add to bill' : 'Add to ticket';
+    return this.hasPayableLiveBill() ? 'Add to order' : 'Add to ticket';
   }
 
   primarySettlementModeLabel(): string {
@@ -5769,12 +5768,12 @@ export class CashierPosComponent {
     const candidate = this.nextReadyTableCandidate(this.selectedTableId());
 
     if (!candidate) {
-      this.notice.set('No clear tables are ready for a new cashier bill right now.');
+      this.notice.set('No clear tables are ready for a new order right now.');
       return;
     }
 
     this.selectTable(candidate);
-    this.notice.set(`${candidate.name} is clear. Start the next cashier bill from the catalog.`);
+    this.notice.set(`${candidate.name} is clear. Start the next order from the catalog.`);
     this.scrollToCatalog();
   }
 
@@ -6067,8 +6066,8 @@ export class CashierPosComponent {
 
     this.notice.set(
       table.active_order_id
-        ? `${table.name} has a live bill. Add items from the catalog or settle it below.`
-        : `${table.name} is clear and ready for a new cashier bill.`,
+        ? `${table.name} has a live order. Add items from the catalog or settle it below.`
+        : `${table.name} is clear and ready for a new order.`,
     );
     this.scrollToCatalog();
   }
@@ -6160,12 +6159,12 @@ export class CashierPosComponent {
   selectNextReadyTable(): void {
     const candidate = this.nextReadyTableCandidate(this.selectedTableId());
     if (!candidate) {
-      this.notice.set('No clear tables are ready for a new cashier bill right now.');
+      this.notice.set('No clear tables are ready for a new order right now.');
       return;
     }
 
     this.selectTable(candidate);
-    this.notice.set(`${candidate.name} is ready for the next cashier bill.`);
+    this.notice.set(`${candidate.name} is ready for the next order.`);
     this.scrollToCatalog();
   }
 
@@ -6334,6 +6333,13 @@ export class CashierPosComponent {
   }
 
   tableReservationHint(table: CanvasTable): string | null {
+    const seatedReservation = table.seated_reservation;
+    if (seatedReservation) {
+      const guest = seatedReservation.customer_name?.trim() || 'Guest';
+      const party = seatedReservation.party_size === 1 ? '1 guest' : `${seatedReservation.party_size} guests`;
+      return `${guest} · ${party}`;
+    }
+
     const reservation = table.upcoming_reservation;
     if (!reservation) {
       return null;
@@ -6361,7 +6367,11 @@ export class CashierPosComponent {
     if (table.upcoming_reservation) {
       return this.tableReservationBadge(table) || 'Reserved soon';
     }
-    return 'Ready for new bill';
+    if (table.seated_reservation) {
+      const partySize = table.seated_reservation.party_size;
+      return `Guests seated · ${partySize}`;
+    }
+    return 'Ready for order';
   }
 
   tablePrimaryActionLabel(table: CanvasTable): string {
@@ -6369,7 +6379,7 @@ export class CashierPosComponent {
     if (serviceOrder && !this.isPaid(serviceOrder) && this.isClosedOrder(serviceOrder)) {
       return 'Take payment';
     }
-    return this.tableHasOpenService(table) ? 'Resume bill' : 'Start bill';
+    return this.tableHasOpenService(table) ? 'Resume order' : 'Start order';
   }
 
   selectedTableSummary(table: CanvasTable): string {
@@ -6389,7 +6399,10 @@ export class CashierPosComponent {
     if (table.upcoming_reservation) {
       return this.tableReservationHint(table) || 'Reserved guest pending';
     }
-    return 'Ready for the next cashier bill';
+    if (table.seated_reservation) {
+      return 'Guests seated, awaiting first order';
+    }
+    return 'Ready for a new order';
   }
 
   tableLiveOrderCount(table: CanvasTable): number {
@@ -6464,7 +6477,7 @@ export class CashierPosComponent {
       case 'reserved':
         return 'Reserved';
       case 'occupied':
-        return 'Occupied';
+        return table.seated_reservation ? 'Seated' : 'Occupied';
       case 'closed':
         return 'Closed';
       default:
@@ -6697,10 +6710,10 @@ export class CashierPosComponent {
       }
     }
 
-    const rankedTableOrders = this.sortQueueOrders(
-      this.orders().filter((order) => order.table_id === table.id),
+    const rankedUnpaidOrders = this.sortQueueOrders(
+      this.orders().filter((order) => order.table_id === table.id && !this.isPaid(order)),
     );
-    return rankedTableOrders[0] ?? this.tableLatestOrderFallback(table.id ?? null);
+    return rankedUnpaidOrders[0] ?? null;
   }
 
   private tableLatestOrderFallback(tableId: number | null): Order | null {

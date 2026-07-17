@@ -155,7 +155,7 @@ describe('KitchenDisplayComponent', () => {
     expect(fixture.componentInstance.activeOrders()[0].id).toBe(1);
   });
 
-  it('should infer kitchen and bar routes from flexible category names when no stations are configured', () => {
+  it('should show food and beverage tickets together when no stations are configured', () => {
     const orders = [
       {
         id: 10,
@@ -188,14 +188,11 @@ describe('KitchenDisplayComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.componentInstance.activeOrders().length).toBe(1);
-    expect(fixture.componentInstance.activeOrders()[0].items.length).toBe(1);
-    expect(fixture.componentInstance.activeOrders()[0].items[0].product_name).toBe('Miso Ramen');
-
-    fixture.componentInstance.viewMode.set('bar');
-    fixture.detectChanges();
-    expect(fixture.componentInstance.activeOrders().length).toBe(1);
-    expect(fixture.componentInstance.activeOrders()[0].items.length).toBe(1);
-    expect(fixture.componentInstance.activeOrders()[0].items[0].product_name).toBe('Lemon Tea');
+    expect(fixture.componentInstance.activeOrders()[0].items.length).toBe(2);
+    expect(fixture.componentInstance.activeOrders()[0].items.map((item) => item.product_name)).toEqual([
+      'Miso Ramen',
+      'Lemon Tea',
+    ]);
   });
 
   it('should keep kitchen tickets visible when the order is paid or completed but line items are still active', () => {
@@ -260,7 +257,7 @@ describe('KitchenDisplayComponent', () => {
     expect(fixture.componentInstance.visibleOrders()[0].id).toBe(31);
   });
 
-  it('should treat custom drink-like station routes as bar tickets', () => {
+  it('should include custom drink-like station routes in the combined board', () => {
     const orders = [
       {
         id: 32,
@@ -284,11 +281,6 @@ describe('KitchenDisplayComponent', () => {
     ];
     mockApi.getOrders.and.returnValue(of(orders));
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.activeOrders().length).toBe(0);
-
-    fixture.componentInstance.viewMode.set('bar');
     fixture.detectChanges();
 
     expect(fixture.componentInstance.activeOrders().length).toBe(1);

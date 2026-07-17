@@ -43,13 +43,14 @@ export const routes: Routes = [
   { path: 'menu/:token/payment-success', loadComponent: () => import('./menu/payment-success.component').then(m => m.PaymentSuccessComponent) },
   { path: 'public-menu/:tenantId', loadComponent: () => import('./public-menu/public-menu.component').then(m => m.PublicMenuComponent) },
   { path: 'book/:tenantId', loadComponent: () => import('./book/book.component').then(m => m.BookComponent) },
+  { path: 'waitlist/:tenantId', loadComponent: () => import('./waitlist-public/waitlist-public.component').then(m => m.WaitlistPublicComponent) },
   { path: 'feedback/:tenantId', loadComponent: () => import('./feedback-public/feedback-public.component').then(m => m.FeedbackPublicComponent) },
   // Public take-away / home ordering: list tenants with ordering link
   { path: 'orders', canActivate: [ordersRouteGuard], loadComponent: () => import('./orders-public/orders-public.component').then(m => m.OrdersPublicComponent) },
   // Staff reservations (must be before 'reservation' so /reservations matches here, not the public route)
   { path: 'reservations', canActivate: [authGuard, uiModuleGuard('reservations'), reservationAccessGuard], loadComponent: () => import('./reservations/reservations.component').then(m => m.ReservationsComponent) },
   { path: 'queue', canActivate: [authGuard, uiModuleGuard('reservations'), reservationAccessGuard], loadComponent: () => import('./queue/queue.component').then(m => m.QueueComponent) },
-  { path: 'guest-feedback', canActivate: [authGuard, uiModuleGuard('reservations'), reservationAccessGuard], loadComponent: () => import('./guest-feedback/guest-feedback.component').then(m => m.GuestFeedbackComponent) },
+  { path: 'guest-feedback', redirectTo: 'dashboard', pathMatch: 'full' },
   { path: 'reservation', loadComponent: () => import('./reservation-view/reservation-view.component').then(m => m.ReservationViewComponent) },
 
   // Protected routes - accessible by all authenticated users
@@ -74,9 +75,9 @@ export const routes: Routes = [
   { path: 'staff/orders', canActivate: [authGuard, orderAccessGuard], loadComponent: () => import('./orders/orders.component').then(m => m.OrdersComponent) },
   // Billing customers
   { path: 'customers', canActivate: [authGuard, orderAccessGuard], loadComponent: () => import('./customers/customers.component').then(m => m.CustomersComponent) },
-  // Kitchen display (cocina: main course) and Bar display (beverages only) - same component, filtered by category
-  { path: 'kitchen', canActivate: [authGuard, uiModuleGuard('kitchen_bar'), orderAccessGuard], loadComponent: () => import('./kitchen-display/kitchen-display.component').then(m => m.KitchenDisplayComponent), data: { view: 'kitchen' } },
-  { path: 'bar', canActivate: [authGuard, uiModuleGuard('kitchen_bar'), orderAccessGuard], loadComponent: () => import('./kitchen-display/kitchen-display.component').then(m => m.KitchenDisplayComponent), data: { view: 'bar' } },
+  // One production display covers kitchen and beverage stations; keep /bar bookmarks working.
+  { path: 'kitchen', canActivate: [authGuard, uiModuleGuard('kitchen_bar'), orderAccessGuard], loadComponent: () => import('./kitchen-display/kitchen-display.component').then(m => m.KitchenDisplayComponent) },
+  { path: 'bar', redirectTo: 'kitchen', pathMatch: 'full' },
 
   // Admin-only routes
   { path: 'translations', redirectTo: 'settings', pathMatch: 'full' },

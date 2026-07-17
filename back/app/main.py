@@ -21,7 +21,7 @@ from typing import Annotated, Any, Dict, List, Tuple
 from urllib.parse import quote
 from uuid import uuid4
 
-from PIL import Image
+from PIL import Image, ImageOps
 import redis
 from fastapi import BackgroundTasks, Body, Depends, FastAPI, HTTPException, UploadFile, File, status, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,6 +50,8 @@ from .delivery_integration_routes import (
     public_router as delivery_public_router,
 )
 from .social_routes import router as social_router
+from .printing_routes import router as printing_router
+from .printing_service import enqueue_customer_receipt, enqueue_kitchen_receipts
 from .work_session_serialization import serialize_work_session, work_session_net_duration_minutes
 from .clock_qr_util import (
     clock_qr_tokens_equal,
@@ -460,6 +462,7 @@ app.include_router(staff_contract_router, prefix="/staff-contracts", tags=["Staf
 app.include_router(delivery_integration_router, prefix="/tenant", tags=["Delivery integrations"])
 app.include_router(delivery_public_router, tags=["Delivery integrations"])
 app.include_router(social_router, prefix="/tenant", tags=["Marketing — social"])
+app.include_router(printing_router, tags=["Printing"])
 app.include_router(
     staff_contract_template_router,
     prefix="/staff-contract-templates",
@@ -749,6 +752,7 @@ def _is_take_away_table(table) -> bool:
 
 # Staff menu link: time-limited signed token so staff can open public menu without PIN
 STAFF_MENU_TOKEN_EXPIRY = 3600  # 1 hour
+PUBLIC_TABLE_QR_PURPOSE = "table-order-qr-v1"
 
 
 def _sign_staff_menu_token(table_token: str) -> str:
@@ -771,8 +775,14 @@ def _verify_staff_menu_token(table_token: str, token: str) -> bool:
         # Restore padding if stripped
         padded = token + "=" * (4 - len(token) % 4) if len(token) % 4 else token
         raw = base64.urlsafe_b64decode(padded)
-        payload_b, _, sig_b = raw.rpartition(b".")
-        if not payload_b or not sig_b:
+        # SHA-256 HMACs are 32 raw bytes and may themselves contain a dot byte.
+        # Splitting with rpartition() therefore rejected otherwise valid tokens
+        # intermittently. Read the fixed-width signature from the end instead.
+        if len(raw) <= 33 or raw[-33:-32] != b".":
+            return False
+        payload_b = raw[:-33]
+        sig_b = raw[-32:]
+        if not payload_b:
             return False
         payload = payload_b.decode("utf-8")
         tt, exp_str = payload.split(":", 1)
@@ -786,6 +796,35 @@ def _verify_staff_menu_token(table_token: str, token: str) -> bool:
             hashlib.sha256,
         ).digest()
         return hmac.compare_digest(sig_b, expected)
+    except Exception:
+        return False
+
+
+def _sign_public_table_qr_access(table_token: str) -> str:
+    """Return the permanent bearer credential embedded in a printed table QR."""
+    payload = f"{PUBLIC_TABLE_QR_PURPOSE}:{table_token}"
+    signature = hmac.new(
+        settings.secret_key.encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+    return base64.urlsafe_b64encode(signature).decode("ascii").rstrip("=")
+
+
+def _verify_public_table_qr_access(table_token: str, token: str) -> bool:
+    """Verify that a QR bearer credential belongs to the supplied table token."""
+    if not token or not table_token:
+        return False
+    try:
+        padded = token + "=" * ((4 - len(token) % 4) % 4)
+        supplied = base64.urlsafe_b64decode(padded)
+        payload = f"{PUBLIC_TABLE_QR_PURPOSE}:{table_token}"
+        expected = hmac.new(
+            settings.secret_key.encode("utf-8"),
+            payload.encode("utf-8"),
+            hashlib.sha256,
+        ).digest()
+        return hmac.compare_digest(supplied, expected)
     except Exception:
         return False
 
@@ -960,6 +999,152 @@ def get_public_tenant(
         "reservation_max_guests_per_slot": summary.reservation_max_guests_per_slot,
     }
     return JSONResponse(content=body)
+
+
+@app.get("/public/tenants/{tenant_id}/queue")
+@public_menu_ip_limit()
+def get_public_queue_info(
+    request: Request,
+    response: Response,
+    tenant_id: int,
+    session: Session = Depends(get_session),
+) -> dict:
+    tenant = session.get(models.Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+
+    active_statuses = [models.GuestQueueStatus.waiting, models.GuestQueueStatus.notified]
+    active_rows = session.exec(
+        select(models.GuestQueueEntry).where(
+            models.GuestQueueEntry.tenant_id == tenant_id,
+            models.GuestQueueEntry.status.in_(active_statuses),
+        )
+    ).all()
+    floors = session.exec(
+        select(models.Floor)
+        .where(models.Floor.tenant_id == tenant_id, models.Floor.is_active.is_(True))
+        .order_by(models.Floor.sort_order.asc(), models.Floor.name.asc())
+    ).all()
+    quoted_waits = [row.quoted_wait_minutes for row in active_rows if row.quoted_wait_minutes is not None]
+    return {
+        "tenant_id": tenant.id,
+        "tenant_name": tenant.name,
+        "active_entries": len(active_rows),
+        "waiting_guests": sum(row.party_size for row in active_rows),
+        "estimated_wait_minutes": max(quoted_waits) if quoted_waits else None,
+        "floors": [{"id": floor.id, "name": floor.name} for floor in floors],
+    }
+
+
+@app.post("/public/tenants/{tenant_id}/queue")
+@public_menu_ip_limit()
+def join_public_queue(
+    request: Request,
+    response: Response,
+    tenant_id: int,
+    body: models.PublicGuestQueueCreate,
+    session: Session = Depends(get_session),
+) -> dict:
+    tenant = session.get(models.Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+
+    try:
+        phone = normalize_phone_e164(body.customer_phone, settings.default_phone_country)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Enter a valid mobile number") from exc
+
+    if body.preferred_floor_id is not None:
+        floor = session.exec(
+            select(models.Floor).where(
+                models.Floor.id == body.preferred_floor_id,
+                models.Floor.tenant_id == tenant_id,
+                models.Floor.is_active.is_(True),
+            )
+        ).first()
+        if not floor:
+            raise HTTPException(status_code=404, detail="Preferred seating area not found")
+
+    active_statuses = [models.GuestQueueStatus.waiting, models.GuestQueueStatus.notified]
+    existing = session.exec(
+        select(models.GuestQueueEntry)
+        .where(
+            models.GuestQueueEntry.tenant_id == tenant_id,
+            models.GuestQueueEntry.customer_phone == phone,
+            models.GuestQueueEntry.status.in_(active_statuses),
+        )
+        .order_by(models.GuestQueueEntry.requested_at.desc())
+    ).first()
+    if existing:
+        return _public_queue_entry_to_dict(existing, session)
+
+    queue_entry = models.GuestQueueEntry(
+        tenant_id=tenant_id,
+        customer_name=body.customer_name.replace("\x00", "").strip(),
+        customer_phone=phone,
+        party_size=body.party_size,
+        preferred_floor_id=body.preferred_floor_id,
+        notes=body.notes.replace("\x00", "").strip() if body.notes else None,
+        source=models.GuestQueueSource.web_waitlist,
+        arrived_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    session.add(queue_entry)
+    session.commit()
+    session.refresh(queue_entry)
+    public_out = _public_queue_entry_to_dict(queue_entry, session)
+    publish_queue_update(
+        tenant_id,
+        {"type": "queue_created", "queue_entry": _queue_entry_to_dict(queue_entry, session)},
+    )
+    return public_out
+
+
+@app.get("/public/queue/{public_token}")
+@public_menu_ip_limit()
+def get_public_queue_status(
+    request: Request,
+    response: Response,
+    public_token: str,
+    session: Session = Depends(get_session),
+) -> dict:
+    queue_entry = session.exec(
+        select(models.GuestQueueEntry).where(models.GuestQueueEntry.public_token == public_token)
+    ).first()
+    if not queue_entry:
+        raise HTTPException(status_code=404, detail="Queue entry not found")
+    return _public_queue_entry_to_dict(queue_entry, session)
+
+
+@app.post("/public/queue/{public_token}/cancel")
+@public_menu_ip_limit()
+def cancel_public_queue_entry(
+    request: Request,
+    response: Response,
+    public_token: str,
+    session: Session = Depends(get_session),
+) -> dict:
+    queue_entry = session.exec(
+        select(models.GuestQueueEntry).where(models.GuestQueueEntry.public_token == public_token)
+    ).first()
+    if not queue_entry:
+        raise HTTPException(status_code=404, detail="Queue entry not found")
+    if queue_entry.status not in {models.GuestQueueStatus.waiting, models.GuestQueueStatus.notified}:
+        return _public_queue_entry_to_dict(queue_entry, session)
+
+    now_utc = datetime.now(timezone.utc)
+    queue_entry.status = models.GuestQueueStatus.cancelled
+    queue_entry.cancel_reason = "Cancelled by guest"
+    queue_entry.completed_at = now_utc
+    queue_entry.updated_at = now_utc
+    session.add(queue_entry)
+    session.commit()
+    session.refresh(queue_entry)
+    publish_queue_update(
+        queue_entry.tenant_id,
+        {"type": "queue_status", "queue_entry": _queue_entry_to_dict(queue_entry, session)},
+    )
+    return _public_queue_entry_to_dict(queue_entry, session)
 
 
 @app.get(
@@ -1689,6 +1874,51 @@ def read_users_me(
     return current_user
 
 
+def _staff_profile_dict(user: models.User) -> dict:
+    return {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role,
+        "tenant_id": user.tenant_id,
+        "provider_id": user.provider_id,
+        "employee_number": user.employee_number,
+        "job_title": user.job_title,
+        "phone": user.phone,
+        "hourly_rate_cents": user.hourly_rate_cents or 0,
+        "employment_start_date": user.employment_start_date,
+        "profile_completed_at": user.profile_completed_at,
+    }
+
+
+@app.get("/users/me/staff-profile")
+def get_my_staff_profile(
+    current_user: Annotated[models.User, Depends(security.get_current_user)],
+) -> dict:
+    _require_tenant_staff_for_work_session(current_user)
+    return _staff_profile_dict(current_user)
+
+
+@app.patch("/users/me/staff-profile")
+def update_my_staff_profile(
+    body: models.StaffProfileUpdate,
+    current_user: Annotated[models.User, Depends(security.get_current_user)],
+    session: Session = Depends(get_session),
+) -> dict:
+    _require_tenant_staff_for_work_session(current_user)
+    user = session.get(models.User, current_user.id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.full_name = body.full_name.strip()
+    user.phone = (body.phone or "").strip() or None
+    user.job_title = (body.job_title or "").strip() or None
+    user.profile_completed_at = datetime.now(timezone.utc)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return _staff_profile_dict(user)
+
+
 # ============ USER OTP (optional two-factor) ============
 
 
@@ -1771,11 +2001,128 @@ def otp_disable(
 
 
 class WorkSessionClockBody(_BaseModel):
-    """Optional venue QR token and GPS for clock actions when the tenant requires them."""
+    """Scheduled shift and fresh camera proof, plus venue QR/GPS when configured."""
 
     clock_qr: str | None = None
     latitude: float | None = None
     longitude: float | None = None
+    shift_id: int | None = None
+    photo_data_url: str | None = None
+    photo_captured_at: datetime | None = None
+
+
+_CLOCK_PHOTO_MAX_INPUT_BYTES = 1_500_000
+_CLOCK_PHOTO_MAX_DIMENSION = 640
+_CLOCK_PHOTO_MAX_PIXELS = 12_000_000
+_CLOCK_PHOTO_MAX_AGE_SECONDS = 180
+
+
+def _tenant_timezone(tenant: models.Tenant) -> ZoneInfo:
+    try:
+        return ZoneInfo((tenant.timezone or "UTC").strip() or "UTC")
+    except Exception:
+        return ZoneInfo("UTC")
+
+
+def _shift_bounds(shift: models.Shift, tenant: models.Tenant) -> tuple[datetime, datetime]:
+    tz = _tenant_timezone(tenant)
+    start = datetime.combine(shift.shift_date, shift.start_time, tzinfo=tz)
+    end = datetime.combine(shift.shift_date, shift.end_time, tzinfo=tz)
+    if end <= start:
+        end += timedelta(days=1)
+    return start, end
+
+
+def _validate_scheduled_shift(
+    session: Session,
+    tenant: models.Tenant,
+    user: models.User,
+    payload: WorkSessionClockBody,
+    *,
+    now_utc: datetime,
+    open_session: models.WorkSession | None = None,
+) -> models.Shift:
+    if payload.shift_id is None:
+        raise HTTPException(status_code=400, detail="Select a scheduled shift before clocking")
+    shift = session.get(models.Shift, payload.shift_id)
+    if not shift or shift.tenant_id != user.tenant_id or shift.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Scheduled shift not found for this employee")
+    if open_session is not None and open_session.shift_id != shift.id:
+        raise HTTPException(status_code=400, detail="Clock out from the shift used to clock in")
+    start, end = _shift_bounds(shift, tenant)
+    local_now = now_utc.astimezone(_tenant_timezone(tenant))
+    if local_now < start - timedelta(hours=6) or local_now > end + timedelta(hours=12):
+        raise HTTPException(status_code=400, detail="This shift is not currently available for attendance")
+    if open_session is None:
+        prior = session.exec(
+            select(models.WorkSession).where(
+                models.WorkSession.user_id == user.id,
+                models.WorkSession.shift_id == shift.id,
+            )
+        ).first()
+        if prior:
+            raise HTTPException(status_code=409, detail="Attendance has already been recorded for this shift")
+    return shift
+
+
+def _decode_clock_photo(
+    payload: WorkSessionClockBody,
+    *,
+    now_utc: datetime,
+) -> tuple[bytes, datetime]:
+    captured = payload.photo_captured_at
+    if captured is None or captured.tzinfo is None:
+        raise HTTPException(status_code=400, detail="A real-time camera capture is required")
+    captured_utc = captured.astimezone(timezone.utc)
+    age = abs((now_utc - captured_utc).total_seconds())
+    if age > _CLOCK_PHOTO_MAX_AGE_SECONDS:
+        raise HTTPException(status_code=400, detail="Camera proof expired; take a new photo")
+    data_url = (payload.photo_data_url or "").strip()
+    if not data_url.startswith(("data:image/jpeg;base64,", "data:image/webp;base64,")):
+        raise HTTPException(status_code=400, detail="Camera proof must be a JPEG or WebP capture")
+    encoded = data_url.split(",", 1)[1]
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid camera proof") from exc
+    if not raw or len(raw) > _CLOCK_PHOTO_MAX_INPUT_BYTES:
+        raise HTTPException(status_code=400, detail="Camera proof is empty or too large")
+    try:
+        with Image.open(BytesIO(raw)) as source:
+            source.load()
+            if source.width * source.height > _CLOCK_PHOTO_MAX_PIXELS:
+                raise ValueError("image dimensions too large")
+            image = ImageOps.exif_transpose(source).convert("RGB")
+            image.thumbnail((_CLOCK_PHOTO_MAX_DIMENSION, _CLOCK_PHOTO_MAX_DIMENSION))
+            output = BytesIO()
+            image.save(output, format="JPEG", quality=65, optimize=True)
+            compressed = output.getvalue()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Camera proof could not be processed") from exc
+    return compressed, captured_utc
+
+
+def _store_work_session_photo(
+    session: Session,
+    ws: models.WorkSession,
+    payload: WorkSessionClockBody,
+    *,
+    proof_type: str,
+    now_utc: datetime,
+    decoded: tuple[bytes, datetime] | None = None,
+) -> None:
+    image_data, captured_at = decoded or _decode_clock_photo(payload, now_utc=now_utc)
+    session.add(
+        models.WorkSessionPhoto(
+            tenant_id=ws.tenant_id,
+            work_session_id=ws.id,
+            user_id=ws.user_id,
+            proof_type=proof_type,
+            captured_at=captured_at,
+            content_type="image/jpeg",
+            image_data=image_data,
+        )
+    )
 
 
 def _tenant_requires_clock_qr(tenant: models.Tenant) -> bool:
@@ -1905,6 +2252,45 @@ def get_my_clock_qr_status(
     }
 
 
+@app.get("/users/me/shifts")
+def list_my_shifts(
+    current_user: Annotated[models.User, Depends(security.get_current_user)],
+    session: Session = Depends(get_session),
+    from_date: date = Query(...),
+    to_date: date = Query(...),
+) -> list[dict]:
+    """Employee timetable without requiring manager schedule permissions."""
+    _require_tenant_staff_for_work_session(current_user)
+    if from_date > to_date:
+        raise HTTPException(status_code=400, detail="from_date must be <= to_date")
+    if (to_date - from_date).days > 62:
+        raise HTTPException(status_code=400, detail="Date range cannot exceed 63 days")
+    rows = session.exec(
+        select(models.Shift)
+        .where(models.Shift.tenant_id == current_user.tenant_id)
+        .where(models.Shift.user_id == current_user.id)
+        .where(models.Shift.shift_date >= from_date)
+        .where(models.Shift.shift_date <= to_date)
+        .order_by(models.Shift.shift_date, models.Shift.start_time)
+    ).all()
+    return [
+        {
+            "id": row.id,
+            "tenant_id": row.tenant_id,
+            "user_id": row.user_id,
+            "user_name": _work_session_user_name(current_user),
+            "user_role": current_user.role,
+            "date": row.shift_date.isoformat(),
+            "start_time": row.start_time.isoformat(),
+            "end_time": row.end_time.isoformat(),
+            "label": row.label,
+            "created_at": row.created_at.isoformat(),
+            "updated_at": row.updated_at.isoformat(),
+        }
+        for row in rows
+    ]
+
+
 @app.get("/users/me/work-session")
 def get_my_open_work_session(
     current_user: Annotated[models.User, Depends(security.get_current_user)],
@@ -1940,6 +2326,15 @@ def start_my_work_session(
         raise HTTPException(status_code=404, detail="Tenant not found")
     _verify_clock_qr_token(tenant, payload)
     _verify_clock_location_if_required(tenant, payload)
+    now = datetime.now(timezone.utc)
+    clock_photo = _decode_clock_photo(payload, now_utc=now)
+    shift = _validate_scheduled_shift(
+        session,
+        tenant,
+        current_user,
+        payload,
+        now_utc=now,
+    )
 
     existing = session.exec(
         select(models.WorkSession).where(
@@ -1956,11 +2351,21 @@ def start_my_work_session(
     ws = models.WorkSession(
         tenant_id=current_user.tenant_id,
         user_id=current_user.id,
-        started_at=datetime.now(timezone.utc),
+        shift_id=shift.id,
+        started_at=now,
         start_ip=ip,
     )
     session.add(ws)
     try:
+        session.flush()
+        _store_work_session_photo(
+            session,
+            ws,
+            payload,
+            proof_type="clock_in",
+            now_utc=now,
+            decoded=clock_photo,
+        )
         session.commit()
     except IntegrityError:
         session.rollback()
@@ -2002,6 +2407,23 @@ def end_my_work_session(
             detail="No open work session to end",
         )
     now = datetime.now(timezone.utc)
+    clock_photo = _decode_clock_photo(payload, now_utc=now)
+    _validate_scheduled_shift(
+        session,
+        tenant,
+        current_user,
+        payload,
+        now_utc=now,
+        open_session=open_row,
+    )
+    _store_work_session_photo(
+        session,
+        open_row,
+        payload,
+        proof_type="clock_out",
+        now_utc=now,
+        decoded=clock_photo,
+    )
     _close_open_break_for_session(session, open_row, end_at=now)
     open_row.ended_at = now
     open_row.end_ip = _client_ip_from_request(request)
@@ -2167,6 +2589,14 @@ def start_user_work_session(
         raise HTTPException(status_code=404, detail="Tenant not found")
     _verify_clock_qr_token(tenant, payload)
     _verify_clock_location_if_required(tenant, payload)
+    now = datetime.now(timezone.utc)
+    shift = _validate_scheduled_shift(
+        session,
+        tenant,
+        target_user,
+        payload,
+        now_utc=now,
+    )
 
     existing = session.exec(
         select(models.WorkSession).where(
@@ -2182,11 +2612,14 @@ def start_user_work_session(
     ws = models.WorkSession(
         tenant_id=target_user.tenant_id,
         user_id=target_user.id,
-        started_at=datetime.now(timezone.utc),
+        shift_id=shift.id,
+        started_at=now,
         start_ip=_client_ip_from_request(request),
     )
     session.add(ws)
     try:
+        session.flush()
+        _store_work_session_photo(session, ws, payload, proof_type="clock_in", now_utc=now)
         session.commit()
     except IntegrityError:
         session.rollback()
@@ -2228,6 +2661,15 @@ def end_user_work_session(
             detail="No open work session to end",
         )
     now = datetime.now(timezone.utc)
+    _validate_scheduled_shift(
+        session,
+        tenant,
+        target_user,
+        payload,
+        now_utc=now,
+        open_session=open_row,
+    )
+    _store_work_session_photo(session, open_row, payload, proof_type="clock_out", now_utc=now)
     _close_open_break_for_session(session, open_row, end_at=now)
     open_row.ended_at = now
     open_row.end_ip = _client_ip_from_request(request)
@@ -2267,6 +2709,187 @@ def list_user_work_sessions(
     return [serialize_work_session(r, name, session=session) for r in rows]
 
 
+def _attendance_range_bounds(tenant: models.Tenant, from_date: date, to_date: date) -> tuple[datetime, datetime]:
+    if from_date > to_date:
+        raise HTTPException(status_code=400, detail="from_date must be <= to_date")
+    if (to_date - from_date).days > 366:
+        raise HTTPException(status_code=400, detail="Attendance range cannot exceed 367 days")
+    tz = _tenant_timezone(tenant)
+    local_start = datetime.combine(from_date, time.min, tzinfo=tz)
+    local_end = datetime.combine(to_date + timedelta(days=1), time.min, tzinfo=tz)
+    return local_start.astimezone(timezone.utc), local_end.astimezone(timezone.utc)
+
+
+def _attendance_pay_summary(
+    session: Session,
+    tenant: models.Tenant,
+    from_date: date,
+    to_date: date,
+    *,
+    user_id: int | None = None,
+) -> list[dict]:
+    start_utc, end_utc = _attendance_range_bounds(tenant, from_date, to_date)
+    query = (
+        select(models.WorkSession)
+        .where(models.WorkSession.tenant_id == tenant.id)
+        .where(models.WorkSession.started_at >= start_utc)
+        .where(models.WorkSession.started_at < end_utc)
+    )
+    if user_id is not None:
+        query = query.where(models.WorkSession.user_id == user_id)
+    work_sessions = session.exec(query.order_by(models.WorkSession.started_at)).all()
+    user_ids = {row.user_id for row in work_sessions}
+    if user_id is not None:
+        user_ids.add(user_id)
+    users = {
+        user.id: user
+        for user in session.exec(
+            select(models.User).where(
+                models.User.tenant_id == tenant.id,
+                models.User.id.in_(user_ids),
+            )
+        ).all()
+    } if user_ids else {}
+    if user_id is None:
+        payroll_roles = {models.UserRole.owner, models.UserRole.admin}
+        users = {uid: user for uid, user in users.items() if user.role not in payroll_roles}
+    grouped: dict[int, dict] = {}
+    for row in work_sessions:
+        user = users.get(row.user_id)
+        if not user:
+            continue
+        item = grouped.setdefault(
+            row.user_id,
+            {
+                "user_id": row.user_id,
+                "user_name": _work_session_user_name(user),
+                "employee_number": user.employee_number,
+                "job_title": user.job_title,
+                "hourly_rate_cents": int(user.hourly_rate_cents or 0),
+                "completed_sessions": 0,
+                "open_sessions": 0,
+                "worked_minutes": 0,
+                "estimated_pay_cents": 0,
+                "missing_clock_in_photos": 0,
+                "missing_clock_out_photos": 0,
+            },
+        )
+        if row.ended_at is None:
+            item["open_sessions"] += 1
+            continue
+        minutes = work_session_net_duration_minutes(row, session) or 0
+        item["completed_sessions"] += 1
+        item["worked_minutes"] += minutes
+        item["estimated_pay_cents"] += (minutes * item["hourly_rate_cents"] + 30) // 60
+        proof_types = {
+            proof.proof_type
+            for proof in session.exec(
+                select(models.WorkSessionPhoto).where(models.WorkSessionPhoto.work_session_id == row.id)
+            ).all()
+        }
+        item["missing_clock_in_photos"] += int("clock_in" not in proof_types)
+        item["missing_clock_out_photos"] += int("clock_out" not in proof_types)
+    if user_id is not None and user_id in users and user_id not in grouped:
+        user = users[user_id]
+        grouped[user_id] = {
+            "user_id": user.id,
+            "user_name": _work_session_user_name(user),
+            "employee_number": user.employee_number,
+            "job_title": user.job_title,
+            "hourly_rate_cents": int(user.hourly_rate_cents or 0),
+            "completed_sessions": 0,
+            "open_sessions": 0,
+            "worked_minutes": 0,
+            "estimated_pay_cents": 0,
+            "missing_clock_in_photos": 0,
+            "missing_clock_out_photos": 0,
+        }
+    return sorted(grouped.values(), key=lambda item: (item["user_name"].lower(), item["user_id"]))
+
+
+@app.get("/users/me/attendance-summary")
+def get_my_attendance_summary(
+    current_user: Annotated[models.User, Depends(security.get_current_user)],
+    session: Session = Depends(get_session),
+    from_date: date = Query(...),
+    to_date: date = Query(...),
+) -> dict:
+    _require_tenant_staff_for_work_session(current_user)
+    tenant = session.get(models.Tenant, current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    rows = _attendance_pay_summary(session, tenant, from_date, to_date, user_id=current_user.id)
+    return rows[0]
+
+
+@app.get("/reports/attendance-pay-summary")
+def get_attendance_pay_summary(
+    current_user: Annotated[models.User, Depends(require_permission(Permission.REPORT_READ))],
+    session: Session = Depends(get_session),
+    from_date: date = Query(...),
+    to_date: date = Query(...),
+    user_id: int | None = Query(default=None),
+) -> list[dict]:
+    if current_user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="Tenant required")
+    tenant = session.get(models.Tenant, current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    if user_id is not None:
+        _resolve_work_session_target_user(current_user, user_id, session)
+    return _attendance_pay_summary(session, tenant, from_date, to_date, user_id=user_id)
+
+
+def _work_session_photo_response(
+    session: Session,
+    ws: models.WorkSession,
+    proof_type: str,
+) -> Response:
+    if proof_type not in {"clock_in", "clock_out"}:
+        raise HTTPException(status_code=404, detail="Attendance photo not found")
+    photo = session.exec(
+        select(models.WorkSessionPhoto).where(
+            models.WorkSessionPhoto.work_session_id == ws.id,
+            models.WorkSessionPhoto.proof_type == proof_type,
+        )
+    ).first()
+    if not photo:
+        raise HTTPException(status_code=404, detail="Attendance photo not found")
+    return Response(
+        content=photo.image_data,
+        media_type=photo.content_type,
+        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
+    )
+
+
+@app.get("/users/me/work-sessions/{work_session_id}/photo/{proof_type}")
+def get_my_work_session_photo(
+    work_session_id: int,
+    proof_type: str,
+    current_user: Annotated[models.User, Depends(security.get_current_user)],
+    session: Session = Depends(get_session),
+) -> Response:
+    ws = session.get(models.WorkSession, work_session_id)
+    if not ws or ws.user_id != current_user.id or ws.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=404, detail="Attendance record not found")
+    return _work_session_photo_response(session, ws, proof_type)
+
+
+@app.get("/users/{user_id}/work-sessions/{work_session_id}/photo/{proof_type}")
+def get_user_work_session_photo(
+    user_id: int,
+    work_session_id: int,
+    proof_type: str,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.REPORT_READ))],
+    session: Session = Depends(get_session),
+) -> Response:
+    target = _resolve_work_session_target_user(current_user, user_id, session)
+    ws = session.get(models.WorkSession, work_session_id)
+    if not ws or ws.user_id != target.id or ws.tenant_id != target.tenant_id:
+        raise HTTPException(status_code=404, detail="Attendance record not found")
+    return _work_session_photo_response(session, ws, proof_type)
+
+
 # ============ USER MANAGEMENT ============
 
 
@@ -2280,14 +2903,7 @@ def list_users(
         select(models.User).where(models.User.tenant_id == current_user.tenant_id)
     ).all()
     return [
-        models.UserResponse(
-            id=u.id,
-            email=u.email,
-            full_name=u.full_name,
-            role=u.role,
-            tenant_id=u.tenant_id,
-            provider_id=getattr(u, "provider_id", None),
-        )
+        models.UserResponse(**_staff_profile_dict(u))
         for u in users
     ]
 
@@ -2333,19 +2949,21 @@ def create_user(
         full_name=user_data.full_name,
         role=user_data.role,
         tenant_id=current_user.tenant_id,
+        job_title=(user_data.job_title or "").strip() or None,
+        phone=(user_data.phone or "").strip() or None,
+        hourly_rate_cents=user_data.hourly_rate_cents,
+        employment_start_date=user_data.employment_start_date,
+        profile_completed_at=(
+            datetime.now(timezone.utc)
+            if (user_data.full_name or "").strip() and (user_data.job_title or "").strip()
+            else None
+        ),
     )
     session.add(new_user)
     session.commit()
     session.refresh(new_user)
     
-    return models.UserResponse(
-        id=new_user.id,
-        email=new_user.email,
-        full_name=new_user.full_name,
-        role=new_user.role,
-        tenant_id=new_user.tenant_id,
-        provider_id=getattr(new_user, "provider_id", None),
-    )
+    return models.UserResponse(**_staff_profile_dict(new_user))
 
 
 @app.put("/users/{user_id}")
@@ -2420,6 +3038,14 @@ def update_user(
     
     if user_data.full_name is not None:
         target_user.full_name = user_data.full_name
+    if user_data.job_title is not None:
+        target_user.job_title = user_data.job_title.strip() or None
+    if user_data.phone is not None:
+        target_user.phone = user_data.phone.strip() or None
+    if user_data.hourly_rate_cents is not None:
+        target_user.hourly_rate_cents = user_data.hourly_rate_cents
+    if user_data.employment_start_date is not None:
+        target_user.employment_start_date = user_data.employment_start_date
 
     new_password = (
         user_data.password.strip() if user_data.password is not None else None
@@ -2448,14 +3074,7 @@ def update_user(
     session.commit()
     session.refresh(target_user)
     
-    return models.UserResponse(
-        id=target_user.id,
-        email=target_user.email,
-        full_name=target_user.full_name,
-        role=target_user.role,
-        tenant_id=target_user.tenant_id,
-        provider_id=getattr(target_user, "provider_id", None),
-    )
+    return models.UserResponse(**_staff_profile_dict(target_user))
 
 
 @app.delete("/users/{user_id}")
@@ -6373,6 +6992,12 @@ def list_schedule_plan_users(
                     role=u.role,
                     tenant_id=u.tenant_id,
                     provider_id=getattr(u, "provider_id", None),
+                    employee_number=u.employee_number,
+                    job_title=u.job_title,
+                    phone=u.phone,
+                    hourly_rate_cents=u.hourly_rate_cents,
+                    employment_start_date=u.employment_start_date,
+                    profile_completed_at=u.profile_completed_at,
                 )
             )
     out.sort(key=lambda r: ((r.full_name or r.email or "").lower(), r.id))
@@ -7089,6 +7714,7 @@ def list_tables(
     result = []
     for t in tables:
         d = t.model_dump()
+        d["qr_access"] = _sign_public_table_qr_access(t.token)
         effective_waiter_id = t.assigned_waiter_id or floor_waiter_map.get(t.floor_id)
         d["assigned_waiter_name"] = waiter_map.get(t.assigned_waiter_id) if t.assigned_waiter_id else None
         d["effective_waiter_id"] = effective_waiter_id
@@ -7190,6 +7816,7 @@ def list_tables_with_status(
             )
         ).first()
         upcoming_reservation = None
+        seated_reservation = None
         payment_status = "none"
         if table.is_active or active_order or seated_here:
             status = "occupied"
@@ -7206,6 +7833,12 @@ def list_tables_with_status(
                     payment_status = "pending"
             else:
                 operational_status = "occupied"
+                if seated_here:
+                    seated_reservation = {
+                        "reservation_id": seated_here.id,
+                        "customer_name": seated_here.customer_name or "",
+                        "party_size": seated_here.party_size,
+                    }
         else:
             reserved_here = session.exec(
                 select(models.Reservation).where(
@@ -7221,6 +7854,7 @@ def list_tables_with_status(
             ):
                 upcoming_reservation = {
                     "reservation_id": reserved_here.id,
+                    "reservation_date": reserved_here.reservation_date.isoformat(),
                     "reservation_time": reserved_here.reservation_time.strftime("%H:%M"),
                     "customer_name": reserved_here.customer_name or "",
                 }
@@ -7241,6 +7875,7 @@ def list_tables_with_status(
             "id": table.id,
             "name": table.name,
             "token": table.token,
+            "qr_access": _sign_public_table_qr_access(table.token),
             "tenant_id": table.tenant_id,
             "floor_id": table.floor_id,
             "x_position": table.x_position,
@@ -7262,6 +7897,8 @@ def list_tables_with_status(
         }
         if upcoming_reservation is not None:
             row["upcoming_reservation"] = upcoming_reservation
+        if seated_reservation is not None:
+            row["seated_reservation"] = seated_reservation
         _append_table_group_fields(session, current_user.tenant_id, table, row)
         result.append(row)
 
@@ -7283,6 +7920,8 @@ def list_tables_with_status(
         merged_pay = _merge_payment_statuses(pay_stats)
         upcoming_list = [result[i].get("upcoming_reservation") for i in indices]
         merged_up = next((u for u in upcoming_list if u), None)
+        seated_list = [result[i].get("seated_reservation") for i in indices]
+        merged_seated = next((r for r in seated_list if r), None)
         any_active = any(result[i].get("is_active") for i in indices)
         active_oid = next(
             (result[i].get("active_order_id") for i in indices if result[i].get("active_order_id")),
@@ -7299,6 +7938,10 @@ def list_tables_with_status(
                 result[i]["upcoming_reservation"] = merged_up
             elif merged_st != "reserved":
                 result[i].pop("upcoming_reservation", None)
+            if merged_seated is not None:
+                result[i]["seated_reservation"] = merged_seated
+            elif merged_op != "occupied":
+                result[i].pop("seated_reservation", None)
 
     return result
 
@@ -7807,6 +8450,13 @@ def _reservation_to_dict(
     return out
 
 
+def _queue_utc_iso(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return normalized.astimezone(timezone.utc).isoformat()
+
+
 def _queue_entry_to_dict(q: models.GuestQueueEntry, session: Session | None = None) -> dict:
     out = {
         "id": q.id,
@@ -7817,11 +8467,11 @@ def _queue_entry_to_dict(q: models.GuestQueueEntry, session: Session | None = No
         "quoted_wait_minutes": q.quoted_wait_minutes,
         "status": q.status.value,
         "source": q.source.value,
-        "requested_at": q.requested_at.isoformat() if q.requested_at else None,
-        "notified_at": q.notified_at.isoformat() if q.notified_at else None,
-        "arrived_at": q.arrived_at.isoformat() if q.arrived_at else None,
-        "seated_at": q.seated_at.isoformat() if q.seated_at else None,
-        "completed_at": q.completed_at.isoformat() if q.completed_at else None,
+        "requested_at": _queue_utc_iso(q.requested_at),
+        "notified_at": _queue_utc_iso(q.notified_at),
+        "arrived_at": _queue_utc_iso(q.arrived_at),
+        "seated_at": _queue_utc_iso(q.seated_at),
+        "completed_at": _queue_utc_iso(q.completed_at),
         "preferred_floor_id": q.preferred_floor_id,
         "preferred_table_size": q.preferred_table_size,
         "notes": q.notes,
@@ -7830,7 +8480,7 @@ def _queue_entry_to_dict(q: models.GuestQueueEntry, session: Session | None = No
         "seated_order_id": q.seated_order_id,
         "cancel_reason": q.cancel_reason,
         "created_by_user_id": q.created_by_user_id,
-        "updated_at": q.updated_at.isoformat() if q.updated_at else None,
+        "updated_at": _queue_utc_iso(q.updated_at),
     }
     if session and q.preferred_floor_id is not None:
         floor = session.get(models.Floor, q.preferred_floor_id)
@@ -7843,6 +8493,38 @@ def _queue_entry_to_dict(q: models.GuestQueueEntry, session: Session | None = No
     else:
         out["seated_table_name"] = None
     return out
+
+
+def _public_queue_entry_to_dict(q: models.GuestQueueEntry, session: Session) -> dict:
+    active_statuses = [models.GuestQueueStatus.waiting, models.GuestQueueStatus.notified]
+    position = None
+    if q.status in active_statuses:
+        active_rows = session.exec(
+            select(models.GuestQueueEntry)
+            .where(
+                models.GuestQueueEntry.tenant_id == q.tenant_id,
+                models.GuestQueueEntry.status.in_(active_statuses),
+            )
+            .order_by(models.GuestQueueEntry.requested_at.asc(), models.GuestQueueEntry.id.asc())
+        ).all()
+        position = next((index + 1 for index, row in enumerate(active_rows) if row.id == q.id), None)
+
+    tenant = session.get(models.Tenant, q.tenant_id)
+    return {
+        "token": q.public_token,
+        "reference": f"Q{q.id:04d}" if q.id is not None else "Queue",
+        "tenant_id": q.tenant_id,
+        "tenant_name": tenant.name if tenant else "Restaurant",
+        "customer_name": q.customer_name,
+        "party_size": q.party_size,
+        "quoted_wait_minutes": q.quoted_wait_minutes,
+        "status": q.status.value,
+        "position": position,
+        "requested_at": _queue_utc_iso(q.requested_at),
+        "notified_at": _queue_utc_iso(q.notified_at),
+        "seated_at": _queue_utc_iso(q.seated_at),
+        "completed_at": _queue_utc_iso(q.completed_at),
+    }
 
 
 def _capacity_for_tenant(session: Session, tenant_id: int) -> tuple[int, int]:
@@ -7884,6 +8566,97 @@ def _group_member_table_ids(session: Session, tenant_id: int, table: models.Tabl
         )
         if tid is not None
     )
+
+
+def _reservation_slots_overlap(
+    first: models.Reservation,
+    second: models.Reservation,
+    turn_minutes: int | None,
+) -> bool:
+    """Return whether two reservations compete for the same table turn."""
+    first_start = datetime.combine(first.reservation_date, first.reservation_time)
+    second_start = datetime.combine(second.reservation_date, second.reservation_time)
+    if turn_minutes is None or turn_minutes <= 0:
+        return first_start == second_start
+    turn = timedelta(minutes=turn_minutes)
+    return first_start < second_start + turn and second_start < first_start + turn
+
+
+def _conflicting_assigned_reservation(
+    session: Session,
+    reservation: models.Reservation,
+    member_ids: list[int],
+    tenant: models.Tenant,
+) -> models.Reservation | None:
+    if not member_ids:
+        return None
+    assigned = session.exec(
+        select(models.Reservation).where(
+            models.Reservation.tenant_id == reservation.tenant_id,
+            models.Reservation.id != reservation.id,
+            models.Reservation.table_id.in_(member_ids),
+            models.Reservation.status.in_(
+                [models.ReservationStatus.booked, models.ReservationStatus.seated]
+            ),
+        )
+    ).all()
+    return next(
+        (
+            other
+            for other in assigned
+            if _reservation_slots_overlap(
+                reservation,
+                other,
+                tenant.reservation_average_table_turn_minutes,
+            )
+        ),
+        None,
+    )
+
+
+def _table_group_blocks_reservation_slot(
+    session: Session,
+    reservation: models.Reservation,
+    member_ids: list[int],
+    tenant: models.Tenant,
+) -> bool:
+    now_utc = datetime.now(timezone.utc)
+    active_statuses = [
+        models.OrderStatus.pending,
+        models.OrderStatus.preparing,
+        models.OrderStatus.ready,
+        models.OrderStatus.partially_delivered,
+    ]
+    for member_id in member_ids:
+        member = session.get(models.Table, member_id)
+        if member is None:
+            continue
+        seated = session.exec(
+            select(models.Reservation).where(
+                models.Reservation.tenant_id == reservation.tenant_id,
+                models.Reservation.table_id == member_id,
+                models.Reservation.status == models.ReservationStatus.seated,
+                models.Reservation.id != reservation.id,
+            )
+        ).first()
+        order = session.exec(
+            select(models.Order).where(
+                models.Order.tenant_id == reservation.tenant_id,
+                models.Order.table_id == member_id,
+                models.Order.status.in_(active_statuses),
+            )
+        ).first()
+        if _table_blocks_reservation_slot(
+            member,
+            seated,
+            order,
+            reservation.reservation_date,
+            reservation.reservation_time,
+            tenant,
+            now_utc,
+        ):
+            return True
+    return False
 
 
 def _table_group_display_label(session: Session, tenant_id: int, table: models.Table) -> str | None:
@@ -9345,6 +10118,72 @@ def update_reservation_status(
     return out
 
 
+@app.put("/reservations/{reservation_id}/assign-table")
+def assign_reservation_table(
+    reservation_id: int,
+    body: models.ReservationSeat,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_WRITE))],
+    session: Session = Depends(get_session),
+    lang: str = Depends(_get_requested_language),
+) -> dict:
+    """Reserve a table for a future booking without starting a live table session."""
+    reservation = session.exec(
+        select(models.Reservation).where(
+            models.Reservation.id == reservation_id,
+            models.Reservation.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+    if reservation.status != models.ReservationStatus.booked:
+        raise HTTPException(status_code=400, detail="Only booked reservations can be assigned a table")
+    table = session.exec(
+        select(models.Table).where(
+            models.Table.id == body.table_id,
+            models.Table.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    tenant = session.get(models.Tenant, current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    if _group_total_seats(session, current_user.tenant_id, table) < reservation.party_size:
+        raise HTTPException(status_code=400, detail="Table capacity is less than party size")
+    if table.floor_id is not None:
+        floor = session.get(models.Floor, table.floor_id)
+        if floor and floor.tenant_id == current_user.tenant_id:
+            _validate_floor_seating_pair_or_raise(
+                floor,
+                getattr(reservation, "seating_preference", None),
+                lang,
+            )
+    member_ids = _group_member_table_ids(session, current_user.tenant_id, table)
+    conflict = _conflicting_assigned_reservation(session, reservation, member_ids, tenant)
+    if conflict:
+        raise HTTPException(
+            status_code=409,
+            detail="Table is already assigned to another reservation during this time slot.",
+        )
+    if _table_group_blocks_reservation_slot(session, reservation, member_ids, tenant):
+        raise HTTPException(
+            status_code=409,
+            detail="Table is expected to still be occupied during this reservation slot.",
+        )
+    reservation.table_id = body.table_id
+    reservation.seated_at = None
+    reservation.updated_at = datetime.now(timezone.utc)
+    session.add(reservation)
+    session.commit()
+    session.refresh(reservation)
+    out = _reservation_to_dict(reservation, session, include_client_tech=True)
+    publish_reservation_update(
+        current_user.tenant_id,
+        {"type": "reservation_table_assigned", "reservation": out},
+    )
+    return out
+
+
 @app.put("/reservations/{reservation_id}/seat")
 def seat_reservation(
     reservation_id: int,
@@ -9372,6 +10211,9 @@ def seat_reservation(
     ).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
+    tenant = session.get(models.Tenant, current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
     group_total = _group_total_seats(session, current_user.tenant_id, table)
     if group_total < reservation.party_size:
         raise HTTPException(status_code=400, detail="Table capacity is less than party size")
@@ -9385,7 +10227,7 @@ def seat_reservation(
             status_code=400,
             detail="Table has an active ordering session; close the table or finish orders before seating a reservation here.",
         )
-    # Check no member table already occupied or reserved by another
+    # Check no member table is currently occupied.
     for mid in member_ids:
         active_order = session.exec(
             select(models.Order).where(
@@ -9402,15 +10244,12 @@ def seat_reservation(
         ).first()
         if active_order:
             raise HTTPException(status_code=400, detail="Table is already occupied")
-        other_reserved = session.exec(
-            select(models.Reservation).where(
-                models.Reservation.table_id == mid,
-                models.Reservation.status == models.ReservationStatus.booked,
-                models.Reservation.id != reservation_id,
-            )
-        ).first()
-        if other_reserved:
-            raise HTTPException(status_code=400, detail="Table is already reserved")
+    if _conflicting_assigned_reservation(session, reservation, member_ids, tenant):
+        raise HTTPException(
+            status_code=409,
+            detail="Table is already assigned to another reservation during this time slot.",
+        )
+    _activate_table_for_seated_party(table)
     reservation.table_id = body.table_id
     reservation.status = models.ReservationStatus.seated
     reservation.seated_at = datetime.now(timezone.utc)
@@ -9671,6 +10510,7 @@ def _seat_queue_entry_on_table(
         ).first()
         if other_reserved:
             raise HTTPException(status_code=400, detail="Table is already reserved")
+    _activate_table_for_seated_party(table)
     queue_entry.seated_table_id = table_id
     queue_entry.status = models.GuestQueueStatus.seated
     queue_entry.seated_at = datetime.now(timezone.utc)
@@ -9846,7 +10686,12 @@ def update_guest_queue_status(
     queue_entry.status = body.status
     if body.status == models.GuestQueueStatus.notified:
         queue_entry.notified_at = now_utc
-    elif body.status in {models.GuestQueueStatus.cancelled, models.GuestQueueStatus.no_show, models.GuestQueueStatus.expired}:
+    elif body.status in {
+        models.GuestQueueStatus.completed,
+        models.GuestQueueStatus.cancelled,
+        models.GuestQueueStatus.no_show,
+        models.GuestQueueStatus.expired,
+    }:
         queue_entry.cancel_reason = body.reason.strip() if isinstance(body.reason, str) and body.reason.strip() else queue_entry.cancel_reason
         queue_entry.completed_at = now_utc
     elif body.status == models.GuestQueueStatus.waiting:
@@ -9947,6 +10792,16 @@ def convert_guest_queue_to_reservation(
 # ============ TABLE SESSION MANAGEMENT ============
 
 
+def _activate_table_for_seated_party(table: models.Table) -> None:
+    """Start a clean table session as part of a queue or reservation handoff."""
+    import secrets
+
+    table.order_pin = str(secrets.randbelow(9000) + 1000)
+    table.is_active = True
+    table.active_order_id = None
+    table.activated_at = datetime.now(timezone.utc)
+
+
 @app.post("/tables/{table_id}/activate")
 @limiter.limit(
     f"{getattr(settings, 'rate_limit_admin_per_minute', 30)}/minute",
@@ -9962,8 +10817,6 @@ def activate_table(
     Activate a table for ordering.
     Generates a PIN; no order is created until the first item is added via the menu.
     """
-    import secrets
-
     table = session.exec(
         select(models.Table).where(
             models.Table.id == table_id,
@@ -9974,14 +10827,8 @@ def activate_table(
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
 
-    # Generate a cryptographically random 4-digit PIN
-    pin = str(secrets.randbelow(9000) + 1000)
-
     # Activate table only; order is created when customer adds first items via POST /menu/.../order
-    table.order_pin = pin
-    table.is_active = True
-    table.active_order_id = None
-    table.activated_at = datetime.now(timezone.utc)
+    _activate_table_for_seated_party(table)
 
     session.commit()
     session.refresh(table)
@@ -9989,7 +10836,7 @@ def activate_table(
     return JSONResponse(content={
         "id": table.id,
         "name": table.name,
-        "pin": pin,
+        "pin": table.order_pin,
         "is_active": True,
         "active_order_id": None,
         "activated_at": table.activated_at.isoformat() if table.activated_at else None,
@@ -10057,6 +10904,23 @@ def close_table(
         if res.id is not None:
             finished_reservation_ids.append(res.id)
 
+    seated_queue_entries = session.exec(
+        select(models.GuestQueueEntry).where(
+            models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+            models.GuestQueueEntry.seated_table_id == table_id,
+            models.GuestQueueEntry.status == models.GuestQueueStatus.seated,
+        )
+    ).all()
+    completed_queue_entry_ids: list[int] = []
+    queue_completed_at = datetime.now(timezone.utc)
+    for queue_entry in seated_queue_entries:
+        queue_entry.status = models.GuestQueueStatus.completed
+        queue_entry.completed_at = queue_completed_at
+        queue_entry.updated_at = queue_completed_at
+        session.add(queue_entry)
+        if queue_entry.id is not None:
+            completed_queue_entry_ids.append(queue_entry.id)
+
     session.commit()
     session.refresh(table)
 
@@ -10066,6 +10930,14 @@ def close_table(
             out = _reservation_to_dict(r, session, include_client_tech=True)
             publish_reservation_update(
                 current_user.tenant_id, {"type": "reservation_finished", "reservation": out}
+            )
+
+    for queue_entry_id in completed_queue_entry_ids:
+        queue_entry = session.get(models.GuestQueueEntry, queue_entry_id)
+        if queue_entry:
+            publish_queue_update(
+                current_user.tenant_id,
+                {"type": "queue_completed", "queue_entry": _queue_entry_to_dict(queue_entry, session)},
             )
 
     # Notify connected customers via WebSocket that the table has been closed
@@ -10079,6 +10951,7 @@ def close_table(
         "id": table.id,
         "name": table.name,
         "is_active": False,
+        "completed_queue_entries": len(completed_queue_entry_ids),
         "message": "Table closed successfully",
     })
 
@@ -10239,12 +11112,15 @@ def get_menu(
     request: Request,
     table_token: str,
     staff_access: str | None = Query(None, description="Staff link token: when valid, PIN is not required"),
+    qr_access: str | None = Query(None, description="Signed bearer credential embedded in the printed table QR"),
     lang: str = Depends(_get_requested_language),
     session: Session = Depends(get_session),
 ) -> dict:
     """Public endpoint - get menu for a table by its token."""
     if staff_access and not _verify_staff_menu_token(table_token, staff_access):
         logger.warning("Menu staff_access token invalid or expired for table_token=%s", table_token[:8] + "...")
+    if qr_access and not _verify_public_table_qr_access(table_token, qr_access):
+        logger.warning("Menu qr_access token invalid for table_token=%s", table_token[:8] + "...")
     # Use raw SQL to avoid SQLAlchemy model issues
     from sqlalchemy import text
 
@@ -10711,11 +11587,12 @@ def get_menu(
         if tenant
         else False,
         "tenant_public_background_color": tenant.public_background_color if tenant else None,
-        # Table session status (take-away/home ordering tables do not require PIN; staff_access also skips PIN)
+        # Printed QR and staff links are bearer credentials. Manual table lookup still requires a PIN.
         "table_is_active": table.is_active,
         "table_requires_pin": False
         if _is_take_away_table(table)
         or (staff_access and _verify_staff_menu_token(table.token, staff_access))
+        or (qr_access and _verify_public_table_qr_access(table.token, qr_access))
         else (table.is_active and table.order_pin is not None),
         "active_order_id": table.active_order_id,
         "products": products_list,
@@ -11096,6 +11973,8 @@ def create_order(
 
     # Get tenant for location verification
     tenant = session.get(models.Tenant, table.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
 
     # ============ TABLE ACTIVATION & PIN VALIDATION ============
     # Check if table is active (staff has opened it)
@@ -11105,9 +11984,10 @@ def create_order(
             detail="Table is not accepting orders. Please ask staff to activate the table."
         )
 
-    # Validate PIN (with rate limiting). Skip for take-away/home ordering tables or valid staff_access.
+    # Validate PIN for manually resolved tables. Signed staff and printed-QR links skip it.
     staff_skip_pin = order_data.staff_access and _verify_staff_menu_token(table_token, order_data.staff_access)
-    if not _is_take_away_table(table) and not staff_skip_pin:
+    qr_skip_pin = order_data.qr_access and _verify_public_table_qr_access(table_token, order_data.qr_access)
+    if not _is_take_away_table(table) and not staff_skip_pin and not qr_skip_pin:
         redis_conn = get_redis()
         attempts_key = None
         lock_key = None
@@ -11230,8 +12110,9 @@ def create_order(
     if order_data.notes:
         order.notes = f"{order.notes or ''}\n{order_data.notes}".strip()
 
-    # Add order items
+    # Add order items. Keep only this request's lines for station receipt routing.
     order_date = order.created_at.date() if order.created_at else date.today()
+    print_lines: list[dict] = []
     for item in order_data.items:
         # Use source indicator if provided, otherwise try TenantProduct first, then legacy Product
         product_name = None
@@ -11432,6 +12313,17 @@ def create_order(
                 tax_amount_cents=line_tax_cents if effective_tax else None,
             )
             session.add(order_item)
+
+        print_lines.append(
+            {
+                "product_id": effective_product_id,
+                "name": product_name,
+                "quantity": item.quantity,
+                "notes": item.notes,
+                "customization": cust_summary,
+                "modifiers": lm_summary,
+            }
+        )
     
     # After adding items, recompute order status from all items (if not paid or cancelled)
     # This ensures correct status like 'partially_delivered' when there are both delivered and undelivered items
@@ -11440,6 +12332,16 @@ def create_order(
         computed_status = compute_order_status_from_items(all_items)
         order.status = computed_status
         logger.debug("Recomputed order status from items: %s", computed_status.value)
+
+    # Persist the order and its station receipts in one transaction. A local agent
+    # leases these jobs after commit and prints them on the restaurant network.
+    enqueue_kitchen_receipts(
+        session,
+        tenant=tenant,
+        table=table,
+        order=order,
+        lines=print_lines,
+    )
     
     session.commit()
     session.refresh(order)
@@ -12125,10 +13027,16 @@ def mark_order_paid(
     order.tip_attributed_user_id = _effective_waiter_for_tip(session, order)
 
     session.add(order)
+    table = session.get(models.Table, order.table_id) if order.table_id else None
+    enqueue_customer_receipt(
+        session,
+        tenant=tenant,
+        table=table,
+        order=order,
+    )
     session.commit()
 
     # Publish update
-    table = session.exec(select(models.Table).where(models.Table.id == order.table_id)).first()
     publish_order_update(current_user.tenant_id, {
         "type": "order_paid",
         "order_id": order.id,
@@ -12201,9 +13109,15 @@ def finish_order(
     order.tip_attributed_user_id = _effective_waiter_for_tip(session, order)
 
     session.add(order)
+    table = session.get(models.Table, order.table_id) if order.table_id else None
+    enqueue_customer_receipt(
+        session,
+        tenant=tenant,
+        table=table,
+        order=order,
+    )
     session.commit()
 
-    table = session.exec(select(models.Table).where(models.Table.id == order.table_id)).first()
     publish_order_update(
         current_user.tenant_id,
         {
@@ -13417,6 +14331,7 @@ def _hitpay_signature_valid(raw_body: bytes, signature: str | None, salt: str) -
 def _mark_order_paid_from_provider(
     *,
     session: Session,
+    tenant: models.Tenant,
     order: models.Order,
     table: models.Table | None,
     payment_method: str,
@@ -13433,6 +14348,12 @@ def _mark_order_paid_from_provider(
     if paid_note not in (order.notes or ""):
         order.notes = f"{order.notes or ''}\n{paid_note}".strip()
     session.add(order)
+    enqueue_customer_receipt(
+        session,
+        tenant=tenant,
+        table=table,
+        order=order,
+    )
     session.commit()
 
     publish_order_update(
@@ -13638,6 +14559,7 @@ def confirm_hitpay_payment(
 
     _mark_order_paid_from_provider(
         session=session,
+        tenant=tenant,
         order=order,
         table=table,
         payment_method="hitpay",
@@ -13718,6 +14640,7 @@ async def hitpay_webhook(
     table = session.get(models.Table, order.table_id) if order.table_id else None
     _mark_order_paid_from_provider(
         session=session,
+        tenant=tenant,
         order=order,
         table=table,
         payment_method="hitpay",

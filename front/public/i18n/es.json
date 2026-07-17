@@ -1034,6 +1034,7 @@
     "reserved": "Reservada"
   },
   "BOOK": {
+    "GUEST_DETAILS": "Datos del cliente",
     "TITLE": "Reservar una mesa",
     "OPENING_HOURS": "Horario",
     "SUBMIT": "Reservar mesa",

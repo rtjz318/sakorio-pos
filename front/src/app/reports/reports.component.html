@@ -612,9 +612,74 @@
     }
 
     @if (canViewAttendance()) {
+      <section class="report-section attendance-payroll" data-testid="reports-attendance-payroll">
+        <div class="attendance-payroll-heading">
+          <div>
+            <p class="attendance-eyebrow">Attendance and payroll</p>
+            <h2>Hours and estimated salary</h2>
+            <p class="muted work-sessions-hint">
+              Completed, photo-backed shifts in the selected reporting period. Open shifts are shown separately and are not included in estimated salary.
+            </p>
+          </div>
+          <button type="button" class="btn btn-secondary" (click)="loadAttendancePaySummary()" [disabled]="attendancePaySummaryLoading()">
+            {{ attendancePaySummaryLoading() ? 'Refreshing...' : 'Refresh payroll' }}
+          </button>
+        </div>
+
+        @if (attendancePaySummaryError()) {
+          <div class="error-banner">{{ attendancePaySummaryError() }}</div>
+        } @else {
+          <div class="attendance-payroll-kpis">
+            <article><span>Worked hours</span><strong>{{ formatAttendanceMinutes(attendancePayrollTotals().workedMinutes) }}</strong></article>
+            <article><span>Estimated salary</span><strong>{{ formatCurrency(attendancePayrollTotals().estimatedPayCents) }}</strong></article>
+            <article><span>Completed shifts</span><strong>{{ attendancePayrollTotals().completedSessions }}</strong></article>
+            <article><span>Clocked in now</span><strong>{{ attendancePayrollTotals().openSessions }}</strong></article>
+            <article [class.needs-attention]="attendancePayrollTotals().missingPhotos > 0"><span>Missing photos</span><strong>{{ attendancePayrollTotals().missingPhotos }}</strong></article>
+          </div>
+
+          @if (attendancePaySummaryLoading()) {
+            <p class="muted">Loading payroll summary...</p>
+          } @else if (attendancePaySummary().length === 0) {
+            <div class="attendance-empty-state">
+              <strong>No completed attendance in this period</strong>
+              <span>Scheduled shifts will appear after employees clock in and out with camera proof.</span>
+            </div>
+          } @else {
+            <div class="data-table-wrap">
+              <table class="data-table attendance-payroll-table">
+                <thead><tr><th>Employee</th><th>Shifts</th><th>Worked</th><th>Hourly rate</th><th>Estimated salary</th><th>Photo proof</th></tr></thead>
+                <tbody>
+                  @for (row of attendancePaySummary(); track row.user_id) {
+                    <tr>
+                      <td><strong>{{ row.user_name }}</strong><span class="attendance-cell-detail">{{ row.job_title || row.employee_number || 'Employee' }}</span></td>
+                      <td>{{ row.completed_sessions }} completed @if (row.open_sessions > 0) { <span class="attendance-cell-detail live">{{ row.open_sessions }} active now</span> }</td>
+                      <td>{{ formatAttendanceMinutes(row.worked_minutes) }}</td>
+                      <td>{{ formatCurrency(row.hourly_rate_cents) }}/hr</td>
+                      <td><strong>{{ formatCurrency(row.estimated_pay_cents) }}</strong></td>
+                      <td>
+                        @if (row.missing_clock_in_photos + row.missing_clock_out_photos === 0) {
+                          <span class="proof-status complete">Complete</span>
+                        } @else {
+                          <span class="proof-status missing">{{ row.missing_clock_in_photos + row.missing_clock_out_photos }} missing</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        }
+      </section>
+    }
+
+    @if (canViewAttendance()) {
       <section class="report-section" data-testid="reports-work-sessions-live">
         <h2>{{ 'REPORTS.WORK_SESSIONS_LIVE_TITLE' | translate }}</h2>
         <p class="muted work-sessions-hint">{{ 'REPORTS.WORK_SESSIONS_LIVE_HINT' | translate }}</p>
+        @if (attendancePhotoError()) {
+          <div class="error-banner attendance-photo-error">{{ attendancePhotoError() }}</div>
+        }
         @if (workSessionsLiveLoading()) {
           <p class="muted">{{ 'REPORTS.WORK_SESSIONS_LOADING' | translate }}</p>
         } @else if (workSessionsLiveError()) {
@@ -630,6 +695,7 @@
                   <th>{{ 'REPORTS.WORK_SESSIONS_COL_STATUS' | translate }}</th>
                   <th>{{ 'REPORTS.WORK_SESSIONS_COL_START' | translate }}</th>
                   <th>{{ 'REPORTS.WORK_SESSIONS_COL_NET' | translate }}</th>
+                  <th>Photo proof</th>
                   <th class="work-sessions-actions">{{ 'REPORTS.WORK_SESSION_ADJUST_COL_ACTIONS' | translate }}</th>
                 </tr>
               </thead>
@@ -640,6 +706,17 @@
                     <td>{{ liveAttendanceStatus(row) }}</td>
                     <td>{{ formatWorkSessionDt(row.started_at) }}</td>
                     <td>{{ formatWorkSessionDuration(row) }}</td>
+                    <td>
+                      <div class="attendance-proof-actions">
+                        @if (row.clock_in_photo_present) {
+                          <button type="button" class="proof-button" (click)="openAttendancePhoto(row, 'clock_in')" [disabled]="attendancePhotoLoadingKey() !== null">
+                            {{ attendancePhotoLoadingKey() === attendancePhotoKey(row, 'clock_in') ? 'Opening...' : 'Clock-in photo' }}
+                          </button>
+                        } @else {
+                          <span class="proof-status missing">Missing</span>
+                        }
+                      </div>
+                    </td>
                     <td class="work-sessions-actions">
                       <button type="button" class="btn btn-secondary btn-sm" (click)="openWorkSessionAdjust(row)">
                         {{ 'REPORTS.WORK_SESSION_ADJUST' | translate }}
@@ -673,6 +750,7 @@
                   <th>{{ 'REPORTS.WORK_SESSIONS_COL_START' | translate }}</th>
                   <th>{{ 'REPORTS.WORK_SESSIONS_COL_END' | translate }}</th>
                   <th>{{ 'REPORTS.WORK_SESSIONS_COL_DURATION' | translate }}</th>
+                  <th>Photo proof</th>
                   <th>{{ 'REPORTS.WORK_SESSIONS_COL_START_IP' | translate }}</th>
                   <th>{{ 'REPORTS.WORK_SESSIONS_COL_END_IP' | translate }}</th>
                   <th class="work-sessions-actions">{{ 'REPORTS.WORK_SESSION_ADJUST_COL_ACTIONS' | translate }}</th>
@@ -685,6 +763,20 @@
                     <td>{{ formatWorkSessionDt(row.started_at) }}</td>
                     <td>{{ row.ended_at ? formatWorkSessionDt(row.ended_at) : '—' }}</td>
                     <td>{{ formatWorkSessionDuration(row) }}</td>
+                    <td>
+                      <div class="attendance-proof-actions">
+                        @if (row.clock_in_photo_present) {
+                          <button type="button" class="proof-button" (click)="openAttendancePhoto(row, 'clock_in')" [disabled]="attendancePhotoLoadingKey() !== null">In</button>
+                        } @else {
+                          <span class="proof-status missing">In missing</span>
+                        }
+                        @if (row.clock_out_photo_present) {
+                          <button type="button" class="proof-button" (click)="openAttendancePhoto(row, 'clock_out')" [disabled]="attendancePhotoLoadingKey() !== null">Out</button>
+                        } @else {
+                          <span class="proof-status missing">Out missing</span>
+                        }
+                      </div>
+                    </td>
                     <td class="muted">{{ row.start_ip || '—' }}</td>
                     <td class="muted">{{ row.end_ip || '—' }}</td>
                     <td class="work-sessions-actions">

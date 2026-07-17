@@ -1009,6 +1009,7 @@
     "reserved": "Réservée"
   },
   "BOOK": {
+    "GUEST_DETAILS": "Coordonnées du client",
     "TITLE": "Réserver une table",
     "OPENING_HOURS": "Horaires d'ouverture",
     "SUBMIT": "Réserver",

@@ -1019,3 +1019,160 @@ The same local batch also includes UI density cleanup for:
    - `/queue`
    - `/kitchen`
    - `/pos`
+
+## 2026-07-15 Current Authoritative Handoff
+
+This section supersedes the older "next pickup" notes above. Keep the historical entries for context, but use this section to continue development.
+
+### Completed application code
+
+- **Customer queue management**
+  - permanent tenant public queue token and migration
+  - staff QR generation, copy, preview, and printable entrance sign
+  - public mobile waitlist join, status, and cancellation flow
+  - host board search, filters, urgency ordering, reservation arrivals, seating recommendations, and POS handoff
+- **Customer reservations**
+  - public booking and token management flows retained and polished
+  - staff reservation operations board supports lifecycle actions and table/POS handoff
+  - queue and reservation arrivals now share the host-stand operating surface
+- **POS, tables, orders, and kitchen**
+  - connected service flow remains intact from table selection to order, kitchen, and payment
+  - POS status/header chrome is compressed so item selection and checkout reach the working viewport sooner
+  - table host controls are denser and single cards now use the available width
+  - orders remove duplicated summary blocks and use valid UTF-8 separators
+  - kitchen removes the duplicate lane summary, shows three desktop lanes, and labels legacy data as `Stale ticket` instead of displaying multi-day wait counters
+- **Automatic kitchen and receipt printing**
+  - durable printer-agent and print-job database models plus migration
+  - authenticated agent registration, heartbeat, lease, completion, and failure routes
+  - kitchen print jobs are enqueued atomically with the order/kitchen workflow
+  - venue-side `printer-agent/` worker can poll the cloud backend and route jobs to LAN printers
+  - staff Printing settings surface is implemented for setup and monitoring
+- **Attendance, employee profiles, and payroll readiness**
+  - staff users now support operational profile fields: job title, phone, hourly rate, employment start date, and profile completion timestamp
+  - attendance clock-in/out now requires a selected assigned shift and a fresh live photo capture, not a file upload
+  - photo proof is validated for freshness and image type, compressed server-side, and stored as binary attendance proof
+  - `/my-shift` now behaves like an employee self-service station:
+    - complete staff profile
+    - choose an assigned timetable shift
+    - capture a real-time camera proof
+    - clock in / clock out
+    - review month-to-date hours and estimated pay
+  - manager Users screen now supports editing staff payroll/profile fields
+  - Reports now include attendance/payroll summaries, proof review status, and per-staff estimated pay
+  - Working Plan now includes an attendance setup readiness strip so managers can spot staff missing hourly rates or completed profiles before publishing schedules
+
+### Validation completed in this workspace
+
+- Angular application type-check: `npx tsc -p tsconfig.app.json --noEmit` passed
+- patch integrity: `git diff --check` passed (line-ending warnings only)
+- the four connected operator files contain no replacement-character or mojibake regressions
+- focused printing, attendance, and staff-menu-token tests passed inside Docker: `docker exec pos-back python -m pytest -q tests/test_staff_menu_token.py tests/test_printing_service.py tests/test_work_session.py` with 20 passing tests
+- latest frontend production build passed inside Docker: `docker exec pos-front npm run build`
+- latest focused attendance test suite passed inside Docker: `docker exec pos-back pytest -q tests/test_work_session.py` with 13 passing tests
+- live camera attendance modal was visually checked locally; capture actions now remain visible in the authenticated viewport and the modal no longer depends on missing inherited CSS variables
+
+### Deployment required before hosted acceptance
+
+1. apply both pending database migrations:
+   - `20260715120000_add_guest_queue_public_token.sql`
+   - `20260715123000_add_printer_agents_and_jobs.sql`
+   - `20260715143000_add_attendance_profiles_and_photo_proofs.sql`
+2. deploy the API/backend changes
+3. deploy the Sakorio staff/owner frontend changes
+4. deploy the public customer frontend changes for the mobile waitlist route
+5. perform authenticated hosted QA on queue, reservations, POS, tables, orders, kitchen, Printing settings, My Shift, Users, Reports, and Working Plan
+
+### Venue setup and deferred hardware validation
+
+- install and configure `printer-agent/` on an always-on device inside each restaurant LAN
+- register that agent against the correct tenant and map `kitchen` and `receipt` roles to real printers
+- validate automatic kitchen and customer receipt output with physical hardware when available
+- physical-printer validation is operational acceptance work; the required application code is already implemented
+- deploy attendance to an iPad/tablet station with camera permissions enabled
+- define hourly rates and profile details for each staff member before trusting payroll estimates
+
+### Next engineering pickup
+
+Do not rebuild queue, reservations, or printing. After deployment, use hosted QA findings to make only targeted fixes. The highest-value remaining work is:
+
+1. verify the full public queue QR journey on a real mobile device
+2. verify a reservation arrival can move through queue/table/POS without losing guest context
+3. verify a newly paid order appears once in Orders, once in Kitchen, and creates the expected kitchen and receipt print jobs
+4. test role/permission boundaries for owner, cashier, host, and kitchen users
+5. run the physical-printer acceptance checklist when printer hardware is available
+6. verify staff attendance on the actual iPad/tablet camera flow:
+   - manager creates staff profile and hourly rate
+   - manager publishes/assigns the shift
+   - employee selects their own shift
+   - employee captures live proof and clocks in
+   - employee clocks out
+    - Reports show hours and estimated pay correctly
+
+### Local cashier-to-print acceptance completed (2026-07-16)
+
+- completed a fresh authenticated cash checkout for Table 1, producing paid bill `#30` for SGD 3.90
+- verified bill `#30` appears once in the staff Orders board and is marked paid
+- verified bill `#30` appears in the Kitchen display `New tickets` lane with the correct table and item
+- verified the Printing delivery log contains exactly the expected two jobs for bill `#30` at the same creation time:
+  - `Kitchen ticket`
+  - `Customer receipt`
+- both jobs remain pending because no venue printer agent or physical printer is connected in this workspace
+- fixed an intermittent cashier checkout failure in `_verify_staff_menu_token`: raw SHA-256 HMAC bytes can contain `.` and must be parsed by their fixed 32-byte width rather than `rpartition(b".")`
+- added `tests/test_staff_menu_token.py` to reproduce and prevent that regression
+- acceptance item 3 above is complete locally; hosted re-check remains appropriate after deployment
+
+### Role and permission boundary acceptance completed locally (2026-07-16)
+
+- aligned the staff frontend with the backend permission model:
+  - `waiter` is the cashier/operator role and retains POS access
+  - `receptionist` is the host role and retains reservations, queue, tables, and order visibility without cashier/payment access
+  - `kitchen` remains limited to prep visibility and item progression
+  - owner/admin management boundaries remain unchanged
+- removed `receptionist` from the `/pos` route and permission map, which also removes the POS entry points from the staff sidebar and dashboard for host users
+- changed the reservation access guard from a permissive backend-fallback to an explicit redirect for unsupported roles
+- added `tests/test_role_permissions.py` to cover cashier, host, kitchen, owner/admin, and user-management hierarchy boundaries
+- focused backend regression suite passed inside Docker with 25 tests:
+  - `tests/test_role_permissions.py`
+  - `tests/test_staff_menu_token.py`
+  - `tests/test_printing_service.py`
+  - `tests/test_work_session.py`
+- frontend production build passed after the route and navigation changes; remaining output is limited to existing bundle-size and CommonJS warnings
+- acceptance item 4 above is complete locally; hosted verification with dedicated role accounts remains appropriate after deployment
+
+### Small-outlet operator and production navigation consolidation (2026-07-16)
+
+This section supersedes the earlier Cashier-versus-Host separation described immediately above.
+
+- Cashier (`waiter`) and Host (`receptionist`) now use the same small-outlet operator permission set in both backend and frontend.
+- Both roles can operate POS, tables, reservations, queue, orders, billing-customer context, payment settlement, and working-plan tasks exposed to outlet operators.
+- Owner/admin-only configuration, reporting, user management, and destructive management boundaries remain unchanged.
+- Kitchen and beverage production now share one `/kitchen` workspace and one navigation entry.
+- The combined production board shows all active food and drink tickets by default; its station selector remains available for dedicated station filtering.
+- Legacy `/bar` bookmarks redirect to `/kitchen`.
+- Guest Feedback was removed from the staff sidebar, and `/guest-feedback` redirects to the dashboard.
+- Public customer feedback at `/feedback/:tenantId` and the existing public/backend feedback APIs were intentionally retained.
+
+Validation completed:
+
+- focused role regression suite passed with 5 tests in `tests/test_role_permissions.py`
+- frontend production build passed
+- combined KDS test bundle compiles successfully
+- browser-run Karma execution is currently limited by the test container not including a Chrome binary
+- `git diff --check` passes with line-ending warnings only
+
+### Authoritative POS/Tables/Orders continuation brief (2026-07-16)
+
+The full integratable development brief is now:
+
+- `docs/0055-pos-tables-orders-development-brief.md`
+
+It documents the current Angular/FastAPI/PostgreSQL/Redis/HitPay/printer-agent architecture, domain and state invariants, existing APIs, real-time events, UX rules, test strategy, and five mergeable implementation phases.
+
+Exact next engineering pickup:
+
+1. begin Phase 1 only: state contracts and workflow invariants
+2. define a typed cross-stack operator event contract
+3. codify table/order/payment transition guards and tests
+4. introduce shared signal-based operator context for `tableId` and `orderId`
+5. adapt POS, Tables, and Orders to preserve the same selected context across refresh and real-time updates
+6. do not start the Phase 2 visual redesign until the Phase 1 navigation and lifecycle acceptance tests pass

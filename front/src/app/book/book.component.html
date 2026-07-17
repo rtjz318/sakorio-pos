@@ -174,7 +174,12 @@
         }
         <div class="book-card">
           <form (ngSubmit)="submit()" class="book-form">
-            <div class="book-booking-controls">
+            <section class="booking-step" aria-labelledby="booking-party-heading">
+              <div class="booking-step-heading">
+                <span class="booking-step-index">1</span>
+                <h2 id="booking-party-heading">{{ 'RESERVATIONS.PARTY_SIZE' | translate }}</h2>
+              </div>
+              <div class="book-booking-controls">
               <div class="form-group">
                 <label for="book-party">{{ 'RESERVATIONS.PARTY_SIZE' | translate }}</label>
                 <input
@@ -239,39 +244,58 @@
                   [placeholder]="'BOOK.ALLERGIES_DETAIL_PLACEHOLDER' | translate"
                 ></textarea>
               </div>
-            </div>
-            <app-reservation-week-slot-grid
-              [tenantId]="tenantId()"
-              [partySize]="formPartySize"
-              [timezone]="tenant()?.timezone ?? null"
-              [weekAnchorSeed]="formDate"
-              [serviceType]="hasMealSplit() ? formService : 'all'"
-              [bookFloorId]="formFloorId"
-              [(selectedDate)]="formDate"
-              [(selectedTime)]="formTime"
-            />
-            <div class="form-group">
-              <label>{{ 'RESERVATIONS.CUSTOMER_NAME' | translate }}</label>
-              <input type="text" [(ngModel)]="formName" name="name" required />
-            </div>
-            <div class="form-group">
-              <label>{{ 'RESERVATIONS.CUSTOMER_PHONE' | translate }}</label>
-              <input type="tel" [(ngModel)]="formPhone" name="phone" required />
-            </div>
-            <div class="form-group">
-              <label for="book-email">{{ 'RESERVATIONS.CUSTOMER_EMAIL' | translate }}</label>
-              <input type="email" id="book-email" [(ngModel)]="formEmail" name="email" placeholder="your@email.com" autocomplete="email" />
-            </div>
-            <div class="form-group">
-              <label for="book-notes">{{ 'RESERVATIONS.RESERVATION_NOTES' | translate }}</label>
-              <textarea id="book-notes" [(ngModel)]="formClientNotes" name="clientNotes" rows="2" [placeholder]="'RESERVATIONS.RESERVATION_NOTES_PLACEHOLDER' | translate"></textarea>
-            </div>
+              </div>
+            </section>
+
+            <section class="booking-step" aria-labelledby="booking-slot-heading">
+              <div class="booking-step-heading">
+                <span class="booking-step-index">2</span>
+                <h2 id="booking-slot-heading">{{ 'BOOK.WEEK_GRID_LABEL' | translate }}</h2>
+              </div>
+              <app-reservation-week-slot-grid
+                [tenantId]="tenantId()"
+                [partySize]="formPartySize"
+                [timezone]="tenant()?.timezone ?? null"
+                [weekAnchorSeed]="formDate"
+                [serviceType]="hasMealSplit() ? formService : 'all'"
+                [bookFloorId]="formFloorId"
+                [(selectedDate)]="formDate"
+                [(selectedTime)]="formTime"
+              />
+            </section>
+
+            <section class="booking-step booking-details-step" aria-labelledby="booking-details-heading">
+              <div class="booking-step-heading">
+                <span class="booking-step-index">3</span>
+                <h2 id="booking-details-heading">{{ 'BOOK.GUEST_DETAILS' | translate }}</h2>
+              </div>
+              <div class="guest-details-grid">
+                <div class="form-group">
+                  <label>{{ 'RESERVATIONS.CUSTOMER_NAME' | translate }}</label>
+                  <input type="text" [(ngModel)]="formName" name="name" autocomplete="name" required />
+                </div>
+                <div class="form-group">
+                  <label>{{ 'RESERVATIONS.CUSTOMER_PHONE' | translate }}</label>
+                  <input type="tel" [(ngModel)]="formPhone" name="phone" autocomplete="tel" required />
+                </div>
+                <div class="form-group guest-details-wide">
+                  <label for="book-email">{{ 'RESERVATIONS.CUSTOMER_EMAIL' | translate }}</label>
+                  <input type="email" id="book-email" [(ngModel)]="formEmail" name="email" placeholder="your@email.com" autocomplete="email" />
+                </div>
+                <div class="form-group guest-details-wide">
+                  <label for="book-notes">{{ 'RESERVATIONS.RESERVATION_NOTES' | translate }}</label>
+                  <textarea id="book-notes" [(ngModel)]="formClientNotes" name="clientNotes" rows="2" [placeholder]="'RESERVATIONS.RESERVATION_NOTES_PLACEHOLDER' | translate"></textarea>
+                </div>
+              </div>
+            </section>
             @if (error()) {
               <div class="form-error">{{ error() }}</div>
             }
-            <button type="submit" class="btn btn-primary" [disabled]="submitting()">
-              {{ submitting() ? ('BOOK.SUBMITTING' | translate) : ('BOOK.SUBMIT' | translate) }}
-            </button>
+            <div class="booking-submit-dock">
+              <button type="submit" class="btn btn-primary" [disabled]="submitting()">
+                {{ submitting() ? ('BOOK.SUBMITTING' | translate) : ('BOOK.SUBMIT' | translate) }}
+              </button>
+            </div>
           </form>
         </div>
       } @else {

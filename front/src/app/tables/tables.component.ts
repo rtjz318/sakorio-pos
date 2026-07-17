@@ -2,7 +2,7 @@ import { afterNextRender, Component, effect, inject, signal, computed, OnInit } 
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { QRCodeComponent } from 'angularx-qrcode';
-import { ApiService, Table, CanvasTable, TenantSettings, Floor, TableActivateResponse, User, GuestQueueSummary, GuestQueueEntry } from '../services/api.service';
+import { ApiService, Table, CanvasTable, TenantSettings, Floor, TableActivateResponse, User, GuestQueueSummary, GuestQueueEntry, Product, ProductQuestion, Order, OrderItemCreate } from '../services/api.service';
 import { PermissionService } from '../services/permission.service';
 import { SidebarComponent } from '../shared/sidebar.component';
 import { StaffPosToolbarComponent } from '../shared/staff-pos-toolbar.component';
@@ -13,6 +13,7 @@ import { TranslateModule } from '@ngx-translate/core';
 import { CommonModule } from '@angular/common';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
 import { findNonOverlappingDefaultPosition } from './table-floor-layout.util';
+import { getCustomerPublicOrigin } from '../shared/host-portal.util';
 
 const TABLES_VIEW_STORAGE_KEY = 'pos.tables.viewMode';
 
@@ -45,6 +46,13 @@ type QueueSeatingSuggestion = {
   tableName: string;
   matchLabel: string;
   cautionLabel?: string;
+};
+
+type QuickOrderLine = {
+  product: Product;
+  quantity: number;
+  customizationAnswers?: Record<string, string | number | string[]>;
+  customizationSummary?: string;
 };
 
 function getInitialTablesViewMode(): 'tiles' | 'table' {
@@ -599,7 +607,12 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
 
               <div class="status-section status-section--operator">
                 <div class="status-section-top">
-                  <div class="status-badge" [class.status-active]="tableHasActiveSessionOrOpenOrder(table)" [class.status-inactive]="!tableHasActiveSessionOrOpenOrder(table)">
+                  <div
+                    class="status-badge"
+                    [class.status-warning]="tableIsPaid(table)"
+                    [class.status-active]="!tableIsPaid(table) && tableHasActiveSessionOrOpenOrder(table)"
+                    [class.status-inactive]="!tableIsPaid(table) && !tableHasActiveSessionOrOpenOrder(table)"
+                  >
                     <span class="status-dot"></span>
                     {{ tableOperatorStateLabel(table) }}
                   </div>
@@ -623,14 +636,30 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
               </div>
 
               <div class="table-actions table-actions--primary">
-                @if (canOpenStaffOrders()) {
-                  <button type="button" class="btn btn-secondary btn-sm" (click)="openOrdersForTable(table)">
-                    {{ table.active_order_id ? ('TABLES.OPEN_STAFF_ORDER' | translate) : ('TABLES.VIEW_TABLE_ORDERS' | translate) }}
+                @if (tableIsPaid(table)) {
+                  @if (canOpenStaffOrders()) {
+                    <button type="button" class="btn btn-secondary btn-sm" (click)="openOrdersForTable(table)">
+                      View receipt
+                    </button>
+                  }
+                  <button
+                    type="button"
+                    class="btn btn-primary btn-sm"
+                    [disabled]="activatingTableId() === table.id"
+                    (click)="closeTableSession(table)"
+                  >
+                    {{ activatingTableId() === table.id ? 'Clearing...' : 'Clear table' }}
+                  </button>
+                } @else {
+                  @if (canOpenStaffOrders()) {
+                    <button type="button" class="btn btn-secondary btn-sm" (click)="openQuickTable(table, 'orders')">
+                      {{ table.active_order_id ? ('TABLES.OPEN_STAFF_ORDER' | translate) : ('TABLES.VIEW_TABLE_ORDERS' | translate) }}
+                    </button>
+                  }
+                  <button type="button" class="btn btn-primary btn-sm" (click)="openQuickTable(table, 'menu')">
+                    {{ table.active_order_id ? 'Add items' : 'Start order' }}
                   </button>
                 }
-                <button type="button" class="btn btn-primary btn-sm" (click)="openPosForTable(table)">
-                  {{ tablePrimaryActionLabel(table) }}
-                </button>
               </div>
 
               @if (canManageTableAssignments() || canManageFloors()) {
@@ -755,6 +784,209 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
           }
         </div>
 
+        @if (quickOrderTable(); as serviceTable) {
+          <div class="table-service-overlay" (click)="closeQuickTable()">
+            <section class="table-service-drawer" (click)="$event.stopPropagation()" aria-modal="true" role="dialog" aria-label="Table service">
+              <header class="table-service-header">
+                <div>
+                  <span class="table-service-eyebrow">Table service</span>
+                  <h2>{{ serviceTable.name }}</h2>
+                  <p>{{ serviceTable.seat_count || 0 }} seats · {{ getFloorName(serviceTable.floor_id) }}</p>
+                </div>
+                <div class="table-service-header-actions">
+                  <span class="service-status" [class.service-status--live]="!!serviceTable.active_order_id">
+                    {{ serviceTable.active_order_id ? 'Live order #' + serviceTable.active_order_id : (serviceTable.is_active ? 'Ready' : 'Closed') }}
+                  </span>
+                  <button type="button" class="table-service-close" (click)="closeQuickTable()" aria-label="Close table service">×</button>
+                </div>
+              </header>
+
+              <nav class="table-service-tabs" aria-label="Table service views">
+                <button type="button" [class.active]="quickOrderView() === 'menu'" (click)="quickOrderView.set('menu')">Add items</button>
+                <button type="button" [class.active]="quickOrderView() === 'orders'" (click)="quickOrderView.set('orders')">
+                  Orders <span>{{ quickTableOrders().length }}</span>
+                </button>
+                <button type="button" [class.active]="quickOrderView() === 'qr'" (click)="quickOrderView.set('qr')">Table QR</button>
+              </nav>
+
+              @if (quickOrderError()) {
+                <div class="table-service-alert">{{ quickOrderError() }}</div>
+              }
+              @if (quickOrderSuccess()) {
+                <div class="table-service-success">{{ quickOrderSuccess() }}</div>
+              }
+
+              @if (quickOrderView() === 'menu') {
+                <div class="quick-order-workspace">
+                  <div class="quick-menu-pane">
+                    <div class="quick-menu-toolbar">
+                      <label class="quick-search">
+                        <span>Search menu</span>
+                        <input type="search" [ngModel]="quickOrderSearch()" (ngModelChange)="quickOrderSearch.set($event)" placeholder="Dish, category or description">
+                      </label>
+                      <div class="quick-categories" aria-label="Menu categories">
+                        @for (category of quickOrderCategories(); track category) {
+                          <button type="button" [class.active]="quickOrderCategory() === category" (click)="quickOrderCategory.set(category)">
+                            {{ category }}
+                          </button>
+                        }
+                      </div>
+                    </div>
+
+                    @if (quickOrderLoading()) {
+                      <div class="quick-empty">Loading the menu…</div>
+                    } @else if (quickOrderProductsFiltered().length === 0) {
+                      <div class="quick-empty">No menu items match this view.</div>
+                    } @else {
+                      <div class="quick-product-grid">
+                        @for (product of quickOrderProductsFiltered(); track product.id) {
+                          <button type="button" class="quick-product-card" (click)="selectQuickProduct(product)">
+                            <div class="quick-product-image" [class.quick-product-image--placeholder]="!getQuickProductImageUrl(product)">
+                              @if (getQuickProductImageUrl(product); as imageUrl) {
+                                <img [src]="imageUrl" [alt]="product.name">
+                              } @else {
+                                <span>{{ product.name.charAt(0) }}</span>
+                              }
+                            </div>
+                            <div class="quick-product-copy">
+                              <span class="quick-product-category">{{ product.category || 'Menu' }}</span>
+                              <strong>{{ product.name }}</strong>
+                              <small>{{ product.description || 'Tap to add' }}</small>
+                              <span class="quick-product-price">{{ formatQuickMoney(product.price_cents) }}</span>
+                            </div>
+                            <span class="quick-add-badge">{{ quickProductQuantity(product) ? quickProductQuantity(product) : '+' }}</span>
+                          </button>
+                        }
+                      </div>
+                    }
+                  </div>
+
+                  <aside class="quick-cart-pane">
+                    <div class="quick-cart-title">
+                      <div>
+                        <span>Current add-on</span>
+                        <h3>{{ quickCartItemCount() }} items</h3>
+                      </div>
+                      @if (quickOrderCart().length) {
+                        <button type="button" class="quick-text-button" (click)="clearQuickCart()">Clear</button>
+                      }
+                    </div>
+
+                    @if (quickOrderCart().length === 0) {
+                      <div class="quick-cart-empty">
+                        <span>+</span>
+                        <strong>Tap a dish to add it</strong>
+                        <small>Items will join this table’s live bill and go straight to the kitchen.</small>
+                      </div>
+                    } @else {
+                      <div class="quick-cart-lines">
+                        @for (line of quickOrderCart(); track $index; let index = $index) {
+                          <article class="quick-cart-line">
+                            <div>
+                              <strong>{{ line.product.name }}</strong>
+                              @if (line.customizationSummary) { <small>{{ line.customizationSummary }}</small> }
+                              <span>{{ formatQuickMoney(line.product.price_cents * line.quantity) }}</span>
+                            </div>
+                            <div class="quick-quantity">
+                              <button type="button" (click)="changeQuickLineQuantity(index, -1)" aria-label="Remove one">−</button>
+                              <b>{{ line.quantity }}</b>
+                              <button type="button" (click)="changeQuickLineQuantity(index, 1)" aria-label="Add one">+</button>
+                            </div>
+                          </article>
+                        }
+                      </div>
+                    }
+
+                    <div class="quick-cart-footer">
+                      <div><span>Items</span><strong>{{ quickCartItemCount() }}</strong></div>
+                      <div><span>Add-on total</span><strong>{{ formatQuickMoney(quickCartTotalCents()) }}</strong></div>
+                      <button type="button" class="quick-submit" (click)="submitQuickOrder()" [disabled]="!quickOrderCart().length || quickOrderSubmitting()">
+                        {{ quickOrderSubmitting() ? 'Sending…' : (serviceTable.active_order_id ? 'Add to order & kitchen' : 'Open table & send') }}
+                      </button>
+                    </div>
+                  </aside>
+                </div>
+              } @else if (quickOrderView() === 'orders') {
+                <div class="quick-orders-view">
+                  <div class="quick-orders-heading">
+                    <div><span>Table history</span><h3>{{ serviceTable.name }} orders</h3></div>
+                    <button type="button" class="btn btn-secondary btn-sm" (click)="openOrdersForTable(serviceTable)">Open full orders page</button>
+                  </div>
+                  @if (quickOrderLoading()) {
+                    <div class="quick-empty">Loading orders…</div>
+                  } @else if (quickTableOrders().length === 0) {
+                    <div class="quick-empty">No orders have been recorded for this table yet.</div>
+                  } @else {
+                    <div class="quick-order-list">
+                      @for (order of quickTableOrders(); track order.id) {
+                        <article class="quick-order-card" [class.quick-order-card--active]="order.id === serviceTable.active_order_id">
+                          <div class="quick-order-card-head">
+                            <div><small>{{ formatQuickOrderTime(order.created_at) }}</small><strong>Order #{{ order.id }}</strong></div>
+                            <span [class]="'quick-order-state quick-order-state--' + order.status">{{ quickOrderStatusLabel(order.status) }}</span>
+                          </div>
+                          <div class="quick-order-items">
+                            @for (item of order.items; track item.id) {
+                              <span><b>{{ item.quantity }}×</b> {{ item.product_name }}</span>
+                            }
+                          </div>
+                          <div class="quick-order-total"><span>{{ order.payment_method || 'Payment pending' }}</span><strong>{{ formatQuickMoney(order.total_cents) }}</strong></div>
+                        </article>
+                      }
+                    </div>
+                  }
+                </div>
+              } @else {
+                <div class="quick-qr-view table-qr-print">
+                  <span class="table-service-eyebrow">Self-order QR</span>
+                  <h3>{{ serviceTable.name }}</h3>
+                  <p>Guests scan this code to open the table menu, order, and check out online.</p>
+                  <div class="quick-qr-card">
+                    <qrcode [qrdata]="getMenuUrl(serviceTable)" [width]="260" [errorCorrectionLevel]="'M'" cssClass="qr-code"></qrcode>
+                    <strong>{{ serviceTable.name }}</strong>
+                    <small>{{ getMenuUrl(serviceTable) }}</small>
+                  </div>
+                  <div class="quick-qr-actions">
+                    <button type="button" class="btn btn-primary" (click)="printTableQr()">Print table QR</button>
+                    <button type="button" class="btn btn-secondary" (click)="copyLink(serviceTable)">Copy link</button>
+                  </div>
+                </div>
+              }
+            </section>
+          </div>
+        }
+
+        @if (quickCustomizeProduct(); as customProduct) {
+          <div class="quick-customize-overlay" (click)="cancelQuickCustomization()">
+            <section class="quick-customize-dialog" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+              <header><div><span>Customize item</span><h3>{{ customProduct.name }}</h3></div><button type="button" (click)="cancelQuickCustomization()">×</button></header>
+              <div class="quick-customize-body">
+                @for (question of customProduct.questions || []; track question.id) {
+                  <div class="quick-question">
+                    <label>{{ question.label }} @if (question.required) { <b>*</b> }</label>
+                    @if (question.type === 'choice') {
+                      <div class="quick-choice-grid">
+                        @for (option of quickQuestionChoices(question); track option) {
+                          <button type="button" [class.active]="quickAnswerHasChoice(question, option)" (click)="toggleQuickChoice(question, option)">{{ option }}</button>
+                        }
+                      </div>
+                    } @else if (question.type === 'scale') {
+                      <div class="quick-choice-grid quick-choice-grid--scale">
+                        @for (option of quickQuestionScale(question); track option) {
+                          <button type="button" [class.active]="quickCustomizationAnswers()[question.id + ''] === option" (click)="setQuickAnswer(question, option)">{{ option }}</button>
+                        }
+                      </div>
+                    } @else {
+                      <textarea rows="3" [ngModel]="quickCustomizationAnswers()[question.id + ''] || ''" (ngModelChange)="setQuickAnswer(question, $event)" placeholder="Enter request"></textarea>
+                    }
+                  </div>
+                }
+                @if (quickCustomizationError()) { <div class="table-service-alert">{{ quickCustomizationError() }}</div> }
+              </div>
+              <footer><button type="button" class="btn btn-secondary" (click)="cancelQuickCustomization()">Cancel</button><button type="button" class="btn btn-primary" (click)="confirmQuickCustomization()">Add to order</button></footer>
+            </section>
+          </div>
+        }
+
         <!-- Confirmation Modal -->
         @if (confirmationModal().show) {
           <app-confirmation-modal
@@ -870,13 +1102,13 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     .queue-pulse-card {
       display: grid;
       grid-template-columns: minmax(0, 1.3fr) minmax(280px, 1fr) auto;
-      gap: var(--space-4);
+      gap: var(--space-3);
       align-items: center;
       background: linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(34, 197, 94, 0.06));
       border: 1px solid rgba(14, 165, 233, 0.18);
       border-radius: var(--radius-lg);
-      padding: var(--space-4) var(--space-5);
-      margin-bottom: var(--space-5);
+      padding: var(--space-3) var(--space-4);
+      margin-bottom: var(--space-3);
     }
     .queue-pulse-copy h3 {
       margin: 0 0 var(--space-1);
@@ -888,6 +1120,7 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
       margin: 0;
       color: var(--color-text-muted);
       max-width: 48ch;
+      font-size: 0.875rem;
     }
     .queue-pulse-eyebrow {
       display: inline-flex;
@@ -907,7 +1140,7 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
       gap: var(--space-3);
     }
     .queue-pulse-metric {
-      padding: var(--space-3);
+      padding: 0.65rem 0.75rem;
       border-radius: var(--radius-md);
       background: rgba(255, 255, 255, 0.7);
       border: 1px solid rgba(148, 163, 184, 0.16);
@@ -932,18 +1165,18 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     }
     .service-bridge-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: var(--space-4);
-      margin-bottom: var(--space-5);
+      grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+      gap: var(--space-3);
+      margin-bottom: var(--space-3);
     }
     .service-bridge-card {
       background: var(--color-surface);
       border: 1px solid var(--color-border);
       border-radius: var(--radius-lg);
-      padding: var(--space-4) var(--space-5);
+      padding: var(--space-3) var(--space-4);
       display: flex;
       flex-direction: column;
-      gap: var(--space-4);
+      gap: var(--space-3);
       box-shadow: var(--shadow-sm);
     }
     .service-bridge-head {
@@ -1649,6 +1882,227 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
       flex-shrink: 0;
     }
 
+    .table-service-overlay,
+    .quick-customize-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1100;
+      display: grid;
+      place-items: center;
+      padding: 2rem;
+      background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(8px);
+    }
+    .table-service-drawer {
+      width: min(1280px, 96vw);
+      height: min(880px, 94vh);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      border-radius: 28px;
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      background: #f7f8f6;
+      box-shadow: 0 32px 90px rgba(15, 23, 42, 0.28);
+    }
+    .table-service-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1.25rem 1.5rem 1rem;
+      background: #fff;
+      border-bottom: 1px solid #e6e8e5;
+    }
+    .table-service-header h2,
+    .table-service-header p,
+    .quick-cart-title h3,
+    .quick-orders-heading h3,
+    .quick-qr-view h3,
+    .quick-customize-dialog h3 { margin: 0; }
+    .table-service-header h2 { font-size: 1.7rem; letter-spacing: -0.03em; }
+    .table-service-header p { margin-top: 0.2rem; color: #64716b; }
+    .table-service-eyebrow,
+    .quick-cart-title span,
+    .quick-orders-heading span,
+    .quick-customize-dialog header span {
+      color: #c84f2f;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .table-service-header-actions { display: flex; align-items: center; gap: 0.7rem; }
+    .service-status {
+      display: inline-flex;
+      align-items: center;
+      min-height: 2.25rem;
+      padding: 0.45rem 0.9rem;
+      border-radius: 999px;
+      background: #eef0ed;
+      color: #59635d;
+      font-size: 0.78rem;
+      font-weight: 800;
+    }
+    .service-status--live { background: #e2f2eb; color: #167354; }
+    .table-service-close,
+    .quick-customize-dialog header button {
+      width: 2.5rem;
+      height: 2.5rem;
+      border: 0;
+      border-radius: 50%;
+      background: #f1f2ef;
+      color: #26312b;
+      font-size: 1.55rem;
+      cursor: pointer;
+    }
+    .table-service-tabs {
+      display: flex;
+      gap: 0.5rem;
+      padding: 0.8rem 1.5rem;
+      background: #fff;
+      border-bottom: 1px solid #e6e8e5;
+    }
+    .table-service-tabs button {
+      border: 0;
+      border-radius: 999px;
+      padding: 0.7rem 1.1rem;
+      background: transparent;
+      color: #67716c;
+      font-weight: 750;
+      cursor: pointer;
+    }
+    .table-service-tabs button.active { background: #193c32; color: #fff; }
+    .table-service-tabs span { margin-left: 0.35rem; opacity: 0.7; }
+    .table-service-alert,
+    .table-service-success {
+      margin: 0.8rem 1.5rem 0;
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      font-weight: 650;
+    }
+    .table-service-alert { background: #fff0ec; color: #a83820; border: 1px solid #f7c7ba; }
+    .table-service-success { background: #e8f6ef; color: #166b4f; border: 1px solid #bfe4d1; }
+    .quick-order-workspace {
+      min-height: 0;
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 370px;
+      overflow: hidden;
+    }
+    .quick-menu-pane { min-width: 0; overflow: auto; padding: 1.25rem; }
+    .quick-menu-toolbar { position: sticky; top: -1.25rem; z-index: 4; padding: 0.1rem 0 1rem; background: #f7f8f6; }
+    .quick-search { display: block; }
+    .quick-search span { display: block; margin-bottom: 0.4rem; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #68736d; }
+    .quick-search input {
+      width: 100%;
+      min-height: 3.1rem;
+      padding: 0 1rem;
+      border: 1px solid #dce1dc;
+      border-radius: 14px;
+      background: #fff;
+      font-size: 1rem;
+    }
+    .quick-categories { display: flex; gap: 0.5rem; overflow-x: auto; padding-top: 0.75rem; scrollbar-width: none; }
+    .quick-categories button {
+      flex: 0 0 auto;
+      padding: 0.65rem 0.95rem;
+      border: 1px solid #d9ded9;
+      border-radius: 999px;
+      background: #fff;
+      color: #536059;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .quick-categories button.active { border-color: #d95c38; background: #fff0eb; color: #a83c22; }
+    .quick-product-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.85rem; }
+    .quick-product-card {
+      position: relative;
+      min-width: 0;
+      min-height: 235px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      border: 1px solid #e0e4df;
+      border-radius: 18px;
+      background: #fff;
+      color: #16231d;
+      text-align: left;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(30, 45, 38, 0.05);
+      transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+    }
+    .quick-product-card:hover { transform: translateY(-2px); border-color: #e18a70; box-shadow: 0 14px 30px rgba(30, 45, 38, 0.1); }
+    .quick-product-image { height: 112px; background: #edf0ec; }
+    .quick-product-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .quick-product-image--placeholder { display: grid; place-items: center; background: linear-gradient(135deg, #e7eee9, #f4e9df); }
+    .quick-product-image--placeholder span { font-size: 2rem; font-weight: 850; color: #35594c; }
+    .quick-product-copy { min-height: 0; display: flex; flex: 1; flex-direction: column; padding: 0.75rem; }
+    .quick-product-category { color: #c34c2e; font-size: 0.67rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+    .quick-product-copy strong { margin-top: 0.18rem; font-size: 1rem; line-height: 1.18; }
+    .quick-product-copy small { margin-top: 0.3rem; color: #6e7973; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .quick-product-price { margin-top: auto; padding-top: 0.55rem; font-weight: 850; }
+    .quick-add-badge { position: absolute; top: 0.55rem; right: 0.55rem; min-width: 2rem; height: 2rem; display: grid; place-items: center; padding: 0 0.45rem; border-radius: 999px; background: #d95733; color: #fff; font-weight: 850; box-shadow: 0 4px 14px rgba(141, 48, 23, 0.3); }
+    .quick-cart-pane { min-width: 0; display: flex; flex-direction: column; padding: 1.25rem; background: #fff; border-left: 1px solid #e0e4df; }
+    .quick-cart-title { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+    .quick-cart-title h3 { margin-top: 0.2rem; font-size: 1.35rem; }
+    .quick-text-button { border: 0; background: none; color: #a8462b; font-weight: 750; cursor: pointer; }
+    .quick-cart-empty { flex: 1; display: grid; place-content: center; justify-items: center; gap: 0.45rem; padding: 2rem; color: #68736d; text-align: center; }
+    .quick-cart-empty > span { width: 3.2rem; height: 3.2rem; display: grid; place-items: center; border-radius: 50%; background: #edf3ef; color: #2c6551; font-size: 1.7rem; }
+    .quick-cart-empty strong { color: #27342e; font-size: 1.05rem; }
+    .quick-cart-lines { flex: 1; min-height: 0; overflow: auto; margin: 0.9rem -0.2rem 0; padding-right: 0.2rem; }
+    .quick-cart-line { display: flex; justify-content: space-between; gap: 0.8rem; padding: 0.85rem 0; border-bottom: 1px solid #edf0ed; }
+    .quick-cart-line > div:first-child { min-width: 0; display: flex; flex-direction: column; gap: 0.18rem; }
+    .quick-cart-line strong { line-height: 1.2; }
+    .quick-cart-line small { color: #7b6d67; line-height: 1.25; }
+    .quick-cart-line span { color: #516059; font-weight: 750; }
+    .quick-quantity { flex: 0 0 auto; display: flex; align-items: center; gap: 0.55rem; }
+    .quick-quantity button { width: 2rem; height: 2rem; border: 1px solid #dfe3df; border-radius: 50%; background: #fff; font-size: 1.15rem; cursor: pointer; }
+    .quick-cart-footer { padding-top: 0.85rem; border-top: 1px solid #dfe3df; }
+    .quick-cart-footer > div { display: flex; justify-content: space-between; padding: 0.25rem 0; color: #66726b; }
+    .quick-cart-footer > div strong { color: #1f2b25; }
+    .quick-submit { width: 100%; min-height: 3.25rem; margin-top: 0.75rem; border: 0; border-radius: 14px; background: #d75632; color: #fff; font-size: 0.98rem; font-weight: 850; cursor: pointer; }
+    .quick-submit:disabled { opacity: 0.45; cursor: not-allowed; }
+    .quick-empty { padding: 3rem 1rem; color: #68736d; text-align: center; }
+    .quick-orders-view { flex: 1; overflow: auto; padding: 1.25rem 1.5rem 1.5rem; }
+    .quick-orders-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+    .quick-orders-heading h3 { margin-top: 0.2rem; font-size: 1.45rem; }
+    .quick-order-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.85rem; }
+    .quick-order-card { padding: 1rem; border: 1px solid #dfe4df; border-radius: 16px; background: #fff; }
+    .quick-order-card--active { border-color: #63a98e; box-shadow: 0 0 0 2px rgba(57, 137, 108, 0.13); }
+    .quick-order-card-head,
+    .quick-order-total { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+    .quick-order-card-head > div { display: flex; flex-direction: column; }
+    .quick-order-card-head small { color: #748079; }
+    .quick-order-card-head strong { margin-top: 0.12rem; font-size: 1.05rem; }
+    .quick-order-state { padding: 0.35rem 0.55rem; border-radius: 999px; background: #edf0ed; font-size: 0.68rem; font-weight: 850; }
+    .quick-order-state--paid { background: #e0f3e9; color: #176d51; }
+    .quick-order-state--cancelled { background: #f8e5e1; color: #9e3825; }
+    .quick-order-items { min-height: 76px; display: flex; flex-direction: column; gap: 0.3rem; margin: 0.8rem 0; color: #56635c; }
+    .quick-order-items b { color: #25312b; }
+    .quick-order-total { padding-top: 0.75rem; border-top: 1px solid #edf0ed; }
+    .quick-order-total span { color: #6b766f; text-transform: capitalize; }
+    .quick-qr-view { flex: 1; overflow: auto; display: grid; place-content: center; justify-items: center; padding: 1.5rem; text-align: center; }
+    .quick-qr-view h3 { margin-top: 0.25rem; font-size: 2rem; }
+    .quick-qr-view > p { max-width: 540px; color: #65716a; }
+    .quick-qr-card { width: min(360px, 80vw); display: grid; justify-items: center; gap: 0.5rem; margin-top: 0.8rem; padding: 1.4rem; border: 1px solid #dce1dc; border-radius: 20px; background: #fff; }
+    .quick-qr-card strong { font-size: 1.4rem; }
+    .quick-qr-card small { max-width: 100%; overflow-wrap: anywhere; color: #7a847e; }
+    .quick-qr-actions { display: flex; gap: 0.65rem; margin-top: 1rem; }
+    .quick-customize-dialog { width: min(620px, 94vw); max-height: 88vh; overflow: hidden; display: flex; flex-direction: column; border-radius: 24px; background: #fff; box-shadow: 0 30px 80px rgba(15, 23, 42, 0.3); }
+    .quick-customize-dialog header { display: flex; justify-content: space-between; align-items: center; padding: 1.15rem 1.25rem; border-bottom: 1px solid #e5e8e4; }
+    .quick-customize-dialog h3 { margin-top: 0.2rem; font-size: 1.45rem; }
+    .quick-customize-body { overflow: auto; padding: 1.25rem; }
+    .quick-question + .quick-question { margin-top: 1.25rem; }
+    .quick-question > label { display: block; margin-bottom: 0.6rem; font-weight: 800; }
+    .quick-question > label b { color: #d75632; }
+    .quick-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.55rem; }
+    .quick-choice-grid--scale { grid-template-columns: repeat(auto-fit, minmax(3rem, 1fr)); }
+    .quick-choice-grid button { min-height: 2.8rem; padding: 0.5rem; border: 1px solid #dce1dc; border-radius: 12px; background: #fafbfa; color: #334039; font-weight: 700; cursor: pointer; }
+    .quick-choice-grid button.active { border-color: #d75a37; background: #fff0eb; color: #a33b22; box-shadow: inset 0 0 0 1px #d75a37; }
+    .quick-question textarea { width: 100%; padding: 0.75rem; border: 1px solid #dce1dc; border-radius: 12px; resize: vertical; font: inherit; }
+    .quick-customize-dialog footer { display: flex; justify-content: flex-end; gap: 0.65rem; padding: 1rem 1.25rem; border-top: 1px solid #e5e8e4; }
+
     @media (max-width: 768px) {
       .table-grid { grid-template-columns: 1fr; }
       .status-section-top {
@@ -1676,6 +2130,26 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
         max-width: 2.25rem;
         height: 2.25rem;
       }
+      .table-service-overlay { padding: 0; }
+      .table-service-drawer { width: 100vw; height: 100dvh; border-radius: 0; }
+      .table-service-header { padding: 0.9rem 1rem; }
+      .table-service-tabs { padding: 0.65rem 1rem; overflow-x: auto; }
+      .quick-order-workspace { display: flex; flex-direction: column; overflow: auto; }
+      .quick-menu-pane { overflow: visible; padding: 0.9rem; }
+      .quick-menu-toolbar { top: 0; padding-top: 0.1rem; }
+      .quick-product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .quick-product-card { min-height: 210px; }
+      .quick-cart-pane { min-height: 420px; border-left: 0; border-top: 1px solid #e0e4df; }
+      .quick-order-list { grid-template-columns: 1fr; }
+      .quick-orders-heading { align-items: flex-start; flex-direction: column; }
+    }
+    @media print {
+      body * { visibility: hidden !important; }
+      .table-qr-print,
+      .table-qr-print * { visibility: visible !important; }
+      .table-qr-print { position: fixed !important; inset: 0 !important; display: grid !important; place-content: center !important; background: #fff !important; }
+      .quick-qr-actions { display: none !important; }
+      .quick-qr-card { border: 2px solid #111 !important; box-shadow: none !important; }
     }
   `]
 })
@@ -1711,6 +2185,45 @@ export class TablesComponent implements OnInit {
   waiters = signal<User[]>([]);
   queueSummary = signal<GuestQueueSummary | null>(null);
   queueEntries = signal<GuestQueueEntry[]>([]);
+  quickOrderTable = signal<CanvasTable | null>(null);
+  quickOrderView = signal<'menu' | 'orders' | 'qr'>('menu');
+  quickOrderProducts = signal<Product[]>([]);
+  quickTableOrders = signal<Order[]>([]);
+  quickOrderLoading = signal(false);
+  quickOrderSubmitting = signal(false);
+  quickOrderSearch = signal('');
+  quickOrderCategory = signal('All items');
+  quickOrderCart = signal<QuickOrderLine[]>([]);
+  quickOrderError = signal('');
+  quickOrderSuccess = signal('');
+  quickCustomizeProduct = signal<Product | null>(null);
+  quickCustomizationAnswers = signal<Record<string, string | number | string[]>>({});
+  quickCustomizationError = signal('');
+
+  quickOrderCategories = computed(() => {
+    const categories = Array.from(new Set(
+      this.quickOrderProducts().map((product) => product.category?.trim()).filter((category): category is string => !!category),
+    )).sort((a, b) => a.localeCompare(b));
+    return ['All items', ...categories];
+  });
+
+  quickOrderProductsFiltered = computed(() => {
+    const search = this.quickOrderSearch().trim().toLocaleLowerCase();
+    const category = this.quickOrderCategory();
+    return this.quickOrderProducts().filter((product) => {
+      if (category !== 'All items' && product.category !== category) return false;
+      if (!search) return true;
+      return [product.name, product.category, product.subcategory, product.description]
+        .filter(Boolean)
+        .some((value) => String(value).toLocaleLowerCase().includes(search));
+    });
+  });
+
+  quickCartItemCount = computed(() => this.quickOrderCart().reduce((total, line) => total + line.quantity, 0));
+  quickCartTotalCents = computed(() => this.quickOrderCart().reduce(
+    (total, line) => total + (line.product.price_cents * line.quantity),
+    0,
+  ));
 
   // Confirmation Modal State
   confirmationModal = signal<{
@@ -1759,7 +2272,10 @@ export class TablesComponent implements OnInit {
       .filter((table) => !!table.upcoming_reservation && !!table.id)
       .map((table) => {
         const reservation = table.upcoming_reservation!;
-        const minutesUntil = this.minutesUntilReservation(reservation.reservation_time) ?? 9999;
+        const minutesUntil = this.minutesUntilReservation(
+          reservation.reservation_time,
+          reservation.reservation_date,
+        ) ?? 9999;
         return {
           tableId: table.id!,
           tableName: table.name,
@@ -1767,7 +2283,10 @@ export class TablesComponent implements OnInit {
           guestName: reservation.customer_name?.trim() || 'Reserved guest',
           timeLabel: this.formatReservationTime(reservation.reservation_time),
           minutesUntil,
-          ...this.reservationUrgencyMeta(reservation.reservation_time),
+          ...this.reservationUrgencyMeta(
+            reservation.reservation_time,
+            reservation.reservation_date,
+          ),
         };
       })
       .sort((a, b) => a.minutesUntil - b.minutesUntil)
@@ -1960,6 +2479,262 @@ export class TablesComponent implements OnInit {
     return this.permissions.canAccessRoute(this.api.getCurrentUser(), '/staff/orders');
   }
 
+  openQuickTable(table: CanvasTable, view: 'menu' | 'orders' | 'qr' = 'menu'): void {
+    if (!table.id) return;
+    this.quickOrderTable.set(table);
+    this.quickOrderView.set(view);
+    this.quickOrderSearch.set('');
+    this.quickOrderCategory.set('All items');
+    this.quickOrderCart.set([]);
+    this.quickOrderError.set('');
+    this.quickOrderSuccess.set('');
+    this.loadQuickTableData(table.id);
+  }
+
+  closeQuickTable(): void {
+    if (this.quickOrderSubmitting()) return;
+    this.quickOrderTable.set(null);
+    this.quickOrderCart.set([]);
+    this.quickOrderError.set('');
+    this.quickOrderSuccess.set('');
+    this.cancelQuickCustomization();
+  }
+
+  private loadQuickTableData(tableId: number): void {
+    this.quickOrderLoading.set(true);
+    let productsDone = false;
+    let ordersDone = false;
+    const finish = () => {
+      if (productsDone && ordersDone) this.quickOrderLoading.set(false);
+    };
+
+    this.api.getProducts().subscribe({
+      next: (products) => {
+        this.quickOrderProducts.set(products.filter((product) => product.id != null));
+        productsDone = true;
+        finish();
+      },
+      error: (err) => {
+        this.quickOrderError.set(this.apiErr.fromHttpError(err, 'Could not load the menu.'));
+        productsDone = true;
+        finish();
+      },
+    });
+    this.api.getOrders(true).subscribe({
+      next: (orders) => {
+        this.quickTableOrders.set(
+          orders
+            .filter((order) => order.table_id === tableId)
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+        );
+        ordersDone = true;
+        finish();
+      },
+      error: (err) => {
+        this.quickOrderError.set(this.apiErr.fromHttpError(err, 'Could not load table orders.'));
+        ordersDone = true;
+        finish();
+      },
+    });
+  }
+
+  getQuickProductImageUrl(product: Product): string | null {
+    return this.api.getProductImageUrl(product);
+  }
+
+  selectQuickProduct(product: Product): void {
+    if ((product.questions || []).length > 0) {
+      this.quickCustomizeProduct.set(product);
+      this.quickCustomizationAnswers.set({});
+      this.quickCustomizationError.set('');
+      return;
+    }
+    this.addQuickOrderLine(product);
+  }
+
+  private addQuickOrderLine(
+    product: Product,
+    customizationAnswers?: Record<string, string | number | string[]>,
+    customizationSummary?: string,
+  ): void {
+    const signature = customizationAnswers ? JSON.stringify(customizationAnswers) : '';
+    this.quickOrderCart.update((lines) => {
+      const index = lines.findIndex((line) => (
+        line.product.id === product.id
+        && JSON.stringify(line.customizationAnswers || {}) === (signature || '{}')
+      ));
+      if (index < 0) return [...lines, { product, quantity: 1, customizationAnswers, customizationSummary }];
+      return lines.map((line, lineIndex) => lineIndex === index ? { ...line, quantity: line.quantity + 1 } : line);
+    });
+    this.quickOrderSuccess.set('');
+  }
+
+  quickProductQuantity(product: Product): number {
+    return this.quickOrderCart()
+      .filter((line) => line.product.id === product.id)
+      .reduce((total, line) => total + line.quantity, 0);
+  }
+
+  changeQuickLineQuantity(index: number, delta: number): void {
+    this.quickOrderCart.update((lines) => lines
+      .map((line, lineIndex) => lineIndex === index ? { ...line, quantity: line.quantity + delta } : line)
+      .filter((line) => line.quantity > 0));
+  }
+
+  clearQuickCart(): void {
+    this.quickOrderCart.set([]);
+    this.quickOrderError.set('');
+  }
+
+  quickQuestionChoices(question: ProductQuestion): string[] {
+    if (Array.isArray(question.options)) return question.options.map(String);
+    if (question.options && 'choices' in question.options && Array.isArray(question.options.choices)) {
+      return question.options.choices.map(String);
+    }
+    return [];
+  }
+
+  quickQuestionScale(question: ProductQuestion): number[] {
+    if (!question.options || Array.isArray(question.options) || !('min' in question.options) || !('max' in question.options)) return [];
+    const min = Number(question.options.min);
+    const max = Number(question.options.max);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || max < min || max - min > 20) return [];
+    return Array.from({ length: max - min + 1 }, (_, index) => min + index);
+  }
+
+  private quickQuestionIsMulti(question: ProductQuestion): boolean {
+    return !!question.multi || !!(
+      question.options
+      && !Array.isArray(question.options)
+      && 'multi' in question.options
+      && question.options.multi
+    );
+  }
+
+  quickAnswerHasChoice(question: ProductQuestion, option: string): boolean {
+    const value = this.quickCustomizationAnswers()[String(question.id)];
+    return Array.isArray(value) ? value.includes(option) : value === option;
+  }
+
+  toggleQuickChoice(question: ProductQuestion, option: string): void {
+    if (!this.quickQuestionIsMulti(question)) {
+      this.setQuickAnswer(question, option);
+      return;
+    }
+    const key = String(question.id);
+    const current = this.quickCustomizationAnswers()[key];
+    const choices = Array.isArray(current) ? current : [];
+    const next = choices.includes(option) ? choices.filter((choice) => choice !== option) : [...choices, option];
+    this.quickCustomizationAnswers.update((answers) => ({ ...answers, [key]: next }));
+  }
+
+  setQuickAnswer(question: ProductQuestion, value: string | number | string[]): void {
+    this.quickCustomizationAnswers.update((answers) => ({ ...answers, [String(question.id)]: value }));
+    this.quickCustomizationError.set('');
+  }
+
+  cancelQuickCustomization(): void {
+    this.quickCustomizeProduct.set(null);
+    this.quickCustomizationAnswers.set({});
+    this.quickCustomizationError.set('');
+  }
+
+  confirmQuickCustomization(): void {
+    const product = this.quickCustomizeProduct();
+    if (!product) return;
+    const answers = this.quickCustomizationAnswers();
+    const missing = (product.questions || []).find((question) => {
+      if (!question.required) return false;
+      const value = answers[String(question.id)];
+      return value == null || value === '' || (Array.isArray(value) && value.length === 0);
+    });
+    if (missing) {
+      this.quickCustomizationError.set(`Choose ${missing.label} before adding this item.`);
+      return;
+    }
+    const summary = (product.questions || [])
+      .map((question) => {
+        const value = answers[String(question.id)];
+        if (value == null || value === '' || (Array.isArray(value) && value.length === 0)) return null;
+        return `${question.label}: ${Array.isArray(value) ? value.join(', ') : value}`;
+      })
+      .filter(Boolean)
+      .join(' · ');
+    this.addQuickOrderLine(product, answers, summary);
+    this.cancelQuickCustomization();
+  }
+
+  submitQuickOrder(): void {
+    const table = this.quickOrderTable();
+    if (!table?.id || !this.quickOrderCart().length || this.quickOrderSubmitting()) return;
+    const items: OrderItemCreate[] = this.quickOrderCart().map((line) => ({
+      product_id: line.product.id!,
+      quantity: line.quantity,
+      source: line.product._source,
+      customization_answers: line.customizationAnswers,
+    }));
+    this.quickOrderSubmitting.set(true);
+    this.quickOrderError.set('');
+    this.quickOrderSuccess.set('');
+
+    const send = () => this.api.createStaffOrder({ table_id: table.id!, items }).subscribe({
+      next: (response) => {
+        const orderId = Number(response?.order_id || table.active_order_id || 0) || null;
+        const updatedTable = { ...table, is_active: true, active_order_id: orderId };
+        this.quickOrderTable.set(updatedTable);
+        this.tables.update((tables) => tables.map((candidate) => candidate.id === table.id ? updatedTable : candidate));
+        this.quickOrderCart.set([]);
+        this.quickOrderSubmitting.set(false);
+        this.quickOrderSuccess.set(`${items.reduce((sum, item) => sum + item.quantity, 0)} item${items.reduce((sum, item) => sum + item.quantity, 0) === 1 ? '' : 's'} sent to the kitchen.`);
+        this.loadQuickTableData(table.id!);
+      },
+      error: (err) => {
+        this.quickOrderSubmitting.set(false);
+        this.quickOrderError.set(this.apiErr.fromHttpError(err, 'Could not add items to this table.'));
+      },
+    });
+
+    if (table.is_active) {
+      send();
+      return;
+    }
+    this.api.activateTable(table.id).subscribe({
+      next: (response) => {
+        const activated = { ...table, is_active: true, order_pin: response.pin, active_order_id: response.active_order_id };
+        this.quickOrderTable.set(activated);
+        this.tables.update((tables) => tables.map((candidate) => candidate.id === table.id ? activated : candidate));
+        send();
+      },
+      error: (err) => {
+        this.quickOrderSubmitting.set(false);
+        this.quickOrderError.set(this.apiErr.fromHttpError(err, 'Could not open this table for ordering.'));
+      },
+    });
+  }
+
+  formatQuickMoney(cents: number): string {
+    const currency = this.tenantSettings()?.currency_code || this.tenantSettings()?.currency || 'SGD';
+    try {
+      return new Intl.NumberFormat('en-SG', { style: 'currency', currency }).format((cents || 0) / 100);
+    } catch {
+      return `${currency} ${((cents || 0) / 100).toFixed(2)}`;
+    }
+  }
+
+  formatQuickOrderTime(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat('en-SG', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  }
+
+  quickOrderStatusLabel(status: string): string {
+    return status.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
+  printTableQr(): void {
+    window.print();
+  }
+
   openOrdersForTable(table: CanvasTable): void {
     if (!table.id || !this.canOpenStaffOrders()) return;
     void this.router.navigate(['/staff/orders'], {
@@ -1981,24 +2756,35 @@ export class TablesComponent implements OnInit {
   }
 
   tableOperatorStateLabel(table: CanvasTable): string {
+    if (this.tableIsPaid(table)) {
+      return 'Ready to clear';
+    }
     if (table.active_order_id) {
-      return 'Live bill';
+      return 'Live order';
     }
     if (table.upcoming_reservation) {
       return 'Reserved soon';
     }
+    if (table.seated_reservation) {
+      const partySize = table.seated_reservation.party_size;
+      return `Seated · ${partySize} ${partySize === 1 ? 'guest' : 'guests'}`;
+    }
     if (table.is_active) {
-      return 'Ready for bill';
+      return 'Seated · start order';
     }
     return 'Idle table';
   }
 
+  tableIsPaid(table: CanvasTable): boolean {
+    return table.payment_status === 'paid';
+  }
+
   tablePrimaryActionLabel(table: CanvasTable): string {
     if (table.active_order_id) {
-      return 'Resume bill';
+      return 'Resume order';
     }
     if (table.is_active || table.upcoming_reservation) {
-      return 'Start bill';
+      return 'Start order';
     }
     return 'Open POS';
   }
@@ -2009,6 +2795,11 @@ export class TablesComponent implements OnInit {
   }
 
   tableReservationHint(table: CanvasTable): string | null {
+    if (table.seated_reservation) {
+      const guest = table.seated_reservation.customer_name?.trim() || 'Guest';
+      const partySize = table.seated_reservation.party_size;
+      return `${guest} · ${partySize} ${partySize === 1 ? 'guest' : 'guests'}`;
+    }
     if (!table.upcoming_reservation) return null;
     const time = table.upcoming_reservation.reservation_time
       ? this.formatReservationTime(table.upcoming_reservation.reservation_time)
@@ -2029,8 +2820,11 @@ export class TablesComponent implements OnInit {
     }).format(date);
   }
 
-  private reservationUrgencyMeta(value: string): Pick<FloorReservationArrival, 'urgencyLabel' | 'urgencyTone'> {
-    const minutes = this.minutesUntilReservation(value);
+  private reservationUrgencyMeta(
+    value: string,
+    reservationDate?: string | null,
+  ): Pick<FloorReservationArrival, 'urgencyLabel' | 'urgencyTone'> {
+    const minutes = this.minutesUntilReservation(value, reservationDate);
     if (minutes != null && minutes <= 15) {
       return { urgencyLabel: 'Due now', urgencyTone: 'due' };
     }
@@ -2040,24 +2834,28 @@ export class TablesComponent implements OnInit {
     return { urgencyLabel: 'Upcoming', urgencyTone: 'upcoming' };
   }
 
-  private minutesUntilReservation(value: string): number | null {
+  private minutesUntilReservation(value: string, reservationDate?: string | null): number | null {
     if (!value) return null;
-    let date = new Date(value);
+    let date = reservationDate
+      ? new Date(`${reservationDate}T${value}`)
+      : new Date(value);
     if (Number.isNaN(date.getTime())) {
       const timeMatch = value.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
       if (!timeMatch) return null;
       date = new Date();
       date.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
     }
-    const diff = Math.round((date.getTime() - Date.now()) / 60000);
-    return diff >= 0 ? diff : 0;
+    return Math.round((date.getTime() - Date.now()) / 60000);
   }
 
   private isTableReadyForQueue(table: CanvasTable): boolean {
     const status = table.operational_status ?? table.status ?? 'available';
     if (status !== 'available') return false;
     const minutes = table.upcoming_reservation?.reservation_time
-      ? this.minutesUntilReservation(table.upcoming_reservation.reservation_time)
+      ? this.minutesUntilReservation(
+          table.upcoming_reservation.reservation_time,
+          table.upcoming_reservation.reservation_date,
+        )
       : null;
     return minutes == null || minutes > 20;
   }
@@ -2409,7 +3207,16 @@ export class TablesComponent implements OnInit {
         next: () => {
           this.tables.update(tables => tables.map(t =>
             t.id === tableId
-              ? { ...t, is_active: false, order_pin: null, active_order_id: null }
+              ? {
+                  ...t,
+                  is_active: false,
+                  order_pin: null,
+                  active_order_id: null,
+                  payment_status: 'none',
+                  operational_status: 'available',
+                  status: 'available',
+                  seated_reservation: null,
+                }
               : t
           ));
           this.activatingTableId.set(null);
@@ -2489,7 +3296,10 @@ export class TablesComponent implements OnInit {
 
   /** Public customer URL (QR code, copy link). Staff should use {@link openStaffMenu} to skip the table PIN. */
   getMenuUrl(table: Table): string {
-    return `${window.location.origin}/menu/${table.token}`;
+    const baseUrl = `${getCustomerPublicOrigin()}/menu/${table.token}`;
+    return table.qr_access
+      ? `${baseUrl}?qr_access=${encodeURIComponent(table.qr_access)}`
+      : baseUrl;
   }
 
   openStaffMenu(table: Table) {
@@ -2653,7 +3463,16 @@ export class TablesComponent implements OnInit {
       next: () => {
         this.tables.update(tables => tables.map(t =>
           t.id === table.id
-            ? { ...t, is_active: false, order_pin: null, active_order_id: null }
+            ? {
+                ...t,
+                is_active: false,
+                order_pin: null,
+                active_order_id: null,
+                payment_status: 'none',
+                operational_status: 'available',
+                status: 'available',
+                seated_reservation: null,
+              }
             : t
         ));
         this.activatingTableId.set(null);

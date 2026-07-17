@@ -21,6 +21,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
 const REFRESH_INTERVAL_MS = 15000;
 const SOUND_STORAGE_KEY = 'kitchen-display-sound';
+const KITCHEN_CURRENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 type FullscreenCapableElement = HTMLElement & {
   webkitRequestFullscreen?: () => Promise<void> | void;
@@ -81,12 +82,6 @@ function exitDocumentFullscreen(): Promise<void> | void {
     return Promise.resolve(d.msExitFullscreen());
   }
 }
-
-/** Category filter: kitchen = main course only, bar = beverages only. */
-const VIEW_CATEGORY: Record<string, string> = {
-  kitchen: 'Main Course',
-  bar: 'Beverages',
-};
 
 function normalizeKitchenCategory(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase();
@@ -188,7 +183,7 @@ function getWorkflowSortWeight(
           {{ 'KITCHEN_DISPLAY.BACK_TO_ORDERS' | translate }}
         </a>
         <h1 class="kitchen-title">
-          {{ viewMode() === 'bar' ? ('BAR_DISPLAY.TITLE' | translate) : ('KITCHEN_DISPLAY.TITLE' | translate) }}
+          {{ 'KITCHEN_DISPLAY.TITLE' | translate }}
         </h1>
         <div class="header-actions">
           @if (stationsForCurrentView().length > 0) {
@@ -205,6 +200,17 @@ function getWorkflowSortWeight(
                 }
               </select>
             </label>
+          }
+          @if (staleTicketCount() > 0) {
+            <button
+              type="button"
+              class="backlog-filter-btn"
+              [class.active]="showBacklog()"
+              (click)="toggleBacklog()"
+            >
+              {{ showBacklog() ? 'Current shift' : 'Backlog' }}
+              <span>{{ staleTicketCount() }}</span>
+            </button>
           }
           <button
             type="button"
@@ -238,6 +244,12 @@ function getWorkflowSortWeight(
       </header>
 
       <main class="kitchen-main">
+        @if (!showBacklog() && staleTicketCount() > 0) {
+          <div class="backlog-notice" role="status">
+            <span><strong>{{ staleTicketCount() }}</strong> older unresolved ticket{{ staleTicketCount() === 1 ? '' : 's' }} hidden from the live shift.</span>
+            <button type="button" (click)="showBacklog.set(true)">Review backlog</button>
+          </div>
+        }
         @if (loading()) {
           <div class="empty-state">
             <p>{{ 'ORDERS.LOADING' | translate }}</p>
@@ -260,16 +272,6 @@ function getWorkflowSortWeight(
               <span>Showing all active tickets because some kitchen or bar routing is still missing.</span>
             </div>
           }
-          <div class="lane-summary-strip">
-            @for (lane of kitchenLanes(); track lane.key) {
-              <article class="lane-summary-card lane-summary-card--{{ lane.key }}">
-                <span class="lane-summary-eyebrow">{{ lane.eyebrow }}</span>
-                <strong class="lane-summary-title">{{ lane.title }}</strong>
-                <span class="lane-summary-count">{{ lane.orders.length }} {{ lane.orders.length === 1 ? 'ticket' : 'tickets' }}</span>
-              </article>
-            }
-          </div>
-
           <div class="lane-board">
             @for (lane of kitchenLanes(); track lane.key) {
               <section class="service-lane service-lane--{{ lane.key }}">
@@ -457,6 +459,7 @@ function getWorkflowSortWeight(
       gap: var(--space-3);
       flex-wrap: wrap;
     }
+    .backlog-filter-btn,
     .timer-settings-btn,
     .fullscreen-btn {
       display: inline-flex;
@@ -471,8 +474,23 @@ function getWorkflowSortWeight(
       border-radius: var(--radius-md);
       cursor: pointer;
     }
+    .backlog-filter-btn:hover,
     .timer-settings-btn:hover,
     .fullscreen-btn:hover { background: var(--color-bg); }
+    .backlog-filter-btn.active {
+      color: var(--color-warning);
+      border-color: color-mix(in srgb, var(--color-warning) 45%, var(--color-border));
+      background: color-mix(in srgb, var(--color-warning) 10%, var(--color-surface));
+    }
+    .backlog-filter-btn span {
+      min-width: 1.5rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 999px;
+      background: var(--color-bg);
+      text-align: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
     .sound-toggle {
       display: flex;
       align-items: center;
@@ -519,6 +537,27 @@ function getWorkflowSortWeight(
     }
     .kitchen-main::-webkit-scrollbar-thumb {
       background: color-mix(in srgb, var(--color-primary) 20%, var(--color-border));
+    }
+    .backlog-notice {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid color-mix(in srgb, var(--color-warning) 38%, var(--color-border));
+      border-radius: var(--radius-md);
+      background: color-mix(in srgb, var(--color-warning) 8%, var(--color-surface));
+      color: var(--color-text);
+    }
+    .backlog-notice button {
+      flex: 0 0 auto;
+      border: 0;
+      background: transparent;
+      color: var(--color-primary);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
       border-radius: 999px;
     }
     .empty-state {
@@ -536,13 +575,6 @@ function getWorkflowSortWeight(
       grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: var(--space-4);
       align-items: start;
-    }
-    .lane-summary-strip {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-      gap: var(--space-3);
-      margin-bottom: var(--space-4);
-      align-items: stretch;
     }
     .routing-fallback-banner {
       display: flex;
@@ -566,36 +598,9 @@ function getWorkflowSortWeight(
       flex-shrink: 0;
       padding-top: 0.15rem;
     }
-    .lane-summary-card {
-      display: grid;
-      gap: 0.35rem;
-      padding: var(--space-4);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-lg);
-      background: color-mix(in srgb, var(--color-surface) 94%, white);
-      box-shadow: var(--shadow-sm);
-    }
-    .lane-summary-card--pending { border-top: 4px solid var(--color-warning); }
-    .lane-summary-card--preparing { border-top: 4px solid #3B82F6; }
-    .lane-summary-card--ready { border-top: 4px solid var(--color-success); }
-    .lane-summary-eyebrow {
-      font-size: 0.74rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--color-text-muted);
-    }
-    .lane-summary-title {
-      font-size: 1.05rem;
-      color: var(--color-text);
-    }
-    .lane-summary-count {
-      font-size: 0.92rem;
-      color: var(--color-text-muted);
-    }
     .lane-board {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(292px, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 0.8rem;
       align-items: start;
       grid-auto-rows: minmax(0, auto);
@@ -613,7 +618,7 @@ function getWorkflowSortWeight(
       flex-direction: column;
       gap: 0.6rem;
       align-self: start;
-      max-height: calc(100vh - 10.7rem);
+      max-height: calc(100vh - 8.6rem);
       overflow: hidden;
     }
     .service-lane--pending { border-top: 5px solid var(--color-warning); }
@@ -669,7 +674,7 @@ function getWorkflowSortWeight(
       flex-direction: column;
       gap: 0.55rem;
       align-items: stretch;
-      max-height: calc(100vh - 14.2rem);
+      max-height: calc(100vh - 12.2rem);
       overflow: auto;
       padding-right: 0.18rem;
       padding-bottom: 0.42rem;
@@ -1077,12 +1082,12 @@ function getWorkflowSortWeight(
       color: var(--color-text);
       border: 1px solid var(--color-border);
     }
-    @media (max-width: 1360px) {
+    @media (max-width: 980px) {
       .lane-board {
-        grid-template-columns: repeat(2, minmax(300px, 1fr));
+        grid-template-columns: repeat(2, minmax(280px, 1fr));
       }
     }
-    @media (max-width: 1120px) {
+    @media (max-width: 720px) {
       .lane-board {
         grid-template-columns: minmax(0, 1fr);
       }
@@ -1094,7 +1099,6 @@ function getWorkflowSortWeight(
       }
     }
     @media (max-width: 900px) {
-      .lane-summary-strip,
       .lane-board,
       .order-grid {
         grid-template-columns: 1fr;
@@ -1159,7 +1163,6 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   private refreshIntervalId: ReturnType<typeof setInterval> | null = null;
   private wsSub: Subscription | null = null;
-  private routeDataSub: Subscription | null = null;
   private queryParamSub: Subscription | null = null;
   private initialLoadDone = false;
   private pendingBackgroundRefresh = false;
@@ -1169,14 +1172,14 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   lastRefreshAt = signal<Date | null>(null);
   soundEnabled = signal(true);
   itemStatusDropdownOpen = signal<string | null>(null);
-  /** 'kitchen' = cocina (Main Course), 'bar' = beverages only */
-  viewMode = signal<'kitchen' | 'bar'>('kitchen');
-  /** Loaded prep stations; filtered per view by display_route */
+  /** Loaded prep stations for the combined kitchen and beverage production board. */
   kitchenStations = signal<KitchenStation[]>([]);
-  /** KDS station filter when tenant has stations for this view */
+  /** KDS station filter across every production station. */
   stationSelection = signal<number | 'all'>('all');
   /** Current time for live timer (updates every second). */
   now = signal(Date.now());
+  /** Historical unresolved tickets stay available without overwhelming the live shift. */
+  showBacklog = signal(false);
   /** Timer thresholds (minutes) for card color. Defaults 5, 10, 15. */
   timerSettings = signal<{ yellow_minutes: number; orange_minutes: number; red_minutes: number }>({
     yellow_minutes: 5,
@@ -1199,9 +1202,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   );
 
   stationsForCurrentView = computed(() => {
-    const route = this.viewMode() === 'bar' ? 'bar' : 'kitchen';
     return [...this.kitchenStations()]
-      .filter((s) => s.display_route === route)
       .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
   });
 
@@ -1277,17 +1278,34 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     return this.stationsForCurrentView().some((station) => station.id === selection);
   }
 
-  /** Orders that are active (including paid but not yet delivered); category or station filter. */
+  private isCurrentKitchenOrder(order: Order): boolean {
+    const createdAt = new Date(order.created_at).getTime();
+    return Number.isFinite(createdAt) && this.now() - createdAt <= KITCHEN_CURRENT_WINDOW_MS;
+  }
+
+  staleTicketCount = computed(() =>
+    this.orders().reduce((count, order) => {
+      if (this.isCurrentKitchenOrder(order)) {
+        return count;
+      }
+      return this.getKitchenRenderableItems(order).length > 0 ? count + 1 : count;
+    }, 0)
+  );
+
+  private kitchenSourceOrders = computed(() =>
+    this.showBacklog()
+      ? this.orders()
+      : this.orders().filter((order) => this.isCurrentKitchenOrder(order))
+  );
+
+  /** Orders that are active (including paid but not yet delivered), optionally filtered by station. */
   activeOrders = computed(() => {
-    const view = this.viewMode();
-    const routeKey = view === 'bar' ? 'bar' : 'kitchen';
     const useStations = this.stationsForCurrentView().length > 0;
     const sel = this.stationSelection();
     const enforceStationSelection = useStations && this.hasStationSelectionForCurrentView(sel);
 
-    const list = this.orders().filter((o) => {
+    const list = this.kitchenSourceOrders().filter((o) => {
       const items = this.getKitchenRenderableItems(o, {
-        routeKey,
         selectedStation: sel,
         enforceStationSelection,
       });
@@ -1297,7 +1315,6 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       ...o,
       staff_urgent: !!o.staff_urgent,
       items: this.getKitchenRenderableItems(o, {
-        routeKey,
         selectedStation: sel,
         enforceStationSelection,
       }),
@@ -1318,7 +1335,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   });
 
   private fallbackKitchenOrders = computed(() => {
-    const list = this.orders().filter((order) => {
+    const list = this.kitchenSourceOrders().filter((order) => {
       const items = this.getKitchenRenderableItems(order);
       return items.length > 0;
     });
@@ -1344,9 +1361,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       });
   });
 
-  routeFallbackActive = computed(
-    () => this.viewMode() === 'kitchen' && this.activeOrders().length === 0 && this.fallbackKitchenOrders().length > 0
-  );
+  routeFallbackActive = computed(() => false);
 
   visibleOrders = computed(() => (this.routeFallbackActive() ? this.fallbackKitchenOrders() : this.activeOrders()));
 
@@ -1387,13 +1402,6 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     const stored = localStorage.getItem(SOUND_STORAGE_KEY);
     this.soundEnabled.set(stored !== 'false');
     this.audio.setEnabled(this.soundEnabled());
-
-    const view = (this.route.snapshot.data['view'] as 'kitchen' | 'bar') || 'kitchen';
-    this.viewMode.set(view);
-    this.routeDataSub = this.route.data.subscribe((data) => {
-      const v = (data['view'] as 'kitchen' | 'bar') || 'kitchen';
-      this.viewMode.set(v);
-    });
 
     this.queryParamSub = this.route.queryParamMap.subscribe((qm) => {
       const s = qm.get('station');
@@ -1457,7 +1465,6 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       this.tickIntervalId = null;
     }
     this.wsSub?.unsubscribe();
-    this.routeDataSub?.unsubscribe();
     this.queryParamSub?.unsubscribe();
     document.removeEventListener('click', this.closeItemStatusDropdown);
     document.removeEventListener('fullscreenchange', this.onFullscreenChange);
@@ -1491,6 +1498,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     return (this.now() - created) / 60000;
   }
 
+  toggleBacklog(): void {
+    this.showBacklog.update((visible) => !visible);
+  }
+
   /** CSS class for timer-based card color: timer-green, timer-yellow, timer-orange, timer-red. */
   getTimerColorClass(order: Order): string {
     const min = this.getElapsedMinutes(order.created_at);
@@ -1521,10 +1532,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     const totalMinutes = Math.floor(elapsedMs / 60000);
     const totalHours = Math.floor(totalMinutes / 60);
     const totalDays = Math.floor(totalHours / 24);
-    if (totalDays > 0) {
-      const remainingHours = totalHours % 24;
-      return `${totalDays}d ${remainingHours}h`;
-    }
+    if (totalDays > 0) return 'Stale ticket';
     if (totalHours > 0) {
       const remainingMinutes = totalMinutes % 60;
       return remainingMinutes > 0 ? `${totalHours}h ${remainingMinutes}m` : `${totalHours}h`;

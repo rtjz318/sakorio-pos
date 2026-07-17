@@ -1,4 +1,4 @@
-"""POST /tables/{id}/close finishes seated reservations so /tables/with-status matches tiles."""
+"""POST /tables/{id}/close finishes seated reservations and queue visits."""
 from __future__ import annotations
 
 import unittest
@@ -82,6 +82,20 @@ class TestCloseTableFinishesSeatedReservation(PgClientTestCase):
         self.session.refresh(res)
         self.reservation_id = res.id
 
+        queue_entry = models.GuestQueueEntry(
+            tenant_id=tenant.id,
+            customer_name="Walk-in Party",
+            customer_phone="+1000000001",
+            party_size=2,
+            status=models.GuestQueueStatus.seated,
+            source=models.GuestQueueSource.web_waitlist,
+            seated_table_id=table.id,
+        )
+        self.session.add(queue_entry)
+        self.session.commit()
+        self.session.refresh(queue_entry)
+        self.queue_entry_id = queue_entry.id
+
     def test_close_table_finishes_seated_reservation_and_clears_occupied_status(self) -> None:
         h = _bearer_headers(self.owner)
 
@@ -95,6 +109,12 @@ class TestCloseTableFinishesSeatedReservation(PgClientTestCase):
         self.assertEqual(res_row.status, models.ReservationStatus.finished)
         self.assertIsNone(res_row.table_id)
         self.assertIsNone(res_row.seated_at)
+
+        queue_row = self.session.get(models.GuestQueueEntry, self.queue_entry_id)
+        self.assertIsNotNone(queue_row)
+        assert queue_row is not None
+        self.assertEqual(queue_row.status, models.GuestQueueStatus.completed)
+        self.assertIsNotNone(queue_row.completed_at)
 
         r_status = self.client.get("/tables/with-status", headers=h)
         self.assertEqual(r_status.status_code, 200, r_status.text)

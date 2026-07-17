@@ -15,6 +15,8 @@ import {
 } from '../services/api.service';
 import { SidebarComponent } from '../shared/sidebar.component';
 import { StaffPosToolbarComponent } from '../shared/staff-pos-toolbar.component';
+import { QRCodeComponent } from 'angularx-qrcode';
+import { getCustomerPublicOrigin } from '../shared/host-portal.util';
 
 type QueueTableChoice = {
   table: CanvasTable;
@@ -33,7 +35,7 @@ type QueueTableChoice = {
 @Component({
   selector: 'app-queue',
   standalone: true,
-  imports: [CommonModule, FormsModule, SidebarComponent, StaffPosToolbarComponent],
+  imports: [CommonModule, FormsModule, SidebarComponent, StaffPosToolbarComponent, QRCodeComponent],
   template: `
     <app-sidebar>
       <section class="page-shell">
@@ -95,6 +97,47 @@ type QueueTableChoice = {
             <span class="hint">Including completed queue records</span>
           </article>
         </section>
+
+        @if (publicQueueUrl()) {
+          <section class="card queue-access-card">
+            <div class="queue-access-copy">
+              <p class="eyebrow">Front-door waitlist</p>
+              <h2>Permanent queue QR</h2>
+              <p class="lede-inline">
+                Print this once for the entrance. Guests can join the live queue and follow their position from their phone.
+              </p>
+            </div>
+            <div class="queue-access-actions">
+              <button type="button" class="btn btn-primary" (click)="toggleQueueQr()">
+                {{ queueQrOpen() ? 'Hide QR' : 'Show QR' }}
+              </button>
+              <button type="button" class="btn btn-secondary" (click)="copyQueueLink()">
+                {{ queueLinkCopied() ? 'Link copied' : 'Copy link' }}
+              </button>
+              <button type="button" class="btn btn-secondary" (click)="openPublicQueue()">Preview guest page</button>
+            </div>
+
+            @if (queueQrOpen()) {
+              <div class="queue-qr-panel">
+                <div class="queue-qr-code" aria-label="Customer queue QR code">
+                  <qrcode
+                    [qrdata]="publicQueueUrl()"
+                    [width]="216"
+                    [margin]="1"
+                    [errorCorrectionLevel]="'M'">
+                  </qrcode>
+                </div>
+                <div class="queue-qr-details">
+                  <span class="label">Customer destination</span>
+                  <strong>Join the live restaurant queue</strong>
+                  <code>{{ publicQueueUrl() }}</code>
+                  <p>Keep this QR at the entrance. The link remains the same while the queue updates in real time.</p>
+                  <button type="button" class="btn btn-secondary" (click)="printQueueQr()">Print QR sign</button>
+                </div>
+              </div>
+            }
+          </section>
+        }
 
       @if (arrivalsDueSoon().length) {
         <section class="card arrivals-card">
@@ -677,16 +720,16 @@ type QueueTableChoice = {
     }
 
     .page-shell {
-      padding: 1.25rem;
+      padding: 1.1rem;
       display: grid;
-      gap: 0.85rem;
+      gap: 0.75rem;
     }
 
     .card {
       background: #fff;
       border: 1px solid #e5e7eb;
       border-radius: 24px;
-      padding: 1rem;
+      padding: 0.92rem;
       box-shadow: 0 14px 38px rgba(15, 23, 42, 0.05);
     }
 
@@ -760,8 +803,73 @@ type QueueTableChoice = {
 
     .summary-grid {
       display: grid;
-      gap: 0.65rem;
-      grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+      gap: 0.55rem;
+      grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    }
+
+    .queue-access-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem 1.1rem;
+      border-color: #bfdbfe;
+      background: linear-gradient(135deg, #eff6ff 0%, #ffffff 62%);
+    }
+
+    .queue-access-copy h2,
+    .queue-qr-details strong {
+      margin: 0;
+    }
+
+    .queue-access-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.55rem;
+      flex-wrap: wrap;
+    }
+
+    .queue-qr-panel {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 1.15rem;
+      align-items: center;
+      padding: 1rem;
+      border: 1px solid #dbeafe;
+      border-radius: 18px;
+      background: #fff;
+    }
+
+    .queue-qr-code {
+      display: grid;
+      place-items: center;
+      padding: 0.75rem;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      background: #fff;
+    }
+
+    .queue-qr-details {
+      display: grid;
+      gap: 0.45rem;
+      justify-items: start;
+      min-width: 0;
+    }
+
+    .queue-qr-details code {
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      padding: 0.55rem 0.7rem;
+      border-radius: 10px;
+      color: #1e3a8a;
+      background: #eff6ff;
+    }
+
+    .queue-qr-details p {
+      margin: 0;
+      color: #64748b;
     }
 
     .arrivals-card {
@@ -858,13 +966,13 @@ type QueueTableChoice = {
     .stat {
       display: grid;
       gap: 0.18rem;
-      min-height: 92px;
+      min-height: 78px;
       align-content: start;
-      padding: 0.85rem 0.95rem;
+      padding: 0.7rem 0.82rem;
     }
 
     .stat strong {
-      font-size: 1.35rem;
+      font-size: 1.22rem;
       line-height: 1;
     }
 
@@ -884,8 +992,8 @@ type QueueTableChoice = {
 
     .queue-layout {
       display: grid;
-      gap: 0.85rem;
-      grid-template-columns: minmax(0, 1.25fr) 390px;
+      gap: 0.75rem;
+      grid-template-columns: minmax(0, 1.4fr) 360px;
       grid-template-areas:
         "board detail"
         "create detail";
@@ -912,26 +1020,26 @@ type QueueTableChoice = {
       align-items: flex-start;
       justify-content: space-between;
       gap: 0.65rem;
-      margin-bottom: 0.7rem;
+      margin-bottom: 0.58rem;
     }
 
     .form-grid {
       display: grid;
-      gap: 0.65rem;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.58rem;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .board-controls {
       display: grid;
-      gap: 0.65rem;
+      gap: 0.58rem;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      margin-bottom: 0.75rem;
+      margin-bottom: 0.6rem;
     }
 
     .board-summary {
       display: grid;
       gap: 0.3rem;
-      margin-bottom: 0.75rem;
+      margin-bottom: 0.6rem;
     }
 
     .board-summary-chips {
@@ -958,7 +1066,7 @@ type QueueTableChoice = {
       border: 1px solid #dbe3ee;
       border-radius: 14px;
       background: #fff;
-      padding: 0.68rem 0.82rem;
+      padding: 0.6rem 0.74rem;
       font: inherit;
       color: #0f172a;
     }
@@ -968,7 +1076,7 @@ type QueueTableChoice = {
     }
 
     .notes-field {
-      margin-top: 0.7rem;
+      margin-top: 0.58rem;
     }
 
     .toggle-row,
@@ -977,7 +1085,7 @@ type QueueTableChoice = {
       display: flex;
       gap: 0.65rem;
       flex-wrap: wrap;
-      margin-top: 0.7rem;
+      margin-top: 0.58rem;
       align-items: center;
     }
 
@@ -989,7 +1097,7 @@ type QueueTableChoice = {
     .btn {
       border: 1px solid transparent;
       border-radius: 14px;
-      padding: 0.68rem 0.92rem;
+      padding: 0.62rem 0.86rem;
       font: inherit;
       font-weight: 700;
       cursor: pointer;
@@ -1071,20 +1179,20 @@ type QueueTableChoice = {
 
     .lane-grid {
       display: grid;
-      gap: 0.75rem;
-      grid-template-columns: repeat(3, minmax(240px, 1fr));
+      gap: 0.65rem;
+      grid-template-columns: repeat(3, minmax(220px, 1fr));
       align-items: start;
     }
 
     .lane {
       border: 1px solid #eef2f7;
       border-radius: 18px;
-      padding: 0.72rem;
+      padding: 0.64rem;
       background: #f8fafc;
-      min-height: 320px;
+      min-height: 280px;
       display: grid;
       grid-template-rows: auto 1fr;
-      gap: 0.6rem;
+      gap: 0.5rem;
     }
 
     .lane-header {
@@ -1102,9 +1210,9 @@ type QueueTableChoice = {
 
     .lane-list {
       display: grid;
-      gap: 0.55rem;
+      gap: 0.48rem;
       align-content: start;
-      max-height: 640px;
+      max-height: 560px;
       overflow: auto;
       padding-right: 0.15rem;
     }
@@ -1114,9 +1222,9 @@ type QueueTableChoice = {
       border: 1px solid #e2e8f0;
       border-radius: 18px;
       background: #fff;
-      padding: 0.78rem;
+      padding: 0.68rem;
       display: grid;
-      gap: 0.45rem;
+      gap: 0.38rem;
       cursor: pointer;
       text-align: left;
       transition: 160ms ease;
@@ -1225,7 +1333,7 @@ type QueueTableChoice = {
       border: 1px solid #e2e8f0;
       border-radius: 18px;
       background: linear-gradient(180deg, #fffaf5 0%, #ffffff 100%);
-      padding: 0.82rem 0.92rem;
+      padding: 0.72rem 0.82rem;
     }
 
     .decision-banner strong {
@@ -1404,7 +1512,7 @@ type QueueTableChoice = {
 
     @media (max-width: 1440px) {
       .queue-layout {
-        grid-template-columns: minmax(0, 1fr) 360px;
+        grid-template-columns: minmax(0, 1fr) 330px;
         grid-template-areas:
           "board detail"
           "create detail";
@@ -1441,10 +1549,6 @@ type QueueTableChoice = {
         flex-direction: column;
       }
 
-      .summary-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
       .lane-grid,
       .table-list,
       .detail-card .action-grid,
@@ -1453,6 +1557,7 @@ type QueueTableChoice = {
         grid-template-columns: 1fr;
       }
 
+      .summary-grid,
       .form-grid,
       .board-controls {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1472,21 +1577,52 @@ type QueueTableChoice = {
         align-items: stretch;
       }
 
+      .queue-access-card,
+      .queue-qr-panel {
+        grid-template-columns: 1fr;
+      }
+
+      .queue-access-actions {
+        justify-content: stretch;
+      }
+
+      .queue-access-actions .btn {
+        flex: 1 1 150px;
+      }
+
+      .queue-qr-code {
+        justify-self: center;
+      }
+
       .page-header {
         display: flex;
       }
 
-      .form-grid,
       .board-controls,
-      .summary-grid,
       .detail-grid,
       .table-list,
       .detail-card .action-grid {
         grid-template-columns: 1fr;
       }
 
+      .summary-grid,
+      .form-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
       .lane-list {
         max-height: none;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .summary-grid,
+      .form-grid,
+      .board-controls,
+      .detail-grid,
+      .table-list,
+      .detail-card .action-grid {
+        grid-template-columns: 1fr;
       }
     }
   `],
@@ -1509,6 +1645,9 @@ export class QueueComponent implements OnInit {
   selectedQueueEntryId = signal<number | null>(null);
   busyEntryId = signal<number | null>(null);
   prefillContext = signal<string | null>(null);
+  queueQrOpen = signal(false);
+  queueLinkCopied = signal(false);
+  publicQueueUrl = signal('');
 
   queueSearch = '';
   queueSourceFilter:
@@ -1625,11 +1764,7 @@ export class QueueComponent implements OnInit {
 
   readyTableCount = computed(
     () =>
-      this.tables().filter(
-        (table) =>
-          table.is_active !== false &&
-          (table.operational_status ?? table.status ?? 'available') === 'available',
-      ).length,
+      this.tables().filter((table) => this.isTableReadyForSeating(table)).length,
   );
 
   readyTablesForEntry(entry: GuestQueueEntry): number {
@@ -1648,6 +1783,7 @@ export class QueueComponent implements OnInit {
   bestTableChoice = computed<QueueTableChoice | null>(() => this.matchingTableChoices()[0] ?? null);
 
   ngOnInit(): void {
+    this.configurePublicQueueUrl();
     this.reload();
     this.route.queryParamMap
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -1661,6 +1797,42 @@ export class QueueComponent implements OnInit {
         this.reloadSummary();
         this.reloadTables();
       });
+  }
+
+  toggleQueueQr(): void {
+    this.queueQrOpen.update((open) => !open);
+  }
+
+  copyQueueLink(): void {
+    const url = this.publicQueueUrl();
+    if (!url || typeof navigator === 'undefined' || !navigator.clipboard) {
+      return;
+    }
+    navigator.clipboard.writeText(url).then(() => {
+      this.queueLinkCopied.set(true);
+      window.setTimeout(() => this.queueLinkCopied.set(false), 1800);
+    });
+  }
+
+  openPublicQueue(): void {
+    const url = this.publicQueueUrl();
+    if (url && typeof window !== 'undefined') {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  }
+
+  printQueueQr(): void {
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
+  }
+
+  private configurePublicQueueUrl(): void {
+    const tenantId = this.api.getCurrentUser()?.tenant_id;
+    if (!tenantId || typeof window === 'undefined') {
+      return;
+    }
+    this.publicQueueUrl.set(`${getCustomerPublicOrigin()}/waitlist/${tenantId}`);
   }
 
   reload(): void {
@@ -2158,8 +2330,9 @@ export class QueueComponent implements OnInit {
 
   relativeTime(value?: string | null): string {
     if (!value) return 'N/A';
-    const date = new Date(value);
-    const diffMinutes = Math.max(1, Math.floor((Date.now() - date.getTime()) / 60000));
+    const timestamp = this.queueTimestamp(value);
+    if (timestamp === null) return 'N/A';
+    const diffMinutes = Math.max(1, Math.floor((Date.now() - timestamp) / 60000));
     if (diffMinutes < 60) return `${diffMinutes} min ago`;
     const diffHours = Math.floor(diffMinutes / 60);
     if (diffHours < 24) return `${diffHours} h ago`;
@@ -2176,8 +2349,7 @@ export class QueueComponent implements OnInit {
     if (!this.canSeat(entry)) return [];
 
     return this.tables()
-      .filter((table) => table.is_active !== false)
-      .filter((table) => (table.operational_status ?? table.status ?? 'available') === 'available')
+      .filter((table) => this.isTableReadyForSeating(table))
       .filter((table) => (entry.preferred_floor_id ? table.floor_id === entry.preferred_floor_id : true))
       .filter((table) => (table.seat_count ?? 0) >= entry.party_size)
       .map((table) => {
@@ -2249,10 +2421,22 @@ export class QueueComponent implements OnInit {
   }
 
   private minutesSince(value?: string | null): number | null {
-    if (!value) return null;
-    const started = new Date(value).getTime();
-    if (Number.isNaN(started)) return null;
+    const started = this.queueTimestamp(value);
+    if (started === null) return null;
     return Math.max(0, Math.round((Date.now() - started) / 60000));
+  }
+
+  private isTableReadyForSeating(table: CanvasTable): boolean {
+    const status = String(table.operational_status ?? table.status ?? 'available').toLowerCase();
+    return status === 'available' && !table.active_order_id;
+  }
+
+  private queueTimestamp(value?: string | null): number | null {
+    if (!value) return null;
+    const raw = value.trim();
+    const hasTimezone = /(z|[+-]\d{2}:\d{2})$/i.test(raw);
+    const timestamp = new Date(hasTimezone ? raw : `${raw}Z`).getTime();
+    return Number.isNaN(timestamp) ? null : timestamp;
   }
 
   private ensureSelection(): void {
@@ -2385,7 +2569,7 @@ export class QueueComponent implements OnInit {
       entry.notified_at ||
       entry.arrived_at ||
       entry.requested_at;
-    return value ? new Date(value).getTime() : 0;
+    return this.queueTimestamp(value) ?? 0;
   }
 
   private queueLaneSortScore(entry: GuestQueueEntry): number {

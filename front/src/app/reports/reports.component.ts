@@ -20,6 +20,7 @@ import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../shared/sidebar.component';
 import {
   ApiService,
+  AttendancePaySummary,
   SalesReport,
   User,
   WorkSession,
@@ -63,6 +64,24 @@ export class ReportsComponent implements OnInit {
   workSessionsLive = signal<WorkSession[]>([]);
   workSessionsLiveLoading = signal(false);
   workSessionsLiveError = signal<string | null>(null);
+  attendancePaySummary = signal<AttendancePaySummary[]>([]);
+  attendancePaySummaryLoading = signal(false);
+  attendancePaySummaryError = signal<string | null>(null);
+  attendancePhotoLoadingKey = signal<string | null>(null);
+  attendancePhotoError = signal<string | null>(null);
+  attendancePayrollTotals = computed(() => {
+    return this.attendancePaySummary().reduce(
+      (totals, row) => ({
+        completedSessions: totals.completedSessions + row.completed_sessions,
+        openSessions: totals.openSessions + row.open_sessions,
+        workedMinutes: totals.workedMinutes + row.worked_minutes,
+        estimatedPayCents: totals.estimatedPayCents + row.estimated_pay_cents,
+        missingPhotos:
+          totals.missingPhotos + row.missing_clock_in_photos + row.missing_clock_out_photos,
+      }),
+      { completedSessions: 0, openSessions: 0, workedMinutes: 0, estimatedPayCents: 0, missingPhotos: 0 },
+    );
+  });
   /** Modal: correct clock-in/out (report:read). */
   workSessionAdjustOpen = signal(false);
   workSessionAdjustTarget = signal<WorkSession | null>(null);
@@ -447,6 +466,7 @@ export class ReportsComponent implements OnInit {
     if (!this.canViewAttendance()) {
       this.workSessions.set([]);
       this.workSessionsLive.set([]);
+      this.attendancePaySummary.set([]);
       return;
     }
     const from = this.fromDate();
@@ -466,6 +486,66 @@ export class ReportsComponent implements OnInit {
       },
     });
     this.loadWorkSessionsLive();
+    this.loadAttendancePaySummary();
+  }
+
+  loadAttendancePaySummary(): void {
+    const from = this.fromDate();
+    const to = this.toDate();
+    if (!from || !to || !this.canViewAttendance()) return;
+    this.attendancePaySummaryLoading.set(true);
+    this.attendancePaySummaryError.set(null);
+    this.api.getAttendancePaySummary(from, to).subscribe({
+      next: (rows) => {
+        this.attendancePaySummary.set(rows);
+        this.attendancePaySummaryLoading.set(false);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.attendancePaySummary.set([]);
+        this.attendancePaySummaryLoading.set(false);
+        this.attendancePaySummaryError.set(
+          this.apiErr.fromHttpError(err, 'Unable to load payroll summary.'),
+        );
+      },
+    });
+  }
+
+  formatAttendanceMinutes(minutes: number): string {
+    const safeMinutes = Math.max(0, Math.round(minutes || 0));
+    const hours = Math.floor(safeMinutes / 60);
+    const remainder = safeMinutes % 60;
+    return `${hours}h ${String(remainder).padStart(2, '0')}m`;
+  }
+
+  attendancePhotoKey(row: WorkSession, proofType: 'clock_in' | 'clock_out'): string {
+    return `${row.id}:${proofType}`;
+  }
+
+  openAttendancePhoto(row: WorkSession, proofType: 'clock_in' | 'clock_out'): void {
+    const key = this.attendancePhotoKey(row, proofType);
+    if (this.attendancePhotoLoadingKey()) return;
+    const previewWindow = window.open('', '_blank', 'noopener,noreferrer');
+    this.attendancePhotoLoadingKey.set(key);
+    this.attendancePhotoError.set(null);
+    this.api.getUserWorkSessionPhoto(row.user_id, row.id, proofType).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        if (previewWindow) {
+          previewWindow.location.href = url;
+        } else {
+          window.open(url, '_blank', 'noopener,noreferrer');
+        }
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        this.attendancePhotoLoadingKey.set(null);
+      },
+      error: (err: HttpErrorResponse) => {
+        previewWindow?.close();
+        this.attendancePhotoLoadingKey.set(null);
+        this.attendancePhotoError.set(
+          this.apiErr.fromHttpError(err, 'Unable to open attendance photo.'),
+        );
+      },
+    });
   }
 
   loadWorkSessionsLive(): void {
@@ -662,6 +742,8 @@ export class ReportsComponent implements OnInit {
         return 'Notified';
       case 'seated':
         return 'Seated';
+      case 'completed':
+        return 'Completed';
       case 'converted_to_reservation':
         return 'Converted';
       case 'cancelled':

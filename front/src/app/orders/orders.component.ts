@@ -154,20 +154,6 @@ interface OrderTableGroup {
                               <span class="group-pill">{{ formatOrderTime(group.latestCreatedAt) }}</span>
                             }
                           </div>
-                        <div class="table-order-stat-grid">
-                          <article class="table-order-stat">
-                            <span>Latest</span>
-                            <strong>{{ group.latestCreatedAt ? formatOrderTime(group.latestCreatedAt) : 'No tickets yet' }}</strong>
-                          </article>
-                          <article class="table-order-stat">
-                            <span>Open now</span>
-                            <strong>{{ group.activeCount }}</strong>
-                          </article>
-                          <article class="table-order-stat">
-                            <span>Total due</span>
-                            <strong>{{ formatPrice(group.totalCents) }}</strong>
-                          </article>
-                        </div>
                       </div>
                       @if (group.tableId != null) {
                         <div class="table-order-group-actions">
@@ -438,20 +424,6 @@ interface OrderTableGroup {
                             @if (group.latestCreatedAt) {
                               <span class="group-pill">{{ formatOrderTime(group.latestCreatedAt) }}</span>
                             }
-                          </div>
-                          <div class="table-order-stat-grid">
-                            <article class="table-order-stat">
-                              <span>Latest</span>
-                              <strong>{{ group.latestCreatedAt ? formatOrderTime(group.latestCreatedAt) : 'No tickets yet' }}</strong>
-                            </article>
-                            <article class="table-order-stat">
-                              <span>Awaiting payment</span>
-                              <strong>{{ group.unpaidCount }}</strong>
-                            </article>
-                            <article class="table-order-stat">
-                              <span>Total due</span>
-                              <strong>{{ formatPrice(group.totalCents) }}</strong>
-                            </article>
                           </div>
                         </div>
                         @if (group.tableId != null) {
@@ -737,7 +709,7 @@ interface OrderTableGroup {
                 </button>
               </div>
               <div class="modal-body">
-                <p class="order-summary">{{ 'ORDERS.TOTAL' | translate }}: {{ formatPrice(order.total_cents) }}{{ order.customer_name ? ' · ' + ('ORDERS.CUSTOMER' | translate) + ': ' + order.customer_name : '' }}</p>
+                <p class="order-summary">{{ 'ORDERS.TOTAL' | translate }}: {{ formatPrice(order.total_cents) }}{{ order.customer_name ? ' | ' + ('ORDERS.CUSTOMER' | translate) + ': ' + order.customer_name : '' }}</p>
 
                 <div class="edit-order-items">
                   <div class="edit-order-label">{{ 'ORDERS.ITEMS' | translate }}</div>
@@ -1160,8 +1132,8 @@ interface OrderTableGroup {
 
     .table-order-group-header {
       display: grid;
-      grid-template-columns: minmax(0, 1.35fr) minmax(250px, 0.85fr) auto;
-      align-items: start;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
       gap: var(--space-3);
       padding: var(--space-3);
       border-bottom: 1px solid var(--color-border);
@@ -1177,37 +1149,6 @@ interface OrderTableGroup {
       flex-direction: column;
       gap: var(--space-2);
       min-width: 0;
-    }
-
-    .table-order-stat-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 0.65rem;
-      min-width: min(100%, 320px);
-    }
-
-    .table-order-stat {
-      display: flex;
-      flex-direction: column;
-      gap: 0.2rem;
-      padding: 0.7rem 0.8rem;
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-lg);
-      background: color-mix(in srgb, var(--color-surface) 94%, white);
-    }
-
-    .table-order-stat span {
-      font-size: 0.72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--color-text-muted);
-    }
-
-    .table-order-stat strong {
-      font-size: 0.88rem;
-      line-height: 1.25;
-      color: var(--color-text);
     }
 
     .table-order-group-actions {
@@ -1994,9 +1935,6 @@ interface OrderTableGroup {
         grid-template-columns: 1fr;
         align-items: stretch;
       }
-      .table-order-stat-grid {
-        grid-template-columns: 1fr;
-      }
       .table-order-group-actions {
         width: 100%;
       }
@@ -2264,7 +2202,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
   activeOrders = computed(() => {
     const tid = this.tableScopeId();
     let list = this.orders().filter(o =>
-      ['pending', 'preparing', 'ready', 'partially_delivered', 'paid'].includes(o.status)
+      ['pending', 'preparing', 'ready', 'partially_delivered'].includes(o.status)
     );
     if (tid != null) list = list.filter(o => o.table_id === tid);
     return [...list].sort((a, b) => {
@@ -2387,7 +2325,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
       parts.push(`${readyCount} ready to hand off`);
     }
 
-    return parts.join(' · ');
+    return parts.join(' | ');
   }
 
   formatUnpaidGroupSummary(group: OrderTableGroup): string {
@@ -2401,11 +2339,11 @@ export class OrdersComponent implements OnInit, OnDestroy {
       parts.push(`${completedCount} ready to close`);
     }
 
-    return parts.join(' · ');
+    return parts.join(' | ');
   }
 
   private isOrderActiveForGroup(order: Order): boolean {
-    return ['pending', 'preparing', 'ready', 'partially_delivered', 'paid'].includes(order.status);
+    return ['pending', 'preparing', 'ready', 'partially_delivered'].includes(order.status);
   }
 
   private isOrderUnpaidForGroup(order: Order): boolean {
@@ -2675,7 +2613,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     });
 
     return (
-      sorted.find((order) => ['pending', 'preparing', 'ready', 'partially_delivered', 'paid'].includes(order.status)) ??
+      sorted.find((order) => ['pending', 'preparing', 'ready', 'partially_delivered'].includes(order.status)) ??
       sorted.find((order) => order.status === 'completed' && !order.paid_at) ??
       sorted[0] ??
       null
@@ -2716,7 +2654,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
     /** Resolve focus using full order list (ignore table scope filter). */
     const rawActive = this.orders().filter(o =>
-      ['pending', 'preparing', 'ready', 'partially_delivered', 'paid'].includes(o.status)
+      ['pending', 'preparing', 'ready', 'partially_delivered'].includes(o.status)
     );
     const rawNotPaid = this.orders().filter(o => o.status === 'completed' && !o.paid_at);
 
@@ -2759,7 +2697,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     } else if (Number.isFinite(focusTableId) && focusTableId > 0) {
       preserveTableId = focusTableId;
       const forTable = this.orders().filter(o => o.table_id === focusTableId);
-      const activeStatuses = ['pending', 'preparing', 'ready', 'partially_delivered', 'paid'];
+      const activeStatuses = ['pending', 'preparing', 'ready', 'partially_delivered'];
       const activeForTable = forTable
         .filter(o => activeStatuses.includes(o.status))
         .sort((a, b) => (b.staff_urgent ? 1 : 0) - (a.staff_urgent ? 1 : 0) || a.id - b.id);
@@ -2966,16 +2904,16 @@ export class OrdersComponent implements OnInit, OnDestroy {
     if (m.remove?.length) parts.push(`Remove: ${m.remove.join(', ')}`);
     if (m.add?.length) parts.push(`Add: ${m.add.join(', ')}`);
     if (m.substitute?.length) {
-      parts.push(`Sub: ${m.substitute.map(s => `${s.from}â†’${s.to}`).join(', ')}`);
+      parts.push(`Sub: ${m.substitute.map(s => `${s.from} -> ${s.to}`).join(', ')}`);
     }
-    return parts.join(' · ');
+    return parts.join(' | ');
   }
 
   formatItemModifiersLine(item: OrderItem): string {
     const c = this.formatCustomizationItem(item);
     const snap = item.line_modifiers_summary?.trim();
     const m = snap || this.formatLineModifiersFromJson(item.line_modifiers ?? undefined);
-    if (c && m) return `${c} · ${m}`;
+    if (c && m) return `${c} | ${m}`;
     return c || m || '';
   }
 
@@ -3074,7 +3012,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
       if (Array.isArray(v)) parts.push(v.join(', '));
       else parts.push(String(v));
     }
-    return parts.join(' · ');
+    return parts.join(' | ');
   }
 
   dismissWaiterAlert(): void {
@@ -3519,7 +3457,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     const repoUrl = 'https://github.com/tanjunnan0101/pos';
     const version = environment.version || '0.0.0';
     const commit = environment.commitHash || '';
-    return `${this.escapeHtml(prefix)} · ${this.escapeHtml(repoUrl)} · v${this.escapeHtml(version)}${commit ? ` (${this.escapeHtml(commit)})` : ''}`;
+    return `${this.escapeHtml(prefix)} | ${this.escapeHtml(repoUrl)} | v${this.escapeHtml(version)}${commit ? ` (${this.escapeHtml(commit)})` : ''}`;
   }
 
   private escapeHtml(s: string): string {

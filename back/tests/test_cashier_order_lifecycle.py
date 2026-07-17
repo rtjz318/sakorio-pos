@@ -161,6 +161,29 @@ class TestCashierOrderLifecycle(PgClientTestCase):
         self.assertIsNone(available_status["active_order_id"])
         self.assertEqual(available_status["operational_status"], "available")
 
+    def test_close_table_blocks_unpaid_current_session_tickets(self) -> None:
+        activate = self.client.post(
+            f"/tables/{self.table_id}/activate",
+            headers=self.headers,
+        )
+        self.assertEqual(activate.status_code, 200, activate.text)
+
+        order = self._add_item()
+        order_id = order["order_id"]
+
+        close = self.client.post(
+            f"/tables/{self.table_id}/close",
+            headers=self.headers,
+        )
+        self.assertEqual(close.status_code, 400, close.text)
+        detail = close.json()["detail"]
+        self.assertEqual(detail["code"], "table_has_unpaid_orders")
+        self.assertIn(order_id, detail["order_ids"])
+
+        still_open = self._table_status()
+        self.assertTrue(still_open["is_active"])
+        self.assertEqual(still_open["active_order_id"], order_id)
+
     def test_multiple_tickets_stay_current_until_table_close(self) -> None:
         activate = self.client.post(
             f"/tables/{self.table_id}/activate",
@@ -215,6 +238,15 @@ class TestCashierOrderLifecycle(PgClientTestCase):
         self.assertTrue(rows[second_order.id]["is_current_table_session"])
         self.assertEqual(rows[first_order.id]["table_active_order_id"], second_order.id)
         self.assertEqual(rows[second_order.id]["table_active_order_id"], second_order.id)
+
+        paid_at = datetime.now(timezone.utc)
+        first_order.status = models.OrderStatus.paid
+        first_order.paid_at = paid_at
+        second_order.status = models.OrderStatus.paid
+        second_order.paid_at = paid_at
+        self.session.add(first_order)
+        self.session.add(second_order)
+        self.session.commit()
 
         close = self.client.post(
             f"/tables/{self.table_id}/close",

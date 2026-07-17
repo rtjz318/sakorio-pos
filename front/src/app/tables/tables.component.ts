@@ -2210,12 +2210,10 @@ export class TablesComponent implements OnInit {
   quickCurrentSessionOrders = computed(() => {
     const table = this.quickOrderTable();
     const activeOrderId = table?.active_order_id ?? null;
-    if (activeOrderId != null) {
-      return this.quickTableOrders().filter((order) => order.id === activeOrderId);
-    }
     if (!table?.is_active) return [];
     return this.quickTableOrders().filter((order) =>
       order.is_current_table_session === true ||
+      (activeOrderId != null && order.id === activeOrderId) ||
       (!!order.table_is_active && order.table_active_order_id === order.id)
     );
   });

@@ -7860,6 +7860,32 @@ def list_tables_with_status(
                 ):
                     payment_status = "pending"
 
+        if table.is_active:
+            current_session_orders = session.exec(
+                select(models.Order).where(
+                    models.Order.tenant_id == current_user.tenant_id,
+                    models.Order.table_id == table.id,
+                    models.Order.deleted_at.is_(None),
+                )
+            ).all()
+            session_orders_with_items: list[models.Order] = []
+            for session_order in current_session_orders:
+                if not _is_order_in_current_table_session(session_order, table):
+                    continue
+                session_items = session.exec(
+                    select(models.OrderItem).where(models.OrderItem.order_id == session_order.id)
+                ).all()
+                if any(_order_item_is_active(item) for item in session_items):
+                    session_orders_with_items.append(session_order)
+
+            if session_orders_with_items:
+                if all(_order_is_settled(order) for order in session_orders_with_items):
+                    payment_status = "paid"
+                elif any(order.bill_requested_at is not None for order in session_orders_with_items):
+                    payment_status = "pending"
+                else:
+                    payment_status = "none"
+
         row = {
             "id": table.id,
             "name": table.name,
@@ -8736,6 +8762,18 @@ def _is_order_in_current_table_session(
     if table.activated_at is None:
         return False
     return _ensure_aware_utc(order.created_at) >= _ensure_aware_utc(table.activated_at)
+
+
+def _order_item_is_active(item: models.OrderItem) -> bool:
+    return (
+        not item.removed_by_customer
+        and item.removed_by_user_id is None
+        and item.status != models.OrderItemStatus.cancelled
+    )
+
+
+def _order_is_settled(order: models.Order) -> bool:
+    return order.status == models.OrderStatus.paid or order.paid_at is not None
 
 
 def _slot_datetime_utc(res_date: date, slot_time: time, tenant: models.Tenant) -> datetime:
@@ -10877,21 +10915,45 @@ def close_table(
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
 
-    # If there is an active order with no (active) items, delete it so we don't keep empty orders
-    if table.active_order_id:
-        order = session.get(models.Order, table.active_order_id)
-        if order:
-            all_items = session.exec(
-                select(models.OrderItem).where(models.OrderItem.order_id == order.id)
-            ).all()
-            active_count = sum(
-                1 for it in all_items
-                if not it.removed_by_customer and it.removed_by_user_id is None and it.status != models.OrderItemStatus.cancelled
-            )
-            if active_count == 0:
-                for it in all_items:
-                    session.delete(it)
-                session.delete(order)
+    current_session_orders = session.exec(
+        select(models.Order).where(
+            models.Order.tenant_id == current_user.tenant_id,
+            models.Order.table_id == table.id,
+            models.Order.deleted_at.is_(None),
+        )
+    ).all()
+    open_order_ids: list[int] = []
+
+    for order in current_session_orders:
+        if not _is_order_in_current_table_session(order, table):
+            continue
+
+        all_items = session.exec(
+            select(models.OrderItem).where(models.OrderItem.order_id == order.id)
+        ).all()
+        active_count = sum(1 for it in all_items if _order_item_is_active(it))
+
+        # If there is an active order with no active items, delete it so we don't keep empty orders.
+        if order.id == table.active_order_id and active_count == 0:
+            for it in all_items:
+                session.delete(it)
+            session.delete(order)
+            continue
+
+        if active_count > 0 and not _order_is_settled(order):
+            if order.id is not None:
+                open_order_ids.append(order.id)
+
+    if open_order_ids:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "table_has_unpaid_orders",
+                "message": "Settle all current table tickets before closing the table.",
+                "params": {"count": len(open_order_ids)},
+                "order_ids": open_order_ids,
+            },
+        )
 
     # Clear session data
     table.order_pin = None

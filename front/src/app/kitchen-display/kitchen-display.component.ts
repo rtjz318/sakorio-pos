@@ -15,7 +15,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService, KitchenStation, Order, OrderItem, OrderLineModifiers } from '../services/api.service';
 import { AudioService } from '../services/audio.service';
 import { PermissionService } from '../services/permission.service';
-import { Subscription } from 'rxjs';
+import { forkJoin, Subscription } from 'rxjs';
 import { FocusFirstInputDirective } from '../shared/focus-first-input.directive';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
@@ -297,6 +297,24 @@ function getWorkflowSortWeight(
           <div class="backlog-notice" role="status">
             <span><strong>{{ staleTicketCount() }}</strong> older unresolved ticket{{ staleTicketCount() === 1 ? '' : 's' }} hidden from the live shift. Open backlog mode, mark stale items delivered/cancelled, then return to current shift before service.</span>
             <button type="button" (click)="showBacklog.set(true)">Review / clear backlog</button>
+          </div>
+        }
+        @if (showBacklog()) {
+          <div class="backlog-tools" role="status">
+            <div>
+              <strong>Backlog maintenance mode</strong>
+              <span>{{ visibleOrders().length }} visible stale ticket{{ visibleOrders().length === 1 ? '' : 's' }} in this route/filter. Complete only tickets that were already handled before service.</span>
+              @if (backlogClearMessage()) {
+                <small>{{ backlogClearMessage() }}</small>
+              }
+            </div>
+            <button
+              type="button"
+              class="backlog-clear-btn"
+              [disabled]="!canCompleteVisibleBacklog() || backlogClearBusy()"
+              (click)="completeVisibleBacklogTickets()">
+              {{ backlogClearBusy() ? 'Completing...' : 'Complete visible backlog' }}
+            </button>
           </div>
         }
         @if (loading()) {
@@ -695,6 +713,44 @@ function getWorkflowSortWeight(
       font-weight: 700;
       cursor: pointer;
       border-radius: 999px;
+    }
+    .backlog-tools {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid color-mix(in srgb, var(--color-warning) 48%, var(--color-border));
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--color-warning) 12%, var(--color-surface)), var(--color-surface));
+      color: var(--color-text);
+    }
+    .backlog-tools div {
+      display: grid;
+      gap: 0.2rem;
+    }
+    .backlog-tools span,
+    .backlog-tools small {
+      color: var(--color-text-muted);
+      line-height: 1.35;
+    }
+    .backlog-clear-btn {
+      flex: 0 0 auto;
+      min-height: 2.45rem;
+      border: 0;
+      border-radius: 999px;
+      background: var(--color-primary);
+      color: white;
+      font: inherit;
+      font-weight: 800;
+      padding: 0.55rem 0.9rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .backlog-clear-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
     }
     .empty-state {
       text-align: center;
@@ -1324,6 +1380,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   now = signal(Date.now());
   /** Historical unresolved tickets stay available without overwhelming the live shift. */
   showBacklog = signal(false);
+  backlogClearBusy = signal(false);
+  backlogClearMessage = signal('');
   /** Timer thresholds (minutes) for card color. Defaults 5, 10, 15. */
   timerSettings = signal<{ yellow_minutes: number; orange_minutes: number; red_minutes: number }>({
     yellow_minutes: 5,
@@ -1519,6 +1577,15 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   routeFallbackActive = computed(() => false);
 
   visibleOrders = computed(() => (this.routeFallbackActive() ? this.fallbackKitchenOrders() : this.activeOrders()));
+
+  canCompleteVisibleBacklog = computed(() =>
+    this.showBacklog() &&
+    this.canUpdateItemStatus() &&
+    !this.loading() &&
+    this.visibleOrders().some((order) =>
+      this.getSortedItems(order.items ?? []).some((item) => item.id != null)
+    )
+  );
 
   kitchenLanes = computed(() => {
     const buckets: Record<KitchenLaneKey, Order[]> = {
@@ -2039,6 +2106,42 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.api.updateOrderItemStatus(orderId, itemId, status).subscribe({
       next: () => this.loadOrders({ background: true }),
       error: () => this.loadOrders({ background: true }),
+    });
+  }
+
+  completeVisibleBacklogTickets(): void {
+    if (!this.canCompleteVisibleBacklog() || this.backlogClearBusy()) return;
+    const orders = this.visibleOrders();
+    const tasks = orders.flatMap((order) =>
+      this.getSortedItems(order.items ?? [])
+        .filter((item) => item.id != null)
+        .map((item) => this.api.updateOrderItemStatus(order.id, item.id!, 'delivered'))
+    );
+    if (tasks.length === 0) {
+      this.backlogClearMessage.set('No actionable backlog items are visible in this filter.');
+      return;
+    }
+
+    const ticketCount = orders.length;
+    const itemCount = tasks.length;
+    const confirmed = window.confirm(
+      `Complete ${itemCount} visible backlog item${itemCount === 1 ? '' : 's'} across ${ticketCount} ticket${ticketCount === 1 ? '' : 's'}? This should only be used for old tickets that were already handled.`
+    );
+    if (!confirmed) return;
+
+    this.backlogClearBusy.set(true);
+    this.backlogClearMessage.set('');
+    forkJoin(tasks).subscribe({
+      next: () => {
+        this.backlogClearBusy.set(false);
+        this.backlogClearMessage.set(`Completed ${itemCount} backlog item${itemCount === 1 ? '' : 's'}.`);
+        this.loadOrders({ background: true });
+      },
+      error: () => {
+        this.backlogClearBusy.set(false);
+        this.backlogClearMessage.set('Some backlog items could not be completed. Refresh and review the remaining tickets.');
+        this.loadOrders({ background: true });
+      },
     });
   }
 }

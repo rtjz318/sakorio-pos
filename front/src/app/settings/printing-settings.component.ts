@@ -52,6 +52,20 @@ import {
         </article>
       </div>
 
+      <article class="panel readiness-panel" [class.ready]="printingLaunchReady()" [class.attention]="!printingLaunchReady()">
+        <div>
+          <p class="eyebrow">Launch readiness</p>
+          <h3>{{ printingLaunchReady() ? 'Printing is ready for service' : 'Printing still needs setup' }}</h3>
+          <p class="muted">{{ printingReadinessCopy() }}</p>
+        </div>
+        <ul>
+          <li [class.done]="activeAgents().length > 0">Pair at least one active print agent</li>
+          <li [class.done]="onlineAgents() > 0">Keep one agent online in the last 90 seconds</li>
+          <li [class.done]="failedJobs() === 0">Resolve failed jobs before opening</li>
+          <li [class.done]="completedJobs() > 0">Run one dry-run or real receipt test</li>
+        </ul>
+      </article>
+
       @if (pairingToken()) {
         <div class="token-panel" role="status">
           <div>
@@ -209,6 +223,58 @@ import {
     .metrics strong { font-size: 1.75rem; }
     .metrics small, .agent small { color: #79818a; }
     .metrics .attention { border-color: #e6a14b; background: #fffaf1; }
+    .readiness-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 0.9fr);
+      gap: 1rem;
+      align-items: start;
+      margin-bottom: 1rem;
+    }
+    .readiness-panel.ready {
+      border-color: #b9e5d0;
+      background: linear-gradient(135deg, #f1fbf6, #fff);
+    }
+    .readiness-panel.attention {
+      border-color: #f0c36b;
+      background: linear-gradient(135deg, #fff8e8, #fff);
+    }
+    .readiness-panel ul {
+      display: grid;
+      gap: 0.45rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .readiness-panel li {
+      position: relative;
+      padding-left: 1.55rem;
+      color: #6b7280;
+      line-height: 1.35;
+    }
+    .readiness-panel li::before {
+      content: '!';
+      position: absolute;
+      left: 0;
+      top: 0.05rem;
+      display: grid;
+      place-items: center;
+      width: 1.05rem;
+      height: 1.05rem;
+      border-radius: 999px;
+      background: #fde8b2;
+      color: #8a5a13;
+      font-size: 0.72rem;
+      font-weight: 900;
+    }
+    .readiness-panel li.done {
+      color: #216e4e;
+      font-weight: 700;
+    }
+    .readiness-panel li.done::before {
+      content: '✓';
+      background: #dff4eb;
+      color: #137a53;
+    }
     .token-panel { display: grid; gap: 1rem; margin-bottom: 1rem; padding: 1.1rem; border-color: #e3a38e; background: linear-gradient(135deg, #fff8f4, #fff); }
     .token-panel code { display: block; overflow-wrap: anywhere; padding: .85rem; border-radius: 10px; background: #20262d; color: #fff; }
     .button { min-height: 42px; padding: .65rem 1rem; border-radius: 11px; border: 1px solid transparent; font: inherit; font-weight: 750; cursor: pointer; }
@@ -253,6 +319,7 @@ import {
     .job-error { display: block; max-width: 260px; margin-top: .25rem; color: #ae3927; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     @media (max-width: 900px) {
       .metrics { grid-template-columns: repeat(2, 1fr); }
+      .readiness-panel { grid-template-columns: 1fr; }
       .workspace { grid-template-columns: 1fr; }
     }
     @media (max-width: 560px) {
@@ -285,6 +352,12 @@ export class PrintingSettingsComponent implements OnInit, OnDestroy {
   pendingJobs = computed(() => this.jobs().filter((job) => job.status === 'pending' || job.status === 'leased').length);
   failedJobs = computed(() => this.jobs().filter((job) => job.status === 'failed').length);
   completedJobs = computed(() => this.jobs().filter((job) => job.status === 'completed').length);
+  printingLaunchReady = computed(() =>
+    this.activeAgents().length > 0 &&
+    this.onlineAgents() > 0 &&
+    this.failedJobs() === 0 &&
+    this.completedJobs() > 0
+  );
 
   ngOnInit(): void {
     this.reload();
@@ -382,5 +455,21 @@ export class PrintingSettingsComponent implements OnInit, OnDestroy {
   receiptLabel(type: string): string {
     if (type === 'customer_receipt') return 'Customer receipt';
     return type === 'bar_receipt' ? 'Bar ticket' : 'Kitchen ticket';
+  }
+
+  printingReadinessCopy(): string {
+    if (this.printingLaunchReady()) {
+      return 'At least one agent is online, recent receipts have printed, and there are no failed jobs in the current window.';
+    }
+    if (this.activeAgents().length === 0) {
+      return 'Pair the first print agent, then run a dry-run receipt before launch.';
+    }
+    if (this.onlineAgents() === 0) {
+      return 'A print agent exists, but none are online. Start the restaurant printer agent on the local device.';
+    }
+    if (this.failedJobs() > 0) {
+      return 'Resolve or retry failed print jobs before launch.';
+    }
+    return 'Run one dry-run or real receipt test so the delivery log confirms receipts are flowing.';
   }
 }

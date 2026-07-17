@@ -1333,6 +1333,9 @@ export interface Order {
   table_name: string;
   table_id?: number | null;
   table_token?: string | null;
+  table_is_active?: boolean;
+  table_active_order_id?: number | null;
+  is_current_table_session?: boolean;
   status: string;
   notes?: string;
   session_id?: string;

@@ -2242,10 +2242,12 @@ export class OrdersComponent implements OnInit, OnDestroy {
   });
 
   // Computed signals for separating active and completed orders
-  // Paid orders stay active until delivered (status → completed), so waiters/kitchen/bar still see them
+  // The live service board only shows the current table session. Previous table sessions, even if
+  // they still have older statuses, belong under History so staff do not mix old bills with today’s party.
   activeOrders = computed(() => {
     const tid = this.tableScopeId();
     let list = this.orders().filter(o =>
+      this.isCurrentServiceOrder(o) &&
       ['pending', 'preparing', 'ready', 'partially_delivered'].includes(o.status)
     );
     if (tid != null) list = list.filter(o => o.table_id === tid);
@@ -2258,18 +2260,41 @@ export class OrdersComponent implements OnInit, OnDestroy {
   });
   completedOrders = computed(() => {
     const tid = this.tableScopeId();
-    let list = this.orders().filter(o => ['completed', 'cancelled', 'paid'].includes(o.status));
+    let list = this.orders().filter(o => this.isHistoryOrder(o));
     if (tid != null) list = list.filter(o => o.table_id === tid);
     return list;
   });
   notPaidOrders = computed(() => {
     const tid = this.tableScopeId();
-    let list = this.orders().filter(o => o.status === 'completed' && !o.paid_at);
+    let list = this.orders().filter(o =>
+      this.isCurrentServiceOrder(o) &&
+      o.status === 'completed' &&
+      !o.paid_at
+    );
     if (tid != null) list = list.filter(o => o.table_id === tid);
     return list;
   });
   activeOrderGroups = computed(() => this.groupOrdersByTable(this.activeOrders()));
   notPaidOrderGroups = computed(() => this.groupOrdersByTable(this.notPaidOrders()));
+
+  private isCurrentTableSessionOrder(order: Order): boolean {
+    if (order.table_id == null) return false;
+    if (order.is_current_table_session === true) return true;
+    return !!order.table_is_active && order.table_active_order_id != null && order.table_active_order_id === order.id;
+  }
+
+  private isCurrentServiceOrder(order: Order): boolean {
+    // Counter/delivery tickets have no table session anchor, so keep them on the live board by status.
+    if (order.table_id == null) return true;
+    return this.isCurrentTableSessionOrder(order);
+  }
+
+  private isHistoryOrder(order: Order): boolean {
+    if (order.table_id != null && !this.isCurrentTableSessionOrder(order)) {
+      return true;
+    }
+    return ['completed', 'cancelled', 'paid'].includes(order.status);
+  }
 
   // AG Grid configuration - custom light theme matching app colors
   gridTheme = themeQuartz.withParams({
@@ -2702,9 +2727,14 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
     /** Resolve focus using full order list (ignore table scope filter). */
     const rawActive = this.orders().filter(o =>
+      this.isCurrentServiceOrder(o) &&
       ['pending', 'preparing', 'ready', 'partially_delivered'].includes(o.status)
     );
-    const rawNotPaid = this.orders().filter(o => o.status === 'completed' && !o.paid_at);
+    const rawNotPaid = this.orders().filter(o =>
+      this.isCurrentServiceOrder(o) &&
+      o.status === 'completed' &&
+      !o.paid_at
+    );
 
     let preserveTableId: number | null = null;
 
@@ -2747,20 +2777,22 @@ export class OrdersComponent implements OnInit, OnDestroy {
       const forTable = this.orders().filter(o => o.table_id === focusTableId);
       const activeStatuses = ['pending', 'preparing', 'ready', 'partially_delivered'];
       const activeForTable = forTable
-        .filter(o => activeStatuses.includes(o.status))
+        .filter(o => this.isCurrentServiceOrder(o) && activeStatuses.includes(o.status))
         .sort((a, b) => (b.staff_urgent ? 1 : 0) - (a.staff_urgent ? 1 : 0) || a.id - b.id);
       if (activeForTable.length > 0) {
         mode = 'active';
         scrollId = activeForTable[0].id;
       } else {
-        const notPaid = forTable.filter(o => o.status === 'completed' && !o.paid_at);
+        const notPaid = forTable.filter(o =>
+          this.isCurrentServiceOrder(o) &&
+          o.status === 'completed' &&
+          !o.paid_at
+        );
         if (notPaid.length > 0) {
           mode = 'not_paid';
           scrollId = notPaid[0].id;
         } else {
-          const hist = forTable
-            .filter(o => ['completed', 'cancelled', 'paid'].includes(o.status))
-            .sort((a, b) => b.id - a.id);
+          const hist = forTable.filter(o => this.isHistoryOrder(o)).sort((a, b) => b.id - a.id);
           if (hist.length > 0) {
             mode = 'history';
             openEdit = hist[0];

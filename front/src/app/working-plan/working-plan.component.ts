@@ -240,6 +240,73 @@ function isValidView(v: string | null): v is ViewMode {
       }
 
       @if (scheduleUsers().length) {
+        <section class="timetable-command-grid" data-testid="timetable-command-grid">
+          <article class="timetable-roster-panel">
+            <div class="timetable-panel-head">
+              <div>
+                <span class="staff-readiness-eyebrow">Smart scheduling</span>
+                <h2>Employee roster</h2>
+                <p>Drag a staff member onto a calendar day, or tap Schedule to create a shift fast.</p>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" (click)="openCreate()">Add shift</button>
+            </div>
+            <div class="timetable-roster-list">
+              @for (row of timetableRosterRows(); track row.user.id) {
+                <div
+                  class="timetable-roster-card"
+                  [class.timetable-roster-card--attention]="row.needsAttention"
+                  [attr.draggable]="canWriteSchedule()"
+                  (dragstart)="startRosterDrag(row.user)"
+                  (dragend)="endRosterDrag()"
+                >
+                  <div class="timetable-avatar" [style.--wp-shift-h]="shiftHue(row.user.id || 0)">
+                    {{ rosterInitials(row.user) }}
+                  </div>
+                  <div class="timetable-roster-copy">
+                    <strong>{{ row.user.full_name || row.user.email }}</strong>
+                    <span>{{ getRoleLabel(row.user.role) }} · {{ row.shiftCount }} shifts · {{ formatRosterHours(row.plannedMinutes) }}</span>
+                    @if (row.needsAttention) {
+                      <small>{{ row.attentionLabel }}</small>
+                    }
+                  </div>
+                  <button type="button" class="btn btn-ghost btn-sm" (click)="openCreateForUser(row.user.id!)" [disabled]="row.user.id == null">
+                    Schedule
+                  </button>
+                </div>
+              }
+            </div>
+          </article>
+
+          <article class="timetable-leave-panel">
+            <div class="timetable-panel-head">
+              <div>
+                <span class="staff-readiness-eyebrow">Leave control</span>
+                <h2>Annual leave / MC balances</h2>
+                <p>Ready for entitlement tracking: staff leave, MC and unpaid leave will deduct from balances once the leave ledger is enabled.</p>
+              </div>
+            </div>
+            <div class="leave-balance-grid">
+              <div class="leave-balance-card">
+                <span>Annual leave</span>
+                <strong>Policy setup required</strong>
+                <small>Next backend slice: entitlement, approval and automatic deduction.</small>
+              </div>
+              <div class="leave-balance-card">
+                <span>MC / sick leave</span>
+                <strong>Policy setup required</strong>
+                <small>Record certificates and subtract used days from staff balance.</small>
+              </div>
+              <div class="leave-balance-card leave-balance-card--ready">
+                <span>Coverage check</span>
+                <strong>{{ complianceWarnings().length ? complianceWarnings().length + ' warning(s)' : 'Clear' }}</strong>
+                <small>Uses opening-hours staffing requirements and scheduled shifts.</small>
+              </div>
+            </div>
+          </article>
+        </section>
+      }
+
+      @if (scheduleUsers().length) {
         <section class="staff-readiness-panel" data-testid="working-plan-staff-readiness">
           <div class="staff-readiness-copy">
             <span class="staff-readiness-eyebrow">Attendance setup</span>
@@ -373,6 +440,9 @@ function isValidView(v: string | null): v is ViewMode {
                     [class.calendar-cell-closed]="cell.isClosed"
                     [class.calendar-day-matches]="cell.hasIssue"
                     [class.calendar-day-ok]="cell.showOk"
+                    [class.calendar-cell-drop-target]="draggedRosterUserId != null && !!cell.day && canWriteSchedule()"
+                    (dragover)="onTimetableDragOver($event)"
+                    (drop)="onRosterDropOnDate($event, cell.dateStr!)"
                   >
                     @if (cell.day) {
                       <div class="calendar-day-head">
@@ -707,6 +777,89 @@ function isValidView(v: string | null): v is ViewMode {
     .export-worker-select { min-width: 10rem; max-width: 14rem; padding: 0.35rem 0.5rem; border: 1px solid var(--border-color, #ccc); border-radius: 6px; font-size: 0.875rem; }
     .export-hint { font-size: 0.75rem; color: var(--text-muted, #666); margin: 0 0 1rem 0; }
     .export-hint-muted { font-style: italic; }
+    .timetable-command-grid {
+      display: grid;
+      grid-template-columns: minmax(20rem, 1.25fr) minmax(18rem, 0.9fr);
+      gap: 1rem;
+      margin: 0 0 1rem 0;
+    }
+    .timetable-roster-panel,
+    .timetable-leave-panel {
+      border: 1px solid var(--border-color, #e5e7eb);
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+      padding: 1rem;
+    }
+    .timetable-panel-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.85rem;
+    }
+    .timetable-panel-head h2 { margin: 0.1rem 0; font-size: 1.05rem; }
+    .timetable-panel-head p { margin: 0; color: var(--text-muted, #666); font-size: 0.85rem; line-height: 1.45; }
+    .timetable-roster-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+      gap: 0.65rem;
+    }
+    .timetable-roster-card {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.7rem;
+      padding: 0.75rem;
+      border: 1px solid var(--border-color, #e5e7eb);
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.98));
+      cursor: grab;
+    }
+    .timetable-roster-card:active { cursor: grabbing; }
+    .timetable-roster-card--attention { border-color: rgba(217, 119, 6, 0.32); background: rgba(255, 251, 235, 0.75); }
+    .timetable-avatar {
+      width: 2.4rem;
+      height: 2.4rem;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: hsl(var(--wp-shift-h, 185), 72%, 38%);
+      color: #fff;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+    .timetable-roster-copy { min-width: 0; display: flex; flex-direction: column; gap: 0.12rem; }
+    .timetable-roster-copy strong,
+    .timetable-roster-copy span,
+    .timetable-roster-copy small {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .timetable-roster-copy span { color: var(--text-muted, #666); font-size: 0.8rem; }
+    .timetable-roster-copy small { color: #92400e; font-weight: 700; font-size: 0.72rem; }
+    .leave-balance-grid { display: grid; gap: 0.65rem; }
+    .leave-balance-card {
+      padding: 0.85rem;
+      border-radius: 14px;
+      border: 1px solid rgba(15, 118, 110, 0.16);
+      background: rgba(240, 253, 250, 0.72);
+    }
+    .leave-balance-card span {
+      display: block;
+      color: var(--primary-color, #0f766e);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .leave-balance-card strong { display: block; margin: 0.25rem 0; font-size: 0.98rem; }
+    .leave-balance-card small { display: block; color: var(--text-muted, #666); line-height: 1.4; }
+    .leave-balance-card--ready { background: rgba(236, 253, 245, 0.85); }
+    @media (max-width: 1050px) {
+      .timetable-command-grid { grid-template-columns: 1fr; }
+    }
     .staff-readiness-panel {
       display: grid;
       grid-template-columns: minmax(16rem, 1fr) minmax(24rem, 1.3fr);
@@ -827,6 +980,11 @@ function isValidView(v: string | null): v is ViewMode {
       min-height: 7.75rem; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
       border: 1px solid var(--border-color, #eee); border-radius: 6px;
       font-size: 0.875rem; min-width: 0; padding: 0.3rem 0.35rem; gap: 0.15rem;
+    }
+    .calendar-cell-drop-target {
+      outline: 2px dashed rgba(15, 118, 110, 0.45);
+      outline-offset: -4px;
+      background-image: linear-gradient(135deg, rgba(15, 118, 110, 0.08), transparent);
     }
     .calendar-cell-header {
       font-weight: 600; background: var(--card-bg, #f8f8f8); aspect-ratio: auto; padding: 0.25rem 0;
@@ -996,6 +1154,7 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
   exportUserId = signal<number | null>(null);
   exportLoading = signal(false);
   exportPvaLoading = signal(false);
+  draggedRosterUserId: number | null = null;
   /** Planned vs clocked block expanded (default collapsed; optional persistence). */
   pvaSectionOpen = signal(false);
   /** Bulk “apply to month” modal. */
@@ -1075,6 +1234,30 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
       warnings.push(`${incomplete.length} staff ${incomplete.length === 1 ? 'profile needs' : 'profiles need'} completion.`);
     }
     return warnings.slice(0, 2);
+  });
+
+  timetableRosterRows = computed(() => {
+    const shifts = this.shifts();
+    return this.scheduleUsers()
+      .map((user) => {
+        const userShifts = user.id == null ? [] : shifts.filter((shift) => shift.user_id === user.id);
+        const plannedMinutes = userShifts.reduce(
+          (total, shift) => total + this.shiftDurationMinutes(shift.start_time, shift.end_time),
+          0,
+        );
+        const missingRate = user.role !== 'owner' && user.role !== 'admin' && (user.hourly_rate_cents ?? 0) <= 0;
+        const incomplete = user.role !== 'owner' && user.role !== 'admin' && (!user.full_name?.trim() || !user.profile_completed_at);
+        return {
+          user,
+          shiftCount: userShifts.length,
+          plannedMinutes,
+          needsAttention: missingRate || incomplete,
+          attentionLabel: missingRate ? 'Missing hourly rate' : incomplete ? 'Profile incomplete' : '',
+        };
+      })
+      .sort((a, b) =>
+        (a.user.full_name || a.user.email).localeCompare(b.user.full_name || b.user.email),
+      );
   });
 
   /** Time options for bulk apply (Monday opening hours as template, or full day). */
@@ -1667,6 +1850,49 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
     return `${sign}${this.formatMinutes(Math.abs(m))}`;
   }
 
+  formatRosterHours(minutes: number): string {
+    return minutes > 0 ? this.formatMinutes(minutes) : '0h planned';
+  }
+
+  rosterInitials(user: User): string {
+    const label = (user.full_name || user.email || '?').trim();
+    const parts = label.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return label.slice(0, 2).toUpperCase();
+  }
+
+  startRosterDrag(user: User): void {
+    if (!this.canWriteSchedule() || user.id == null) return;
+    this.draggedRosterUserId = user.id;
+  }
+
+  endRosterDrag(): void {
+    this.draggedRosterUserId = null;
+  }
+
+  onTimetableDragOver(event: DragEvent): void {
+    if (this.draggedRosterUserId == null || !this.canWriteSchedule()) return;
+    event.preventDefault();
+  }
+
+  onRosterDropOnDate(event: DragEvent, date: string | undefined): void {
+    if (this.draggedRosterUserId == null || !date || !this.canWriteSchedule()) return;
+    event.preventDefault();
+    const userId = this.draggedRosterUserId;
+    this.draggedRosterUserId = null;
+    this.openCreateForUserOnDate(userId, date);
+  }
+
+  private shiftDurationMinutes(start: string | undefined, end: string | undefined): number {
+    if (!start || !end) return 0;
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    if (![sh, sm, eh, em].every(Number.isFinite)) return 0;
+    return Math.max(0, eh * 60 + em - (sh * 60 + sm));
+  }
+
   complianceWarningText(w: ScheduleComplianceWarning): string {
     if (w.code === 'weekly_planned_over_limit') {
       return this.translate.instant('WORKING_PLAN.COMPLIANCE_WEEKLY', {
@@ -1976,6 +2202,18 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
 
   openCreateForDate(date: string): void {
     this.openCreate();
+    this.formDate = date;
+    this.onFormDateChange(date);
+  }
+
+  openCreateForUser(userId: number): void {
+    this.openCreate();
+    this.formUserId = userId;
+  }
+
+  openCreateForUserOnDate(userId: number, date: string): void {
+    this.openCreate();
+    this.formUserId = userId;
     this.formDate = date;
     this.onFormDateChange(date);
   }

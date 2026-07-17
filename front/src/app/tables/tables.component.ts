@@ -393,7 +393,7 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                     } @else {
                       <button type="button" class="icon-btn icon-btn-edit" (click)="startEdit(table)" [title]="'COMMON.EDIT' | translate">✎</button>
                       @if (table.is_active) {
-                        <button type="button" class="btn btn-sm btn-warning btn-square" (click)="confirmCloseTable(table)" [disabled]="activatingTableId() === table.id" [title]="'TABLES.CLOSE_TABLE' | translate">⌫</button>
+                        <button type="button" class="btn btn-sm btn-warning" (click)="confirmCloseTable(table)" [disabled]="activatingTableId() === table.id" [title]="'TABLES.CLOSE_TABLE' | translate">Close</button>
                       } @else {
                         <button type="button" class="btn btn-sm btn-success btn-square" (click)="activateTableSession(table)" [disabled]="activatingTableId() === table.id" [title]="'TABLES.ACTIVATE' | translate">▶</button>
                       }
@@ -656,6 +656,16 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   <button type="button" class="btn btn-primary btn-sm" (click)="openQuickTable(table, 'menu')">
                     {{ table.active_order_id ? 'Add items' : 'Start order' }}
                   </button>
+                  @if (table.is_active) {
+                    <button
+                      type="button"
+                      class="btn btn-warning btn-sm"
+                      [disabled]="activatingTableId() === table.id"
+                      (click)="confirmCloseTable(table)"
+                    >
+                      {{ activatingTableId() === table.id ? 'Closing...' : 'Close table' }}
+                    </button>
+                  }
                 }
               </div>
 
@@ -786,7 +796,10 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
               <nav class="table-service-tabs" aria-label="Table service views">
                 <button type="button" [class.active]="quickOrderView() === 'menu'" (click)="quickOrderView.set('menu')">Add items</button>
                 <button type="button" [class.active]="quickOrderView() === 'orders'" (click)="quickOrderView.set('orders')">
-                  Orders <span>{{ quickTableOrders().length }}</span>
+                  Orders <span>{{ quickCurrentSessionOrders().length }}</span>
+                </button>
+                <button type="button" [class.active]="quickOrderView() === 'history'" (click)="quickOrderView.set('history')">
+                  History <span>{{ quickHistoryOrders().length }}</span>
                 </button>
                 <button type="button" [class.active]="quickOrderView() === 'qr'" (click)="quickOrderView.set('qr')">Table QR</button>
               </nav>
@@ -891,17 +904,46 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
               } @else if (quickOrderView() === 'orders') {
                 <div class="quick-orders-view">
                   <div class="quick-orders-heading">
-                    <div><span>Table history</span><h3>{{ serviceTable.name }} orders</h3></div>
+                    <div><span>Current session</span><h3>{{ serviceTable.name }} live orders</h3></div>
                     <button type="button" class="btn btn-secondary btn-sm" (click)="openOrdersForTable(serviceTable)">Open full orders page</button>
                   </div>
                   @if (quickOrderLoading()) {
                     <div class="quick-empty">Loading orders…</div>
-                  } @else if (quickTableOrders().length === 0) {
-                    <div class="quick-empty">No orders have been recorded for this table yet.</div>
+                  } @else if (quickCurrentSessionOrders().length === 0) {
+                    <div class="quick-empty">No orders in the current table session yet. Add items or check History for older bills.</div>
                   } @else {
                     <div class="quick-order-list">
-                      @for (order of quickTableOrders(); track order.id) {
+                      @for (order of quickCurrentSessionOrders(); track order.id) {
                         <article class="quick-order-card" [class.quick-order-card--active]="order.id === serviceTable.active_order_id">
+                          <div class="quick-order-card-head">
+                            <div><small>{{ formatQuickOrderTime(order.created_at) }}</small><strong>Order #{{ order.id }}</strong></div>
+                            <span [class]="'quick-order-state quick-order-state--' + order.status">{{ quickOrderStatusLabel(order.status) }}</span>
+                          </div>
+                          <div class="quick-order-items">
+                            @for (item of order.items; track item.id) {
+                              <span><b>{{ item.quantity }}×</b> {{ item.product_name }}</span>
+                            }
+                          </div>
+                          <div class="quick-order-total"><span>{{ order.payment_method || 'Payment pending' }}</span><strong>{{ formatQuickMoney(order.total_cents) }}</strong></div>
+                        </article>
+                      }
+                    </div>
+                  }
+                </div>
+              } @else if (quickOrderView() === 'history') {
+                <div class="quick-orders-view">
+                  <div class="quick-orders-heading">
+                    <div><span>Previous sessions</span><h3>{{ serviceTable.name }} history</h3></div>
+                    <button type="button" class="btn btn-secondary btn-sm" (click)="openOrdersForTable(serviceTable)">Open full history page</button>
+                  </div>
+                  @if (quickOrderLoading()) {
+                    <div class="quick-empty">Loading history…</div>
+                  } @else if (quickHistoryOrders().length === 0) {
+                    <div class="quick-empty">No previous sessions for this table yet.</div>
+                  } @else {
+                    <div class="quick-order-list">
+                      @for (order of quickHistoryOrders(); track order.id) {
+                        <article class="quick-order-card">
                           <div class="quick-order-card-head">
                             <div><small>{{ formatQuickOrderTime(order.created_at) }}</small><strong>Order #{{ order.id }}</strong></div>
                             <span [class]="'quick-order-state quick-order-state--' + order.status">{{ quickOrderStatusLabel(order.status) }}</span>
@@ -2127,7 +2169,7 @@ export class TablesComponent implements OnInit {
   queueSummary = signal<GuestQueueSummary | null>(null);
   queueEntries = signal<GuestQueueEntry[]>([]);
   quickOrderTable = signal<CanvasTable | null>(null);
-  quickOrderView = signal<'menu' | 'orders' | 'qr'>('menu');
+  quickOrderView = signal<'menu' | 'orders' | 'history' | 'qr'>('menu');
   quickOrderProducts = signal<Product[]>([]);
   quickTableOrders = signal<Order[]>([]);
   quickOrderLoading = signal(false);
@@ -2165,6 +2207,22 @@ export class TablesComponent implements OnInit {
     (total, line) => total + (line.product.price_cents * line.quantity),
     0,
   ));
+  quickCurrentSessionOrders = computed(() => {
+    const table = this.quickOrderTable();
+    const activeOrderId = table?.active_order_id ?? null;
+    if (activeOrderId != null) {
+      return this.quickTableOrders().filter((order) => order.id === activeOrderId);
+    }
+    if (!table?.is_active) return [];
+    return this.quickTableOrders().filter((order) =>
+      order.is_current_table_session === true ||
+      (!!order.table_is_active && order.table_active_order_id === order.id)
+    );
+  });
+  quickHistoryOrders = computed(() => {
+    const currentIds = new Set(this.quickCurrentSessionOrders().map((order) => order.id));
+    return this.quickTableOrders().filter((order) => !currentIds.has(order.id));
+  });
 
   // Confirmation Modal State
   confirmationModal = signal<{
@@ -2420,7 +2478,7 @@ export class TablesComponent implements OnInit {
     return this.permissions.canAccessRoute(this.api.getCurrentUser(), '/staff/orders');
   }
 
-  openQuickTable(table: CanvasTable, view: 'menu' | 'orders' | 'qr' = 'menu'): void {
+  openQuickTable(table: CanvasTable, view: 'menu' | 'orders' | 'history' | 'qr' = 'menu'): void {
     if (!table.id) return;
     this.quickOrderTable.set(table);
     this.quickOrderView.set(view);

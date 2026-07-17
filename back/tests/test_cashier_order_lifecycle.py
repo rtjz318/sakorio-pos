@@ -116,6 +116,13 @@ class TestCashierOrderLifecycle(PgClientTestCase):
         self.assertEqual(second["status"], "updated")
         self.assertEqual(second["order_id"], order_id)
 
+        listed = self.client.get("/orders", headers=self.headers)
+        self.assertEqual(listed.status_code, 200, listed.text)
+        listed_order = next(row for row in listed.json() if row["id"] == order_id)
+        self.assertTrue(listed_order["table_is_active"])
+        self.assertEqual(listed_order["table_active_order_id"], order_id)
+        self.assertTrue(listed_order["is_current_table_session"])
+
         orders = self.session.exec(
             select(models.Order).where(models.Order.table_id == self.table_id)
         ).all()

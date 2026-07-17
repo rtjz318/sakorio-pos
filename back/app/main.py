@@ -12743,12 +12743,23 @@ def list_orders(
             table_display = "Delivery"
         elif table:
             table_display = table.name
+        table_active_order_id = table.active_order_id if table else None
+        table_is_active = bool(table.is_active) if table else False
+        is_current_table_session = bool(
+            table
+            and table.is_active
+            and table.active_order_id is not None
+            and table.active_order_id == order.id
+        )
 
         row_out = {
             "id": order.id,
             "table_name": table_display,
             "table_id": table.id if table else None,
             "table_token": table.token if table else None,
+            "table_is_active": table_is_active,
+            "table_active_order_id": table_active_order_id,
+            "is_current_table_session": is_current_table_session,
             "status": computed_status.value,
             "notes": order.notes,
             "session_id": order.session_id,

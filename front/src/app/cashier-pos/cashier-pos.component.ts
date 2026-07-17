@@ -4375,11 +4375,18 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       }
 
       .catalog-toolbar-actions {
-        grid-column: 1 / -1;
+        display: none;
+      }
+
+      .catalog-hints {
+        display: none;
       }
 
       .category-chip-row {
         gap: 0.38rem;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 0.12rem;
       }
 
       .category-chip {
@@ -4390,18 +4397,18 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
       .product-grid {
         grid-template-columns: repeat(auto-fill, minmax(9.6rem, 1fr));
-        gap: 0.46rem;
+        gap: 0.42rem;
       }
 
       .product-card {
-        min-height: 7.15rem;
-        padding: 0.54rem;
+        min-height: 5.9rem;
+        padding: 0.5rem;
         border-radius: var(--radius-lg);
       }
 
       .product-card-body {
         grid-template-columns: minmax(0, 1fr);
-        gap: 0.38rem;
+        gap: 0.26rem;
       }
 
       .product-card-media {
@@ -4409,7 +4416,11 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       }
 
       .product-card-content {
-        gap: 0.32rem;
+        gap: 0.24rem;
+      }
+
+      .product-card-copy {
+        gap: 0.18rem;
       }
 
       .product-title-stack strong {
@@ -4425,17 +4436,12 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       }
 
       .product-notes {
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-        min-height: 1.75rem;
+        display: none;
       }
 
       .product-card-bottom {
         align-items: end;
-        gap: 0.42rem;
+        gap: 0.32rem;
       }
 
       .product-price {
@@ -4443,8 +4449,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       }
 
       .product-card-bottom .btn {
-        min-height: 2.35rem;
-        padding-inline: 0.62rem;
+        min-height: 2.25rem;
+        padding-inline: 0.58rem;
       }
 
       .settlement-mode-grid--compact {
@@ -4581,12 +4587,12 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
       .product-grid {
         grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
-        gap: 0.5rem;
+        gap: 0.46rem;
       }
 
       .product-card {
-        min-height: 7.6rem;
-        padding: 0.58rem;
+        min-height: 6.1rem;
+        padding: 0.52rem;
       }
 
       .product-card-body {
@@ -4598,11 +4604,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       }
 
       .product-notes {
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+        display: none;
       }
 
       .inline-hint--compact {

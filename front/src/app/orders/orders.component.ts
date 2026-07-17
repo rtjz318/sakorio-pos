@@ -2248,7 +2248,10 @@ export class OrdersComponent implements OnInit, OnDestroy {
     const tid = this.tableScopeId();
     let list = this.orders().filter(o =>
       this.isCurrentServiceOrder(o) &&
-      ['pending', 'preparing', 'ready', 'partially_delivered'].includes(o.status)
+      (
+        ['pending', 'preparing', 'ready', 'partially_delivered', 'paid'].includes(o.status) ||
+        !!o.paid_at
+      )
     );
     if (tid != null) list = list.filter(o => o.table_id === tid);
     return [...list].sort((a, b) => {
@@ -2290,6 +2293,13 @@ export class OrdersComponent implements OnInit, OnDestroy {
   }
 
   private isHistoryOrder(order: Order): boolean {
+    if (
+      order.table_id != null &&
+      this.isCurrentTableSessionOrder(order) &&
+      order.status !== 'cancelled'
+    ) {
+      return false;
+    }
     if (order.table_id != null && !this.isCurrentTableSessionOrder(order)) {
       return true;
     }

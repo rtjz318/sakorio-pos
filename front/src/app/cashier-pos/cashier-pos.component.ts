@@ -78,6 +78,7 @@ interface PosCheckoutOutcome {
 }
 
 type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
+type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 
 @Component({
   selector: 'app-cashier-pos',
@@ -958,6 +959,335 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
             }
           </section>
         }
+
+        @if (tableWorkspaceOpen()) {
+          @if (effectiveCheckoutTable(); as serviceTable) {
+            <div class="pos-service-overlay" (click)="closeTableWorkspace()">
+              <section
+                class="pos-service-drawer"
+                (click)="$event.stopPropagation()"
+                aria-modal="true"
+                role="dialog"
+                aria-label="POS table service">
+                <header class="pos-service-header">
+                  <div>
+                    <span class="pos-service-eyebrow">POS table service</span>
+                    <h2>{{ serviceTable.name }}</h2>
+                    <p>{{ selectedTableSummary(serviceTable) }}</p>
+                  </div>
+                  <div class="pos-service-header-actions">
+                    <span class="service-status" [class.service-status--live]="!!serviceTable.active_order_id">
+                      {{ serviceTable.active_order_id ? 'Live order #' + serviceTable.active_order_id : getTableStateLabel(serviceTable) }}
+                    </span>
+                    <button type="button" class="pos-service-close" (click)="closeTableWorkspace()" aria-label="Close POS table service">x</button>
+                  </div>
+                </header>
+
+                <nav class="pos-service-tabs" aria-label="POS table views">
+                  <button type="button" [class.active]="posDrawerView() === 'menu'" (click)="setPosDrawerView('menu')">
+                    Add items
+                  </button>
+                  <button type="button" [class.active]="posDrawerView() === 'checkout'" (click)="setPosDrawerView('checkout')">
+                    Bill / Pay <span>{{ checkoutSummaryTotalCopy() }}</span>
+                  </button>
+                  <button type="button" [class.active]="posDrawerView() === 'orders'" (click)="setPosDrawerView('orders')">
+                    Orders <span>{{ posCurrentSessionOrders().length }}</span>
+                  </button>
+                  <button type="button" [class.active]="posDrawerView() === 'history'" (click)="setPosDrawerView('history')">
+                    History <span>{{ posHistoryOrders().length }}</span>
+                  </button>
+                </nav>
+
+                @if (posDrawerView() === 'menu') {
+                  <div class="pos-service-workspace">
+                    <div class="pos-service-menu-pane">
+                      <div class="pos-service-toolbar">
+                        <label class="pos-service-search">
+                          <span>Search menu</span>
+                          <input
+                            id="pos-drawer-catalog-search"
+                            type="search"
+                            [ngModel]="productSearch()"
+                            (ngModelChange)="productSearch.set($event || '')"
+                            placeholder="Dish, drink, category" />
+                        </label>
+                        <div class="pos-service-categories" aria-label="Menu categories">
+                          <button type="button" [class.active]="!selectedCategory()" (click)="selectedCategory.set('')">
+                            All <span>{{ activeProducts().length }}</span>
+                          </button>
+                          @for (category of productCategories(); track category) {
+                            <button type="button" [class.active]="selectedCategory() === category" (click)="selectedCategory.set(category)">
+                              {{ category }} <span>{{ productCountForCategory(category) }}</span>
+                            </button>
+                          }
+                        </div>
+                      </div>
+
+                      @if (loading() && sellableProducts().length === 0) {
+                        <div class="pos-service-empty">Loading menu...</div>
+                      } @else if (filteredProducts().length === 0) {
+                        <div class="pos-service-empty">No menu items match this search.</div>
+                      } @else {
+                        <div class="pos-service-product-grid">
+                          @for (product of filteredProducts(); track product.id) {
+                            <button
+                              type="button"
+                              class="pos-service-product-card"
+                              (click)="addProduct(product)"
+                              [disabled]="!canAddSelectedProduct()">
+                              <div class="pos-service-product-media" [class.pos-service-product-media--placeholder]="!productImageUrl(product)">
+                                @if (productImageUrl(product); as imageUrl) {
+                                  <img [src]="imageUrl" [alt]="product.name" (error)="markProductImageBroken(product)" />
+                                } @else {
+                                  <span>{{ productInitials(product.name) }}</span>
+                                }
+                              </div>
+                              <div class="pos-service-product-copy">
+                                <span>{{ product.category || product.catalogName || productSourceLabel(product) }}</span>
+                                <strong>{{ product.name }}</strong>
+                                <small>{{ product.description || product.ingredients || 'Tap to add' }}</small>
+                                <b>{{ formatPrice(product.priceCents) }}</b>
+                              </div>
+                              <span class="pos-service-add-badge">{{ cartQuantityFor(product.id!) || '+' }}</span>
+                            </button>
+                          }
+                        </div>
+                      }
+                    </div>
+
+                    <aside class="pos-service-cart-pane">
+                      <div class="pos-service-cart-title">
+                        <div>
+                          <span>{{ cartLines().length > 0 ? 'Current cart' : payableLiveBillOrder() ? 'Live bill' : 'Current cart' }}</span>
+                          <h3>{{ cartLines().length > 0 ? cartItemCount() + ' items' : cartTitle() }}</h3>
+                        </div>
+                        @if (cartLines().length > 0) {
+                          <button type="button" class="pos-service-text-button" (click)="clearCart()" [disabled]="processingCheckout()">Clear</button>
+                        }
+                      </div>
+
+                      @if (cartLines().length === 0) {
+                        @if (payableLiveBillOrder(); as liveBill) {
+                          <div class="pos-service-live-bill">
+                            <strong>Bill #{{ liveBill.id }}</strong>
+                            <span>{{ liveBill.items.length }} items · {{ formatPrice(liveBill.total_cents || 0) }}</span>
+                            <button type="button" class="btn btn-primary btn-sm" (click)="setPosDrawerView('checkout')">Checkout</button>
+                          </div>
+                          <div class="pos-service-cart-lines pos-service-cart-lines--readonly">
+                            @for (item of liveBill.items; track $index) {
+                              <article class="pos-service-cart-line">
+                                <div>
+                                  <strong>{{ item.quantity }} x {{ item.product_name }}</strong>
+                                  @if (item.customization_summary) {
+                                    <small>{{ item.customization_summary }}</small>
+                                  } @else if (item.notes) {
+                                    <small>{{ item.notes }}</small>
+                                  }
+                                </div>
+                                <span>{{ formatPrice((item.price_cents || 0) * (item.quantity || 0)) }}</span>
+                              </article>
+                            }
+                          </div>
+                        } @else {
+                          <div class="pos-service-cart-empty">
+                            <span>+</span>
+                            <strong>Tap a dish to add it</strong>
+                            <small>The cart stays inside this table drawer until checkout.</small>
+                          </div>
+                        }
+                      } @else {
+                        <div class="pos-service-cart-lines">
+                          @for (line of cartLines(); track line.lineKey) {
+                            <article class="pos-service-cart-line">
+                              <div>
+                                <strong>{{ line.name }}</strong>
+                                @if (line.customizationSummary) {
+                                  <small>{{ line.customizationSummary }}</small>
+                                }
+                                <span>{{ formatPrice(line.priceCents * line.quantity) }}</span>
+                              </div>
+                              <div class="pos-service-quantity">
+                                <button type="button" (click)="decrementLine(line.lineKey)" [disabled]="processingCheckout()" aria-label="Remove one">-</button>
+                                <b>{{ line.quantity }}</b>
+                                <button type="button" (click)="incrementLine(line.lineKey)" [disabled]="processingCheckout()" aria-label="Add one">+</button>
+                              </div>
+                            </article>
+                          }
+                        </div>
+                      }
+
+                      <div class="pos-service-cart-footer">
+                        <div><span>Items</span><strong>{{ checkoutSummaryItemsCopy() }}</strong></div>
+                        <div><span>Total</span><strong>{{ checkoutSummaryTotalCopy() }}</strong></div>
+                        <button type="button" class="pos-service-submit" (click)="setPosDrawerView('checkout')" [disabled]="!hasCheckoutWork()">
+                          Checkout
+                        </button>
+                      </div>
+                    </aside>
+                  </div>
+                } @else if (posDrawerView() === 'checkout') {
+                  <div class="pos-service-checkout">
+                    <div class="pos-service-checkout-main">
+                      <div>
+                        <span class="pos-service-eyebrow">Bill / Pay</span>
+                        <h3>{{ hasCheckoutWork() ? 'Collect payment' : checkoutIntroTitle() }}</h3>
+                        <p>{{ hasCheckoutWork() ? settlementSummaryCaption() : checkoutIntroCopy() }}</p>
+                      </div>
+                      <div class="pos-service-total-card">
+                        <span>Amount due</span>
+                        <strong>{{ checkoutSummaryTotalCopy() }}</strong>
+                        <small>{{ checkoutSummaryItemsCopy() }} · {{ checkoutSummaryTableCopy() }}</small>
+                      </div>
+                    </div>
+
+                    @if (lastCheckoutOutcome() && !hasCheckoutWork()) {
+                      <div class="pos-service-outcome">
+                        <strong>{{ checkoutOutcomeHeadline() }}</strong>
+                        <small>{{ checkoutOutcomeSupport() }}</small>
+                        <div class="pos-service-action-row">
+                          @if (canClearLastCheckoutTable()) {
+                            <button type="button" class="btn btn-primary btn-sm" (click)="clearLastCheckoutTable()" [disabled]="pendingTableId() === lastCheckoutTableId()">
+                              {{ pendingTableId() === lastCheckoutTableId() ? 'Clearing...' : 'Clear table' }}
+                            </button>
+                          }
+                          <button type="button" class="btn btn-secondary btn-sm" (click)="dismissCheckoutOutcome()">Close</button>
+                        </div>
+                      </div>
+                    } @else if (!hasCheckoutWork()) {
+                      <div class="pos-service-empty pos-service-empty--checkout">
+                        @if (canClearTable(serviceTable)) {
+                          <strong>{{ serviceTable.name }} is ready to clear.</strong>
+                          <button type="button" class="btn btn-primary btn-sm" (click)="clearTable(serviceTable)" [disabled]="pendingTableId() === serviceTable.id">
+                            {{ pendingTableId() === serviceTable.id ? 'Clearing...' : 'Clear table' }}
+                          </button>
+                        } @else {
+                          <strong>No payable bill yet.</strong>
+                          <button type="button" class="btn btn-primary btn-sm" (click)="setPosDrawerView('menu')">Add items</button>
+                        }
+                      </div>
+                    } @else {
+                      @if (hitPayFlowState() !== 'idle') {
+                        <div class="payment-state-strip" [class.payment-state-strip--error]="hitPayFlowState() === 'failed'">
+                          <span class="muted-pill muted-pill--accent">{{ hitPayStateLabel() }}</span>
+                          <small>{{ hitPayStateCopy() }}</small>
+                        </div>
+                      }
+                      <div class="pos-service-payment-grid">
+                        <button
+                          type="button"
+                          class="mode-card"
+                          [class.mode-card--selected]="primaryCheckoutMode() === 'cash'"
+                          (click)="selectSettlementMode('cash')"
+                          [disabled]="processingCheckout()">
+                          <span class="micro-label">Cash</span>
+                          <strong>Take cash</strong>
+                          <small>Counter payment</small>
+                        </button>
+                        <button
+                          type="button"
+                          class="mode-card"
+                          [class.mode-card--selected]="primaryCheckoutMode() === 'card_terminal'"
+                          (click)="selectSettlementMode('card_terminal')"
+                          [disabled]="processingCheckout()">
+                          <span class="micro-label">Terminal</span>
+                          <strong>Use terminal</strong>
+                          <small>Machine confirmed</small>
+                        </button>
+                        @if (hitPayConfigured()) {
+                          <button
+                            type="button"
+                            class="mode-card"
+                            [class.mode-card--selected]="primaryCheckoutMode() === 'hitpay'"
+                            (click)="selectSettlementMode('hitpay')"
+                            [disabled]="processingCheckout()">
+                            <span class="micro-label">HitPay</span>
+                            <strong>Send link</strong>
+                            <small>Hosted checkout</small>
+                          </button>
+                        }
+                      </div>
+                      <div class="pos-service-paybar">
+                        <div>
+                          <span>Selected method</span>
+                          <strong>{{ primarySettlementModeLabel() }}</strong>
+                          <small>Collect {{ checkoutSummaryTotalCopy() }} and close the bill.</small>
+                        </div>
+                        <button
+                          type="button"
+                          id="pos-drawer-settlement-submit"
+                          class="btn btn-primary btn-lg"
+                          (click)="submitCart(primaryCheckoutMode())"
+                          [disabled]="!canSubmitCart()">
+                          {{ processingCheckout() ? 'Working...' : checkoutPrimaryActionText() }}
+                        </button>
+                      </div>
+                    }
+                  </div>
+                } @else if (posDrawerView() === 'orders') {
+                  <div class="pos-service-orders">
+                    <div class="pos-service-orders-heading">
+                      <div>
+                        <span class="pos-service-eyebrow">Current session</span>
+                        <h3>{{ serviceTable.name }} orders</h3>
+                      </div>
+                      <button type="button" class="btn btn-secondary btn-sm" (click)="openOrdersForTable(serviceTable)">Full orders page</button>
+                    </div>
+                    @if (posCurrentSessionOrders().length === 0) {
+                      <div class="pos-service-empty">No current-session orders yet. Add items from the menu.</div>
+                    } @else {
+                      <div class="pos-service-order-list">
+                        @for (order of posCurrentSessionOrders(); track order.id) {
+                          <button type="button" class="pos-service-order-card" (click)="continueOrderInPos(order)">
+                            <div class="pos-service-order-head">
+                              <div><small>{{ queueOrderAgeLabel(order) }}</small><strong>Order #{{ order.id }}</strong></div>
+                              <span class="state-pill" [class]="orderStatusClass(order)">{{ queueGroupStatusLabel(order) }}</span>
+                            </div>
+                            <div class="pos-service-order-items">
+                              @for (item of order.items; track item.id) {
+                                <span><b>{{ item.quantity }}x</b> {{ item.product_name }}</span>
+                              }
+                            </div>
+                            <div class="pos-service-order-total"><span>{{ paymentLabel(order) }}</span><strong>{{ formatPrice(order.total_cents || 0) }}</strong></div>
+                          </button>
+                        }
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <div class="pos-service-orders">
+                    <div class="pos-service-orders-heading">
+                      <div>
+                        <span class="pos-service-eyebrow">Previous sessions</span>
+                        <h3>{{ serviceTable.name }} history</h3>
+                      </div>
+                      <button type="button" class="btn btn-secondary btn-sm" (click)="openOrdersForTable(serviceTable)">Full history page</button>
+                    </div>
+                    @if (posHistoryOrders().length === 0) {
+                      <div class="pos-service-empty">No previous sessions for this table yet.</div>
+                    } @else {
+                      <div class="pos-service-order-list">
+                        @for (order of posHistoryOrders(); track order.id) {
+                          <button type="button" class="pos-service-order-card" (click)="continueOrderInPos(order)">
+                            <div class="pos-service-order-head">
+                              <div><small>{{ queueOrderAgeLabel(order) }}</small><strong>Order #{{ order.id }}</strong></div>
+                              <span class="state-pill" [class]="orderStatusClass(order)">{{ queueGroupStatusLabel(order) }}</span>
+                            </div>
+                            <div class="pos-service-order-items">
+                              @for (item of order.items; track item.id) {
+                                <span><b>{{ item.quantity }}x</b> {{ item.product_name }}</span>
+                              }
+                            </div>
+                            <div class="pos-service-order-total"><span>{{ paymentLabel(order) }}</span><strong>{{ formatPrice(order.total_cents || 0) }}</strong></div>
+                          </button>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </section>
+            </div>
+          }
+        }
       </div>
 
       @if (productQuestionDialogProduct(); as product) {
@@ -1363,6 +1693,627 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       top: 0.9rem;
       align-self: start;
       max-height: calc(100vh - 1.8rem);
+    }
+
+    .pos-service-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      background: rgba(15, 23, 42, 0.38);
+      backdrop-filter: blur(4px);
+    }
+
+    .pos-service-drawer {
+      width: min(72rem, calc(100vw - 2rem));
+      height: min(46rem, calc(100dvh - 2rem));
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid color-mix(in srgb, var(--color-border) 78%, white);
+      border-radius: 28px;
+      background: var(--color-surface);
+      box-shadow: 0 28px 70px rgba(15, 23, 42, 0.24);
+    }
+
+    .pos-service-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem 1.1rem 0.85rem;
+      border-bottom: 1px solid color-mix(in srgb, var(--color-border) 72%, white);
+      background:
+        radial-gradient(circle at top left, color-mix(in srgb, var(--color-primary-light) 36%, transparent), transparent 32%),
+        linear-gradient(135deg, color-mix(in srgb, var(--color-surface) 96%, white), color-mix(in srgb, var(--color-bg) 86%, white));
+    }
+
+    .pos-service-eyebrow {
+      display: inline-flex;
+      margin-bottom: 0.2rem;
+      color: var(--color-primary-strong);
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .pos-service-header h2,
+    .pos-service-checkout h3,
+    .pos-service-orders h3 {
+      margin: 0;
+      color: var(--color-text);
+    }
+
+    .pos-service-header p,
+    .pos-service-checkout p {
+      margin: 0.18rem 0 0;
+      color: var(--color-muted);
+      font-size: 0.9rem;
+    }
+
+    .pos-service-header-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.55rem;
+      flex-wrap: wrap;
+    }
+
+    .service-status {
+      display: inline-flex;
+      align-items: center;
+      min-height: 2rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--color-bg) 82%, white);
+      color: var(--color-muted);
+      font-size: 0.78rem;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .service-status--live {
+      background: color-mix(in srgb, var(--color-primary-light) 34%, white);
+      color: var(--color-primary-strong);
+    }
+
+    .pos-service-close {
+      width: 2.25rem;
+      height: 2.25rem;
+      border: 1px solid color-mix(in srgb, var(--color-border) 76%, white);
+      border-radius: 999px;
+      background: white;
+      color: var(--color-muted);
+      font-size: 1rem;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .pos-service-tabs {
+      display: flex;
+      gap: 0.45rem;
+      padding: 0.72rem 0.92rem;
+      overflow-x: auto;
+      border-bottom: 1px solid color-mix(in srgb, var(--color-border) 76%, white);
+      background: color-mix(in srgb, var(--color-bg) 72%, white);
+    }
+
+    .pos-service-tabs button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      min-height: 2.55rem;
+      padding: 0.55rem 0.85rem;
+      border: 1px solid color-mix(in srgb, var(--color-border) 76%, white);
+      border-radius: 999px;
+      background: white;
+      color: var(--color-muted);
+      font-weight: 850;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .pos-service-tabs button.active {
+      border-color: color-mix(in srgb, var(--color-primary) 36%, var(--color-border));
+      background: var(--color-primary);
+      color: white;
+      box-shadow: 0 12px 24px color-mix(in srgb, var(--color-primary) 24%, transparent);
+    }
+
+    .pos-service-tabs span {
+      padding: 0.12rem 0.42rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.22);
+      font-size: 0.75rem;
+    }
+
+    .pos-service-workspace {
+      min-height: 0;
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(20rem, 24rem);
+      overflow: hidden;
+    }
+
+    .pos-service-menu-pane,
+    .pos-service-checkout,
+    .pos-service-orders {
+      min-width: 0;
+      min-height: 0;
+      overflow: auto;
+      background: color-mix(in srgb, var(--color-bg) 76%, white);
+    }
+
+    .pos-service-menu-pane {
+      padding: 0.9rem;
+    }
+
+    .pos-service-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: grid;
+      gap: 0.65rem;
+      padding-bottom: 0.75rem;
+      background: color-mix(in srgb, var(--color-bg) 76%, white);
+    }
+
+    .pos-service-search {
+      display: grid;
+      gap: 0.28rem;
+      color: var(--color-muted);
+      font-size: 0.78rem;
+      font-weight: 850;
+    }
+
+    .pos-service-search input {
+      width: 100%;
+      min-height: 2.85rem;
+      padding: 0 0.9rem;
+      border: 1px solid color-mix(in srgb, var(--color-border) 82%, white);
+      border-radius: 16px;
+      background: white;
+      color: var(--color-text);
+      font: inherit;
+      font-weight: 750;
+      outline: none;
+    }
+
+    .pos-service-categories {
+      display: flex;
+      gap: 0.45rem;
+      overflow-x: auto;
+      padding-bottom: 0.1rem;
+    }
+
+    .pos-service-categories button {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      min-height: 2.3rem;
+      padding: 0.45rem 0.68rem;
+      border: 1px solid color-mix(in srgb, var(--color-border) 78%, white);
+      border-radius: 999px;
+      background: white;
+      color: var(--color-muted);
+      font-size: 0.82rem;
+      font-weight: 850;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .pos-service-categories button.active {
+      border-color: color-mix(in srgb, var(--color-primary) 34%, var(--color-border));
+      background: color-mix(in srgb, var(--color-primary-light) 32%, white);
+      color: var(--color-primary-strong);
+    }
+
+    .pos-service-categories span {
+      color: inherit;
+      opacity: 0.72;
+    }
+
+    .pos-service-product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(10.6rem, 1fr));
+      gap: 0.62rem;
+    }
+
+    .pos-service-product-card {
+      position: relative;
+      min-width: 0;
+      min-height: 6.6rem;
+      display: grid;
+      grid-template-columns: 3.7rem minmax(0, 1fr);
+      gap: 0.65rem;
+      align-items: stretch;
+      padding: 0.62rem;
+      border: 1px solid color-mix(in srgb, var(--color-border) 78%, white);
+      border-radius: 18px;
+      background: white;
+      color: inherit;
+      text-align: left;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+      cursor: pointer;
+    }
+
+    .pos-service-product-card:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .pos-service-product-media {
+      width: 3.7rem;
+      min-height: 100%;
+      overflow: hidden;
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--color-primary-light) 32%, white);
+      display: grid;
+      place-items: center;
+      color: var(--color-primary-strong);
+      font-weight: 900;
+    }
+
+    .pos-service-product-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .pos-service-product-copy {
+      min-width: 0;
+      display: grid;
+      gap: 0.12rem;
+      padding-right: 1.6rem;
+    }
+
+    .pos-service-product-copy span,
+    .pos-service-product-copy small {
+      overflow: hidden;
+      color: var(--color-muted);
+      font-size: 0.72rem;
+      font-weight: 780;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .pos-service-product-copy strong {
+      overflow: hidden;
+      color: var(--color-text);
+      font-size: 0.93rem;
+      font-weight: 900;
+      line-height: 1.16;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .pos-service-product-copy b {
+      color: var(--color-primary-strong);
+      font-size: 0.88rem;
+    }
+
+    .pos-service-add-badge {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      min-width: 1.55rem;
+      height: 1.55rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: var(--color-primary);
+      color: white;
+      font-size: 0.82rem;
+      font-weight: 900;
+    }
+
+    .pos-service-cart-pane {
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid color-mix(in srgb, var(--color-border) 76%, white);
+      background: white;
+    }
+
+    .pos-service-cart-title,
+    .pos-service-cart-footer {
+      padding: 0.9rem 1rem;
+    }
+
+    .pos-service-cart-title {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      border-bottom: 1px solid color-mix(in srgb, var(--color-border) 78%, white);
+    }
+
+    .pos-service-cart-title span,
+    .pos-service-cart-footer span,
+    .pos-service-paybar span {
+      color: var(--color-muted);
+      font-size: 0.78rem;
+      font-weight: 850;
+    }
+
+    .pos-service-cart-title h3 {
+      margin: 0.1rem 0 0;
+      color: var(--color-text);
+    }
+
+    .pos-service-text-button {
+      border: 0;
+      background: transparent;
+      color: var(--color-primary-strong);
+      font-weight: 850;
+      cursor: pointer;
+    }
+
+    .pos-service-cart-empty,
+    .pos-service-empty,
+    .pos-service-live-bill,
+    .pos-service-outcome {
+      margin: 1rem;
+      padding: 1rem;
+      border: 1px dashed color-mix(in srgb, var(--color-border) 82%, white);
+      border-radius: 20px;
+      background: color-mix(in srgb, var(--color-bg) 78%, white);
+      color: var(--color-muted);
+      display: grid;
+      gap: 0.42rem;
+    }
+
+    .pos-service-cart-empty {
+      flex: 1;
+      place-items: center;
+      align-content: center;
+      text-align: center;
+    }
+
+    .pos-service-cart-empty span {
+      width: 3rem;
+      height: 3rem;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--color-primary-light) 34%, white);
+      color: var(--color-primary-strong);
+      font-size: 1.45rem;
+      font-weight: 900;
+    }
+
+    .pos-service-cart-lines {
+      min-height: 0;
+      flex: 1;
+      overflow: auto;
+      padding: 0.75rem 1rem;
+      display: grid;
+      align-content: start;
+      gap: 0.55rem;
+    }
+
+    .pos-service-cart-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.72rem;
+      border: 1px solid color-mix(in srgb, var(--color-border) 80%, white);
+      border-radius: 16px;
+      background: color-mix(in srgb, var(--color-bg) 58%, white);
+    }
+
+    .pos-service-cart-line div {
+      min-width: 0;
+      display: grid;
+      gap: 0.12rem;
+    }
+
+    .pos-service-cart-line strong {
+      color: var(--color-text);
+      font-size: 0.9rem;
+    }
+
+    .pos-service-cart-line small,
+    .pos-service-cart-line span {
+      color: var(--color-muted);
+      font-size: 0.78rem;
+      font-weight: 760;
+    }
+
+    .pos-service-quantity {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.42rem;
+      flex-shrink: 0;
+    }
+
+    .pos-service-quantity button {
+      width: 2rem;
+      height: 2rem;
+      border: 1px solid color-mix(in srgb, var(--color-border) 72%, white);
+      border-radius: 999px;
+      background: white;
+      color: var(--color-primary-strong);
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .pos-service-cart-footer {
+      display: grid;
+      gap: 0.55rem;
+      border-top: 1px solid color-mix(in srgb, var(--color-border) 78%, white);
+      background: white;
+    }
+
+    .pos-service-cart-footer > div {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .pos-service-submit {
+      width: 100%;
+      min-height: 3.1rem;
+      border: 0;
+      border-radius: 16px;
+      background: var(--color-primary);
+      color: white;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: 0 12px 28px color-mix(in srgb, var(--color-primary) 22%, transparent);
+    }
+
+    .pos-service-submit:disabled {
+      opacity: 0.48;
+      cursor: not-allowed;
+    }
+
+    .pos-service-checkout,
+    .pos-service-orders {
+      flex: 1;
+      padding: 1rem;
+      display: grid;
+      align-content: start;
+      gap: 0.82rem;
+    }
+
+    .pos-service-checkout-main,
+    .pos-service-paybar,
+    .pos-service-orders-heading,
+    .pos-service-order-card {
+      border: 1px solid color-mix(in srgb, var(--color-border) 78%, white);
+      border-radius: 20px;
+      background: white;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+    }
+
+    .pos-service-checkout-main,
+    .pos-service-paybar,
+    .pos-service-orders-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+    }
+
+    .pos-service-total-card {
+      min-width: 14rem;
+      padding: 0.85rem;
+      border-radius: 18px;
+      background: color-mix(in srgb, var(--color-primary-light) 26%, white);
+      color: var(--color-primary-strong);
+      text-align: right;
+    }
+
+    .pos-service-total-card span,
+    .pos-service-total-card small {
+      display: block;
+      color: inherit;
+      opacity: 0.78;
+      font-weight: 850;
+    }
+
+    .pos-service-total-card strong {
+      display: block;
+      margin: 0.12rem 0;
+      font-size: 1.9rem;
+      line-height: 1;
+    }
+
+    .pos-service-payment-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.72rem;
+    }
+
+    .pos-service-paybar {
+      position: sticky;
+      bottom: 0;
+      z-index: 1;
+      box-shadow: 0 -10px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .pos-service-paybar strong {
+      display: block;
+      color: var(--color-text);
+      font-size: 1.05rem;
+    }
+
+    .pos-service-paybar small {
+      color: var(--color-muted);
+      font-weight: 760;
+    }
+
+    .pos-service-action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+    }
+
+    .pos-service-empty--checkout {
+      margin: 0;
+      border-style: solid;
+    }
+
+    .pos-service-order-list {
+      display: grid;
+      gap: 0.65rem;
+    }
+
+    .pos-service-order-card {
+      display: grid;
+      gap: 0.7rem;
+      width: 100%;
+      padding: 0.9rem;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .pos-service-order-head,
+    .pos-service-order-total {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .pos-service-order-head div,
+    .pos-service-order-total {
+      min-width: 0;
+    }
+
+    .pos-service-order-head small,
+    .pos-service-order-total span {
+      display: block;
+      color: var(--color-muted);
+      font-size: 0.78rem;
+      font-weight: 780;
+    }
+
+    .pos-service-order-items {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.38rem;
+    }
+
+    .pos-service-order-items span {
+      padding: 0.32rem 0.52rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--color-bg) 72%, white);
+      color: var(--color-muted);
+      font-size: 0.78rem;
+      font-weight: 800;
     }
 
     .lane-header,
@@ -3874,6 +4825,101 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       border: 1px solid color-mix(in srgb, var(--color-primary) 12%, var(--color-border));
     }
 
+    @media (max-width: 980px) {
+      .pos-service-overlay {
+        padding: 0;
+      }
+
+      .pos-service-drawer {
+        width: 100vw;
+        height: 100dvh;
+        border-radius: 0;
+        border-inline: 0;
+      }
+
+      .pos-service-header {
+        padding: 0.86rem 0.9rem 0.72rem;
+      }
+
+      .pos-service-tabs {
+        padding: 0.62rem 0.75rem;
+      }
+
+      .pos-service-workspace {
+        display: flex;
+        flex-direction: column;
+        overflow: auto;
+      }
+
+      .pos-service-menu-pane {
+        overflow: visible;
+        padding: 0.75rem;
+      }
+
+      .pos-service-product-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.55rem;
+      }
+
+      .pos-service-product-card {
+        grid-template-columns: 3.2rem minmax(0, 1fr);
+        min-height: 5.9rem;
+        padding: 0.55rem;
+      }
+
+      .pos-service-product-media {
+        width: 3.2rem;
+        border-radius: 13px;
+      }
+
+      .pos-service-cart-pane {
+        min-height: 19rem;
+        border-left: 0;
+        border-top: 1px solid color-mix(in srgb, var(--color-border) 76%, white);
+      }
+
+      .pos-service-payment-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .pos-service-checkout-main,
+      .pos-service-paybar,
+      .pos-service-orders-heading {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .pos-service-total-card {
+        width: 100%;
+        min-width: 0;
+        text-align: left;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .pos-service-header {
+        flex-direction: column;
+      }
+
+      .pos-service-header-actions {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .pos-service-product-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .pos-service-product-card {
+        grid-template-columns: 1fr;
+      }
+
+      .pos-service-product-media {
+        width: 100%;
+        min-height: 4.2rem;
+      }
+    }
+
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -4685,6 +5731,7 @@ export class CashierPosComponent {
   showQuickCreate = signal(false);
   creatingProduct = signal(false);
   tableWorkspaceOpen = signal(false);
+  posDrawerView = signal<PosDrawerView>('menu');
   lastCheckoutOutcome = signal<PosCheckoutOutcome | null>(null);
   hitPayFlowState = signal<PosHitPayFlowState>('idle');
   tableHistoryExpanded = signal(false);
@@ -4932,6 +5979,23 @@ export class CashierPosComponent {
     return this.sortQueueOrders(
       this.orders().filter((order) => order.table_id === tableId),
     );
+  });
+  posCurrentSessionOrders = computed(() => {
+    const table = this.effectiveCheckoutTable();
+    const activeOrderId = table?.active_order_id ?? null;
+    return this.tableScopedOrders().filter((order) => {
+      if (order.is_current_table_session) {
+        return true;
+      }
+      if (activeOrderId != null && order.id === activeOrderId) {
+        return true;
+      }
+      return !this.isPaid(order) && !this.isClosedOrder(order);
+    });
+  });
+  posHistoryOrders = computed(() => {
+    const currentIds = new Set(this.posCurrentSessionOrders().map((order) => order.id));
+    return this.tableScopedOrders().filter((order) => !currentIds.has(order.id));
   });
   queueOrders = computed(() => {
     const table = this.effectiveCheckoutTable();
@@ -5458,6 +6522,7 @@ export class CashierPosComponent {
 
   openTableWorkspace(table: CanvasTable): void {
     this.tableWorkspaceOpen.set(true);
+    this.posDrawerView.set(this.tableCurrentOrder(table) ? 'orders' : 'menu');
     this.focusTableForSale(table);
   }
 
@@ -5472,9 +6537,14 @@ export class CashierPosComponent {
     this.productQuestionDialogProduct.set(null);
     this.productQuestionAnswers.set({});
     this.tableHistoryExpanded.set(false);
+    this.posDrawerView.set('menu');
     this.selectedTableId.set(null);
     this.selectedOrderId.set(null);
     this.syncSelectionToQuery(null, null);
+  }
+
+  setPosDrawerView(view: PosDrawerView): void {
+    this.posDrawerView.set(view);
   }
 
   selectTableById(rawValue: string | number | null): void {
@@ -5519,18 +6589,29 @@ export class CashierPosComponent {
   }
 
   scrollToCatalog(): void {
+    if (this.tableWorkspaceOpen()) {
+      this.posDrawerView.set('menu');
+      this.focusCatalogSearch();
+      return;
+    }
     this.scrollToElement('cashier-catalog');
   }
 
   scrollToPaymentDock(): void {
+    if (this.tableWorkspaceOpen()) {
+      this.posDrawerView.set('checkout');
+      return;
+    }
     this.scrollToElement('payment-dock');
   }
 
   focusCatalogSearch(): void {
     if (typeof document === 'undefined') return;
-    const input = document.getElementById('cashier-catalog-search') as HTMLInputElement | null;
-    if (!input) return;
-    window.requestAnimationFrame(() => input.focus());
+    const inputId = this.tableWorkspaceOpen() ? 'pos-drawer-catalog-search' : 'cashier-catalog-search';
+    window.requestAnimationFrame(() => {
+      const input = document.getElementById(inputId) as HTMLInputElement | null;
+      input?.focus();
+    });
   }
 
   focusLiveBillForItems(): void {

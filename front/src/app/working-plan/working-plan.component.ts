@@ -23,8 +23,8 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
 
 /** One row in a calendar day cell: a real shift or the “+N more” overflow line. */
 type CalendarShiftLineRow =
-  | { text: string; userId: number; shift: Shift }
-  | { text: string; userId: null; shift: null };
+  | { text: string; shortText: string; userId: number; shift: Shift }
+  | { text: string; shortText?: string; userId: null; shift: null };
 
 function getWeekRange(weekStart: Date): { from: string; to: string } {
   const d = new Date(weekStart);
@@ -406,8 +406,9 @@ function isValidView(v: string | null): v is ViewMode {
                                     class="calendar-shift-line calendar-shift-line--btn"
                                     (click)="openEdit(line.shift)"
                                     [attr.aria-label]="calendarShiftEditAria(line.shift)"
+                                    [attr.title]="line.text"
                                   >
-                                    {{ line.text }}
+                                    {{ line.shortText || line.text }}
                                   </button>
                                   <button
                                     type="button"
@@ -425,9 +426,10 @@ function isValidView(v: string | null): v is ViewMode {
                                 <li
                                   class="calendar-shift-line"
                                   [style.--wp-shift-h]="shiftHue(line.userId)"
+                                  [attr.title]="line.text"
                                   data-testid="working-plan-calendar-shift-line"
                                 >
-                                  {{ line.text }}
+                                  {{ line.shortText || line.text }}
                                 </li>
                               }
                             } @else {
@@ -1213,6 +1215,7 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
         .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
       const lines: CalendarShiftLineRow[] = dayShifts.map((s) => ({
         text: this.formatShiftLine(s),
+        shortText: this.formatCalendarShiftLine(s),
         userId: s.user_id,
         shift: s,
       }));
@@ -1922,6 +1925,20 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
     if (name && role) return `${name} (${role}) ${time}`;
     if (name) return `${name} ${time}`;
     return time;
+  }
+
+  /** Short calendar label that fits inside month cells while full detail stays on hover/assistive labels. */
+  private formatCalendarShiftLine(s: Shift): string {
+    const name = (s.user_name || '').trim();
+    const firstName = name.split(/\s+/).filter(Boolean)[0];
+    const fallback = this.getRoleLabel(s.user_role || '') || 'Staff';
+    const label = firstName || fallback;
+    return `${label} ${this.shortCalendarTime(s.start_time)}-${this.shortCalendarTime(s.end_time)}`;
+  }
+
+  private shortCalendarTime(value: string): string {
+    const [hour = '00', minute = '00'] = (value || '').split(':');
+    return minute === '00' ? hour : `${hour}:${minute}`;
   }
 
   /** After save, show the shift in calendar/week: jump to the saved date’s month and week. */

@@ -21,10 +21,31 @@ function readExistingBuildInfo(filePath) {
   }
 }
 
-/** Keep previous hash when Docker mounts only ./front (no .git) or git is unavailable. */
+/** Keep previous hash in dev when Docker mounts only ./front (no .git) or git is unavailable. */
 function isPlausibleGitShortHash(h) {
   if (!h || h === 'git hash') return false;
   return /^[a-f0-9]{7,40}$/i.test(h);
+}
+
+function readCommitHashFromEnv() {
+  const envSources = [
+    'COMMIT_HASH',
+    'RENDER_GIT_COMMIT',
+    'VERCEL_GIT_COMMIT_SHA',
+    'GITHUB_SHA',
+    'SOURCE_VERSION',
+    'HEROKU_SLUG_COMMIT',
+  ];
+
+  for (const source of envSources) {
+    const raw = process.env[source];
+    const value = raw ? raw.trim().replace(/['\\]/g, '') : '';
+    if (isPlausibleGitShortHash(value)) {
+      return { source, value: value.slice(0, 8) };
+    }
+  }
+
+  return null;
 }
 
 if (!fs.existsSync(outputDir)) {
@@ -42,9 +63,10 @@ try {
 
 let commitHash = 'git hash';
 
-if (process.env.COMMIT_HASH && process.env.COMMIT_HASH.trim() !== '') {
-  commitHash = process.env.COMMIT_HASH.trim().replace(/['\\]/g, '');
-  console.log(`✓ Using commit hash from build argument: ${commitHash}`);
+const envCommit = readCommitHashFromEnv();
+if (envCommit) {
+  commitHash = envCommit.value;
+  console.log(`✓ Using commit hash from ${envCommit.source}: ${commitHash}`);
 } else {
   try {
     const gitCommand = 'git rev-parse --short HEAD';
@@ -63,11 +85,12 @@ if (process.env.COMMIT_HASH && process.env.COMMIT_HASH.trim() !== '') {
     console.log(`✓ Commit hash generated from git: ${commitHash}`);
   } catch (error) {
     const existing = readExistingBuildInfo(outputPath);
-    if (isPlausibleGitShortHash(existing.commitHash)) {
+    if (process.env.NODE_ENV !== 'production' && isPlausibleGitShortHash(existing.commitHash)) {
       commitHash = existing.commitHash;
       console.log(`✓ Kept existing commit hash (git unavailable): ${commitHash}`);
     } else {
-      console.log('⚠ Could not get commit hash from git, using "git hash"');
+      commitHash = 'unknown';
+      console.log('⚠ Could not get commit hash from git/env, using "unknown"');
       if (error.message) {
         console.log(`  Reason: ${error.message}`);
       }

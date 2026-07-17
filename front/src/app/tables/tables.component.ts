@@ -643,7 +643,13 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   </button>
                 } @else {
                   @if (canOpenStaffOrders()) {
-                    <button type="button" class="btn btn-secondary btn-sm" (click)="openQuickTable(table, 'orders')">
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-sm"
+                      (click)="openQuickTable(table, 'orders')"
+                      [attr.title]="'TABLES.VIEW_TABLE_ORDERS_FULL' | translate"
+                      [attr.aria-label]="'TABLES.VIEW_TABLE_ORDERS_FULL' | translate"
+                    >
                       {{ table.active_order_id ? ('TABLES.OPEN_STAFF_ORDER' | translate) : ('TABLES.VIEW_TABLE_ORDERS' | translate) }}
                     </button>
                   }

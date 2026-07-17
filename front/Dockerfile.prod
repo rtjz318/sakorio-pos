@@ -14,12 +14,17 @@ RUN npm ci --ignore-scripts
 # Copy source code
 COPY . .
 
-# Accept commit hash as build argument (can be passed from parent directory)
-# If not provided, the script will try git or use "unknown"
+# Accept commit hash as build arguments (Render/GitHub/CI can pass any of these)
+# If not provided, the script will try git or use "unknown" in production.
 ARG COMMIT_HASH=
+ARG RENDER_GIT_COMMIT=
+ARG GITHUB_SHA=
 ENV COMMIT_HASH=${COMMIT_HASH}
+ENV RENDER_GIT_COMMIT=${RENDER_GIT_COMMIT}
+ENV GITHUB_SHA=${GITHUB_SHA}
+ENV NODE_ENV=production
 
-# Generate commit hash file (script will use COMMIT_HASH env var if git is not available)
+# Generate commit hash file (script will use CI env vars if git is not available)
 RUN node scripts/get-commit-hash.js
 
 # Build the application for production (static output)

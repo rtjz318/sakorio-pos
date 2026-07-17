@@ -634,6 +634,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                       <button
                         type="button"
                         class="btn btn-primary btn-sm"
+                        style="min-height:2.45rem;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap"
                         (click)="clearLastCheckoutTable()"
                         [disabled]="pendingTableId() === lastCheckoutTableId()">
                         {{ pendingTableId() === lastCheckoutTableId() ? 'Clearing...' : 'Clear table' }}
@@ -1159,7 +1160,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                         <small>{{ checkoutOutcomeSupport() }}</small>
                         <div class="pos-service-action-row">
                           @if (canClearLastCheckoutTable()) {
-                            <button type="button" class="btn btn-primary btn-sm" (click)="clearLastCheckoutTable()" [disabled]="pendingTableId() === lastCheckoutTableId()">
+                            <button type="button" class="btn btn-primary btn-sm" style="min-height:2.45rem;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap" (click)="clearLastCheckoutTable()" [disabled]="pendingTableId() === lastCheckoutTableId()">
                               {{ pendingTableId() === lastCheckoutTableId() ? 'Clearing...' : 'Clear table' }}
                             </button>
                           }

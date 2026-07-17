@@ -180,6 +180,16 @@ export class ReportsComponent implements OnInit {
     }
   }
 
+  jumpToReportSection(id: string): void {
+    if (typeof document === 'undefined') return;
+    const section = document.getElementById(id);
+    if (!section) return;
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${id}`);
+    }
+  }
+
   /** Local calendar date as `YYYY-MM-DD` (not UTC midnight from `toISOString`). */
   private fmtDate(d: Date): string {
     const y = d.getFullYear();

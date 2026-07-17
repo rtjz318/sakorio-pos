@@ -686,7 +686,7 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
 
               @if (canManageTableAssignments() || canManageFloors()) {
                 <details class="table-admin-panel">
-                  <summary>Advanced controls</summary>
+                  <summary>Waiter / floor controls</summary>
 
                   <div class="waiter-assign-section">
                     <div class="waiter-assign-row">

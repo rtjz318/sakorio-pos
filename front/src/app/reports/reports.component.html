@@ -81,12 +81,12 @@
     </section>
 
     <nav class="report-jump-nav" aria-label="Report sections">
-      <a href="#reports-summary">Summary</a>
-      <a href="#reports-products">Products</a>
-      <a href="#reports-categories">Categories</a>
-      <a href="#reports-tables">Tables</a>
+      <button type="button" (click)="jumpToReportSection('reports-summary')">Summary</button>
+      <button type="button" (click)="jumpToReportSection('reports-products')">Products</button>
+      <button type="button" (click)="jumpToReportSection('reports-categories')">Categories</button>
+      <button type="button" (click)="jumpToReportSection('reports-tables')">Tables</button>
       @if (canViewAttendance()) {
-        <a href="#reports-attendance">Attendance</a>
+        <button type="button" (click)="jumpToReportSection('reports-attendance')">Attendance</button>
       }
     </nav>
 

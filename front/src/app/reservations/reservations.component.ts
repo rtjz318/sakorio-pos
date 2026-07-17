@@ -159,6 +159,11 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
                   @if (r.service_type) { <span>{{ serviceTypeLabel(r.service_type) }}</span> }
                   @if (r.seating_preference) { <span>{{ seatingLabel(r.seating_preference) }}</span> }
                 </div>
+                @if (reservationWorkflowHint(r)) {
+                  <div class="reservation-flow-hint" [class.reservation-flow-hint--arrival]="reservationIsReadyToSeat(r)">
+                    {{ reservationWorkflowHint(r) }}
+                  </div>
+                }
                 <div class="contact-row">
                   <a [href]="'tel:' + r.customer_phone">{{ r.customer_phone }}</a>
                   @if (r.customer_email) { <a [href]="'mailto:' + r.customer_email">{{ r.customer_email }}</a> }
@@ -205,7 +210,7 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
                 }
                 @if (r.status === 'seated' && canWrite()) {
                   <button class="btn btn-primary primary-reservation-action" (click)="openPosForReservation(r)">Open POS</button>
-                  <button class="btn btn-ghost btn-sm" (click)="finish(r)">{{ 'RESERVATIONS.FINISH' | translate }}</button>
+                  <button class="btn btn-ghost btn-sm" (click)="finish(r)">Finish after close</button>
                 }
               </div>
             </article>
@@ -413,6 +418,9 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
                       <span>
                         <strong>{{ t.name }}</strong>
                         <small>{{ tableCapacity(t) }} seats · {{ tableOperationalLabel(t) }}</small>
+                        @if (tableAssignmentRiskLabel(t)) {
+                          <small class="table-option-warning">{{ tableAssignmentRiskLabel(t) }}</small>
+                        }
                       </span>
                       <span class="table-option-action">
                         @if (reservationToSeat()?.table_id === t.id && reservationTableMode() === 'assign') {
@@ -516,6 +524,8 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
     .reservation-facts span + span::before { content: ''; display: inline-block; width: 4px; height: 4px; margin: 0 .6rem .15rem 0; border-radius: 50%; background: #c1c8c5; }
     .reservation-facts .party-fact { color: var(--reservation-ink); font-weight: 750; }
     .reservation-facts .needs-table { color: #b55a1d; font-weight: 750; }
+    .reservation-flow-hint { margin-top: .55rem; padding: .55rem .7rem; border-radius: 14px; background: #f8fafc; color: #475569; font-size: .82rem; font-weight: 760; line-height: 1.35; }
+    .reservation-flow-hint--arrival { border: 1px solid #fed7aa; background: #fff7ed; color: #9a3412; }
     .contact-row { margin-top: .38rem; }
     .contact-row a { color: #64716d; font-size: .82rem; text-decoration: none; }
     .contact-row a:hover { color: var(--reservation-accent); text-decoration: underline; }
@@ -567,6 +577,7 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
     .table-option { display: flex; justify-content: space-between; align-items: center; gap: 1rem; width: 100%; min-height: 74px; padding: .8rem .9rem; text-align: left; border: 1px solid #dfe4e1; border-radius: 12px; background: #fff; cursor: pointer; }
     .table-option span:first-child { display: grid; gap: .15rem; }
     .table-option small { color: var(--reservation-muted); }
+    .table-option-warning { color: #b45309 !important; font-weight: 800; }
     .table-option-action { color: #a64229; font-size: .8rem; font-weight: 800; white-space: nowrap; }
     .table-option:hover { border-color: #dc9d8c; background: #fff9f6; }
     .table-option.current-assignment { border-color: #70a69a; background: #f0f8f6; }
@@ -1111,8 +1122,25 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   }
 
   reservationTableActionLabel(r: Reservation): string {
-    if (this.reservationIsReadyToSeat(r)) return 'Seat now';
+    if (this.reservationIsReadyToSeat(r)) return r.table_id ? 'Seat & open POS' : 'Seat at table';
     return r.table_id ? 'Change table' : 'Assign table';
+  }
+
+  reservationWorkflowHint(r: Reservation): string {
+    if (r.status === 'booked') {
+      if (this.reservationIsReadyToSeat(r)) {
+        return r.table_id
+          ? 'Guest can be seated now. This opens the QR ordering session and hands off to POS.'
+          : 'Arrival window is open. Pick a table to seat the guest and start ordering.';
+      }
+      return r.table_id
+        ? 'Table is planned. Seat the guest from here when they arrive.'
+        : 'Assign a likely table before arrival to keep service smooth.';
+    }
+    if (r.status === 'seated') {
+      return 'Guest is in service. Use POS for add-ons, checkout, then finish the reservation after the table is closed.';
+    }
+    return '';
   }
 
   openReservationTable(r: Reservation) {
@@ -1150,6 +1178,19 @@ export class ReservationsComponent implements OnInit, OnDestroy {
     return 'Available';
   }
 
+  tableAssignmentRiskLabel(table: CanvasTable): string {
+    if (table.active_order_id || table.operational_status === 'open_order') {
+      return 'Has an open bill — choose only if this will be free before arrival.';
+    }
+    if (table.status === 'occupied' || table.is_active) {
+      return 'Currently occupied — service may need to turn this table first.';
+    }
+    if (table.upcoming_reservation && table.upcoming_reservation.reservation_id !== this.reservationToSeat()?.id) {
+      return 'Another reservation is nearby.';
+    }
+    return '';
+  }
+
   availableTablesForSeat = computed(() => {
     const r = this.reservationToSeat();
     const tables = this.tablesWithStatus();
@@ -1160,10 +1201,18 @@ export class ReservationsComponent implements OnInit, OnDestroy {
       : capacityMatches.filter(t =>
           t.id === r.table_id || t.status === 'available' || t.status === 'reserved'
         );
+    const availabilityRank = (t: CanvasTable): number => {
+      if (t.id === r.table_id) return -1;
+      if (t.status === 'available' && !t.active_order_id && !t.is_active) return 0;
+      if (t.status === 'reserved') return 1;
+      if (t.operational_status === 'ready_to_serve') return 2;
+      if (t.status === 'occupied' || t.is_active || t.active_order_id) return 3;
+      return 4;
+    };
     return [...eligible].sort((a, b) => {
       if (a.id === r.table_id) return -1;
       if (b.id === r.table_id) return 1;
-      return this.tableCapacity(a) - this.tableCapacity(b) || a.name.localeCompare(b.name);
+      return availabilityRank(a) - availabilityRank(b) || this.tableCapacity(a) - this.tableCapacity(b) || a.name.localeCompare(b.name);
     });
   });
 

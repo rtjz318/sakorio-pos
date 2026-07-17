@@ -377,9 +377,14 @@
           }
           <p class="view-cancel-hint">{{ 'BOOK.VIEW_CANCEL_HINT' | translate }}</p>
           @if (successReservation()?.token) {
-            <button type="button" class="btn btn-secondary" (click)="goManageReservation()">
+            <a
+              class="btn btn-secondary"
+              [routerLink]="['/reservation']"
+              [queryParams]="{ token: successReservation()!.token }"
+              (click)="goManageReservation($event)"
+            >
               {{ 'BOOK.VIEW_OR_CANCEL' | translate }}
-            </button>
+            </a>
           } @else {
             <p class="form-error">{{ 'BOOK.VIEW_LINK_UNAVAILABLE' | translate }}</p>
           }

@@ -236,7 +236,7 @@ function getWorkflowSortWeight(
               [class.active]="showBacklog()"
               (click)="toggleBacklog()"
             >
-              {{ showBacklog() ? 'Current shift' : 'Backlog' }}
+              {{ showBacklog() ? 'Back to current shift' : 'Review backlog' }}
               <span>{{ staleTicketCount() }}</span>
             </button>
           }
@@ -295,7 +295,7 @@ function getWorkflowSortWeight(
         }
         @if (!showBacklog() && staleTicketCount() > 0) {
           <div class="backlog-notice" role="status">
-            <span><strong>{{ staleTicketCount() }}</strong> older unresolved ticket{{ staleTicketCount() === 1 ? '' : 's' }} hidden from the live shift. Clear training/test backlog before launch service.</span>
+            <span><strong>{{ staleTicketCount() }}</strong> older unresolved ticket{{ staleTicketCount() === 1 ? '' : 's' }} hidden from the live shift. Open backlog mode, mark stale items delivered/cancelled, then return to current shift before service.</span>
             <button type="button" (click)="showBacklog.set(true)">Review / clear backlog</button>
           </div>
         }

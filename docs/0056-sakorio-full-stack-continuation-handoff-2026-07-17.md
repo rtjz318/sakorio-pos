@@ -368,9 +368,11 @@ Relevant endpoints include:
 
 Do not mark online payments fully production-accepted until failed/cancelled recovery and printer receipt delivery are validated. Hosted sandbox checkout, redirect reconciliation, reports separation, and duplicate webhook idempotency coverage have passed for both public QR and cashier POS where applicable.
 
-### P0: Physical printing has not been accepted
+### Future fix: Physical printing has not been accepted
 
 The software queue/agent path exists, but no real printer was available. Complete the hardware matrix in section 9 before a shop rollout.
+
+As of 18 July 2026, printer acceptance is intentionally parked behind HitPay completion. Keep printer work documented, but do not block the current HitPay continuation on physical printer hardware.
 
 ### P1: Hosted end-to-end regression after this deploy
 

@@ -102,6 +102,9 @@ Render logs:
 HitPay is now usable in sandbox from both public QR and POS, but the following should still be completed before production acceptance:
 
 1. Test cancelled/failed HitPay checkout recovery from both public QR and POS.
-2. Verify HitPay customer receipt print jobs with a printer agent or physical printer.
-3. Repeat with production HitPay credentials/base URL in Render environment variables before real launch.
-4. Clean up or replace missing hosted demo product images that currently generate `/uploads/1/products/...` 404s.
+2. Repeat with production HitPay credentials/base URL in Render environment variables before real launch.
+3. Clean up or replace missing hosted demo product images that currently generate `/uploads/1/products/...` 404s.
+
+Future/hardware lane:
+
+- Verify HitPay customer receipt print jobs with a printer agent or physical printer. This remains important for launch operations, but it is intentionally parked outside the current HitPay software-continuation pass.

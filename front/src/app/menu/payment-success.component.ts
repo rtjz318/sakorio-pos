@@ -14,6 +14,14 @@ import { TranslateModule } from '@ngx-translate/core';
       } @else if (error()) {
         <p class="error">{{ errorMessage() }}</p>
         <a [routerLink]="['/menu', tableToken()]">{{ 'COMMON.BACK' | translate }}</a>
+      } @else if (paymentState() === 'cancelled') {
+        <h1>Payment not completed</h1>
+        <p>Your HitPay checkout was cancelled or left unpaid. Your order is still open.</p>
+        <a [routerLink]="['/menu', tableToken()]" class="btn btn-primary">Back to payment options</a>
+      } @else if (paymentState() === 'failed') {
+        <h1>Payment needs attention</h1>
+        <p>HitPay returned an unsuccessful payment status. Please retry or ask staff for help.</p>
+        <a [routerLink]="['/menu', tableToken()]" class="btn btn-primary">Back to payment options</a>
       } @else {
         <h1>{{ 'PAYMENTS.SUCCESS_TITLE' | translate }}</h1>
         <p>{{ 'PAYMENTS.SUCCESS_MESSAGE' | translate }}</p>
@@ -47,6 +55,7 @@ export class PaymentSuccessComponent implements OnInit {
   error = signal(false);
   errorMessage = signal('');
   tableToken = signal('');
+  paymentState = signal<'success' | 'cancelled' | 'failed'>('success');
 
   ngOnInit() {
     const token = this.route.snapshot.paramMap.get('token');
@@ -58,6 +67,14 @@ export class PaymentSuccessComponent implements OnInit {
       return;
     }
     this.tableToken.set(token);
+    const returnStatus = (this.route.snapshot.queryParamMap.get('status') || '').trim().toLowerCase();
+    const successfulStatuses = new Set(['', 'completed', 'complete', 'success', 'succeeded', 'paid']);
+    if (!successfulStatuses.has(returnStatus)) {
+      const cancelledStatuses = new Set(['cancelled', 'canceled', 'cancel', 'abandoned']);
+      this.paymentState.set(cancelledStatuses.has(returnStatus) ? 'cancelled' : 'failed');
+      this.loading.set(false);
+      return;
+    }
     const orderIdNum = parseInt(orderId!, 10);
     if (Number.isNaN(orderIdNum)) {
       this.error.set(true);

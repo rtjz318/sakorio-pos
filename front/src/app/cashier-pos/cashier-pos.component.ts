@@ -77,7 +77,7 @@ interface PosCheckoutOutcome {
   amountCents: number;
 }
 
-type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
+type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'cancelled' | 'failed';
 type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 
 @Component({
@@ -6405,6 +6405,8 @@ export class CashierPosComponent {
         return 'Opening HitPay';
       case 'confirming':
         return 'Confirming payment';
+      case 'cancelled':
+        return 'HitPay cancelled';
       case 'failed':
         return 'HitPay needs attention';
       case 'idle':
@@ -6419,6 +6421,8 @@ export class CashierPosComponent {
         return 'The hosted checkout is opening for this table bill.';
       case 'confirming':
         return 'Waiting for the cashier return to confirm the hosted payment and close the ticket.';
+      case 'cancelled':
+        return 'The hosted checkout was cancelled or left unpaid. The bill is still open and can be retried.';
       case 'failed':
         return 'The hosted checkout did not confirm cleanly. Retry the bill from this checkout dock.';
       case 'idle':
@@ -7864,6 +7868,7 @@ export class CashierPosComponent {
       return;
     }
 
+    const rawReturnStatus = (this.route.snapshot.queryParamMap.get('status') || '').trim().toLowerCase();
     const tableId = Number(this.route.snapshot.queryParamMap.get('tableId'));
     const orderId = Number(this.route.snapshot.queryParamMap.get('orderId'));
     const normalizedTableId = Number.isFinite(tableId) && tableId > 0 ? tableId : null;
@@ -7879,12 +7884,32 @@ export class CashierPosComponent {
       return;
     }
 
-    const key = `hitpay:${normalizedTableId}:${normalizedOrderId}`;
+    const key = `hitpay:${normalizedTableId}:${normalizedOrderId}:${rawReturnStatus || 'unknown'}`;
     if (this.processedHitPayReturnKey === key || this.processingCheckout()) {
       return;
     }
 
     this.processedHitPayReturnKey = key;
+
+    const successfulReturnStatuses = new Set(['', 'completed', 'complete', 'success', 'succeeded', 'paid']);
+    if (!successfulReturnStatuses.has(rawReturnStatus)) {
+      const cancelledReturnStatuses = new Set(['cancelled', 'canceled', 'cancel', 'abandoned']);
+      this.selectedTableId.set(table.id);
+      this.selectedOrderId.set(normalizedOrderId);
+      this.selectedSettlementMode.set('hitpay');
+      this.hitPayFlowState.set(cancelledReturnStatuses.has(rawReturnStatus) ? 'cancelled' : 'failed');
+      this.processingCheckout.set(false);
+      this.error.set(null);
+      this.notice.set(
+        cancelledReturnStatuses.has(rawReturnStatus)
+          ? `HitPay checkout was cancelled for ${table.name}. The bill is still open and ready to retry.`
+          : `HitPay checkout returned "${rawReturnStatus}" for ${table.name}. The bill is still open and ready to retry.`,
+      );
+      await this.clearHitPayReturnQuery();
+      this.loadData();
+      return;
+    }
+
     this.hitPayFlowState.set('confirming');
     this.processingCheckout.set(true);
     this.error.set(null);
@@ -7932,6 +7957,8 @@ export class CashierPosComponent {
       queryParams: {
         paymentReturn: null,
         provider: null,
+        status: null,
+        reference: null,
       },
       queryParamsHandling: 'merge',
       replaceUrl: true,

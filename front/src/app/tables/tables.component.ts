@@ -393,7 +393,11 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                     } @else {
                       <button type="button" class="icon-btn icon-btn-edit" (click)="startEdit(table)" [title]="'COMMON.EDIT' | translate">✎</button>
                       @if (table.is_active) {
-                        <button type="button" class="btn btn-sm btn-warning" (click)="confirmCloseTable(table)" [disabled]="activatingTableId() === table.id" [title]="'TABLES.CLOSE_TABLE' | translate">Close</button>
+                        @if (tableNeedsSettlement(table)) {
+                          <button type="button" class="btn btn-sm btn-secondary" (click)="openPosForTable(table)" title="Settle this table before closing">Settle</button>
+                        } @else {
+                          <button type="button" class="btn btn-sm btn-warning" (click)="confirmCloseTable(table)" [disabled]="activatingTableId() === table.id" [title]="'TABLES.CLOSE_TABLE' | translate">Close</button>
+                        }
                       } @else {
                         <button type="button" class="btn btn-sm btn-success btn-square" (click)="activateTableSession(table)" [disabled]="activatingTableId() === table.id" [title]="'TABLES.ACTIVATE' | translate">▶</button>
                       }
@@ -657,14 +661,25 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                     {{ table.active_order_id ? 'Add items' : 'Start order' }}
                   </button>
                   @if (table.is_active) {
-                    <button
-                      type="button"
-                      class="btn btn-warning btn-sm"
-                      [disabled]="activatingTableId() === table.id"
-                      (click)="confirmCloseTable(table)"
-                    >
-                      {{ activatingTableId() === table.id ? 'Closing...' : 'Close table' }}
-                    </button>
+                    @if (tableNeedsSettlement(table)) {
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-sm"
+                        (click)="openPosForTable(table)"
+                        title="Settle this table before closing"
+                      >
+                        Settle first
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="btn btn-warning btn-sm"
+                        [disabled]="activatingTableId() === table.id"
+                        (click)="confirmCloseTable(table)"
+                      >
+                        {{ activatingTableId() === table.id ? 'Closing...' : 'Close table' }}
+                      </button>
+                    }
                   }
                 }
               </div>
@@ -706,17 +721,30 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   <div class="session-actions"
                     [class.session-actions--inactive]="!table.is_active">
                     @if (table.is_active) {
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-warning"
-                        (click)="confirmCloseTable(table)"
-                        [disabled]="activatingTableId() === table.id">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                          <path d="M7 11V7a5 5 0 0110 0v4"/>
-                        </svg>
-                        {{ 'TABLES.CLOSE_TABLE' | translate }}
-                      </button>
+                      @if (tableNeedsSettlement(table)) {
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-secondary"
+                          (click)="openPosForTable(table)"
+                          title="Settle this table before closing">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 7h16M4 12h16M4 17h10"/>
+                          </svg>
+                          Settle first
+                        </button>
+                      } @else {
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-warning"
+                          (click)="confirmCloseTable(table)"
+                          [disabled]="activatingTableId() === table.id">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0110 0v4"/>
+                          </svg>
+                          {{ 'TABLES.CLOSE_TABLE' | translate }}
+                        </button>
+                      }
                     } @else {
                       <button
                         type="button"
@@ -2774,6 +2802,10 @@ export class TablesComponent implements OnInit {
 
   tableIsPaid(table: CanvasTable): boolean {
     return table.payment_status === 'paid';
+  }
+
+  tableNeedsSettlement(table: CanvasTable): boolean {
+    return !!table.is_active && !!table.active_order_id && !this.tableIsPaid(table);
   }
 
   tablePrimaryActionLabel(table: CanvasTable): string {

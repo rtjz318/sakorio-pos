@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ### Fixed
 
+- **POS / tables:** Reworked the cashier POS into a table-first board; waiters now pick a table first, then the menu and payment dock open as a focused workspace.
 - **Public table ordering:** Removed the table PIN gate, staff PIN display, and PIN regeneration controls so guests can place orders from an active table QR/menu without asking staff for a code.
 - **Payments / HitPay:** Created hosted checkout requests with HitPay's form-encoded API contract and returned sanitized provider failures so checkout errors no longer expose raw provider response bodies.
 

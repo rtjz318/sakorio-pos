@@ -985,7 +985,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 
                 <section class="pos-service-loop" aria-label="Selected table service loop">
                   <div class="pos-service-loop-copy">
-                    <span class="pos-service-eyebrow">Service loop</span>
+                    <p class="eyebrow">Service loop</p>
                     <strong>{{ posNextStepCopy(serviceTable) }}</strong>
                     <small>{{ posLoopSupportCopy(serviceTable) }}</small>
                   </div>

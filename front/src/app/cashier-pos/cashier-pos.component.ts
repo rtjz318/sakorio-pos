@@ -127,6 +127,21 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
           </article>
         </section>
 
+        @if (tableWorkspaceOpen()) {
+          <section class="tablet-pos-bar" aria-label="Tablet POS quick actions">
+            <div class="tablet-pos-bar-copy">
+              <span class="micro-label">Active table</span>
+              <strong>{{ effectiveCheckoutTable()?.name || 'Pick a table' }}</strong>
+              <small>{{ checkoutSummaryItemsCopy() }} · {{ checkoutSummaryTotalCopy() }}</small>
+            </div>
+            <div class="tablet-pos-bar-actions">
+              <button type="button" class="btn btn-secondary btn-sm" (click)="scrollToCatalog()">Menu</button>
+              <button type="button" class="btn btn-primary btn-sm" (click)="scrollToPaymentDock()">Bill / Pay</button>
+              <button type="button" class="btn btn-ghost btn-sm" (click)="closeTableWorkspace()">Floor</button>
+            </div>
+          </section>
+        }
+
         <div class="cashier-grid" [class.cashier-grid--workspace-open]="tableWorkspaceOpen()">
           <section class="lane lane--tables" id="cashier-floor">
             <div class="lane-header">
@@ -1182,6 +1197,44 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     .status-chip strong {
       font-size: 1rem;
       line-height: 1;
+    }
+
+    .tablet-pos-bar {
+      display: none;
+      z-index: 7;
+      gap: 0.62rem;
+      padding: 0.66rem 0.72rem;
+      border: 1px solid color-mix(in srgb, var(--color-primary) 18%, var(--color-border));
+      border-radius: var(--radius-xl);
+      background: color-mix(in srgb, var(--color-surface) 94%, white);
+      box-shadow: var(--shadow-md);
+      backdrop-filter: blur(10px);
+    }
+
+    .tablet-pos-bar-copy {
+      display: grid;
+      gap: 0.12rem;
+      min-width: 0;
+    }
+
+    .tablet-pos-bar-copy strong {
+      font-size: 1.05rem;
+      line-height: 1.08;
+    }
+
+    .tablet-pos-bar-copy small {
+      color: var(--color-text-muted);
+      font-weight: 700;
+    }
+
+    .tablet-pos-bar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+    }
+
+    .tablet-pos-bar-actions .btn {
+      min-height: 2.6rem;
     }
 
     .status-chip small,
@@ -4255,12 +4308,37 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     @media (min-width: 921px) and (max-width: 1280px) {
+      .page-shell {
+        gap: 0.62rem;
+      }
+
+      .cashier-status-strip {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .tablet-pos-bar {
+        position: sticky;
+        top: 0.45rem;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0.72rem;
+      }
+
+      .tablet-pos-bar-actions {
+        justify-content: flex-end;
+      }
+
       .cashier-grid {
         grid-template-columns: 1fr;
       }
 
       .cashier-grid--workspace-open {
+        grid-template-areas:
+          "tables tables"
+          "catalog checkout";
         grid-template-columns: minmax(0, 1fr) minmax(21rem, 26rem);
+        gap: 0.68rem;
       }
 
       .lane--tables,
@@ -4270,19 +4348,66 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       }
 
       .cashier-grid--workspace-open .lane--tables {
+        grid-area: tables;
         grid-column: 1 / -1;
-        position: static;
+        position: sticky;
+        top: 5.35rem;
+        z-index: 5;
         max-height: none;
+        padding-block: 0.62rem;
+        background: color-mix(in srgb, var(--color-surface) 96%, white);
+        box-shadow: var(--shadow-md);
       }
 
       .cashier-grid--workspace-open .lane--tables .table-stack {
-        grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+        display: flex;
+        flex-direction: row;
+        gap: 0.52rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 0.05rem 0.12rem 0.2rem;
+        scroll-snap-type: x proximity;
+      }
+
+      .cashier-grid--workspace-open .lane--tables .table-card {
+        flex: 0 0 11.4rem;
+        scroll-snap-align: start;
+      }
+
+      .cashier-grid--workspace-open .lane--tables .table-card-main {
+        padding: 0.56rem 0.58rem 0.42rem;
+      }
+
+      .cashier-grid--workspace-open .lane--tables .table-card-actions,
+      .cashier-grid--workspace-open .lane--tables .table-card-actions--triple {
+        grid-template-columns: 1fr;
+        padding: 0.42rem 0.52rem 0.56rem;
+      }
+
+      .cashier-grid--workspace-open .lane--tables .table-card-bottom {
+        gap: 0.28rem;
+      }
+
+      .cashier-grid--workspace-open .lane--tables .table-card-summary {
+        font-size: 0.8rem;
+        line-height: 1.18;
+      }
+
+      .cashier-grid--workspace-open .lane--tables .state-pill,
+      .cashier-grid--workspace-open .lane--tables .table-card-payment-pill {
+        font-size: 0.72rem;
+      }
+
+      .cashier-grid--workspace-open .lane--catalog {
+        grid-area: catalog;
+        min-height: calc(100vh - 14rem);
       }
 
       .cashier-grid--workspace-open .lane--checkout {
+        grid-area: checkout;
         position: sticky;
-        top: 0.75rem;
-        max-height: calc(100vh - 1.5rem);
+        top: 5.35rem;
+        max-height: calc(100vh - 5.8rem);
       }
 
       .table-stack {
@@ -4296,9 +4421,46 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       .catalog-toolbar-actions {
         grid-column: 1 / -1;
       }
+
+      .product-grid {
+        grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr));
+      }
+
+      .product-card-body {
+        grid-template-columns: 3.8rem minmax(0, 1fr);
+        gap: 0.58rem;
+      }
+
+      .product-card-media {
+        width: 3.8rem;
+        height: 3.8rem;
+        min-height: 3.8rem;
+      }
+
+      .settlement-mode-grid--compact {
+        grid-template-columns: 1fr;
+      }
     }
 
     @media (max-width: 920px) {
+      .tablet-pos-bar {
+        position: sticky;
+        top: 0.35rem;
+        display: grid;
+      }
+
+      .tablet-pos-bar-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.42rem;
+      }
+
+      .tablet-pos-bar-actions .btn {
+        min-width: 0;
+        min-height: 2.65rem;
+        padding-inline: 0.55rem;
+      }
+
       .cashier-grid--workspace-open {
         grid-template-columns: minmax(0, 1fr);
       }
@@ -4306,6 +4468,35 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       .cashier-grid--workspace-open .lane--tables {
         position: static;
         max-height: none;
+        padding-block: 0.62rem;
+      }
+
+      .cashier-grid--workspace-open .lane--tables .table-stack {
+        display: flex;
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+        gap: 0.52rem;
+        padding-bottom: 0.18rem;
+        scroll-snap-type: x proximity;
+      }
+
+      .cashier-grid--workspace-open .lane--tables .table-card {
+        flex: 0 0 min(72vw, 14rem);
+        scroll-snap-align: start;
+      }
+
+      .cashier-grid--workspace-open .lane--tables .table-card-actions,
+      .cashier-grid--workspace-open .lane--tables .table-card-actions--triple {
+        grid-template-columns: 1fr;
+      }
+
+      .cashier-grid--workspace-open .lane--checkout {
+        order: 2;
+      }
+
+      .cashier-grid--workspace-open .lane--catalog {
+        order: 3;
       }
 
       .cashier-grid--workspace-open .lane--catalog,
@@ -4316,6 +4507,11 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
       .workspace-header-actions {
         justify-content: flex-start;
+      }
+
+      .settlement-summary-row--active {
+        position: sticky;
+        top: 5.2rem;
       }
     }
 
@@ -4361,7 +4557,8 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
       .settlement-summary-row--active {
         grid-template-columns: 1fr;
-        position: static;
+        position: sticky;
+        top: 5.2rem;
         backdrop-filter: none;
       }
 

@@ -248,41 +248,6 @@
     </section>
     }
 
-    <!-- Order history (past paid/completed orders) -->
-    <section class="order-history-section" aria-label="Order history">
-      <h2 class="customer-orders-heading">{{ 'MENU.ORDER_HISTORY_TITLE' | translate }}</h2>
-      @if (orderHistory().length === 0) {
-      <p class="no-history-text">{{ 'MENU.NO_ORDER_HISTORY' | translate }}</p>
-      } @else {
-      <div class="history-list">
-        @for (past of orderHistory(); track past.id) {
-        <div class="history-card">
-          <button type="button" class="history-card-header" (click)="toggleHistoryOrder(past.id)">
-            <span class="history-order-id">{{ 'ORDERS.ORDER_ID' | translate }} {{ past.id }}</span>
-            <span class="history-meta">{{ formatHistoryDate(past.paid_at || past.created_at) }} · {{ ('ORDER_STATUS.' + past.status) | translate }}</span>
-            <span class="history-total">{{ formatPrice(past.total_cents) }}</span>
-            <svg class="history-chevron" [class.expanded]="expandedHistoryId() === past.id" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="6,9 12,15 18,9" />
-            </svg>
-          </button>
-          @if (expandedHistoryId() === past.id) {
-          <div class="history-card-body">
-            <ul class="history-items">
-              @for (item of past.items; track item.id) {
-              <li class="history-item-row">
-                <span class="history-item-qty">{{ item.quantity }}×</span>
-                <span class="history-item-name">{{ item.product_name }}</span>
-                <span class="history-item-price">{{ formatPrice(item.price_cents * item.quantity) }}</span>
-              </li>
-              }
-            </ul>
-          </div>
-          }
-        </div>
-        }
-      </div>
-      }
-    </section>
   </section>
 
     <!-- Featured Items Section -->
@@ -838,41 +803,6 @@
             </svg>
           </button>
 
-          <button class="payment-option-btn" (click)="selectPayCash()">
-            <div class="payment-option-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <rect x="2" y="6" width="20" height="12" rx="1" />
-                <circle cx="12" cy="12" r="3" />
-                <circle cx="5" cy="12" r="1" />
-                <circle cx="19" cy="12" r="1" />
-              </svg>
-            </div>
-            <div class="payment-option-text">
-              <span class="payment-option-title">{{ 'PAYMENTS.PAY_CASH' | translate }}</span>
-              <span class="payment-option-desc">{{ 'PAYMENTS.PAY_CASH_DESC' | translate }}</span>
-            </div>
-            <svg class="payment-option-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="9,18 15,12 9,6" />
-            </svg>
-          </button>
-
-          <div class="payment-options-divider"></div>
-
-          <button class="payment-option-btn call-waiter-btn" (click)="selectCallWaiter()" [disabled]="waiterCallCooldown()">
-            <div class="payment-option-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-            </div>
-            <div class="payment-option-text">
-              <span class="payment-option-title">{{ 'PAYMENTS.CALL_WAITER' | translate }}</span>
-              <span class="payment-option-desc">{{ waiterCallCooldown() ? ('PAYMENTS.WAITER_CALLED_WAIT' | translate) : ('PAYMENTS.CALL_WAITER_DESC' | translate) }}</span>
-            </div>
-            <svg class="payment-option-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="9,18 15,12 9,6" />
-            </svg>
-          </button>
         </div>
         }
 
@@ -880,13 +810,7 @@
         <div appFocusFirstInput>
         <div class="modal-header-row">
           <h3 class="modal-title">
-            @if (paymentMessageTarget() === 'waiter') {
-              {{ 'PAYMENTS.CALL_WAITER' | translate }}
-            } @else if (paymentMessageTarget() === 'cash') {
-              {{ 'PAYMENTS.PAY_CASH' | translate }}
-            } @else {
-              {{ 'PAYMENTS.PAY_CARD_TERMINAL' | translate }}
-            }
+            {{ 'PAYMENTS.PAY_CARD_TERMINAL' | translate }}
           </h3>
           <button class="close-btn" (click)="closePaymentOptions()">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -912,11 +836,7 @@
             @if (paymentRequestSending()) {
             <span class="spinner-small"></span>
             }
-            @if (paymentMessageTarget() === 'waiter') {
-              {{ 'PAYMENTS.SEND_CALL' | translate }}
-            } @else {
-              {{ 'PAYMENTS.REQUEST_PAYMENT' | translate }}
-            }
+            {{ 'PAYMENTS.REQUEST_PAYMENT' | translate }}
           </button>
         </div>
         </div>
@@ -931,18 +851,10 @@
             </svg>
           </div>
           <h3 class="modal-title">
-            @if (paymentMessageTarget() === 'waiter') {
-              {{ 'PAYMENTS.WAITER_ON_WAY' | translate }}
-            } @else {
-              {{ 'PAYMENTS.PAYMENT_REQUESTED' | translate }}
-            }
+            {{ 'PAYMENTS.PAYMENT_REQUESTED' | translate }}
           </h3>
           <p class="modal-subtitle">
-            @if (paymentMessageTarget() === 'waiter') {
-              {{ 'PAYMENTS.WAITER_ON_WAY_DESC' | translate }}
-            } @else {
-              {{ 'PAYMENTS.PAYMENT_REQUESTED_DESC' | translate }}
-            }
+            {{ 'PAYMENTS.PAYMENT_REQUESTED_DESC' | translate }}
           </p>
           <div class="modal-actions">
             <button class="btn-primary full-width" (click)="closePaymentOptions()">{{ 'MENU.DONE' | translate }}</button>

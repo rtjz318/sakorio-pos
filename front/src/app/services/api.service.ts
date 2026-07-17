@@ -1511,15 +1511,6 @@ export interface StaffOrderCreate {
   longitude?: number | null;
 }
 
-export interface OrderHistoryItem {
-  id: number;
-  status: string;
-  created_at: string;
-  paid_at: string | null;
-  items: { id: number; product_name: string; quantity: number; price_cents: number }[];
-  total_cents: number;
-}
-
 /** Sales report payload from GET /reports/sales */
 export interface SalesReport {
   from_date: string;
@@ -2676,12 +2667,6 @@ export class ApiService {
       params = params.set('session_id', sessionId);
     }
     return this.http.get(`${this.apiUrl}/menu/${tableToken}/order`, { params });
-  }
-
-  getOrderHistory(tableToken: string, limit = 10): Observable<OrderHistoryItem[]> {
-    return this.http.get<OrderHistoryItem[]>(`${this.apiUrl}/menu/${tableToken}/order-history`, {
-      params: { limit }
-    });
   }
 
   // Payments

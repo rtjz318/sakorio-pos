@@ -207,6 +207,57 @@ class TestPaymentSecurity(PgClientTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "paid")
 
+    def test_public_menu_order_history_does_not_expose_previous_diners(self):
+        old_order = models.Order(
+            tenant_id=self.tenant.id,
+            table_id=self.table.id,
+            status=models.OrderStatus.paid,
+            payment_method="cash",
+        )
+        self.session.add(old_order)
+        self.session.commit()
+        self.session.refresh(old_order)
+
+        self.session.add(
+            models.OrderItem(
+                order_id=old_order.id,
+                product_id=self.product.id,
+                product_name=self.product.name,
+                quantity=2,
+                price_cents=self.product.price_cents,
+            )
+        )
+        self.session.commit()
+
+        response = self.client.get(f"/menu/{self.table.token}/order-history")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])
+
+    def test_customer_qr_rejects_cash_payment_request(self):
+        order_id = self._create_order()
+
+        response = self.client.post(
+            f"/menu/{self.table.token}/order/{order_id}/request-payment",
+            json={"payment_method": "cash", "message": "cash please"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("only support terminal", response.json()["detail"])
+
+    def test_customer_qr_accepts_terminal_payment_request(self):
+        order_id = self._create_order()
+
+        response = self.client.post(
+            f"/menu/{self.table.token}/order/{order_id}/request-payment",
+            json={"payment_method": "card_terminal", "message": "terminal please"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["payment_method"], "terminal")
+        order = self.session.get(models.Order, order_id)
+        self.assertEqual(order.payment_method, "terminal")
+
 
 if __name__ == "__main__":
     unittest.main()

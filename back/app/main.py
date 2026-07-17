@@ -11698,54 +11698,14 @@ def get_table_order_history(
     limit: int = Query(10, ge=1, le=50),
     session: Session = Depends(get_session),
 ) -> list[dict]:
-    """Public endpoint - recent paid/completed orders for this table (for customer order history)."""
+    """Public endpoint retained for old clients, but previous diners' history is never exposed."""
     table = session.exec(
         select(models.Table).where(models.Table.token == table_token)
     ).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
 
-    orders = session.exec(
-        select(models.Order)
-        .where(
-            models.Order.table_id == table.id,
-            models.Order.deleted_at.is_(None),
-            models.Order.status.in_([models.OrderStatus.paid, models.OrderStatus.completed]),
-        )
-        .order_by(models.Order.created_at.desc())
-        .limit(limit)
-    ).all()
-
-    result = []
-    for order in orders:
-        items = session.exec(
-            select(models.OrderItem).where(
-                models.OrderItem.order_id == order.id,
-                models.OrderItem.removed_by_customer == False,
-            )
-        ).all()
-        total_cents = sum(item.price_cents * item.quantity for item in items)
-        result.append({
-            "id": order.id,
-            "status": order.status.value,
-            "created_at": order.created_at.isoformat(),
-            "paid_at": order.paid_at.isoformat() if order.paid_at else None,
-            "items": [
-                {
-                    "id": item.id,
-                    "product_name": item.product_name,
-                    "quantity": item.quantity,
-                    "price_cents": item.price_cents,
-                    "customization_answers": getattr(item, "customization_answers", None) or None,
-                    "customization_summary": getattr(item, "customization_summary", None) or None,
-                    "line_modifiers": getattr(item, "line_modifiers", None) or None,
-                    "line_modifiers_summary": getattr(item, "line_modifiers_summary", None) or None,
-                }
-                for item in items
-            ],
-            "total_cents": total_cents,
-        })
-    return JSONResponse(content=result)
+    return JSONResponse(content=[])
 
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -12302,7 +12262,7 @@ def create_staff_order(
 
 
 class PaymentRequest(_BaseModel):
-    payment_method: str  # 'cash', 'card_terminal'
+    payment_method: str  # Customer QR payment request: 'card_terminal' only. HitPay uses its own endpoint.
     message: str | None = None  # Optional message/observation from customer
 
 
@@ -12329,7 +12289,7 @@ def request_payment(
     session: Session = Depends(get_session),
 ) -> dict:
     """
-    Public endpoint - customer requests payment via cash or card terminal.
+    Public endpoint - customer requests payment via card terminal.
     Notifies staff via WebSocket so they can come to the table.
     """
     table = session.exec(
@@ -12352,8 +12312,15 @@ def request_payment(
     if order.bill_requested_at is None:
         order.bill_requested_at = datetime.now(timezone.utc)
 
+    normalized_payment_method = _normalize_order_payment_method(payment_request.payment_method)
+    if normalized_payment_method != "terminal":
+        raise HTTPException(
+            status_code=400,
+            detail="Customer payment requests only support terminal. Use HitPay online checkout for online payment.",
+        )
+
     # Store the requested payment method on the order
-    order.payment_method = _normalize_order_payment_method(payment_request.payment_method)
+    order.payment_method = normalized_payment_method
 
     # Append customer message to notes if provided
     if payment_request.message:

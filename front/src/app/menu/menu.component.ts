@@ -3,7 +3,7 @@ import { DomSanitizer, SafeResourceUrl, SafeStyle } from '@angular/platform-brow
 import { FormsModule } from '@angular/forms';
 import { CommonModule, SlicePipe } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
-import { ApiService, Product, ProductQuestion, OrderItemCreate, OrderHistoryItem } from '../services/api.service';
+import { ApiService, Product, ProductQuestion, OrderItemCreate } from '../services/api.service';
 import { AudioService } from '../services/audio.service';
 import { environment } from '../../environments/environment';
 import { FocusFirstInputDirective } from '../shared/focus-first-input.directive';
@@ -81,8 +81,6 @@ export class MenuComponent implements OnInit, OnDestroy {
   orderNotes = '';
   submitting = signal(false);
   placedOrders = signal<PlacedOrder[]>([]);
-  orderHistory = signal<OrderHistoryItem[]>([]);
-  expandedHistoryId = signal<number | null>(null);
   showSuccessToast = signal(false);
   lastOrderId = signal(0);
   ordersExpanded = signal(true);
@@ -125,11 +123,10 @@ export class MenuComponent implements OnInit, OnDestroy {
   // Payment options
   showPaymentOptions = signal(false);
   paymentOptionsStep = signal<'choose' | 'message' | 'success'>('choose');
-  paymentMessageTarget = signal<'waiter' | 'cash' | 'card_terminal' | null>(null);
+  paymentMessageTarget = signal<'card_terminal' | null>(null);
   paymentMessage = signal('');
   paymentRequestSending = signal(false);
   paymentRequestSuccess = signal(false);
-  waiterCallCooldown = signal(false);
 
   paymentAmount = signal(0);
   private currentOrderId = 0;
@@ -190,7 +187,6 @@ export class MenuComponent implements OnInit, OnDestroy {
     this.initializeSession();
     this.loadMenu();
     this.loadStoredOrders();
-    this.loadOrderHistory();
   }
 
   ngOnDestroy() {
@@ -1128,29 +1124,6 @@ export class MenuComponent implements OnInit, OnDestroy {
     }
   }
 
-  loadOrderHistory() {
-    if (!this.tableToken) return;
-    this.api.getOrderHistory(this.tableToken, 10).subscribe({
-      next: (orders) => this.orderHistory.set(orders),
-      error: () => this.orderHistory.set([])
-    });
-  }
-
-  toggleHistoryOrder(id: number) {
-    this.expandedHistoryId.update(prev => prev === id ? null : id);
-  }
-
-  formatHistoryDate(iso: string): string {
-    const d = new Date(iso);
-    const now = new Date();
-    const isToday = d.toDateString() === now.toDateString();
-    if (isToday) {
-      return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-    }
-    return d.toLocaleDateString(undefined, { dateStyle: 'short' }) + ' ' +
-      d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  }
-
   canCancelOrder(order: PlacedOrder): boolean {
     // Can cancel if order is pending and has no items in preparing/ready/delivered status
     if (order.status === 'paid' || order.status === 'completed' || order.status === 'cancelled') {
@@ -1272,54 +1245,30 @@ export class MenuComponent implements OnInit, OnDestroy {
     });
   }
 
-  selectPayCash() {
-    this.paymentMessageTarget.set('cash');
-    this.paymentOptionsStep.set('message');
-  }
-
   selectPayCard() {
     this.paymentMessageTarget.set('card_terminal');
-    this.paymentOptionsStep.set('message');
-  }
-
-  selectCallWaiter() {
-    this.paymentMessageTarget.set('waiter');
     this.paymentOptionsStep.set('message');
   }
 
   submitPaymentRequest() {
     const target = this.paymentMessageTarget();
     const message = this.paymentMessage().trim() || undefined;
+    if (target !== 'card_terminal') {
+      return;
+    }
     this.paymentRequestSending.set(true);
 
-    if (target === 'waiter') {
-      this.api.callWaiter(this.tableToken, message).subscribe({
-        next: () => {
-          this.paymentRequestSending.set(false);
-          this.paymentOptionsStep.set('success');
-          this.paymentRequestSuccess.set(true);
-          // Cooldown to prevent spamming
-          this.waiterCallCooldown.set(true);
-          setTimeout(() => this.waiterCallCooldown.set(false), 30000);
-        },
-        error: (err) => {
-          this.paymentRequestSending.set(false);
-          alert(err.error?.detail || 'Failed to call waiter.');
-        }
-      });
-    } else if (target === 'cash' || target === 'card_terminal') {
-      this.api.requestPayment(this.tableToken, this.currentOrderId, target, message).subscribe({
-        next: () => {
-          this.paymentRequestSending.set(false);
-          this.paymentOptionsStep.set('success');
-          this.paymentRequestSuccess.set(true);
-        },
-        error: (err) => {
-          this.paymentRequestSending.set(false);
-          alert(err.error?.detail || 'Failed to request payment.');
-        }
-      });
-    }
+    this.api.requestPayment(this.tableToken, this.currentOrderId, target, message).subscribe({
+      next: () => {
+        this.paymentRequestSending.set(false);
+        this.paymentOptionsStep.set('success');
+        this.paymentRequestSuccess.set(true);
+      },
+      error: (err) => {
+        this.paymentRequestSending.set(false);
+        alert(err.error?.detail || 'Failed to request payment.');
+      }
+    });
   }
 
   closePaymentOptions() {

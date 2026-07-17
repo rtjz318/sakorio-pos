@@ -337,17 +337,28 @@ Do not put HitPay API URLs, webhook URLs, or public application URLs into the wr
 
 ### P0: HitPay returns an internal error
 
-The tenant sandbox configuration was saved and the payment option appeared, but the final tested local payment-request call returned HTTP 500 before reaching a valid hosted checkout.
+**Resolved on 18 July 2026 in `c85618d8` (`Fix rate-limited payment endpoints`).**
+
+The hosted API had been failing at the rate-limited payment endpoints before the HitPay provider flow could complete. The fix added the required Starlette/FastAPI `Response` parameter to the rate-limited payment endpoints so SlowAPI can inject rate-limit headers without raising `parameter response must be an instance of starlette.responses.Response`.
+
+Hosted browser verification after Render deployed `c85618d8`:
+
+- Public QR order #47 on `order.sakorio.com` opened a real HitPay sandbox checkout, completed with a HitPay sandbox test card, returned to Sakorio's public payment-success page, and changed T07 to a paid/ready table.
+- Staff POS order #48 on `staff.sakorio.com` opened a real HitPay sandbox checkout, completed with a HitPay sandbox test card, returned to POS with `paymentReturn=hitpay&status=completed`, changed T04 to paid/ready, and increased paid-today totals.
+- Staff Orders no longer showed the paid T04/T07 orders in the active unpaid overview.
+- Kitchen received the paid QR/POS tickets once each with table/order context and HitPay provider references.
+- Reports separated HitPay from Terminal and Cash after the sandbox settlements.
+- Render API logs showed no fresh payment 500/traceback after the fix; the only visible log errors during the check were unrelated missing demo product image uploads returning 404.
+
+The original failure is no longer the blocker. Keep the remaining payment acceptance notes below for idempotency, failure-mode, and production-account readiness.
 
 Next developer actions:
 
-1. Reproduce with a fresh unpaid order and valid table token.
-2. Inspect the backend traceback and provider response around `create_hitpay_payment_request` in `back/app/main.py`.
-3. Log the provider status code and sanitized error body; never log keys or salts.
-4. Confirm tenant currency is SGD and the account has the selected payment method enabled.
-5. Verify request payload, provider API base, redirect URL, webhook URL, and signature calculation against the current HitPay documentation.
-6. Verify successful return reconciliation and webhook idempotency.
-7. Confirm the paid order leaves active Orders, appears correctly in history/reports, releases the kitchen workflow, and queues exactly one customer receipt.
+1. Keep provider status/error logging sanitized; never log keys or salts.
+2. Re-test failed/cancelled HitPay checkout recovery from public QR and POS.
+3. Verify webhook idempotency by replaying or triggering duplicate sandbox webhook payloads against `/payments/hitpay/webhook`.
+4. Confirm customer receipt print job behavior for HitPay after a printer agent is available.
+5. Before production, swap to production HitPay credentials/base URL only in Render environment variables and repeat the end-to-end checkout with a low-value live transaction.
 
 Relevant endpoints include:
 
@@ -355,7 +366,7 @@ Relevant endpoints include:
 - `POST /orders/{order_id}/confirm-hitpay-payment`
 - `POST /payments/hitpay/webhook`
 
-Do not mark online payments accepted until a sandbox checkout completes from public QR and cashier POS and is reconciled after redirect/webhook.
+Do not mark online payments fully production-accepted until duplicate webhook/idempotency and printer receipt behavior are validated. Hosted sandbox checkout and redirect reconciliation have passed for both public QR and cashier POS.
 
 ### P0: Physical printing has not been accepted
 

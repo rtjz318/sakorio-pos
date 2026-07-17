@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import unittest
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from sqlmodel import select
@@ -160,6 +160,73 @@ class TestCashierOrderLifecycle(PgClientTestCase):
         self.assertFalse(available_status["is_active"])
         self.assertIsNone(available_status["active_order_id"])
         self.assertEqual(available_status["operational_status"], "available")
+
+    def test_multiple_tickets_stay_current_until_table_close(self) -> None:
+        activate = self.client.post(
+            f"/tables/{self.table_id}/activate",
+            headers=self.headers,
+        )
+        self.assertEqual(activate.status_code, 200, activate.text)
+
+        table = self.session.get(models.Table, self.table_id)
+        self.assertIsNotNone(table)
+        activated_at = table.activated_at or datetime.now(timezone.utc)
+        first_order = models.Order(
+            table_id=self.table_id,
+            tenant_id=table.tenant_id,
+            status=models.OrderStatus.pending,
+            created_at=activated_at + timedelta(minutes=1),
+        )
+        second_order = models.Order(
+            table_id=self.table_id,
+            tenant_id=table.tenant_id,
+            status=models.OrderStatus.preparing,
+            created_at=activated_at + timedelta(minutes=2),
+        )
+        self.session.add(first_order)
+        self.session.add(second_order)
+        self.session.flush()
+        self.session.add(
+            models.OrderItem(
+                order_id=first_order.id,
+                product_id=self.product_id,
+                product_name="First round",
+                quantity=1,
+                price_cents=1000,
+            )
+        )
+        self.session.add(
+            models.OrderItem(
+                order_id=second_order.id,
+                product_id=self.product_id,
+                product_name="Second round",
+                quantity=1,
+                price_cents=1200,
+            )
+        )
+        table.active_order_id = second_order.id
+        self.session.add(table)
+        self.session.commit()
+
+        listed = self.client.get("/orders", headers=self.headers)
+        self.assertEqual(listed.status_code, 200, listed.text)
+        rows = {row["id"]: row for row in listed.json()}
+        self.assertTrue(rows[first_order.id]["is_current_table_session"])
+        self.assertTrue(rows[second_order.id]["is_current_table_session"])
+        self.assertEqual(rows[first_order.id]["table_active_order_id"], second_order.id)
+        self.assertEqual(rows[second_order.id]["table_active_order_id"], second_order.id)
+
+        close = self.client.post(
+            f"/tables/{self.table_id}/close",
+            headers=self.headers,
+        )
+        self.assertEqual(close.status_code, 200, close.text)
+
+        relisted = self.client.get("/orders", headers=self.headers)
+        self.assertEqual(relisted.status_code, 200, relisted.text)
+        closed_rows = {row["id"]: row for row in relisted.json()}
+        self.assertFalse(closed_rows[first_order.id]["is_current_table_session"])
+        self.assertFalse(closed_rows[second_order.id]["is_current_table_session"])
 
 
 if __name__ == "__main__":

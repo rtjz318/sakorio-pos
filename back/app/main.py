@@ -8716,6 +8716,28 @@ def _ensure_aware_utc(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
+def _is_order_in_current_table_session(
+    order: models.Order,
+    table: models.Table | None,
+) -> bool:
+    """Return true when an order belongs to the currently open table visit.
+
+    A table session can contain multiple tickets/rounds for the same seated guests.
+    `table.active_order_id` points at the latest/live bill, but older tickets from
+    the same activation must remain visible with the current visit until staff
+    closes the table.
+    """
+    if not table or not table.is_active or order.table_id != table.id:
+        return False
+    if order.status == models.OrderStatus.cancelled:
+        return False
+    if table.active_order_id is not None and table.active_order_id == order.id:
+        return True
+    if table.activated_at is None:
+        return False
+    return _ensure_aware_utc(order.created_at) >= _ensure_aware_utc(table.activated_at)
+
+
 def _slot_datetime_utc(res_date: date, slot_time: time, tenant: models.Tenant) -> datetime:
     tz = ZoneInfo(tenant.timezone) if tenant.timezone else timezone.utc
     local = datetime.combine(res_date, slot_time, tzinfo=tz)
@@ -12746,12 +12768,7 @@ def list_orders(
             table_display = table.name
         table_active_order_id = table.active_order_id if table else None
         table_is_active = bool(table.is_active) if table else False
-        is_current_table_session = bool(
-            table
-            and table.is_active
-            and table.active_order_id is not None
-            and table.active_order_id == order.id
-        )
+        is_current_table_session = _is_order_in_current_table_session(order, table)
 
         row_out = {
             "id": order.id,

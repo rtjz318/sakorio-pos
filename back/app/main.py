@@ -12283,6 +12283,7 @@ def _normalize_order_payment_method(raw: str | None) -> str:
 )
 def request_payment(
     request: Request,
+    response: Response,
     table_token: str,
     order_id: int,
     payment_request: PaymentRequest,
@@ -14287,6 +14288,7 @@ def _mark_order_paid_from_provider(
 )
 def create_hitpay_payment_request(
     request: Request,
+    response: Response,
     order_id: int,
     table_token: str,
     payment_request: HitPayPaymentRequestCreate | None = None,
@@ -14394,6 +14396,7 @@ def create_hitpay_payment_request(
 )
 def confirm_hitpay_payment(
     request: Request,
+    response: Response,
     order_id: int,
     table_token: str,
     session: Session = Depends(get_session),

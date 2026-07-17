@@ -210,7 +210,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
               </div>
               <div class="workspace-header-actions">
                 <span class="muted-pill">{{ filteredProducts().length }} visible</span>
-                <button type="button" class="btn btn-ghost btn-sm" (click)="closeTableWorkspace()">Close</button>
+                <button type="button" class="btn btn-ghost btn-sm" (click)="closeTableWorkspace()">Back to tables</button>
               </div>
             </div>
 
@@ -446,7 +446,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                 <p class="eyebrow">Bill dock</p>
                 <h2 class="ticket-heading">{{ effectiveCheckoutTable()?.name || 'Select a table to begin' }}</h2>
               </div>
-              <button type="button" class="btn btn-ghost btn-sm checkout-close-btn" (click)="closeTableWorkspace()">Close</button>
+              <button type="button" class="btn btn-ghost btn-sm checkout-close-btn" (click)="closeTableWorkspace()">Back to tables</button>
             </div>
 
             @if (effectiveCheckoutTable(); as checkoutTable) {
@@ -621,6 +621,9 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
                     </button>
                     <button type="button" class="btn btn-secondary btn-sm" (click)="advanceToNextReadyTable()">
                       Next table
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="closeTableWorkspace()">
+                      Choose from floor
                     </button>
                     <button type="button" class="btn btn-ghost btn-sm" (click)="dismissCheckoutOutcome()">
                       Close
@@ -1211,12 +1214,18 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     }
 
     .cashier-grid--workspace-open {
-      grid-template-columns: minmax(0, 1fr) minmax(24rem, 31.5rem);
+      grid-template-columns: minmax(13rem, 18rem) minmax(0, 1fr) minmax(24rem, 31.5rem);
       gap: 0.92rem;
     }
 
     .cashier-grid--workspace-open .lane--tables {
-      display: none;
+      display: flex;
+      position: sticky;
+      top: 0.9rem;
+      align-self: start;
+      max-height: calc(100vh - 1.8rem);
+      overflow: auto;
+      padding-inline: 0.68rem;
     }
 
     .cashier-grid--workspace-open .lane--catalog,
@@ -1225,6 +1234,41 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       position: static;
       min-width: 0;
       overflow: auto;
+    }
+
+    .cashier-grid--workspace-open .lane--tables .lane-header {
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .cashier-grid--workspace-open .lane--tables .lane-inline-pills {
+      justify-content: flex-start;
+      gap: 0.34rem;
+    }
+
+    .cashier-grid--workspace-open .lane--tables .table-stack {
+      grid-template-columns: 1fr;
+      gap: 0.46rem;
+    }
+
+    .cashier-grid--workspace-open .lane--tables .table-card-main {
+      padding: 0.58rem 0.62rem 0.42rem;
+    }
+
+    .cashier-grid--workspace-open .lane--tables .table-card-actions,
+    .cashier-grid--workspace-open .lane--tables .table-card-actions--triple {
+      grid-template-columns: 1fr;
+      padding: 0.46rem 0.58rem 0.62rem;
+      gap: 0.36rem;
+    }
+
+    .cashier-grid--workspace-open .lane--tables .btn-table-clear {
+      grid-column: auto;
+    }
+
+    .cashier-grid--workspace-open .lane--tables .table-reservation-inline,
+    .cashier-grid--workspace-open .lane--tables .table-meta {
+      display: none;
     }
 
     .cashier-grid--workspace-open .lane--catalog {
@@ -4097,7 +4141,7 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       }
 
       .cashier-grid--workspace-open {
-        grid-template-columns: minmax(0, 1fr) minmax(22rem, 29rem);
+        grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr) minmax(22rem, 29rem);
       }
 
       .catalog-toolbar {
@@ -4130,6 +4174,16 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
         max-height: none;
       }
 
+      .cashier-grid--workspace-open .lane--tables {
+        grid-column: 1 / -1;
+        position: static;
+        max-height: none;
+      }
+
+      .cashier-grid--workspace-open .lane--tables .table-stack {
+        grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+      }
+
       .cashier-grid--workspace-open .lane--checkout {
         position: sticky;
         top: 0.75rem;
@@ -4152,6 +4206,11 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
     @media (max-width: 920px) {
       .cashier-grid--workspace-open {
         grid-template-columns: minmax(0, 1fr);
+      }
+
+      .cashier-grid--workspace-open .lane--tables {
+        position: static;
+        max-height: none;
       }
 
       .cashier-grid--workspace-open .lane--catalog,
@@ -5861,6 +5920,7 @@ export class CashierPosComponent {
       return;
     }
 
+    this.tableWorkspaceOpen.set(true);
     this.selectTable(candidate);
     this.notice.set(`${candidate.name} is clear. Start the next order from the catalog.`);
     this.scrollToCatalog();
@@ -5940,6 +6000,11 @@ export class CashierPosComponent {
     if (!hasCartLines && !liveBill) {
       this.error.set('Add at least one item before checkout.');
       return;
+    }
+
+    let hitPayCheckoutWindow: Window | null = null;
+    if (mode === 'hitpay' && typeof window !== 'undefined') {
+      hitPayCheckoutWindow = window.open('', '_blank');
     }
 
     this.processingCheckout.set(true);
@@ -6026,6 +6091,16 @@ export class CashierPosComponent {
           this.hitPayFlowState.set('failed');
           throw new Error('HitPay did not return a checkout link.');
         }
+        if (hitPayCheckoutWindow && !hitPayCheckoutWindow.closed) {
+          hitPayCheckoutWindow.location.href = payment.checkout_url;
+          this.selectedOrderId.set(orderId);
+          this.clearCart();
+          this.queueReadyTableAfterReload(tableId, 'catalog');
+          this.hitPayFlowState.set('idle');
+          this.notice.set(`HitPay checkout opened in a new tab for ${table.name}. This POS is ready for the next table.`);
+          this.loadData();
+          return;
+        }
         window.location.href = payment.checkout_url;
         return;
       }
@@ -6037,6 +6112,9 @@ export class CashierPosComponent {
       }
       this.loadData();
     } catch (err) {
+      if (hitPayCheckoutWindow && !hitPayCheckoutWindow.closed) {
+        hitPayCheckoutWindow.close();
+      }
       if (mode === 'hitpay') {
         this.hitPayFlowState.set('failed');
       }
@@ -6145,6 +6223,13 @@ export class CashierPosComponent {
   focusTableForSale(table: CanvasTable): void {
     this.tableWorkspaceOpen.set(true);
     this.dismissCheckoutOutcome();
+    const boundTable = this.cartBoundTable();
+    if (boundTable?.id && table.id && boundTable.id !== table.id) {
+      this.error.set(`Finish or clear ${boundTable.name}'s cart before switching to ${table.name}.`);
+      this.selectTable(boundTable);
+      this.scrollToPaymentDock();
+      return;
+    }
     this.selectTable(table);
     const linkedOrder = this.tableCurrentOrder(table);
 

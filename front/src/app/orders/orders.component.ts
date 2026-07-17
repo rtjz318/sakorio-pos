@@ -138,6 +138,9 @@ interface OrderTableGroup {
                           </p>
                           <div class="table-order-group-meta">
                             <span class="group-pill group-pill--accent">{{ formatCurrentGroupPrimaryPill(group) }}</span>
+                            @if (group.orders[0]; as latestOrder) {
+                              <span class="group-pill group-pill--accent">Latest #{{ latestOrder.id }}</span>
+                            }
                             <span class="group-pill">{{ group.orders.length }} tickets</span>
                             <span class="group-pill">{{ formatPrice(group.totalCents) }}</span>
                             @if (countOrdersWithStatuses(group.orders, ['ready']) > 0) {
@@ -156,6 +159,12 @@ interface OrderTableGroup {
                               <span class="group-pill">{{ formatOrderTime(group.latestCreatedAt) }}</span>
                             }
                           </div>
+                          @if (group.orders[0]; as latestOrder) {
+                            <div class="table-order-latest" role="status">
+                              <span>Newest ticket</span>
+                              <strong>#{{ latestOrder.id }} · {{ orderPreview(latestOrder) }}</strong>
+                            </div>
+                          }
                       </div>
                       <div class="table-order-group-actions">
                         @if (group.tableId != null) {
@@ -420,6 +429,9 @@ interface OrderTableGroup {
                           </p>
                           <div class="table-order-group-meta">
                             <span class="group-pill group-pill--accent">{{ group.unpaidCount }} unpaid</span>
+                            @if (group.orders[0]; as latestOrder) {
+                              <span class="group-pill group-pill--accent">Latest #{{ latestOrder.id }}</span>
+                            }
                             <span class="group-pill">{{ group.orders.length }} tickets</span>
                             <span class="group-pill">{{ formatPrice(group.totalCents) }}</span>
                             @if (countOrdersWithStatuses(group.orders, ['completed']) > 0) {
@@ -435,6 +447,12 @@ interface OrderTableGroup {
                               <span class="group-pill">{{ formatOrderTime(group.latestCreatedAt) }}</span>
                             }
                           </div>
+                          @if (group.orders[0]; as latestOrder) {
+                            <div class="table-order-latest" role="status">
+                              <span>Newest ticket</span>
+                              <strong>#{{ latestOrder.id }} · {{ orderPreview(latestOrder) }}</strong>
+                            </div>
+                          }
                         </div>
                         @if (group.tableId != null) {
                           <div class="table-order-group-actions">
@@ -1221,6 +1239,37 @@ interface OrderTableGroup {
       flex-wrap: wrap;
       gap: var(--space-2);
       align-items: center;
+    }
+
+    .table-order-latest {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      width: fit-content;
+      max-width: 100%;
+      margin-top: var(--space-2);
+      padding: 0.42rem 0.62rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--color-primary-light) 42%, white);
+      border: 1px solid color-mix(in srgb, var(--color-primary) 16%, var(--color-border));
+      color: var(--color-text);
+      font-size: 0.8rem;
+      line-height: 1.2;
+    }
+
+    .table-order-latest span {
+      color: var(--color-text-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .table-order-latest strong {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .group-pill {
@@ -2391,6 +2440,19 @@ export class OrdersComponent implements OnInit, OnDestroy {
   countOrdersWithStatuses(orders: readonly Order[], statuses: string[]): number {
     const lookup = new Set(statuses);
     return orders.reduce((count, order) => count + (lookup.has(order.status) ? 1 : 0), 0);
+  }
+
+  orderPreview(order: Order): string {
+    const items = order.items || [];
+    const firstItem = items[0];
+    if (!firstItem) {
+      return items.length === 1 ? '1 item' : `${items.length} items`;
+    }
+    const firstLine = `${firstItem.quantity || 1}x ${firstItem.product_name}`;
+    if (items.length === 1) {
+      return firstLine;
+    }
+    return `${firstLine} + ${items.length - 1} more`;
   }
 
   toggleActiveTableGroup(groupKey: string): void {

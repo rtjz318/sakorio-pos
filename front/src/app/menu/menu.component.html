@@ -285,7 +285,12 @@
             <h3 class="featured-name">{{ product.name }}</h3>
             <span class="featured-price">{{ formatPrice(product.price_cents) }}</span>
           </div>
-          <button class="quick-add-btn" (click)="addToCartWithQuestions(product); $event.stopPropagation()">
+          <button
+            type="button"
+            class="quick-add-btn"
+            [attr.aria-label]="'Add ' + product.name + ' to cart'"
+            [attr.title]="'Add ' + product.name + ' to cart'"
+            (click)="addToCartWithQuestions(product); $event.stopPropagation()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
@@ -397,7 +402,12 @@
           </div>
 
           <!-- Add Button -->
-          <button class="add-to-cart-btn" (click)="addToCartWithQuestions(product); $event.stopPropagation()">
+          <button
+            type="button"
+            class="add-to-cart-btn"
+            [attr.aria-label]="'Add ' + product.name + ' to cart'"
+            [attr.title]="'Add ' + product.name + ' to cart'"
+            (click)="addToCartWithQuestions(product); $event.stopPropagation()">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />

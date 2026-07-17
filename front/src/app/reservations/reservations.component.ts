@@ -1367,6 +1367,7 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   }
 
   confirmCancel(r: Reservation) {
+    this.closeMoreActionMenus();
     this.reservationToCancel.set(r);
   }
 
@@ -1380,7 +1381,15 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   }
 
   confirmNoShow(r: Reservation) {
+    this.closeMoreActionMenus();
     this.reservationToNoShow.set(r);
+  }
+
+  private closeMoreActionMenus(): void {
+    if (typeof document === 'undefined') return;
+    document.querySelectorAll('details.more-actions[open]').forEach((node) => {
+      node.removeAttribute('open');
+    });
   }
 
   doNoShow() {

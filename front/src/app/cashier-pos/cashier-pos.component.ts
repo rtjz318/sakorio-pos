@@ -13,6 +13,7 @@ import {
   TenantProduct,
   TenantSettings,
 } from '../services/api.service';
+import { getCustomerPublicOrigin } from '../shared/host-portal.util';
 import { SidebarComponent } from '../shared/sidebar.component';
 import { StaffPosToolbarComponent } from '../shared/staff-pos-toolbar.component';
 
@@ -214,6 +215,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 
           </section>
 
+          @if (showLegacyInlineLanes()) {
           <section class="lane lane--catalog" id="cashier-catalog">
             <div class="lane-header">
               <div>
@@ -462,7 +464,9 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
               </div>
             }
           </section>
+          }
 
+          @if (showLegacyInlineLanes()) {
           <section class="lane lane--checkout">
             <div class="lane-header lane-header--checkout">
               <div>
@@ -780,6 +784,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
               }
             </div>
           </section>
+          }
         </div>
 
         @if (showQueuePanel()) {
@@ -965,6 +970,11 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                     <span class="service-status" [class.service-status--live]="!!serviceTable.active_order_id">
                       {{ serviceTable.active_order_id ? 'Live order #' + serviceTable.active_order_id : getTableStateLabel(serviceTable) }}
                     </span>
+                    @if (customerMenuUrl(serviceTable)) {
+                      <button type="button" class="btn btn-secondary btn-sm" (click)="openCustomerMenu(serviceTable)">
+                        Open customer QR
+                      </button>
+                    }
                     <button type="button" class="pos-service-close" (click)="closeTableWorkspace()" aria-label="Close POS table service">x</button>
                   </div>
                 </header>
@@ -5325,6 +5335,15 @@ export class CashierPosComponent {
   lastCheckoutOutcome = signal<PosCheckoutOutcome | null>(null);
   hitPayFlowState = signal<PosHitPayFlowState>('idle');
   tableHistoryExpanded = signal(false);
+
+  /**
+   * The POS now uses the table-service drawer as the single ordering/payment workflow.
+   * Keep the old inline catalog/checkout lanes unrendered so hidden duplicate buttons do
+   * not appear in browser QA or accessibility trees.
+   */
+  showLegacyInlineLanes(): boolean {
+    return false;
+  }
   private focusNextClearTableAfterReload = false;
   private preferredReadyTableIdAfterReload: number | null = null;
   private scrollTargetAfterReload: 'catalog' | 'payment' | null = null;
@@ -6693,6 +6712,20 @@ export class CashierPosComponent {
       return customerName;
     }
     return 'Counter ticket';
+  }
+
+  customerMenuUrl(table: CanvasTable | null | undefined): string | null {
+    if (!table?.token) return null;
+    const baseUrl = `${getCustomerPublicOrigin()}/menu/${table.token}`;
+    return table.qr_access
+      ? `${baseUrl}?qr_access=${encodeURIComponent(table.qr_access)}`
+      : baseUrl;
+  }
+
+  openCustomerMenu(table: CanvasTable): void {
+    const url = this.customerMenuUrl(table);
+    if (!url || typeof window === 'undefined') return;
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   queueOrderActionLabel(order: Order): string {

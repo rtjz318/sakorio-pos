@@ -97,13 +97,37 @@ Render logs:
 - No fresh payment 500/traceback appeared after `c85618d8`.
 - Only unrelated demo product upload 404s were visible during the log check.
 
+## Cancelled and failed return recovery
+
+Follow-up deployed commit:
+
+- `e784aa94` – `Handle HitPay cancelled returns`
+
+Hosted browser verification:
+
+- Public QR cancelled return:
+  - URL shape: `/menu/{token}/payment-success?order_id=47&provider=hitpay&status=cancelled&reference=...`
+  - Result: page showed `Payment not completed`, explained the order is still open, and offered `Back to payment options`.
+- Public QR failed return:
+  - URL shape: `/menu/{token}/payment-success?order_id=47&provider=hitpay&status=failed&reference=...`
+  - Result: page showed `Payment needs attention`, explained HitPay returned an unsuccessful status, and offered `Back to payment options`.
+- Staff POS cancelled return:
+  - URL shape before processing: `/pos?tableId=3&orderId=46&paymentReturn=hitpay&status=cancelled&reference=...`
+  - Result: POS showed `HitPay checkout was cancelled for T03. The bill is still open and ready to retry.`
+  - URL cleanup removed `paymentReturn`, `status`, and `reference`, leaving `/pos?tableId=3&orderId=46`.
+  - Bill #46 remained open/unpaid and retryable.
+- Staff POS failed return:
+  - URL shape before processing: `/pos?tableId=3&orderId=46&paymentReturn=hitpay&status=failed&reference=...`
+  - Result: POS showed `HitPay checkout returned "failed" for T03. The bill is still open and ready to retry.`
+  - URL cleanup removed `paymentReturn`, `status`, and `reference`, leaving `/pos?tableId=3&orderId=46`.
+  - Bill #46 remained open/unpaid and retryable.
+
 ## Remaining acceptance work
 
-HitPay is now usable in sandbox from both public QR and POS, but the following should still be completed before production acceptance:
+HitPay is now usable in sandbox from both public QR and POS, and hosted cancelled/failed return recovery has been verified. The following should still be completed before production acceptance:
 
-1. Test cancelled/failed HitPay checkout recovery from both public QR and POS.
-2. Repeat with production HitPay credentials/base URL in Render environment variables before real launch.
-3. Clean up or replace missing hosted demo product images that currently generate `/uploads/1/products/...` 404s.
+1. Repeat with production HitPay credentials/base URL in Render environment variables before real launch.
+2. Clean up or replace missing hosted demo product images that currently generate `/uploads/1/products/...` 404s.
 
 Future/hardware lane:
 

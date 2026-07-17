@@ -181,7 +181,7 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
           @if (shifts().length === 0) {
             <div class="empty-state">
               <strong>No shifts scheduled</strong>
-              <span>Ask a manager to add your shift to the working plan.</span>
+              <span>Ask a manager to add your shift to the Timetable.</span>
             </div>
           } @else {
             <div class="shift-list">

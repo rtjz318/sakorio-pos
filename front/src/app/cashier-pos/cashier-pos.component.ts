@@ -109,21 +109,21 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
         }
 
         <section class="cashier-status-strip">
-          <article class="status-chip">
+          <article class="status-chip" [class.status-chip--loading]="loading()">
             <span class="summary-label">Tables loaded</span>
-            <strong>{{ tables().length }}</strong>
+            <strong>{{ loading() && tables().length === 0 ? 'Syncing' : tables().length }}</strong>
           </article>
-          <article class="status-chip">
+          <article class="status-chip" [class.status-chip--loading]="loading()">
             <span class="summary-label">Open bills</span>
-            <strong>{{ liveBills().length }}</strong>
+            <strong>{{ loading() && orders().length === 0 ? 'Syncing' : liveBills().length }}</strong>
           </article>
-          <article class="status-chip">
+          <article class="status-chip" [class.status-chip--loading]="loading()">
             <span class="summary-label">Paid today</span>
-            <strong>{{ formatPrice(totalPaidCents()) }}</strong>
+            <strong>{{ loading() && orders().length === 0 ? 'Syncing' : formatPrice(totalPaidCents()) }}</strong>
           </article>
-          <article class="status-chip">
+          <article class="status-chip" [class.status-chip--loading]="loading()">
             <span class="summary-label">Catalog</span>
-            <strong>{{ activeProducts().length }}</strong>
+            <strong>{{ loading() && activeProducts().length === 0 ? 'Syncing' : activeProducts().length }}</strong>
           </article>
         </section>
 
@@ -141,7 +141,18 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
               </div>
             </div>
 
-            @if (tables().length === 0 && !loading()) {
+            @if (loading() && tables().length === 0) {
+              <div class="empty-card loading-card">
+                <div class="loading-card-icon"></div>
+                <h3>Loading floor tables…</h3>
+                <p>Syncing table sessions, open bills, paid tickets, and seating status.</p>
+                <div class="loading-bars" aria-hidden="true">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              </div>
+            } @else if (tables().length === 0 && !loading()) {
               <div class="empty-card">
                 <h3>No tables configured yet</h3>
                 <p>Create the floor first so the cashier can bind bills to a live table.</p>
@@ -365,7 +376,18 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
               </div>
             }
 
-            @if (sellableProducts().length === 0 && !loading()) {
+            @if (loading() && sellableProducts().length === 0) {
+              <div class="empty-card loading-card">
+                <div class="loading-card-icon"></div>
+                <h3>Loading menu catalog…</h3>
+                <p>Fetching active products, modifiers, and categories for fast ordering.</p>
+                <div class="loading-bars" aria-hidden="true">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              </div>
+            } @else if (sellableProducts().length === 0 && !loading()) {
               <div class="empty-card">
                 <h3>No sellable products yet</h3>
                 <p>Add tenant products or legacy products first so the cashier can build tickets locally.</p>
@@ -1147,6 +1169,14 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
       gap: 0.6rem;
+    }
+
+    .status-chip--loading {
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--color-surface) 92%, white),
+        color-mix(in srgb, var(--color-primary) 8%, var(--color-surface))
+      );
     }
 
     .status-chip strong {
@@ -4088,6 +4118,71 @@ type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'failed';
 
     .empty-card h3 {
       margin: 0;
+    }
+
+    .loading-card {
+      align-items: center;
+      text-align: center;
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--color-surface) 94%, white),
+        color-mix(in srgb, var(--color-primary) 7%, var(--color-surface))
+      );
+    }
+
+    .loading-card p {
+      margin: 0;
+      max-width: 28rem;
+    }
+
+    .loading-card-icon {
+      width: 2.4rem;
+      height: 2.4rem;
+      border-radius: 999px;
+      border: 3px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
+      border-top-color: var(--color-primary);
+      animation: pos-spin 0.9s linear infinite;
+    }
+
+    .loading-bars {
+      width: min(20rem, 100%);
+      display: grid;
+      gap: 0.42rem;
+      margin-top: 0.15rem;
+    }
+
+    .loading-bars span {
+      height: 0.55rem;
+      border-radius: 999px;
+      background: linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--color-border) 70%, white),
+        color-mix(in srgb, var(--color-primary) 15%, white),
+        color-mix(in srgb, var(--color-border) 70%, white)
+      );
+      background-size: 200% 100%;
+      animation: pos-shimmer 1.15s ease-in-out infinite;
+    }
+
+    .loading-bars span:nth-child(2) {
+      width: 82%;
+      justify-self: center;
+      animation-delay: 0.08s;
+    }
+
+    .loading-bars span:nth-child(3) {
+      width: 64%;
+      justify-self: center;
+      animation-delay: 0.16s;
+    }
+
+    @keyframes pos-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes pos-shimmer {
+      0% { background-position: 100% 0; }
+      100% { background-position: -100% 0; }
     }
 
     .queue-panel {

@@ -272,6 +272,27 @@ function getWorkflowSortWeight(
       </header>
 
       <main class="kitchen-main">
+        @if (!loading()) {
+          <section class="kitchen-rush-summary" aria-label="Kitchen rush summary">
+            <div class="rush-card rush-card--route">
+              <span>View</span>
+              <strong>{{ productionRouteLabel() }}</strong>
+              <small>{{ stationSummaryLabel() }}</small>
+            </div>
+            @for (lane of kitchenLanes(); track lane.key) {
+              <button type="button" class="rush-card rush-card--{{ lane.key }}" (click)="scrollLaneIntoView(lane.key)">
+                <span>{{ lane.eyebrow }}</span>
+                <strong>{{ lane.orders.length }}</strong>
+                <small>{{ lane.title }}</small>
+              </button>
+            }
+            <div class="rush-card rush-card--oldest">
+              <span>Oldest wait</span>
+              <strong>{{ oldestVisibleTicketWait() }}</strong>
+              <small>{{ oldestVisibleTicketLabel() }}</small>
+            </div>
+          </section>
+        }
         @if (!showBacklog() && staleTicketCount() > 0) {
           <div class="backlog-notice" role="status">
             <span><strong>{{ staleTicketCount() }}</strong> older unresolved ticket{{ staleTicketCount() === 1 ? '' : 's' }} hidden from the live shift.</span>
@@ -302,7 +323,7 @@ function getWorkflowSortWeight(
           }
           <div class="lane-board">
             @for (lane of kitchenLanes(); track lane.key) {
-              <section class="service-lane service-lane--{{ lane.key }}">
+              <section class="service-lane service-lane--{{ lane.key }}" [id]="'kitchen-lane-' + lane.key">
                 <header class="service-lane-header">
                   <div>
                     <span class="service-lane-eyebrow">{{ lane.eyebrow }}</span>
@@ -616,6 +637,43 @@ function getWorkflowSortWeight(
     .kitchen-main::-webkit-scrollbar-thumb {
       background: color-mix(in srgb, var(--color-primary) 20%, var(--color-border));
     }
+    .kitchen-rush-summary {
+      display: grid;
+      grid-template-columns: 1.15fr repeat(3, minmax(0, 0.8fr)) 1fr;
+      gap: 0.65rem;
+      margin-bottom: var(--space-4);
+    }
+    .rush-card {
+      min-width: 0;
+      display: grid;
+      gap: 0.12rem;
+      padding: 0.82rem 0.9rem;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface);
+      color: var(--color-text);
+      text-align: left;
+      box-shadow: var(--shadow-sm);
+    }
+    button.rush-card { cursor: pointer; }
+    button.rush-card:hover { transform: translateY(-1px); }
+    .rush-card span,
+    .rush-card small {
+      overflow: hidden;
+      color: var(--color-text-muted);
+      font-size: 0.78rem;
+      font-weight: 750;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .rush-card strong {
+      color: var(--color-text);
+      font-size: 1.35rem;
+      line-height: 1.08;
+    }
+    .rush-card--pending { border-top: 4px solid var(--color-warning); }
+    .rush-card--preparing { border-top: 4px solid #3B82F6; }
+    .rush-card--ready { border-top: 4px solid var(--color-success); }
     .backlog-notice {
       display: flex;
       align-items: center;
@@ -1161,11 +1219,17 @@ function getWorkflowSortWeight(
       border: 1px solid var(--color-border);
     }
     @media (max-width: 980px) {
+      .kitchen-rush-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
       .lane-board {
         grid-template-columns: repeat(2, minmax(280px, 1fr));
       }
     }
     @media (max-width: 720px) {
+      .kitchen-rush-summary {
+        grid-template-columns: minmax(0, 1fr);
+      }
       .lane-board {
         grid-template-columns: minmax(0, 1fr);
       }
@@ -1473,6 +1537,52 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       { key: 'ready' as const, title: 'Ready pass', eyebrow: 'Hand off', orders: buckets.ready },
     ];
   });
+
+  productionRouteLabel(): string {
+    switch (this.productionRoute()) {
+      case 'kitchen':
+        return 'Kitchen only';
+      case 'bar':
+        return 'Beverages only';
+      default:
+        return 'All production';
+    }
+  }
+
+  stationSummaryLabel(): string {
+    const selected = this.stationSelection();
+    if (selected === 'all') {
+      const count = this.stationsForCurrentView().length;
+      return count > 0 ? `${count} stations visible` : 'All stations';
+    }
+    const station = this.kitchenStations().find((item) => item.id === selected);
+    return station?.name ?? 'Selected station';
+  }
+
+  oldestVisibleTicketWait(): string {
+    const oldest = this.oldestVisibleTicket();
+    return oldest ? this.formatWaitingTime(oldest.created_at) : '—';
+  }
+
+  oldestVisibleTicketLabel(): string {
+    const oldest = this.oldestVisibleTicket();
+    if (!oldest) return 'No active tickets';
+    return `#${oldest.id} · ${oldest.table_name || 'Counter'}`;
+  }
+
+  scrollLaneIntoView(lane: KitchenLaneKey): void {
+    document.getElementById(`kitchen-lane-${lane}`)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+      inline: 'nearest',
+    });
+  }
+
+  private oldestVisibleTicket(): Order | null {
+    return [...this.visibleOrders()].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    )[0] ?? null;
+  }
 
   lastRefreshRelative = computed(() => {
     const at = this.lastRefreshAt();

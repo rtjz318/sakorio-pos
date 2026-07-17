@@ -124,9 +124,11 @@ interface OrderTableGroup {
 
             <!-- Active Orders Section -->
             @if (viewMode() === 'active' && activeOrders().length > 0) {
-              <div class="table-order-stack">
+              <div class="table-overview-board">
                 @for (group of activeOrderGroups(); track group.key) {
-                  <section class="table-order-group">
+                  <section
+                    class="table-order-group table-order-group--overview"
+                    [class.table-order-group--expanded]="expandedActiveTableKey() === group.key">
                       <div class="table-order-group-header">
                         <div class="table-order-group-copy">
                           <p class="eyebrow">Table orders</p>
@@ -155,14 +157,21 @@ interface OrderTableGroup {
                             }
                           </div>
                       </div>
-                      @if (group.tableId != null) {
-                        <div class="table-order-group-actions">
+                      <div class="table-order-group-actions">
+                        @if (group.tableId != null) {
                           <button type="button" class="btn btn-secondary btn-sm" (click)="openPosForTable(group)">
                             Open table POS
                           </button>
-                        </div>
-                      }
+                        }
+                        <button
+                          type="button"
+                          class="btn btn-primary btn-sm"
+                          (click)="toggleActiveTableGroup(group.key)">
+                          {{ expandedActiveTableKey() === group.key ? 'Hide tickets' : 'View tickets' }}
+                        </button>
+                      </div>
                     </div>
+                    @if (expandedActiveTableKey() === group.key) {
                     <div class="order-grid order-grid--table">
                       @for (order of group.orders; track order.id) {
                         <div class="order-card" [id]="'order-card-' + order.id" [class]="'status-' + order.status + (orderCardHasOpenStatusDropdown(order.id) ? ' status-dropdown-open' : '')">
@@ -377,6 +386,7 @@ interface OrderTableGroup {
                   </div>
                         }
                       </div>
+                    }
                     </section>
                   }
                 </div>
@@ -1118,6 +1128,13 @@ interface OrderTableGroup {
       gap: var(--space-4);
     }
 
+    .table-overview-board {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+      gap: var(--space-3);
+      align-items: start;
+    }
+
     .table-order-group {
       border: 1px solid var(--color-border);
       border-radius: var(--radius-xl);
@@ -1128,6 +1145,14 @@ interface OrderTableGroup {
       );
       box-shadow: var(--shadow-sm);
       overflow: hidden;
+    }
+
+    .table-order-group--overview {
+      min-height: 0;
+    }
+
+    .table-order-group--expanded {
+      grid-column: 1 / -1;
     }
 
     .table-order-group-header {
@@ -1160,10 +1185,28 @@ interface OrderTableGroup {
 
     .table-order-group-copy h3 {
       margin: 0;
-      font-size: 1.08rem;
+      font-size: 1.42rem;
       font-weight: 700;
       line-height: 1.15;
       color: var(--color-text);
+    }
+
+    .table-order-group--overview:not(.table-order-group--expanded) .table-order-group-header {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-2);
+      padding: var(--space-3);
+    }
+
+    .table-order-group--overview:not(.table-order-group--expanded) .table-order-group-actions {
+      width: 100%;
+      justify-content: stretch;
+    }
+
+    .table-order-group--overview:not(.table-order-group--expanded) .table-order-group-actions .btn {
+      flex: 1 1 auto;
+      justify-content: center;
+      min-width: 0;
+      padding-inline: var(--space-2);
     }
 
     .table-order-group-summary {
@@ -2137,6 +2180,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
   currencyCode = signal<string | null>(null);
   showRemovedItems = false;
   viewMode = signal<'active' | 'not_paid' | 'history'>('active');
+  expandedActiveTableKey = signal<string | null>(null);
   orderToMarkPaid = signal<Order | null>(null);
   paymentMethod = 'cash';
   /** Selected POS tip preset percent; 0 = no tip */
@@ -2312,6 +2356,10 @@ export class OrdersComponent implements OnInit, OnDestroy {
   countOrdersWithStatuses(orders: readonly Order[], statuses: string[]): number {
     const lookup = new Set(statuses);
     return orders.reduce((count, order) => count + (lookup.has(order.status) ? 1 : 0), 0);
+  }
+
+  toggleActiveTableGroup(groupKey: string): void {
+    this.expandedActiveTableKey.update((current) => (current === groupKey ? null : groupKey));
   }
 
   formatActiveGroupSummary(group: OrderTableGroup): string {

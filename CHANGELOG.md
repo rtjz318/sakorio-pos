@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ### Fixed
 
+- **Orders:** Made the active Orders view table-first by default; tables now appear as compact overview cards and ticket-level detail stays collapsed until staff choose a table.
 - **POS / tables:** Replaced the floating POS overlay with a clean selected-table workspace so the menu stays in the main lane and the payment dock remains anchored on the right without overlapping content.
 - **POS / tables:** Reworked the cashier POS into a table-first board; waiters now pick a table first, then the menu and payment dock open as a focused workspace.
 - **Public table ordering:** Removed the table PIN gate, staff PIN display, and PIN regeneration controls so guests can place orders from an active table QR/menu without asking staff for a code.

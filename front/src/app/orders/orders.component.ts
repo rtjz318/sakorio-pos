@@ -137,7 +137,7 @@ interface OrderTableGroup {
                             {{ formatActiveGroupSummary(group) }}
                           </p>
                           <div class="table-order-group-meta">
-                            <span class="group-pill group-pill--accent">{{ group.activeCount }} active</span>
+                            <span class="group-pill group-pill--accent">{{ formatCurrentGroupPrimaryPill(group) }}</span>
                             <span class="group-pill">{{ group.orders.length }} tickets</span>
                             <span class="group-pill">{{ formatPrice(group.totalCents) }}</span>
                             @if (countOrdersWithStatuses(group.orders, ['ready']) > 0) {
@@ -2398,8 +2398,12 @@ export class OrdersComponent implements OnInit, OnDestroy {
   }
 
   formatActiveGroupSummary(group: OrderTableGroup): string {
+    const currentTicketCopy =
+      group.activeCount > 0
+        ? `${group.activeCount} active ticket${group.activeCount === 1 ? '' : 's'}`
+        : `${group.orders.length} current ticket${group.orders.length === 1 ? '' : 's'}`;
     const parts = [
-      `${group.activeCount} active ticket${group.activeCount === 1 ? '' : 's'}`,
+      currentTicketCopy,
       `${this.formatPrice(group.totalCents)} on this table`,
     ];
 
@@ -2409,6 +2413,13 @@ export class OrdersComponent implements OnInit, OnDestroy {
     }
 
     return parts.join(' | ');
+  }
+
+  formatCurrentGroupPrimaryPill(group: OrderTableGroup): string {
+    if (group.activeCount > 0) {
+      return `${group.activeCount} active`;
+    }
+    return `${group.orders.length} current`;
   }
 
   formatUnpaidGroupSummary(group: OrderTableGroup): string {

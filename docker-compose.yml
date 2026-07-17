@@ -4,6 +4,7 @@
 services:
   back:
     build: ./back
+    image: pos2-back:latest
     container_name: pos-back
     restart: unless-stopped
     user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"

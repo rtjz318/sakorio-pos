@@ -14236,12 +14236,47 @@ def _request_base_url(request: Request) -> str | None:
     return f"{proto}://{host}".rstrip("/")
 
 
-def _hitpay_headers(api_key: str) -> dict[str, str]:
+def _hitpay_headers(api_key: str, content_type: str = "application/json") -> dict[str, str]:
     return {
         "X-BUSINESS-API-KEY": api_key,
-        "Content-Type": "application/json",
+        "Content-Type": content_type,
+        "Accept": "application/json",
         "X-Requested-With": "XMLHttpRequest",
     }
+
+
+def _hitpay_safe_response_text(
+    response: requests.Response | None,
+    extra_secrets: tuple[str | None, ...] = (),
+) -> str | None:
+    if response is None:
+        return None
+    try:
+        text = response.text or ""
+    except Exception:
+        return None
+    if not text:
+        return None
+    for secret_value in (settings.hitpay_api_key, settings.hitpay_webhook_salt, *extra_secrets):
+        if secret_value and isinstance(secret_value, str):
+            text = text.replace(secret_value, "[redacted]")
+    text = text.replace("\r", " ").replace("\n", " ").strip()
+    return text[:600]
+
+
+def _log_hitpay_request_exception(
+    action: str,
+    exc: requests.RequestException,
+    *,
+    api_key: str | None = None,
+) -> None:
+    response = getattr(exc, "response", None)
+    logger.exception(
+        "HitPay %s failed status=%s body=%s",
+        action,
+        getattr(response, "status_code", None),
+        _hitpay_safe_response_text(response, (api_key,)),
+    )
 
 
 def _hitpay_create_payment_request(
@@ -14261,23 +14296,31 @@ def _hitpay_create_payment_request(
         "currency": currency.upper(),
         "purpose": f"Order #{order.id} at {tenant.name} - {table.name}",
         "reference_number": f"pos-order-{order.id}",
-        "allow_repeated_payments": False,
-        "send_email": False,
-        "send_sms": False,
-        "metadata": {
-            "order_id": str(order.id),
-            "table_id": str(table.id),
-            "tenant_id": str(order.tenant_id),
-        },
+        "allow_repeated_payments": "false",
     }
     if redirect_url:
         payload["redirect_url"] = redirect_url
     if order.customer_name:
         payload["name"] = order.customer_name
 
-    resp = requests.post(url, json=payload, headers=_hitpay_headers(api_key), timeout=15)
+    resp = requests.post(
+        url,
+        data=payload,
+        headers=_hitpay_headers(api_key, "application/x-www-form-urlencoded"),
+        timeout=15,
+    )
     resp.raise_for_status()
-    return resp.json()
+    try:
+        data = resp.json()
+    except ValueError as e:
+        raise requests.RequestException(
+            "Invalid JSON response from HitPay", response=resp
+        ) from e
+    if not isinstance(data, dict):
+        raise requests.RequestException(
+            "Invalid response from HitPay", response=resp
+        )
+    return data
 
 
 def _hitpay_retrieve_payment_request(*, api_key: str, mode: str, request_id: str) -> dict:
@@ -14455,14 +14498,10 @@ def create_hitpay_payment_request(
             redirect_url=redirect_url,
         )
     except requests.RequestException as e:
-        logger.exception("HitPay create payment request failed")
-        detail = str(e)
-        if getattr(e, "response", None) is not None and hasattr(e.response, "text"):
-            try:
-                detail = e.response.text or detail
-            except Exception:
-                pass
-        raise HTTPException(status_code=502, detail=f"HitPay request failed: {detail}") from e
+        _log_hitpay_request_exception(
+            "create payment request", e, api_key=hitpay_api_key.strip()
+        )
+        raise HTTPException(status_code=502, detail="HitPay request failed") from e
 
     hitpay_id = hitpay_request.get("id")
     checkout_url = hitpay_request.get("url")
@@ -14535,7 +14574,9 @@ def confirm_hitpay_payment(
             request_id=order.hitpay_payment_request_id,
         )
     except requests.RequestException as e:
-        logger.exception("HitPay retrieve payment request failed")
+        _log_hitpay_request_exception(
+            "retrieve payment request", e, api_key=hitpay_api_key.strip()
+        )
         raise HTTPException(status_code=502, detail="HitPay request failed") from e
 
     if not _hitpay_status_is_paid(hitpay_request):

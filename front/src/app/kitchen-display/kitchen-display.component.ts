@@ -1491,8 +1491,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   private isCurrentKitchenOrder(order: Order): boolean {
-    const createdAt = new Date(order.created_at).getTime();
-    return Number.isFinite(createdAt) && this.now() - createdAt <= KITCHEN_CURRENT_WINDOW_MS;
+    const createdAt = this.parseOrderDate(order.created_at);
+    return createdAt != null && this.now() - createdAt <= KITCHEN_CURRENT_WINDOW_MS;
   }
 
   staleTicketCount = computed(() =>
@@ -1544,8 +1544,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       if (aRank !== bRank) {
         return aRank - bRank;
       }
-      const ta = new Date(a.created_at).getTime();
-      const tb = new Date(b.created_at).getTime();
+      const ta = this.parseOrderDate(a.created_at) ?? 0;
+      const tb = this.parseOrderDate(b.created_at) ?? 0;
       return ta - tb;
     });
   });
@@ -1571,8 +1571,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
         if (aRank !== bRank) {
           return aRank - bRank;
         }
-        const ta = new Date(a.created_at).getTime();
-        const tb = new Date(b.created_at).getTime();
+        const ta = this.parseOrderDate(a.created_at) ?? 0;
+        const tb = this.parseOrderDate(b.created_at) ?? 0;
         return ta - tb;
       });
   });
@@ -1654,7 +1654,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   private oldestVisibleTicket(): Order | null {
     return [...this.visibleOrders()].sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      (a, b) => (this.parseOrderDate(a.created_at) ?? 0) - (this.parseOrderDate(b.created_at) ?? 0),
     )[0] ?? null;
   }
 
@@ -2063,13 +2063,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   formatOrderTime(dateString: string): string {
     if (!dateString) return '-';
-    const dateStr =
-      dateString.endsWith('Z') || dateString.includes('+') || dateString.includes('-', 10)
-        ? dateString
-        : dateString + 'Z';
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return '-';
-    const diffMs = Date.now() - date.getTime();
+    const parsedTime = this.parseOrderDate(dateString);
+    if (parsedTime == null) return '-';
+    const date = new Date(parsedTime);
+    const diffMs = Date.now() - parsedTime;
     if (diffMs < 60_000) return '< 1m ago';
     if (diffMs < 3600_000) return `${Math.floor(diffMs / 60_000)}m ago`;
     if (diffMs < 86400_000) return `${Math.floor(diffMs / 3600_000)}h ago`;
@@ -2079,12 +2076,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   formatExactTime(dateString: string): string {
     if (!dateString) return '';
-    const dateStr =
-      dateString.endsWith('Z') || dateString.includes('+') || dateString.includes('-', 10)
-        ? dateString
-        : dateString + 'Z';
-    const date = new Date(dateStr);
-    return isNaN(date.getTime()) ? dateString : date.toLocaleString();
+    const parsedTime = this.parseOrderDate(dateString);
+    return parsedTime == null ? dateString : new Date(parsedTime).toLocaleString();
   }
 
   getItemStatusTransitions(currentStatus: string): { forward: string[]; backward: string[] } {

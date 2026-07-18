@@ -90,6 +90,36 @@
       }
     </nav>
 
+    <section class="end-day-checklist" aria-labelledby="end-day-checklist-title" data-testid="reports-end-day-checklist">
+      <div class="end-day-checklist__header">
+        <span class="eyebrow">Launch close flow</span>
+        <h2 id="end-day-checklist-title">Manager end-day checklist</h2>
+        <p>Run these checks before cash-up so unpaid bills, active tables, kitchen backlog, and open staff sessions do not leak into the next service.</p>
+      </div>
+      <div class="end-day-checklist__grid">
+        <a routerLink="/tables" class="close-step close-step--tables">
+          <strong>1. Tables</strong>
+          <span>Close or clear every table that has finished service.</span>
+        </a>
+        <a routerLink="/orders" class="close-step close-step--orders">
+          <strong>2. Orders</strong>
+          <span>Review current-session tickets, unpaid orders, and newest items.</span>
+        </a>
+        <a routerLink="/kitchen" class="close-step close-step--kitchen">
+          <strong>3. Kitchen</strong>
+          <span>Complete served tickets and clear visible backlog before opening tomorrow.</span>
+        </a>
+        <a routerLink="/my-shift" class="close-step close-step--shifts">
+          <strong>4. Staff sessions</strong>
+          <span>Check clock-in/out records and unresolved shift photos.</span>
+        </a>
+        <a routerLink="/reports" [queryParams]="{ preset: 'today' }" class="close-step close-step--reports">
+          <strong>5. Export reports</strong>
+          <span>Refresh today’s report and export CSV/Excel for handover.</span>
+        </a>
+      </div>
+    </section>
+
     <!-- Summary cards (always shown: revenue, orders, reservations) -->
     <section class="report-section summary-section" id="reports-summary">
         <h2>{{ 'REPORTS.SUMMARY' | translate }}</h2>

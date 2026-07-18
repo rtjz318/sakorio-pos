@@ -6,6 +6,8 @@ Staff build observed: `POS 2.1.6 489ef2a3`
 Staff domain: `https://staff.sakorio.com`  
 Customer/order domain checked: `https://order.sakorio.com`
 
+Follow-up completion tracker: `docs/0067-sakorio-0065-improvement-completion-2026-07-18.md`
+
 ## Executive summary
 
 This QA pass was run through the browser against the deployed Sakorio system. The strongest areas are now:
@@ -618,4 +620,3 @@ Needs improvement:
 6. Build daily close checklist.
 7. Run waiter-role QA.
 8. Continue leave/inventory as post-core-POS launch modules unless they are required for day-one operations.
-

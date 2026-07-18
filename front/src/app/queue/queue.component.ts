@@ -256,11 +256,11 @@ type QueueTableChoice = {
             </label>
             <label>
               <span>Party size</span>
-              <input type="number" min="1" [(ngModel)]="draft.party_size" />
+              <input type="number" min="1" [(ngModel)]="draft.party_size" aria-label="Walk-in party size" />
             </label>
             <label>
               <span>Quoted wait (mins)</span>
-              <input type="number" min="0" [(ngModel)]="draft.quoted_wait_minutes" />
+              <input type="number" min="0" [(ngModel)]="draft.quoted_wait_minutes" aria-label="Quoted wait in minutes" />
             </label>
             <label>
               <span>Preferred floor</span>
@@ -273,7 +273,7 @@ type QueueTableChoice = {
             </label>
             <label>
               <span>Preferred seats</span>
-              <input type="number" min="1" [(ngModel)]="draft.preferred_table_size" placeholder="Optional" />
+              <input type="number" min="1" [(ngModel)]="draft.preferred_table_size" placeholder="Optional" aria-label="Preferred table seat count" />
             </label>
           </div>
 

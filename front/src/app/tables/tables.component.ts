@@ -1404,6 +1404,13 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     }
 
     @media (max-width: 1080px) {
+      .table-grid {
+        grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+        gap: var(--space-3);
+      }
+      .table-card {
+        border-radius: var(--radius-md);
+      }
       .queue-pulse-card {
         grid-template-columns: 1fr;
       }
@@ -3376,8 +3383,8 @@ export class TablesComponent implements OnInit {
     this.api.getStaffMenuToken(table.id).subscribe({
       next: (res) => {
         this.staffMenuOpeningTableId.set(null);
-        const url = `${window.location.origin}/menu/${res.table_token}?staff_access=${encodeURIComponent(res.token)}`;
-        window.open(url, '_blank');
+        const url = `${getCustomerPublicOrigin()}/menu/${res.table_token}?staff_access=${encodeURIComponent(res.token)}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
       },
       error: () => {
         this.staffMenuOpeningTableId.set(null);

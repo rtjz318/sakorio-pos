@@ -24,6 +24,7 @@ import { reservationDietaryNotesDisplay, reservationDietaryNotesFormValue } from
 import { contactEmailValid, contactPhoneValid } from '../shared/contact-validators';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
+import { getCustomerPublicOrigin } from '../shared/host-portal.util';
 
 @Component({
   selector: 'app-reservations',
@@ -195,6 +196,16 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
               <div class="card-actions">
                 @if (r.status === 'booked' && canWrite()) {
                   <button class="btn btn-primary primary-reservation-action" (click)="openReservationTable(r)">{{ reservationTableActionLabel(r) }}</button>
+                  @if (r.table_id) {
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-sm"
+                      (click)="openReservationCustomerMenu(r)"
+                      [disabled]="reservationMenuOpeningId() === r.id"
+                    >
+                      {{ reservationMenuOpeningId() === r.id ? 'Opening…' : 'Open QR/menu' }}
+                    </button>
+                  }
                   <details class="more-actions">
                     <summary>More</summary>
                     <div class="more-actions-menu">
@@ -210,6 +221,16 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
                 }
                 @if (r.status === 'seated' && canWrite()) {
                   <button class="btn btn-primary primary-reservation-action" (click)="openPosForReservation(r)">Open POS</button>
+                  @if (r.table_id) {
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-sm"
+                      (click)="openReservationCustomerMenu(r)"
+                      [disabled]="reservationMenuOpeningId() === r.id"
+                    >
+                      {{ reservationMenuOpeningId() === r.id ? 'Opening…' : 'Open QR/menu' }}
+                    </button>
+                  }
                   <button class="btn btn-ghost btn-sm" (click)="finish(r)">Finish after close</button>
                 }
               </div>
@@ -658,6 +679,7 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   reservationTableMode = signal<'assign' | 'seat'>('assign');
   reservationTableError = signal<string | null>(null);
   reservationTableSubmittingId = signal<number | null>(null);
+  reservationMenuOpeningId = signal<number | null>(null);
   reservationToCancel = signal<Reservation | null>(null);
   reservationToNoShow = signal<Reservation | null>(null);
   sendingReminderId = signal<number | null>(null);
@@ -1277,6 +1299,26 @@ export class ReservationsComponent implements OnInit, OnDestroy {
         reservationPhone: reservation.customer_phone || null,
         reservationPartySize: reservation.party_size || null,
         reservationNotes: note || null,
+      },
+    });
+  }
+
+  openReservationCustomerMenu(reservation: Reservation) {
+    const tableId = reservation.table_id ?? null;
+    if (!tableId) return;
+    this.closeMoreActionMenus();
+    this.reservationMenuOpeningId.set(reservation.id);
+    this.api.getStaffMenuToken(tableId).subscribe({
+      next: (res) => {
+        this.reservationMenuOpeningId.set(null);
+        const url = `${getCustomerPublicOrigin()}/menu/${res.table_token}?staff_access=${encodeURIComponent(res.token)}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
+      },
+      error: (err) => {
+        this.reservationMenuOpeningId.set(null);
+        this.reservationTableError.set(
+          this.apiErr.fromHttpError(err, 'Could not open the customer menu for this table.'),
+        );
       },
     });
   }

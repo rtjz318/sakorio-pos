@@ -17,6 +17,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { SidebarComponent } from '../shared/sidebar.component';
 import {
   ApiService,
@@ -43,7 +44,7 @@ export type ReportsDatePreset =
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [CommonModule, FormsModule, SidebarComponent, TranslateModule],
+  imports: [CommonModule, FormsModule, RouterLink, SidebarComponent, TranslateModule],
   templateUrl: './reports.component.html',
   styleUrl: './reports.component.scss',
 })

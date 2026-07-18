@@ -24,6 +24,7 @@ import { FocusFirstInputDirective } from '../shared/focus-first-input.directive'
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { intlLocaleFromTranslate } from '../shared/intl-locale';
 import { currencySymbolFromIsoCode } from '../shared/currency-symbol';
+import { getCustomerPublicOrigin } from '../shared/host-portal.util';
 import {
   ColDef,
   ModuleRegistry,
@@ -3285,8 +3286,8 @@ export class OrdersComponent implements OnInit, OnDestroy {
     if (order.table_id == null || order.table_token == null) return;
     this.api.getStaffMenuToken(order.table_id).subscribe({
       next: (res) => {
-        const url = `${window.location.origin}/menu/${res.table_token}?staff_access=${encodeURIComponent(res.token)}`;
-        window.open(url, '_blank');
+        const url = `${getCustomerPublicOrigin()}/menu/${res.table_token}?staff_access=${encodeURIComponent(res.token)}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
       },
       error: () => this.showToast(this.translate.instant('ORDERS.OPEN_MENU_ERROR') || 'Could not open menu link', 'error')
     });

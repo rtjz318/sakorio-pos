@@ -1762,7 +1762,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       min-height: 0;
       flex: 1;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+      grid-template-columns: minmax(0, 1fr) minmax(17rem, 21rem);
       overflow: hidden;
     }
 
@@ -1846,7 +1846,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 
     .pos-service-product-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(8.9rem, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(8.2rem, 1fr));
       gap: 0.52rem;
     }
 
@@ -2486,7 +2486,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 
     .table-stack {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(15.5rem, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(13.6rem, 1fr));
       overflow: visible;
       padding-right: 0.16rem;
       align-content: start;

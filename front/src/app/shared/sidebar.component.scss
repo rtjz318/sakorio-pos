@@ -342,8 +342,31 @@
 
 @media (max-width: 1180px) {
     .layout.layout--nav-collapsed {
+        .mobile-header {
+            display: flex;
+        }
+
+        .sidebar {
+            transform: translateX(-100%);
+            transition: transform 0.25s ease;
+            pointer-events: auto;
+        }
+
+        &.sidebar-open .sidebar {
+            transform: translateX(0);
+        }
+
+        &.sidebar-open .overlay {
+            display: block;
+        }
+
+        .close-btn {
+            display: block;
+        }
+
         .main {
             padding: var(--space-4);
+            padding-top: calc(56px + var(--space-4));
         }
     }
 }

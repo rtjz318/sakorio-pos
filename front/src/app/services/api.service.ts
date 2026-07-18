@@ -2762,6 +2762,17 @@ export class ApiService {
     );
   }
 
+  /** Safe staff-service settings for POS/service screens; excludes admin settings and secrets. */
+  getTenantServiceSettings(): Observable<TenantSettings> {
+    return this.http.get<TenantSettings>(`${this.apiUrl}/tenant/service-settings`).pipe(
+      tap((s) => {
+        this.applyTenantUiModulesFromSettings(s);
+        const n = typeof s?.name === 'string' ? s.name.trim() : '';
+        this.tenantDisplayName.set(n || null);
+      })
+    );
+  }
+
   updateTenantSettings(settings: Partial<TenantSettings>): Observable<TenantSettings> {
     return this.http.put<TenantSettings>(`${this.apiUrl}/tenant/settings`, settings).pipe(
       tap((s) => {

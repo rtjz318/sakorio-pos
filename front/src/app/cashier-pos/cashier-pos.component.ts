@@ -6110,7 +6110,7 @@ export class CashierPosComponent {
     this.error.set(null);
 
     forkJoin({
-      settings: this.api.getTenantSettings(),
+      settings: this.api.getTenantServiceSettings().pipe(catchError(() => of(null))),
       tables: this.api.getTablesWithStatus(),
       orders: this.api.getOrders(),
       tenantProducts: this.api.getTenantProducts(true).pipe(catchError(() => of([]))),

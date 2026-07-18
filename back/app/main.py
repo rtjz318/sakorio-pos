@@ -3276,6 +3276,43 @@ def get_tenant_settings(
     return tenant_dict
 
 
+@app.get("/tenant/service-settings")
+@limiter.limit(
+    f"{getattr(settings, 'rate_limit_admin_per_minute', 30)}/minute",
+    key_func=_rate_limit_key_user,
+)
+def get_tenant_service_settings(
+    request: Request,
+    response: Response,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.ORDER_READ))],
+    session: Session = Depends(get_session),
+) -> dict:
+    """Get safe tenant settings required by staff service screens.
+
+    Cashiers/waiters need operational display settings such as currency and enabled
+    staff modules, but they must not receive admin/business settings or provider
+    secrets from /tenant/settings.
+    """
+    tenant = session.exec(
+        select(models.Tenant).where(models.Tenant.id == current_user.tenant_id)
+    ).first()
+
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    tenant_dict = {
+        "id": tenant.id,
+        "name": tenant.name,
+        "currency": tenant.currency,
+        "currency_code": tenant.currency_code,
+        "default_language": tenant.default_language,
+        "timezone": tenant.timezone,
+        "ui_modules": resolve_tenant_ui_modules(tenant.ui_modules),
+    }
+    apply_tenant_currency_api_dict(tenant_dict)
+    return tenant_dict
+
+
 @app.put("/tenant/settings")
 @limiter.limit(
     f"{getattr(settings, 'rate_limit_admin_per_minute', 30)}/minute",

@@ -7668,12 +7668,19 @@ export class CashierPosComponent {
     const serviceOrder = this.tableServiceOrder(table);
     const paymentState = String(table.payment_status || '').toLowerCase();
     const activeButIdle = !!table.is_active && !table.active_order_id && !serviceOrder;
+    const staleServiceState =
+      (explicit === 'open_order' || explicit === 'ready_to_serve') &&
+      !table.active_order_id &&
+      !serviceOrder;
 
     if (
       !this.tableHasOpenService(table) &&
       (paymentState === 'paid' || !!(table.active_order_id && serviceOrder && this.isPaid(serviceOrder)))
     ) {
       return 'awaiting_clear';
+    }
+    if (staleServiceState) {
+      return table.seated_reservation ? 'occupied' : 'available';
     }
     if (activeButIdle && (explicit === 'closed' || explicit === 'idle' || explicit === 'available')) {
       return 'available';
@@ -7715,6 +7722,9 @@ export class CashierPosComponent {
 
   getPaymentStateLabel(table: CanvasTable): string | null {
     const currentOrder = this.tableServiceOrder(table);
+    if (!this.tableHasOpenService(table) && !table.active_order_id && !currentOrder) {
+      return null;
+    }
     if (!this.tableHasOpenService(table) && String(table.payment_status || '').toLowerCase() === 'none') {
       return null;
     }

@@ -1668,8 +1668,20 @@ def login_with_otp(
 def logout():
     response = JSONResponse(content={"status": "success", "message": "Logged out"})
     # Clear both access and refresh tokens
-    response.delete_cookie(key="access_token", path="/")
-    response.delete_cookie(key="refresh_token", path="/")
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        secure=settings.is_production,
+        httponly=True,
+        samesite="lax",
+    )
+    response.delete_cookie(
+        key="refresh_token",
+        path="/",
+        secure=settings.is_production,
+        httponly=True,
+        samesite="lax",
+    )
     return response
 
 
@@ -11189,7 +11201,7 @@ def get_menu(
     try:
         result = session.execute(
             text("""
-            SELECT id, tenant_id, name, token, is_active, order_pin, active_order_id
+            SELECT id, tenant_id, name, token, is_active, order_pin, active_order_id, activated_at
             FROM "table"
             WHERE token = :token
         """),
@@ -11210,7 +11222,17 @@ def get_menu(
 
     # Create a simple object with the needed attributes
     class TableData:
-        def __init__(self, id, tenant_id, name, token, is_active, order_pin, active_order_id):
+        def __init__(
+            self,
+            id,
+            tenant_id,
+            name,
+            token,
+            is_active,
+            order_pin,
+            active_order_id,
+            activated_at,
+        ):
             self.id = id
             self.tenant_id = tenant_id
             self.name = name
@@ -11218,6 +11240,7 @@ def get_menu(
             self.is_active = is_active or False
             self.order_pin = order_pin
             self.active_order_id = active_order_id
+            self.activated_at = activated_at
 
     table = TableData(
         table_row[0],
@@ -11227,6 +11250,7 @@ def get_menu(
         table_row[4],
         table_row[5],
         table_row[6],
+        table_row[7],
     )
 
     if not table.is_active:
@@ -11619,6 +11643,10 @@ def get_menu(
         products_list.append(product_data)
 
     # Build tenant response data
+    table_session_started_at = table.activated_at
+    if table_session_started_at and table_session_started_at.tzinfo is None:
+        table_session_started_at = table_session_started_at.replace(tzinfo=timezone.utc)
+
     tenant_data = {
         "table_name": table.name,
         "table_id": table.id,
@@ -11652,6 +11680,9 @@ def get_menu(
         "table_is_active": table.is_active,
         "table_requires_pin": False,
         "active_order_id": table.active_order_id,
+        "table_session_started_at": (
+            table_session_started_at.isoformat() if table_session_started_at else None
+        ),
         "products": products_list,
     }
 
@@ -12441,9 +12472,6 @@ def request_payment(
             detail="Customer payment requests only support terminal. Use HitPay online checkout for online payment.",
         )
 
-    # Store the requested payment method on the order
-    order.payment_method = normalized_payment_method
-
     # Append customer message to notes if provided
     if payment_request.message:
         order.notes = f"{order.notes or ''}\n[CUSTOMER NOTE] {payment_request.message}".strip()
@@ -12469,7 +12497,7 @@ def request_payment(
         "order_id": order.id,
         "table_name": table.name,
         "table_id": table.id,
-        "payment_method": order.payment_method,
+        "payment_method": normalized_payment_method,
         "message": payment_request.message,
         "assigned_waiter_id": effective_waiter_id,
         "assigned_waiter_name": effective_waiter_name,
@@ -12478,7 +12506,7 @@ def request_payment(
     return JSONResponse(content={
         "status": "payment_requested",
         "order_id": order.id,
-        "payment_method": order.payment_method,
+        "payment_method": normalized_payment_method,
     })
 
 

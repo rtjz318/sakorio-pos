@@ -25,6 +25,7 @@ const KITCHEN_CURRENT_WINDOW_HOURS = 6;
 // Keep the live KDS focused on the active service window. Older unresolved
 // tickets stay available in manager backlog mode instead of dominating the pass.
 const KITCHEN_CURRENT_WINDOW_MS = KITCHEN_CURRENT_WINDOW_HOURS * 60 * 60 * 1000;
+const BACKLOG_BULK_COMPLETE_LIMIT = 25;
 
 type FullscreenCapableElement = HTMLElement & {
   webkitRequestFullscreen?: () => Promise<void> | void;
@@ -307,6 +308,9 @@ function getWorkflowSortWeight(
             <div>
               <strong>Backlog maintenance mode</strong>
               <span>{{ visibleOrders().length }} visible stale ticket{{ visibleOrders().length === 1 ? '' : 's' }} in this route/filter. Complete only tickets that were already handled before service.</span>
+              @if (visibleOrders().length > backlogBulkCompleteLimit) {
+                <small class="backlog-lock-warning">Bulk complete is locked above {{ backlogBulkCompleteLimit }} tickets. Narrow the station/route filter first, then clear in smaller reviewed batches.</small>
+              }
               @if (backlogClearMessage()) {
                 <small>{{ backlogClearMessage() }}</small>
               }
@@ -316,7 +320,7 @@ function getWorkflowSortWeight(
               class="backlog-clear-btn"
               [disabled]="!canCompleteVisibleBacklog() || backlogClearBusy()"
               (click)="completeVisibleBacklogTickets()">
-              {{ backlogClearBusy() ? 'Completing...' : 'Complete visible backlog' }}
+              {{ backlogClearBusy() ? 'Completing...' : visibleOrders().length > backlogBulkCompleteLimit ? 'Narrow backlog first' : 'Complete visible backlog' }}
             </button>
           </div>
         }
@@ -737,6 +741,10 @@ function getWorkflowSortWeight(
     .backlog-tools small {
       color: var(--color-text-muted);
       line-height: 1.35;
+    }
+    .backlog-tools .backlog-lock-warning {
+      color: #92400e;
+      font-weight: 750;
     }
     .backlog-clear-btn {
       flex: 0 0 auto;
@@ -1353,6 +1361,8 @@ function getWorkflowSortWeight(
   `],
 })
 export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy {
+  readonly backlogBulkCompleteLimit = BACKLOG_BULK_COMPLETE_LIMIT;
+
   @ViewChild('kitchenRoot', { read: ElementRef }) kitchenRootRef?: ElementRef<HTMLElement>;
 
   private api = inject(ApiService);
@@ -1585,6 +1595,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.showBacklog() &&
     this.canUpdateItemStatus() &&
     !this.loading() &&
+    this.visibleOrders().length <= this.backlogBulkCompleteLimit &&
     this.visibleOrders().some((order) =>
       this.getSortedItems(order.items ?? []).some((item) => item.id != null)
     )

@@ -1381,6 +1381,8 @@ export interface MenuResponse {
   /** Deprecated: public customer ordering no longer requires table PINs. */
   table_requires_pin?: boolean;
   active_order_id?: number | null;
+  /** Changes whenever staff starts a new dining session at this table. */
+  table_session_started_at?: string | null;
   products: Product[];
 }
 

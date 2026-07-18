@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import unittest
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 import requests
@@ -289,6 +290,20 @@ class TestPaymentSecurity(PgClientTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), [])
 
+    def test_public_menu_exposes_table_session_marker(self):
+        activated_at = datetime(2026, 7, 18, 12, 34, 56, tzinfo=timezone.utc)
+        self.table.activated_at = activated_at
+        self.session.add(self.table)
+        self.session.commit()
+
+        response = self.client.get(f"/menu/{self.table.token}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["table_session_started_at"],
+            activated_at.isoformat(),
+        )
+
     def test_customer_qr_rejects_cash_payment_request(self):
         order_id = self._create_order()
 
@@ -311,7 +326,8 @@ class TestPaymentSecurity(PgClientTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["payment_method"], "terminal")
         order = self.session.get(models.Order, order_id)
-        self.assertEqual(order.payment_method, "terminal")
+        self.assertIsNone(order.payment_method)
+        self.assertIsNotNone(order.bill_requested_at)
 
 
 if __name__ == "__main__":

@@ -136,6 +136,8 @@ export class MenuComponent implements OnInit, OnDestroy {
   private tenantId = 0;
   private ws: WebSocket | null = null;
   private sessionId = '';
+  /** Captured before this component creates any new local session state. */
+  private hadStoredCustomerStateOnInit = false;
   /** When set (from staff link), PIN is not required; sent with getMenu and submitOrder. */
   private staffAccess: string | null = null;
   /** Permanent signed bearer credential embedded in the printed table QR. */
@@ -198,6 +200,15 @@ export class MenuComponent implements OnInit, OnDestroy {
   // ============================================
   private initializeSession() {
     const sessionKey = `session_${this.tableToken}`;
+    const nameKey = `customer_name_${this.tableToken}`;
+    this.hadStoredCustomerStateOnInit = Boolean(
+      localStorage.getItem(sessionKey)
+      || localStorage.getItem(nameKey)
+      || localStorage.getItem(`orders_${this.tableToken}`)
+      || localStorage.getItem(`active_order_${this.tableToken}`)
+      || localStorage.getItem(`table_session_started_${this.tableToken}`)
+    );
+
     let sessionId = localStorage.getItem(sessionKey);
 
     if (!sessionId) {
@@ -206,13 +217,108 @@ export class MenuComponent implements OnInit, OnDestroy {
     }
     this.sessionId = sessionId;
 
-    const nameKey = `customer_name_${this.tableToken}`;
     const customerName = localStorage.getItem(nameKey);
 
     if (!customerName) {
       this.showNameModal.set(true);
     } else {
       this.customerName.set(customerName);
+    }
+  }
+
+  /**
+   * Remove every piece of customer-specific state tied to the reusable table QR.
+   * Table tokens are permanent, while dining sessions are not.
+   */
+  private clearCustomerSession(startFresh: boolean) {
+    localStorage.removeItem(`session_${this.tableToken}`);
+    localStorage.removeItem(`customer_name_${this.tableToken}`);
+    localStorage.removeItem(`orders_${this.tableToken}`);
+    localStorage.removeItem(`active_order_${this.tableToken}`);
+    localStorage.removeItem(`table_session_started_${this.tableToken}`);
+
+    this.sessionId = '';
+    this.customerName.set('');
+    this.nameInputValue = '';
+    this.cart.set([]);
+    this.orderNotes = '';
+    this.placedOrders.set([]);
+    this.lastOrderId.set(0);
+    this.cartExpanded.set(false);
+    this.selectedProduct.set(null);
+    this.productToAddWithQuestions.set(null);
+    this.customizationAnswersForm.set({});
+    this.currentOrderId = 0;
+    this.paymentAmount.set(0);
+    this.showPaymentOptions.set(false);
+    this.paymentOptionsStep.set('choose');
+    this.paymentMessage.set('');
+    this.paymentMessageTarget.set(null);
+    this.paymentRequestSending.set(false);
+    this.paymentRequestSuccess.set(false);
+
+    if (startFresh) {
+      const newSessionId = this.generateUUID();
+      localStorage.setItem(`session_${this.tableToken}`, newSessionId);
+      this.sessionId = newSessionId;
+      this.showNameModal.set(true);
+    } else {
+      this.showNameModal.set(false);
+    }
+  }
+
+  private cachedOrderMatches(orderId: string): boolean {
+    const stored = localStorage.getItem(`orders_${this.tableToken}`);
+    if (!stored) return false;
+    try {
+      const orders: Array<{ id?: number }> = JSON.parse(stored);
+      return orders.some(order => String(order.id) === orderId);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * The activation timestamp is the authoritative dining-session boundary.
+   * On the first deployment of this marker, retain a local identity only when
+   * its cached active order proves it belongs to the current live table session.
+   */
+  private reconcileTableSession(data: {
+    active_order_id?: number | null;
+    table_session_started_at?: string | null;
+  }) {
+    const markerKey = `table_session_started_${this.tableToken}`;
+    const activeOrderKey = `active_order_${this.tableToken}`;
+    const storedMarker = localStorage.getItem(markerKey);
+    const currentMarker = data.table_session_started_at || null;
+    const storedOrderId = localStorage.getItem(activeOrderKey);
+    const currentOrderId = data.active_order_id ? String(data.active_order_id) : null;
+
+    let shouldReset = false;
+    if (currentMarker && storedMarker) {
+      shouldReset = currentMarker !== storedMarker;
+    } else if (currentMarker && !storedMarker && this.hadStoredCustomerStateOnInit) {
+      const provenCurrentParty = Boolean(
+        currentOrderId
+        && (storedOrderId === currentOrderId || this.cachedOrderMatches(currentOrderId))
+      );
+      shouldReset = !provenCurrentParty;
+    } else if (!currentMarker && currentOrderId && storedOrderId) {
+      // Backward-compatible protection for old rows without activated_at.
+      shouldReset = storedOrderId !== currentOrderId;
+    }
+
+    if (shouldReset) {
+      this.clearCustomerSession(true);
+    }
+
+    if (currentMarker) {
+      localStorage.setItem(markerKey, currentMarker);
+    }
+    if (currentOrderId) {
+      localStorage.setItem(activeOrderKey, currentOrderId);
+    } else {
+      localStorage.removeItem(activeOrderKey);
     }
   }
 
@@ -291,38 +397,14 @@ export class MenuComponent implements OnInit, OnDestroy {
 
         // Table session status
         this.tableIsActive.set(data.table_is_active !== false);  // Default true for backward compatibility
-        // Check if the table session has changed (table was closed and reopened).
-        // If active_order_id differs from what we stored, clear stale data and
-        // start a fresh customer session so new customers don't inherit old data.
-        const storedOrderId = localStorage.getItem(`active_order_${this.tableToken}`);
-        const currentOrderId = data.active_order_id ? String(data.active_order_id) : null;
-
-        if (currentOrderId && storedOrderId !== currentOrderId) {
-          // Table session changed -- clear all stale data
-          localStorage.removeItem(`session_${this.tableToken}`);
-          localStorage.removeItem(`customer_name_${this.tableToken}`);
-          localStorage.removeItem(`orders_${this.tableToken}`);
-          this.placedOrders.set([]);
-          this.customerName.set('');
-
-          // Re-initialize session with fresh IDs
-          const newSessionId = this.generateUUID();
-          localStorage.setItem(`session_${this.tableToken}`, newSessionId);
-          this.sessionId = newSessionId;
-          this.showNameModal.set(true);
-
-          // Store new active_order_id
-          localStorage.setItem(`active_order_${this.tableToken}`, currentOrderId);
-        } else if (currentOrderId) {
-          // Same session -- keep the active order marker for stale-session detection.
-          localStorage.setItem(`active_order_${this.tableToken}`, currentOrderId);
-        }
+        this.reconcileTableSession(data);
 
         this.loading.set(false);
       },
       error: (err) => {
         if (err.status === 403 && err.error?.detail?.code === 'TABLE_CLOSED') {
           const detail = err.error.detail;
+          this.clearCustomerSession(false);
           this.tableClosed.set(true);
           this.closedTableName.set(detail.table_name || '');
           this.closedTenantName.set(detail.tenant_name || '');
@@ -368,6 +450,7 @@ export class MenuComponent implements OnInit, OnDestroy {
         const data = JSON.parse(event.data);
         if (data.type === 'table_closed') {
           // Staff has closed this table -- show the closed screen
+          this.clearCustomerSession(false);
           this.tableIsActive.set(false);
           this.tableClosed.set(true);
           this.closedTenantName.set(this.tenantName());

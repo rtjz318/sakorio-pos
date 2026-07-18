@@ -206,18 +206,15 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
                       {{ reservationMenuOpeningId() === r.id ? 'Opening…' : 'Open QR/menu' }}
                     </button>
                   }
-                  <details class="more-actions">
-                    <summary>More</summary>
-                    <div class="more-actions-menu">
-                      <button type="button" (click)="openQueueForReservation(r)">{{ hasActiveQueueMatch(r) ? 'Open queue' : 'Send to queue' }}</button>
-                      @if (r.customer_email || r.customer_phone) {
-                        <button type="button" (click)="sendReminder(r)" [disabled]="sendingReminderId() === r.id">{{ sendingReminderId() === r.id ? ('COMMON.LOADING' | translate) : ('RESERVATIONS.SEND_REMINDER' | translate) }}</button>
-                      }
-                      <button type="button" (click)="openEdit(r)">{{ 'RESERVATIONS.EDIT' | translate }}</button>
-                      <button type="button" class="no-show-btn" (click)="confirmNoShow(r)">{{ 'RESERVATIONS.NO_SHOW' | translate }}</button>
-                      <button type="button" class="danger" (click)="confirmCancel(r)">{{ 'RESERVATIONS.CANCEL' | translate }}</button>
-                    </div>
-                  </details>
+                  <div class="reservation-secondary-actions" aria-label="Reservation secondary actions">
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="openQueueForReservation(r)">{{ hasActiveQueueMatch(r) ? 'Open queue' : 'Send to queue' }}</button>
+                    @if (r.customer_email || r.customer_phone) {
+                      <button type="button" class="btn btn-ghost btn-sm" (click)="sendReminder(r)" [disabled]="sendingReminderId() === r.id">{{ sendingReminderId() === r.id ? ('COMMON.LOADING' | translate) : ('RESERVATIONS.SEND_REMINDER' | translate) }}</button>
+                    }
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="openEdit(r)">{{ 'RESERVATIONS.EDIT' | translate }}</button>
+                    <button type="button" class="btn btn-ghost btn-sm no-show-btn" (click)="confirmNoShow(r)">{{ 'RESERVATIONS.NO_SHOW' | translate }}</button>
+                    <button type="button" class="btn btn-ghost btn-sm danger" (click)="confirmCancel(r)">{{ 'RESERVATIONS.CANCEL' | translate }}</button>
+                  </div>
                 }
                 @if (r.status === 'seated' && canWrite()) {
                   <button class="btn btn-primary primary-reservation-action" (click)="openPosForReservation(r)">Open POS</button>
@@ -338,6 +335,9 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
                 @if (slotCapacity(); as cap) {
                   <p class="slot-capacity">{{ 'RESERVATIONS.SEATS_LEFT' | translate }}: {{ cap.seats_left }} · {{ 'RESERVATIONS.TABLES_LEFT' | translate }}: {{ cap.tables_left }}</p>
                 }
+                @if (capacityWarningCopy()) {
+                  <p class="slot-capacity-warning" role="alert">{{ capacityWarningCopy() }}</p>
+                }
                 <div class="form-group">
                   <label for="res-modal-name">{{ 'RESERVATIONS.CUSTOMER_NAME' | translate }}</label>
                   <input id="res-modal-name" type="text" name="customerName" [(ngModel)]="formName" required autocomplete="name" />
@@ -355,6 +355,7 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
                   @if (prefillMessage()) {
                     <small class="prefill-message" [class.prefill-success]="prefillSuccess()">{{ prefillMessage() }}</small>
                   }
+                  <small class="phone-format-hint">Use international format, for example +65 9123 4567.</small>
                 </div>
                 <div class="form-group">
                   <label for="res-modal-email">{{ 'RESERVATIONS.CUSTOMER_EMAIL' | translate }}</label>
@@ -554,15 +555,12 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
     .queue-handoff-summary { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.55rem; }
     .queue-handoff-chip { display: inline-flex; align-items: center; border-radius: 999px; background: #fff7ed; color: #c2410c; font-size: 0.75rem; font-weight: 700; padding: 0.28rem 0.6rem; }
     .queue-handoff-copy { font-size: 0.82rem; color: #64748b; }
-    .card-actions { position: relative; display: flex; justify-content: flex-end; gap: .5rem; align-items: center; }
+    .card-actions { position: relative; display: flex; justify-content: flex-end; gap: .5rem; align-items: center; flex-wrap: wrap; }
     .primary-reservation-action { min-width: 108px; }
-    .more-actions { position: relative; }
-    .more-actions summary { min-width: 70px; padding: .65rem .8rem; border: 1px solid var(--reservation-line); border-radius: 10px; background: #fff; color: var(--reservation-ink); font-size: .85rem; font-weight: 750; text-align: center; cursor: pointer; list-style: none; }
-    .more-actions summary::-webkit-details-marker { display: none; }
-    .more-actions-menu { position: absolute; z-index: 20; top: calc(100% + .4rem); right: 0; display: grid; min-width: 180px; padding: .4rem; border: 1px solid var(--reservation-line); border-radius: 12px; background: #fff; box-shadow: 0 16px 36px rgba(24,32,31,.14); }
-    .more-actions-menu button { padding: .65rem .75rem; border: 0; border-radius: 8px; background: transparent; color: var(--reservation-ink); text-align: left; cursor: pointer; }
-    .more-actions-menu button:hover { background: var(--reservation-soft); }
-    .more-actions-menu button.danger { color: #b42318; }
+    .reservation-secondary-actions { display: flex; justify-content: flex-end; gap: .45rem; align-items: center; flex-wrap: wrap; max-width: 440px; }
+    .reservation-secondary-actions .btn { min-height: 2.25rem; padding-inline: .65rem; }
+    .reservation-secondary-actions .danger { color: #b42318; border-color: #fecaca; background: #fff7f7; }
+    .reservation-secondary-actions .no-show-btn { color: #b45309; border-color: #fed7aa; background: #fff7ed; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
     @media (max-width: 1000px) {
       .service-toolbar { grid-template-columns: 1fr 1fr; }
@@ -579,8 +577,8 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
       .reservation-card { grid-template-columns: 68px minmax(0, 1fr); padding: 1rem; }
       .card-actions { grid-column: 1 / -1; justify-content: stretch; padding-left: 84px; }
       .card-actions > .btn, .card-actions .primary-reservation-action { flex: 1; }
-      .more-actions { flex: 1; }
-      .more-actions summary { width: 100%; box-sizing: border-box; }
+      .reservation-secondary-actions { width: 100%; max-width: none; justify-content: stretch; }
+      .reservation-secondary-actions .btn { flex: 1 1 9rem; }
     }
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 1000; }
     .modal-content { background: #fff; border-radius: var(--radius-md, 8px); max-width: min(720px, 96vw); width: 100%; max-height: 90vh; overflow: auto; box-shadow: var(--shadow-lg, 0 12px 32px rgba(0,0,0,0.1)); }
@@ -606,6 +604,8 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
     .no-tables { color: #6b7280; }
     .overbooked-badge { font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 4px; background: #fef2f2; color: #b91c1c; margin-left: 0.25rem; }
     .slot-capacity { font-size: 0.875rem; color: #4b5563; margin-bottom: 0.5rem; }
+    .slot-capacity-warning { margin: 0 0 0.7rem; padding: 0.62rem 0.75rem; border: 1px solid #fed7aa; border-radius: 10px; background: #fff7ed; color: #9a3412; font-size: 0.86rem; font-weight: 750; line-height: 1.35; }
+    .phone-format-hint { display: block; margin-top: .3rem; color: #64748b; line-height: 1.35; }
     .upcoming-no-table-warning { background: #fef3c7; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.75rem; font-size: 0.875rem; }
     .table-option-wrap { min-width: 0; }
     .table-upcoming-warning { font-size: 0.8rem; color: #b45309; margin-bottom: 0.25rem; }
@@ -700,6 +700,31 @@ export class ReservationsComponent implements OnInit, OnDestroy {
     if (cap != null && cap > 0) return Math.min(20, cap);
     return 20;
   });
+
+  capacityWarningCopy(): string {
+    const partySize = Number(this.formPartySize);
+    if (!Number.isFinite(partySize) || partySize < 1 || !this.showForm()) {
+      return '';
+    }
+
+    const maxParty = this.maxPartySize();
+    if (partySize > maxParty) {
+      return `Party size ${partySize} is above the configured reservation limit of ${maxParty}. Reduce the party size or split the booking.`;
+    }
+
+    const cap = this.slotCapacity();
+    if (!cap || !this.formDate?.trim() || !this.formTime?.trim()) {
+      return '';
+    }
+
+    if (cap.tables_left < 1) {
+      return 'No tables are available for this selected date and time.';
+    }
+    if (partySize > cap.seats_left) {
+      return `Party size ${partySize} exceeds the ${cap.seats_left} seats currently available for this slot.`;
+    }
+    return '';
+  }
 
   sortedReservations = computed(() => [...this.reservations()].sort((a, b) => {
     const statusRank: Record<ReservationStatus, number> = {
@@ -1306,7 +1331,6 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   openReservationCustomerMenu(reservation: Reservation) {
     const tableId = reservation.table_id ?? null;
     if (!tableId) return;
-    this.closeMoreActionMenus();
     this.reservationMenuOpeningId.set(reservation.id);
     this.api.getStaffMenuToken(tableId).subscribe({
       next: (res) => {
@@ -1409,7 +1433,6 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   }
 
   confirmCancel(r: Reservation) {
-    this.closeMoreActionMenus();
     this.reservationToCancel.set(r);
   }
 
@@ -1423,15 +1446,7 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   }
 
   confirmNoShow(r: Reservation) {
-    this.closeMoreActionMenus();
     this.reservationToNoShow.set(r);
-  }
-
-  private closeMoreActionMenus(): void {
-    if (typeof document === 'undefined') return;
-    document.querySelectorAll('details.more-actions[open]').forEach((node) => {
-      node.removeAttribute('open');
-    });
   }
 
   doNoShow() {

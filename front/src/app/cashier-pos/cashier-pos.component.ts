@@ -979,11 +979,17 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                   </div>
                 </header>
 
+                @if (error()) {
+                  <div class="error-banner" role="alert">
+                    {{ error() }}
+                  </div>
+                }
+
                 <section class="pos-service-loop" aria-label="Selected table service loop">
                   <div class="pos-service-loop-copy">
                     <p class="eyebrow">Service loop</p>
-                    <strong>{{ posNextStepCopy(serviceTable) }}</strong>
-                    <small>{{ posLoopSupportCopy(serviceTable) }}</small>
+                    <p><strong>{{ posNextStepCopy(serviceTable) }}</strong></p>
+                    <p><small>{{ posLoopSupportCopy(serviceTable) }}</small></p>
                   </div>
                   <div class="pos-service-loop-metrics lane-inline-pills">
                     <span class="muted-pill">{{ posCurrentTicketsCopy() }}</span>
@@ -5393,14 +5399,16 @@ export class CashierPosComponent {
   openOrders = computed(() =>
     this.orders().filter(
       (order) =>
-        !this.isClosedOrder(order) &&
         !this.isPaid(order) &&
+        !this.isCancelledOrder(order) &&
         this.isOrderInCurrentServiceSession(order),
     ),
   );
   unpaidOrders = computed(() => this.openOrders());
   liveBills = computed(() => this.openOrders());
-  paidOrders = computed(() => this.orders().filter((order) => this.isPaid(order)));
+  paidOrders = computed(() =>
+    this.orders().filter((order) => this.isPaid(order) && this.isPaidToday(order)),
+  );
   totalPaidCents = computed(() =>
     this.paidOrders().reduce((sum, order) => sum + (order.total_cents || 0), 0),
   );
@@ -5555,7 +5563,7 @@ export class CashierPosComponent {
   });
   payableLiveBillOrder = computed(() => {
     const order = this.selectedLiveBillOrder();
-    if (!order || this.isClosedOrder(order) || this.isPaid(order)) {
+    if (!order || this.isPaid(order) || this.isCancelledOrder(order)) {
       return null;
     }
     return order;
@@ -5628,7 +5636,7 @@ export class CashierPosComponent {
       if (existing) {
         existing.orders.push(order);
         existing.totalCents += order.total_cents || 0;
-        if (!existing.newestAt || new Date(order.created_at || 0).getTime() > new Date(existing.newestAt || 0).getTime()) {
+        if (!existing.newestAt || this.backendTimestamp(order.created_at) > this.backendTimestamp(existing.newestAt)) {
           existing.newestAt = order.created_at || null;
         }
         continue;
@@ -5843,7 +5851,7 @@ export class CashierPosComponent {
   }
 
   queueOrderAgeLabel(order: Order): string {
-    const createdAt = order.created_at ? new Date(order.created_at).getTime() : 0;
+    const createdAt = this.backendTimestamp(order.created_at);
     if (!createdAt) {
       return 'Just now';
     }
@@ -5954,7 +5962,7 @@ export class CashierPosComponent {
       return aRank - bRank;
     }
 
-    const newestDiff = new Date(b.newestAt || 0).getTime() - new Date(a.newestAt || 0).getTime();
+    const newestDiff = this.backendTimestamp(b.newestAt) - this.backendTimestamp(a.newestAt);
     if (newestDiff !== 0) {
       return newestDiff;
     }
@@ -7218,7 +7226,8 @@ export class CashierPosComponent {
       return false;
     }
 
-    return !this.tableHasOpenService(table);
+    const serviceOrder = this.tableServiceOrder(table);
+    return !serviceOrder || this.isPaid(serviceOrder) || this.isCancelledOrder(serviceOrder);
   }
 
   canStartCashierBill(table: CanvasTable | null | undefined): boolean {
@@ -7226,7 +7235,11 @@ export class CashierPosComponent {
   }
 
   async clearTable(table: CanvasTable): Promise<void> {
-    if (!table.id || !this.canClearTable(table)) {
+    if (!table.id) {
+      return;
+    }
+    if (!this.canClearTable(table)) {
+      this.error.set(`${table.name} still has an unpaid bill. Collect payment before clearing the table.`);
       return;
     }
 
@@ -7658,7 +7671,7 @@ export class CashierPosComponent {
     return (
       [...this.orders()]
         .filter((order) => order.table_id === tableId)
-        .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0] ??
+        .sort((a, b) => this.backendTimestamp(b.created_at) - this.backendTimestamp(a.created_at))[0] ??
       null
     );
   }
@@ -7742,8 +7755,8 @@ export class CashierPosComponent {
   }
 
   private formatReservationTime(value: string): string {
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) {
+    const parsed = this.parseBackendDate(value);
+    if (!parsed) {
       return value;
     }
 
@@ -7801,8 +7814,8 @@ export class CashierPosComponent {
 
   formatDate(value?: string | null): string {
     if (!value) return 'Unknown';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
+    const date = this.parseBackendDate(value);
+    if (!date) return value;
     const diffMs = Date.now() - date.getTime();
     const diffMinutes = Math.max(1, Math.floor(diffMs / 60000));
 
@@ -7854,7 +7867,7 @@ export class CashierPosComponent {
 
   private queueOrderTimestamp(order: Order): number {
     const refreshedAt = (order as Order & { updated_at?: string | null }).updated_at;
-    return new Date(refreshedAt || order.created_at || 0).getTime();
+    return this.backendTimestamp(refreshedAt || order.created_at);
   }
 
   private applyFocusFromQuery(): void {
@@ -7914,6 +7927,7 @@ export class CashierPosComponent {
         (order) =>
           order.table_id === table.id &&
           !this.isPaid(order) &&
+          !this.isCancelledOrder(order) &&
           this.isCurrentTableSessionOrder(order, table),
       ),
     );
@@ -7949,7 +7963,7 @@ export class CashierPosComponent {
     return (
       [...this.orders()]
         .filter((order) => order.table_id === tableId)
-        .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0] ??
+        .sort((a, b) => this.backendTimestamp(b.created_at) - this.backendTimestamp(a.created_at))[0] ??
       null
     );
   }
@@ -8152,8 +8166,41 @@ export class CashierPosComponent {
     return status.includes('completed') || status.includes('closed') || status.includes('cancelled');
   }
 
+  private isCancelledOrder(order: Order): boolean {
+    return String(order.status || '').toLowerCase().includes('cancel');
+  }
+
   isPaid(order: Order): boolean {
-    return !!order.paid_at || String(order.payment_method || '').trim().length > 0;
+    return !!order.paid_at || String(order.status || '').trim().toLowerCase() === 'paid';
+  }
+
+  private isPaidToday(order: Order): boolean {
+    const paidAt = this.parseBackendDate(order.paid_at);
+    if (!paidAt) {
+      return false;
+    }
+
+    const now = new Date();
+    return (
+      paidAt.getFullYear() === now.getFullYear() &&
+      paidAt.getMonth() === now.getMonth() &&
+      paidAt.getDate() === now.getDate()
+    );
+  }
+
+  private backendTimestamp(value?: string | null): number {
+    return this.parseBackendDate(value)?.getTime() ?? 0;
+  }
+
+  private parseBackendDate(value?: string | null): Date | null {
+    const trimmed = String(value || '').trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const hasTimezone = /(?:z|[+-]\d{2}:?\d{2})$/i.test(trimmed);
+    const parsed = new Date(hasTimezone ? trimmed : `${trimmed}Z`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
   private parseMoneyToCents(raw: string): number {

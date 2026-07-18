@@ -5391,7 +5391,12 @@ export class CashierPosComponent {
   activeTables = computed(() => this.tables().filter((table) => !!table.is_active));
   availableTargetTables = computed(() => this.sortedTables().filter((table) => this.canStartCashierBill(table)));
   openOrders = computed(() =>
-    this.orders().filter((order) => !this.isClosedOrder(order) && !this.isPaid(order)),
+    this.orders().filter(
+      (order) =>
+        !this.isClosedOrder(order) &&
+        !this.isPaid(order) &&
+        this.isOrderInCurrentServiceSession(order),
+    ),
   );
   unpaidOrders = computed(() => this.openOrders());
   liveBills = computed(() => this.openOrders());
@@ -5591,15 +5596,11 @@ export class CashierPosComponent {
   });
   posCurrentSessionOrders = computed(() => {
     const table = this.effectiveCheckoutTable();
-    const activeOrderId = table?.active_order_id ?? null;
+    if (!table) {
+      return [];
+    }
     return this.tableScopedOrders().filter((order) => {
-      if (order.is_current_table_session) {
-        return true;
-      }
-      if (activeOrderId != null && order.id === activeOrderId) {
-        return true;
-      }
-      return !this.isPaid(order) && !this.isClosedOrder(order);
+      return this.isCurrentTableSessionOrder(order, table);
     });
   });
   posHistoryOrders = computed(() => {
@@ -7899,9 +7900,38 @@ export class CashierPosComponent {
     }
 
     const rankedUnpaidOrders = this.sortQueueOrders(
-      this.orders().filter((order) => order.table_id === table.id && !this.isPaid(order)),
+      this.orders().filter(
+        (order) =>
+          order.table_id === table.id &&
+          !this.isPaid(order) &&
+          this.isCurrentTableSessionOrder(order, table),
+      ),
     );
     return rankedUnpaidOrders[0] ?? null;
+  }
+
+  private isOrderInCurrentServiceSession(order: Order): boolean {
+    if (order.table_id == null) {
+      return true;
+    }
+    return this.isCurrentTableSessionOrder(order);
+  }
+
+  private isCurrentTableSessionOrder(order: Order, table?: CanvasTable | null): boolean {
+    const linkedTable =
+      table ?? this.tables().find((candidate) => candidate.id === order.table_id) ?? null;
+    const activeOrderId = linkedTable?.active_order_id ?? order.table_active_order_id ?? null;
+
+    if (order.is_current_table_session === true) {
+      return true;
+    }
+    if (activeOrderId != null && order.id === activeOrderId) {
+      return true;
+    }
+    if (order.table_is_active === true && order.table_active_order_id === order.id) {
+      return true;
+    }
+    return false;
   }
 
   private tableLatestOrderFallback(tableId: number | null): Order | null {

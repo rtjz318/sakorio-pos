@@ -5374,7 +5374,7 @@ export class CashierPosComponent {
     partySize: number | null;
     note: string | null;
   } | null>(null);
-  selectedSettlementMode = signal<PosSettlementMode>('cash');
+  selectedSettlementMode = signal<PosSettlementMode>('card_terminal');
   staffAccessCache = signal<Record<number, StaffMenuAccessToken>>({});
   productQuestionDialogProduct = signal<PosSellableProduct | null>(null);
   productQuestionAnswers = signal<Record<string, string | number | string[]>>({});
@@ -5669,7 +5669,7 @@ export class CashierPosComponent {
   primaryCheckoutMode = computed<PosSettlementMode>(() => {
     const mode = this.selectedSettlementMode();
     if (mode === 'hitpay' && !this.hitPayConfigured()) {
-      return 'cash';
+      return 'card_terminal';
     }
     return mode;
   });

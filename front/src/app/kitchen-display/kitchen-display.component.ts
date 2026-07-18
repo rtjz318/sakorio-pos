@@ -21,7 +21,10 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
 const REFRESH_INTERVAL_MS = 15000;
 const SOUND_STORAGE_KEY = 'kitchen-display-sound';
-const KITCHEN_CURRENT_WINDOW_MS = 24 * 60 * 60 * 1000;
+const KITCHEN_CURRENT_WINDOW_HOURS = 6;
+// Keep the live KDS focused on the active service window. Older unresolved
+// tickets stay available in manager backlog mode instead of dominating the pass.
+const KITCHEN_CURRENT_WINDOW_MS = KITCHEN_CURRENT_WINDOW_HOURS * 60 * 60 * 1000;
 
 type FullscreenCapableElement = HTMLElement & {
   webkitRequestFullscreen?: () => Promise<void> | void;
@@ -295,7 +298,7 @@ function getWorkflowSortWeight(
         }
         @if (!showBacklog() && staleTicketCount() > 0) {
           <div class="backlog-notice" role="status">
-            <span><strong>{{ staleTicketCount() }}</strong> older unresolved ticket{{ staleTicketCount() === 1 ? '' : 's' }} hidden from the live shift. Open backlog mode, mark stale items delivered/cancelled, then return to current shift before service.</span>
+            <span><strong>{{ staleTicketCount() }}</strong> unresolved ticket{{ staleTicketCount() === 1 ? '' : 's' }} older than {{ currentShiftWindowLabel() }} hidden from the live shift. Open backlog mode, mark stale items delivered/cancelled, then return to current shift before service.</span>
             <button type="button" (click)="showBacklog.set(true)">Review / clear backlog</button>
           </div>
         }
@@ -1624,6 +1627,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     }
     const station = this.kitchenStations().find((item) => item.id === selected);
     return station?.name ?? 'Selected station';
+  }
+
+  currentShiftWindowLabel(): string {
+    return `${KITCHEN_CURRENT_WINDOW_HOURS}h`;
   }
 
   oldestVisibleTicketWait(): string {

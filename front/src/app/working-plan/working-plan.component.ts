@@ -304,20 +304,20 @@ function isValidView(v: string | null): v is ViewMode {
             <div class="timetable-panel-head">
               <div>
                 <span class="staff-readiness-eyebrow">Leave control</span>
-                <h2>Annual leave / MC balances</h2>
-                <p>Ready for entitlement tracking: staff leave, MC and unpaid leave will deduct from balances once the leave ledger is enabled.</p>
+                <h2>Annual leave / MC balances <span class="coming-soon-pill">Coming soon</span></h2>
+                <p>Leave/MC deduction is not active yet. Keep scheduling from this timetable; use the coverage card below for launch staffing checks.</p>
               </div>
             </div>
             <div class="leave-balance-grid">
-              <div class="leave-balance-card">
+              <div class="leave-balance-card leave-balance-card--disabled">
                 <span>Annual leave</span>
-                <strong>Policy setup required</strong>
-                <small>Next backend slice: entitlement, approval and automatic deduction.</small>
+                <strong>Ledger not enabled</strong>
+                <small>Coming soon: entitlement policy, approval flow and automatic balance deduction.</small>
               </div>
-              <div class="leave-balance-card">
+              <div class="leave-balance-card leave-balance-card--disabled">
                 <span>MC / sick leave</span>
-                <strong>Policy setup required</strong>
-                <small>Record certificates and subtract used days from staff balance.</small>
+                <strong>Ledger not enabled</strong>
+                <small>Coming soon: MC certificate recording and used-day deduction.</small>
               </div>
               <div class="leave-balance-card leave-balance-card--ready">
                 <span>Coverage check</span>
@@ -924,6 +924,27 @@ function isValidView(v: string | null): v is ViewMode {
     .leave-balance-card strong { display: block; margin: 0.25rem 0; font-size: 0.98rem; }
     .leave-balance-card small { display: block; color: var(--text-muted, #666); line-height: 1.4; }
     .leave-balance-card--ready { background: rgba(236, 253, 245, 0.85); }
+    .leave-balance-card--disabled {
+      border-color: rgba(148, 163, 184, 0.34);
+      background: rgba(248, 250, 252, 0.84);
+    }
+    .leave-balance-card--disabled span {
+      color: #64748b;
+    }
+    .coming-soon-pill {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 0.35rem;
+      padding: 0.12rem 0.45rem;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #475569;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
     @media (max-width: 1050px) {
       .timetable-control-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .timetable-command-grid { grid-template-columns: 1fr; }

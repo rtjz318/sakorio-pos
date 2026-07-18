@@ -686,7 +686,14 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
 
               @if (canManageTableAssignments() || canManageFloors()) {
                 <details class="table-admin-panel">
-                  <summary>Waiter / floor controls</summary>
+                  <summary [attr.aria-label]="'More table controls for ' + table.name">
+                    <span>More</span>
+                    @if (table.assigned_waiter_name || table.effective_waiter_name) {
+                      <small>{{ table.assigned_waiter_name || table.effective_waiter_name }}</small>
+                    } @else {
+                      <small>waiter / QR</small>
+                    }
+                  </summary>
 
                   <div class="waiter-assign-section">
                     <div class="waiter-assign-row">
@@ -1721,21 +1728,39 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     }
     .table-admin-panel {
       margin-top: auto;
-      border-top: 1px solid var(--color-border);
-      padding-top: var(--space-3);
+      border-top: 1px dashed color-mix(in srgb, var(--color-border) 70%, transparent);
+      padding-top: var(--space-2);
     }
     .table-admin-panel summary {
       cursor: pointer;
       list-style: none;
       font-size: 0.78rem;
       font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--color-text-muted);
+      color: color-mix(in srgb, var(--color-text-muted) 88%, var(--color-surface));
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: var(--space-2);
       user-select: none;
+    }
+    .table-admin-panel summary span {
+      display: inline-flex;
+      align-items: center;
+      min-height: 1.55rem;
+      padding: 0.16rem 0.52rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--color-bg) 70%, var(--color-surface));
+      border: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent);
+    }
+    .table-admin-panel summary small {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--color-text-muted);
+      font-weight: 650;
+      letter-spacing: 0;
+      text-transform: none;
     }
     .table-admin-panel summary::-webkit-details-marker {
       display: none;

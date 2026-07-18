@@ -184,6 +184,9 @@ import { StaffLayoutService } from '../services/staff-layout.service';
                </button>
                @if (inventoryOpen()) {
                  <div class="nav-submenu">
+                   <a routerLink="/inventory/stock" routerLinkActive="active" class="nav-sublink" (click)="closeSidebar()">
+                     <span>{{ 'NAV.STOCK_DASHBOARD' | translate }}</span>
+                   </a>
                    <a routerLink="/inventory/items" routerLinkActive="active" class="nav-sublink" (click)="closeSidebar()">
                      <span>{{ 'NAV.ITEMS' | translate }}</span>
                    </a>
@@ -192,9 +195,6 @@ import { StaffLayoutService } from '../services/staff-layout.service';
                    </a>
                    <a routerLink="/inventory/purchase-orders" routerLinkActive="active" class="nav-sublink" (click)="closeSidebar()">
                      <span>{{ 'NAV.PURCHASE_ORDERS' | translate }}</span>
-                   </a>
-                   <a routerLink="/inventory/stock" routerLinkActive="active" class="nav-sublink" (click)="closeSidebar()">
-                     <span>{{ 'NAV.STOCK_DASHBOARD' | translate }}</span>
                    </a>
                    <a routerLink="/inventory/reports" routerLinkActive="active" class="nav-sublink" (click)="closeSidebar()">
                      <span>{{ 'NAV.REPORTS' | translate }}</span>

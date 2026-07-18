@@ -117,6 +117,7 @@ export class ReportsComponent implements OnInit {
   toDate = signal('');
   currency = signal('$');
   currencyCode = signal<string | null>(null);
+  activeReportSection = signal('reports-summary');
 
   maxBarValue = computed(() => {
     const r = this.report();
@@ -163,6 +164,13 @@ export class ReportsComponent implements OnInit {
       `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
     );
     this.translate.onLangChange.subscribe(() => this.reportIntlRevision.update((n) => n + 1));
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const id = window.location.hash.replace(/^#/, '');
+      if (id) {
+        this.activeReportSection.set(id);
+        window.setTimeout(() => this.scrollReportSectionIntoView(id, false), 150);
+      }
+    }
     if (this.canViewAttendance()) {
       this.api.getUsers().subscribe({
         next: (users) => {
@@ -182,11 +190,26 @@ export class ReportsComponent implements OnInit {
 
   jumpToReportSection(id: string): void {
     if (typeof document === 'undefined') return;
+    this.activeReportSection.set(id);
+    this.scrollReportSectionIntoView(id, true);
+  }
+
+  private scrollReportSectionIntoView(id: string, updateHash: boolean): void {
+    if (typeof document === 'undefined') return;
     const section = document.getElementById(id);
     if (!section) return;
     section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    if (typeof window !== 'undefined' && window.history?.replaceState) {
-      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${id}`);
+    if (!section.hasAttribute('tabindex')) {
+      section.setAttribute('tabindex', '-1');
+    }
+    window.setTimeout(() => section.focus({ preventScroll: true }), 250);
+    if (updateHash && typeof window !== 'undefined') {
+      const nextUrl = `${window.location.pathname}${window.location.search}#${id}`;
+      if (window.history?.pushState) {
+        window.history.pushState(null, '', nextUrl);
+      } else {
+        window.location.hash = id;
+      }
     }
   }
 

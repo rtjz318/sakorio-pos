@@ -436,6 +436,10 @@ export class SidebarComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   logout() {
-    this.api.logout().subscribe(() => this.router.navigateByUrl('/login'));
+    this.api.logout().subscribe({
+      error: () => void this.router.navigateByUrl('/login'),
+      complete: () => void this.router.navigateByUrl('/login'),
+    });
+    void this.router.navigateByUrl('/login');
   }
 }

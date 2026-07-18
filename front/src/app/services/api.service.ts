@@ -991,7 +991,7 @@ export interface TableActivateResponse {
   id: number;
   name: string;
   is_active: boolean;
-  active_order_id: number;
+  active_order_id: number | null;
   activated_at: string | null;
 }
 

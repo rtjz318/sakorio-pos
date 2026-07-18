@@ -930,9 +930,20 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                     <div class="quick-cart-footer">
                       <div><span>Items</span><strong>{{ quickCartItemCount() }}</strong></div>
                       <div><span>Add-on total</span><strong>{{ formatQuickMoney(quickCartTotalCents()) }}</strong></div>
-                      <button type="button" class="quick-submit" (click)="submitQuickOrder()" [disabled]="!quickOrderCart().length || quickOrderSubmitting()">
-                        {{ quickOrderSubmitting() ? 'Sending…' : (serviceTable.active_order_id ? 'Add to order & kitchen' : 'Open table & send') }}
-                      </button>
+                      @if (!serviceTable.is_active && quickOrderCart().length === 0) {
+                        <button
+                          type="button"
+                          class="quick-submit"
+                          (click)="openQuickTableForQrOrdering(serviceTable)"
+                          [disabled]="quickOrderSubmitting() || activatingTableId() === serviceTable.id"
+                        >
+                          {{ activatingTableId() === serviceTable.id ? 'Opening table…' : 'Open table for QR ordering' }}
+                        </button>
+                      } @else {
+                        <button type="button" class="quick-submit" (click)="submitQuickOrder()" [disabled]="!quickOrderCart().length || quickOrderSubmitting()">
+                          {{ quickOrderSubmitting() ? 'Sending…' : (serviceTable.active_order_id ? 'Add to order & kitchen' : 'Open table & send') }}
+                        </button>
+                      }
                     </div>
                   </aside>
                 </div>
@@ -2641,6 +2652,33 @@ export class TablesComponent implements OnInit {
   clearQuickCart(): void {
     this.quickOrderCart.set([]);
     this.quickOrderError.set('');
+  }
+
+  openQuickTableForQrOrdering(table: CanvasTable): void {
+    if (!table.id || table.is_active || this.activatingTableId() === table.id || this.quickOrderSubmitting()) return;
+    this.activatingTableId.set(table.id);
+    this.quickOrderError.set('');
+    this.quickOrderSuccess.set('');
+    this.api.activateTable(table.id).subscribe({
+      next: (response) => {
+        const activated = {
+          ...table,
+          is_active: true,
+          order_pin: null,
+          active_order_id: response.active_order_id,
+          activated_at: response.activated_at,
+        };
+        this.quickOrderTable.set(activated);
+        this.tables.update((tables) => tables.map((candidate) => candidate.id === table.id ? activated : candidate));
+        this.activatingTableId.set(null);
+        this.quickOrderSuccess.set(`${table.name} is open for QR ordering.`);
+        this.quickOrderView.set('qr');
+      },
+      error: (err) => {
+        this.activatingTableId.set(null);
+        this.quickOrderError.set(this.apiErr.fromHttpError(err, 'Could not open this table for QR ordering.'));
+      },
+    });
   }
 
   quickQuestionChoices(question: ProductQuestion): string[] {

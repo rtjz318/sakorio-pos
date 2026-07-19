@@ -10,8 +10,7 @@ Run prefix: `SKR-R3-20260719`
 
 | Case range | Status |
 |---|---|
-| R3-E2E-001 to R3-E2E-065 | Executed / attempted |
-| R3-E2E-066 to R3-E2E-080 | Pending execution |
+| R3-E2E-001 to R3-E2E-080 | Executed / attempted |
 
 ## Cross-run notes
 
@@ -4024,3 +4023,824 @@ POS is table-first. The header says `Pick a table, build the order, take payment
 ### Cleanup performed
 
 No order submitted.
+
+---
+
+## Result - R3-E2E-066
+
+Scenario: Reservation customer changes party size after arrival
+Run ID: `SKR-R3-20260720-E066`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, host
+Status: `PASS WITH POLISH`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 9/10 |
+| UI/UX clarity | 7/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 8/10 |
+
+### Steps actually performed
+
+1. Created/located reservation `#55` for `SKR-R3-20260720 E066 PartyChange`.
+2. Opened the staff Reservations page after signing back in through the browser.
+3. Edited party size from `2` to `4`.
+4. Saved the reservation.
+5. Opened the assign-table drawer.
+6. Cancelled the test reservation after verification.
+
+### Expected result
+
+Host should be able to update party size and only assign a table that fits the new pax count.
+
+### Actual result
+
+Party size saved as `4 guests`. Assignment options were limited to 4-seat tables.
+
+### Evidence observed
+
+- Reservation `#55` displayed `BOOKED`, `4 guests`, no assigned table after edit.
+- Assign table drawer offered 4-seat tables such as T04, T05, T01, T02, and T03.
+- 2-seat tables were not offered for the updated 4-guest party.
+
+### Defects
+
+1. The scenario name says “after arrival”, but there is no explicit “arrived” state before seating; the workflow is edit-before-seating.
+2. Browser session expiry during public-to-staff switching forced a login step, which slows real host handoff QA.
+
+### Improvement notes
+
+- Add an explicit `Arrived` action/state if arrival-before-seating is a supported restaurant workflow.
+- Keep reservation edit fields visibly enabled/loading-safe; during the modal load, date/time controls briefly look disabled even though retained values save correctly.
+
+### Cleanup performed
+
+Cancelled reservation `#55`.
+
+---
+
+## Result - R3-E2E-067
+
+Scenario: Move party after ordering but before payment
+Run ID: `SKR-R3-20260720-E067`
+Browser/device: Desktop in-app browser
+Roles simulated: Host, cashier
+Status: `NOT VISIBLE / NEEDS SPECIFICATION`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 4/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 4/10 |
+
+### Steps actually performed
+
+1. Opened Tables at `https://staff.sakorio.com/tables?qa=r3-e2e067-068`.
+2. Inspected table cards and visible actions.
+3. Tried to locate move/transfer controls.
+
+### Expected result
+
+Host should be able to move an active party from one table to another while keeping current orders, customer/session, QR access, and bill state intact.
+
+### Actual result
+
+No visible or accessible move/transfer-party control was found. The `More` controls appeared in the page text but were not accessible as normal named buttons during browser interaction.
+
+### Evidence observed
+
+- Table cards showed actions such as `Orders`, `Start order`, and `More`.
+- No `Move`, `Transfer`, `Change table`, or equivalent action appeared.
+
+### Defects
+
+1. Table move/transfer workflow is absent or hidden.
+2. `More` action discoverability/accessibility needs improvement.
+
+### Improvement notes
+
+- Add a clear `Move table` action inside each occupied/open table card.
+- Require confirmation and show exactly what moves: reservation/customer, open bill, QR token, kitchen tickets, and table status.
+
+### Cleanup performed
+
+No data changed.
+
+---
+
+## Result - R3-E2E-068
+
+Scenario: Combine two active tables into one bill decision
+Run ID: `SKR-R3-20260720-E068`
+Browser/device: Desktop in-app browser
+Roles simulated: Host, cashier
+Status: `NEEDS SPECIFICATION / NOT SUPPORTED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 4/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 4/10 |
+
+### Steps actually performed
+
+1. Reused Tables inspection from R3-E2E-067.
+2. Looked for combine/merge table or combine-bill controls.
+
+### Expected result
+
+Cashier should be able to combine two active tables into one bill or explicitly see that combine-bill is unsupported.
+
+### Actual result
+
+No merge/combine-bill action was visible.
+
+### Evidence observed
+
+- No controls matching `Merge`, `Combine`, `Join bill`, `Split/merge`, or similar appeared on table cards.
+
+### Defects
+
+1. Combine bill/table policy is undefined in the UI.
+
+### Improvement notes
+
+- If launch needs this, add manager-controlled `Combine bill` with audit reason.
+- If out of scope, add a short POS/table help note so staff know to settle tables separately.
+
+### Cleanup performed
+
+No data changed.
+
+---
+
+## Result - R3-E2E-069
+
+Scenario: Split bill by item decision
+Run ID: `SKR-R3-20260720-E069`
+Browser/device: Desktop in-app browser
+Roles simulated: Cashier
+Status: `PASS AS UNSUPPORTED POLICY / NEEDS SPECIFICATION`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 5/10 |
+| Workflow speed | 7/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 5/10 |
+
+### Steps actually performed
+
+1. Opened POS at `https://staff.sakorio.com/pos?qa=r3-e2e069`.
+2. Selected table T05.
+3. Added `Coffee` and `Coca Cola`.
+4. Opened checkout drawer.
+5. Inspected payment methods and split controls.
+6. Navigated away without paying.
+
+### Expected result
+
+If item-level split bill is supported, cashier should choose items/amounts per payment. If unsupported, the checkout should clearly say full-bill payment only.
+
+### Actual result
+
+Checkout showed one full amount due and payment choices only. No split bill action was visible.
+
+### Evidence observed
+
+- Payment drawer showed `SGD 5.50`, `2 items · T05`.
+- Payment methods shown: `STAFF CASH`, `TERMINAL`, and terminal charge button.
+- No `Split`, `Partial`, `By item`, or `Pay selected` control appeared.
+
+### Defects
+
+1. Split-bill policy is not communicated to cashiers.
+
+### Improvement notes
+
+- Add either a simple `Split bill` workflow or a disabled/help note saying `Split bill is not available yet`.
+- Keep the full-bill payment path clear as the default.
+
+### Cleanup performed
+
+No payment submitted; local cart was abandoned.
+
+---
+
+## Result - R3-E2E-070
+
+Scenario: Kitchen overload view with many active tickets
+Run ID: `SKR-R3-20260720-E070`
+Browser/device: Desktop in-app browser
+Roles simulated: Kitchen
+Status: `PARTIAL / BACKLOG DEFECT`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 5/10 |
+| UI/UX clarity | 6/10 |
+| Workflow speed | 6/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 5/10 |
+
+### Steps actually performed
+
+1. Opened Kitchen at `https://staff.sakorio.com/kitchen?qa=r3-e2e070-071`.
+2. Inspected ticket lanes, backlog summary, and current active tickets.
+3. Avoided mutating kitchen statuses because paid/cleared historical tickets are still pending.
+
+### Expected result
+
+Kitchen should show only live-service tickets in clear priority order, with a safe backlog mode for unresolved stale tickets.
+
+### Actual result
+
+Kitchen has useful lanes and a backlog warning, but many paid/cleared historical orders remain pending for hours.
+
+### Evidence observed
+
+- Counters: `All 10`, `Kitchen 1`, `Beverages 10`, `Review backlog 70`.
+- Oldest visible wait was around `3h 19m` to `3h 22m`.
+- Visible pending tickets included paid orders `#71`, `#72`, `#74`, `#75`, `#76`, `#77`, `#78`, `#79`, `#80`, and `#81`.
+
+### Defects
+
+1. Paid/closed table orders remain pending in KDS.
+2. Backlog is large enough to make the live kitchen display noisy.
+3. Status buttons labeled only `Pending` do not clearly guide the next kitchen action.
+
+### Improvement notes
+
+- Link order/table close lifecycle to kitchen-ticket lifecycle.
+- Add clearer action labels: `Start prep`, `Ready`, `Served`, `Cancel/stale`.
+- Add manager-safe stale ticket cleanup with bulk selection and reason capture.
+
+### Cleanup performed
+
+No ticket statuses changed.
+
+---
+
+## Result - R3-E2E-071
+
+Scenario: Beverage and kitchen complete at different times
+Run ID: `SKR-R3-20260720-E071`
+Browser/device: Desktop in-app browser
+Roles simulated: Kitchen, beverage station, waiter
+Status: `BLOCKED / PARTIAL`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 5/10 |
+| UI/UX clarity | 6/10 |
+| Workflow speed | 6/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 5/10 |
+
+### Steps actually performed
+
+1. Reused Kitchen inspection from R3-E2E-070.
+2. Checked station filters and mixed ticket display.
+3. Avoided changing states because KDS backlog already contains stale pending paid orders.
+
+### Expected result
+
+Kitchen and beverages should be independently actionable, and waiter handoff should show partial readiness clearly.
+
+### Actual result
+
+Station filters exist, but partial readiness could not be validated safely against a clean mixed active order.
+
+### Evidence observed
+
+- Kitchen displayed station counters `Kitchen 1` and `Beverages 10`.
+- Ticket `#79` showed multiple beverage lines pending.
+- No clear waiter-facing partial-ready handoff was verified.
+
+### Defects
+
+1. KDS lifecycle noise blocks confident validation of partial readiness.
+2. Staff-facing handoff for mixed station completion is not obvious.
+
+### Improvement notes
+
+- Create a clean mixed food+beverage QA fixture/order after stale backlog cleanup.
+- Show partial-ready badges in Orders/Tables, e.g. `Drinks ready · Food pending`.
+
+### Cleanup performed
+
+No ticket statuses changed.
+
+---
+
+## Result - R3-E2E-072
+
+Scenario: Staff profile selection before clock-in
+Run ID: `SKR-R3-20260720-E072`
+Browser/device: Desktop in-app browser
+Roles simulated: Staff
+Status: `PARTIAL PASS / CLOCK-IN BLOCKED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 7/10 |
+| UI/UX clarity | 7/10 |
+| Workflow speed | 7/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 7/10 |
+
+### Steps actually performed
+
+1. Opened My Shift at `https://staff.sakorio.com/my-shift?qa=r3-e2e072-073`.
+2. Inspected staff profile selector and current shift availability.
+3. Attempted to select the waiter profile.
+
+### Expected result
+
+Staff should choose their own profile before clock-in, then select a valid shift and proceed with photo clock-in.
+
+### Actual result
+
+Profile selector exists and explains the workflow. Clock-in was blocked because no shift was currently open for attendance.
+
+### Evidence observed
+
+- Page text: `Choose a staff profile, select the scheduled shift, take a live photo, and clock in.`
+- Profile options displayed: `Ajisen — Owner`, `Jason Tan — Waiter`.
+- Current status: `Off shift / Ready`.
+- Message: `No shift is currently open for attendance.`
+- Disabled button: `No shift available to clock in`.
+- Closed scheduled shift visible: `Sat 18 9:00 AM - 10:00 PM QA Browser E2E Window closed`.
+
+### Defects
+
+1. No current-shift QA fixture exists, so clock-in cannot be completed in browser.
+2. Programmatic selection did not visibly switch from owner to waiter during the test; verify selector binding manually in a polish pass.
+
+### Improvement notes
+
+- Add a safe test/current shift fixture for browser QA.
+- Surface next eligible shift and clock-in window/grace period prominently.
+
+### Cleanup performed
+
+No attendance records created.
+
+---
+
+## Result - R3-E2E-073
+
+Scenario: Early clock-in and late clock-in handling
+Run ID: `SKR-R3-20260720-E073`
+Browser/device: Desktop in-app browser
+Roles simulated: Staff
+Status: `NEEDS SPECIFICATION / BLOCKED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 6/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 5/10 |
+
+### Steps actually performed
+
+1. Reused My Shift inspection from R3-E2E-072.
+2. Looked for early/late clock-in states and policy messaging.
+
+### Expected result
+
+Staff should see whether they are early, on time, late, or outside allowed clock-in windows.
+
+### Actual result
+
+No current shift was open, and no early/late/grace-period policy was visible.
+
+### Evidence observed
+
+- Only visible scheduled shift was closed.
+- Clock-in button was disabled because no shift was available.
+
+### Defects
+
+1. Early/late attendance policy is not testable from current UI state.
+2. No visible grace-period or lateness explanation appears when no shift is open.
+
+### Improvement notes
+
+- Add explicit attendance states: `Too early`, `Open for clock-in`, `Late`, `Missed`, and `Closed`.
+- Display configured grace windows from Settings/Timetable.
+
+### Cleanup performed
+
+No attendance records created.
+
+---
+
+## Result - R3-E2E-074
+
+Scenario: Staff swap shift request
+Run ID: `SKR-R3-20260720-E074`
+Browser/device: Desktop in-app browser
+Roles simulated: Staff, manager
+Status: `NEEDS SPECIFICATION / PARTIAL`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 6/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 5/10 |
+
+### Steps actually performed
+
+1. Opened Timetable at `https://staff.sakorio.com/working-plan?qa=r3-e2e074-075`.
+2. Inspected calendar, roster, staff filter, and shift actions.
+3. Looked for swap/reassign request workflow.
+
+### Expected result
+
+Staff should be able to request a shift swap, and managers should be able to approve/reassign cleanly.
+
+### Actual result
+
+Timetable is usable for manager scheduling, but no self-service swap request was visible.
+
+### Evidence observed
+
+- Route opened as `/working-plan/calendar`.
+- Header: `Timetable`; actions: `Apply to month`, `Add shift`, `Week`, `Calendar`.
+- Staff filters: `All staff`, `Ajisen Owner`, `Jason Tan Waiter`.
+- Roster showed `Ajisen Owner` and `Jason Tan Waiter`.
+- Shift actions included schedule/delete buttons.
+- No `Swap shift`, `Request swap`, `Approve swap`, or `Reassign` control appeared.
+
+### Defects
+
+1. Shift swap workflow is not implemented or not discoverable.
+
+### Improvement notes
+
+- Add staff request flow with manager approval.
+- Keep manager reassignment separate from staff self-service swap.
+
+### Cleanup performed
+
+No shifts changed.
+
+---
+
+## Result - R3-E2E-075
+
+Scenario: Leave request overlaps scheduled shift
+Run ID: `SKR-R3-20260720-E075`
+Browser/device: Desktop in-app browser
+Roles simulated: Staff, manager
+Status: `NOT IMPLEMENTED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 5/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 4/10 |
+
+### Steps actually performed
+
+1. Reused Timetable inspection from R3-E2E-074.
+2. Inspected leave/MC/annual leave area.
+
+### Expected result
+
+Leave request should detect scheduled-shift overlap, request manager approval, deduct entitlement, and update timetable coverage.
+
+### Actual result
+
+Leave balances are explicitly marked coming soon.
+
+### Evidence observed
+
+- Section text: `Annual leave / MC balances COMING SOON`.
+- Status: `Ledger not enabled`.
+- Annual leave and MC/sick leave described as coming soon.
+
+### Defects
+
+1. Leave ledger, entitlement deduction, overlap conflict detection, and approvals are not implemented.
+
+### Improvement notes
+
+- Add leave ledger models and UI only after defining launch policy.
+- In timetable, show leave blocks beside shifts and warn if coverage drops.
+
+### Cleanup performed
+
+No shifts or leave records changed.
+
+---
+
+## Result - R3-E2E-076
+
+Scenario: User deactivation while staff has future shifts
+Run ID: `SKR-R3-20260720-E076`
+Browser/device: Desktop in-app browser
+Roles simulated: Manager
+Status: `NEEDS SPECIFICATION / NOT VISIBLE`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 5/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 5/10 |
+
+### Steps actually performed
+
+1. Opened Users at `https://staff.sakorio.com/users?qa=r3-e2e076`.
+2. Inspected staff list and available user actions.
+3. Avoided deleting the real waiter account.
+
+### Expected result
+
+Manager should deactivate/suspend staff safely, with warnings for future shifts and historical record preservation.
+
+### Actual result
+
+User management exposes edit/delete actions but no visible deactivate/suspend action.
+
+### Evidence observed
+
+- Users listed included owner `Ajisen` and waiter `Jason Tan`.
+- Visible actions: `Add User`, `Edit user`, `Delete user`.
+- No `Deactivate`, `Disable`, `Suspend`, or future-shift warning was visible.
+
+### Defects
+
+1. Deactivation workflow is absent.
+2. Delete is risky as the primary visible offboarding action.
+
+### Improvement notes
+
+- Add `Deactivate user` as the preferred offboarding action.
+- Warn if the staff member has future shifts and provide reassignment/cancel options.
+- Preserve attendance/orders/audit history.
+
+### Cleanup performed
+
+No users changed.
+
+---
+
+## Result - R3-E2E-077
+
+Scenario: Role permission boundary across tabs
+Run ID: `SKR-R3-20260720-E077`
+Browser/device: Desktop in-app browser
+Roles simulated: Owner, waiter
+Status: `PASS BY PRIOR BROWSER REGRESSION + CURRENT OWNER RECHECK`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 8/10 |
+| UI/UX clarity | 8/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 8/10 |
+
+### Steps actually performed
+
+1. Rechecked current owner navigation from the Users page.
+2. Cross-referenced earlier browser-executed waiter permission case in this same round.
+
+### Expected result
+
+Owner should access all management tabs. Waiter should be blocked from management-only areas even by direct URL.
+
+### Actual result
+
+Owner navigation exposes management tabs. Earlier waiter browser regression showed waiter nav excluded management tabs and direct restricted URLs redirected back to dashboard.
+
+### Evidence observed
+
+- Owner nav included Home, My shift, POS, Orders, Reservations, Queue, Tables, Kitchen & beverages, Customers, Products, Catalog, Reports, Timetable, Inventory, Users, Contracts, Settings.
+- Earlier R3-E2E-037 waiter test showed Users/Reports/Settings/Inventory were excluded and direct restricted routes redirected.
+
+### Defects
+
+1. Role-boundary QA still depends on a synthetic waiter setup each time; a stable role-fixture account would make repeated release QA faster.
+
+### Improvement notes
+
+- Maintain fixed QA accounts for owner, cashier, waiter, kitchen, and manager roles.
+- Add a small visible role banner on restricted-page redirects so staff understand why they were redirected.
+
+### Cleanup performed
+
+No users changed in this case.
+
+---
+
+## Result - R3-E2E-078
+
+Scenario: End-of-day close/report reconciliation
+Run ID: `SKR-R3-20260720-E078`
+Browser/device: Desktop in-app browser
+Roles simulated: Manager
+Status: `PARTIAL PASS / CLOSE LOCK MISSING`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 7/10 |
+| UI/UX clarity | 8/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 7/10 |
+
+### Steps actually performed
+
+1. Opened Reports at `https://staff.sakorio.com/reports?qa=r3-e2e078`.
+2. Inspected date range, summary cards, payment methods, report tabs, close-flow checklist, and export actions.
+
+### Expected result
+
+Manager should reconcile sales, payment methods, tables, kitchen backlog, staff sessions, and export reports. Ideally, the day can be closed/locked with audit.
+
+### Actual result
+
+Reports provide a strong close checklist and exports, but no final end-of-day close/lock action exists.
+
+### Evidence observed
+
+- Range: `2026-06-20 - 2026-07-20`.
+- Collected: `SGD 975.00`; average ticket `SGD 19.50`; `50 orders`.
+- Payment methods: HitPay `9`, Terminal `33`, Cash `8`.
+- Checklist items: Tables, Orders, Kitchen, Staff sessions, Export reports.
+- Export actions: `Export CSV`, `Export Excel`, `Export payment CSV`, `Download Excel`, `Download attendance workbook`.
+- Attendance audit: `0 open`, `0 missing photos`.
+
+### Defects
+
+1. No `Close day`, `Lock day`, or `Manager sign-off` step.
+2. Checklist links include `/orders`, while the working staff route observed elsewhere is `/staff/orders`; verify route consistency.
+3. Report includes historical `Cash` method even though customer QR payment policy removed cash; staff cash policy should be explicit.
+
+### Improvement notes
+
+- Add end-of-day close record with manager, timestamp, totals, outstanding blockers, and export snapshot.
+- Add warnings before sign-off if active tables, unpaid bills, or kitchen backlog remain.
+- Separate `payment method policy` for staff cashier vs customer QR.
+
+### Cleanup performed
+
+No reports exported or data changed.
+
+---
+
+## Result - R3-E2E-079
+
+Scenario: Audit trail for correction actions
+Run ID: `SKR-R3-20260720-E079`
+Browser/device: Desktop in-app browser
+Roles simulated: Manager, cashier
+Status: `NOT IMPLEMENTED / NOT VISIBLE`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 5/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 4/10 |
+
+### Steps actually performed
+
+1. Opened Orders at `https://staff.sakorio.com/staff/orders?qa=r3-e2e079`.
+2. Inspected active/history tabs and visible controls for correction actions.
+3. Searched visible page text for audit/correction terms.
+
+### Expected result
+
+Void, refund, reopen, discount, and correction actions should require reason/authorization and show actor/timestamp audit history.
+
+### Actual result
+
+Orders history shows paid order records but no visible correction actions or audit trail.
+
+### Evidence observed
+
+- Orders tabs: `Active Orders`, `Not Paid Yet`, `Order History`.
+- Order history listed paid orders `#81` down to older orders.
+- Visible text did not include `audit`, `void`, `refund`, `reopen`, `reason`, `override`, `correction`, `actor`, or `manager`.
+
+### Defects
+
+1. Correction actions are absent or hidden.
+2. Audit trail is not visible to managers.
+
+### Improvement notes
+
+- Add manager-only correction actions with required reason.
+- Add immutable audit log entries: actor, role, action, target order/table, before/after amount/status, timestamp.
+- Show a compact `Audit` drawer per order and summarize exceptions in Reports.
+
+### Cleanup performed
+
+No orders changed.
+
+---
+
+## Result - R3-E2E-080
+
+Scenario: Multi-tab disaster recovery during active service
+Run ID: `SKR-R3-20260720-E080`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, cashier, kitchen, manager
+Status: `PARTIAL PASS`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 7/10 |
+| UI/UX clarity | 6/10 |
+| Workflow speed | 6/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 7/10 |
+
+### Steps actually performed
+
+1. Opened a previously issued customer QR URL.
+2. Opened Orders in a separate tab and refreshed it.
+3. Opened Kitchen in a separate tab and refreshed it.
+4. Opened POS in a separate tab and refreshed it.
+5. Waited for POS recovery after observing an extended loading state.
+
+### Expected result
+
+During multi-tab use, staff/customer pages should reload without losing state, and active service pages should recover with clear loading and retry feedback.
+
+### Actual result
+
+Orders and Kitchen remained stable across refresh. QR correctly blocked ordering for a closed table. POS initially showed `Syncing...` / `0 loaded` after reload, then recovered after several seconds.
+
+### Evidence observed
+
+- QR page showed `Table Closed` and `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+- Orders before/after refresh consistently showed Order History count `80` and latest paid orders `#81`, `#80`, `#79`.
+- Kitchen before/after refresh consistently showed `All 10`, `Review backlog 70`, and same pending ticket list.
+- POS initially showed `TABLES LOADED Syncing`, `OPEN BILLS Syncing`, `CATALOG Syncing`, then recovered to `TABLES LOADED 10`, `OPEN BILLS 0`, `CATALOG 9`.
+- No browser console errors were captured for the POS tab during the wait.
+
+### Defects
+
+1. POS loading state can look broken during multi-tab reload because it shows `0 loaded` before data arrives.
+2. Disaster-recovery testing is still limited by closed QR links and KDS stale backlog.
+
+### Improvement notes
+
+- Replace transient `0 loaded` with a clearer loading skeleton until the first data response completes.
+- Add timeout/retry copy such as `Still syncing floor data... Retry`.
+- Add a release QA fixture that creates a fresh active QR session and mixed station ticket for disaster recovery tests.
+
+### Cleanup performed
+
+No order submitted and no status changed.

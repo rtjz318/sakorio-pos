@@ -10,8 +10,8 @@ Run prefix: `SKR-R3-20260719`
 
 | Case range | Status |
 |---|---|
-| R3-E2E-001 to R3-E2E-055 | Executed / attempted |
-| R3-E2E-056 to R3-E2E-080 | Pending execution |
+| R3-E2E-001 to R3-E2E-065 | Executed / attempted |
+| R3-E2E-066 to R3-E2E-080 | Pending execution |
 
 ## Cross-run notes
 
@@ -3492,3 +3492,535 @@ Queue seating worked: E055-B moved to `Seated` on T07 and ready-table count drop
 ### Cleanup performed
 
 E055-A was cancelled. E055-B was seated, then T07 was closed/cleared back to idle.
+
+---
+
+## Result - R3-E2E-056
+
+Scenario: Table cleaning/reset state between paid and available
+Run ID: `SKR-R3-20260719-E056`
+Browser/device: Desktop in-app browser
+Roles simulated: Waiter, host
+Status: `NEEDS SPECIFICATION`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 7/10 |
+| UI/UX clarity | 6/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 7/10 |
+
+### Steps actually performed
+
+1. Opened Tables at `https://staff.sakorio.com/tables?qa=r3-e2e056`.
+2. Reviewed tables after multiple paid/cleared flows from R3-E2E-038, R3-E2E-040, R3-E2E-049, and R3-E2E-055.
+3. Looked for intermediate states such as `Cleaning`, `Dirty`, `Needs reset`, or `Mark cleaned`.
+
+### Expected result
+
+If cleaning/reset is part of restaurant operations, it should sit clearly between paid/closed and available. If not part of scope, immediate availability should be an explicit product decision.
+
+### Actual result
+
+No cleaning/reset state was visible. Paid tables become `Available` / `Ready for order` after the clear/close action.
+
+### Evidence observed
+
+- T04, T05, T07, T08 and T09 appeared as idle/available after cleanup.
+- No `Cleaning`, `Dirty`, `Reset`, or `Mark cleaned` controls appeared.
+
+### Defects
+
+1. Cleaning/reset workflow is absent.
+2. Host may assume a cleared bill means physically cleaned table.
+
+### Improvement notes
+
+- Add optional `Needs cleaning` state after payment/close.
+- If cleaning is out of scope, label the action as `Clear table / mark ready` so intent is explicit.
+
+### Cleanup performed
+
+No data changes were made in this case.
+
+---
+
+## Result - R3-E2E-057
+
+Scenario: Customer opens wrong or expired QR token
+Run ID: `SKR-R3-20260719-E057`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer
+Status: `PASS`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 9/10 |
+| UI/UX clarity | 7/10 |
+| Workflow speed | 9/10 |
+| Layout/stability | 9/10 |
+| Launch readiness | 8/10 |
+
+### Steps actually performed
+
+1. Opened invalid customer QR URL:
+   - `https://order.sakorio.com/menu/not-a-real-table-token?qr_access=invalid-r3-e2e057`
+2. Checked whether menu, order history, bill, or table/customer data was exposed.
+
+### Expected result
+
+Customer receives safe unavailable/expired/not-found message and no other table/session data is exposed.
+
+### Actual result
+
+Invalid QR URL safely showed `Menu` and `Not found`. No order/table/bill data was exposed.
+
+### Evidence observed
+
+- Page text: `Menu` / `Not found`.
+- No `Order #`, `History`, `SGD`, table number, or customer data appeared.
+
+### Defects
+
+1. Message is safe but plain; it does not tell the customer what to do next.
+
+### Improvement notes
+
+- Replace `Not found` with friendly copy: `This QR code is invalid or expired. Please ask staff for a new QR code.`
+
+### Cleanup performed
+
+No data changes were made.
+
+---
+
+## Result - R3-E2E-058
+
+Scenario: Same QR opened on two customer devices
+Run ID: `SKR-R3-20260719-E058`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer A, Customer B
+Status: `BLOCKED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 4/10 |
+| UI/UX clarity | 4/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 4/10 |
+
+### Steps actually performed
+
+1. Opened POS at `https://staff.sakorio.com/pos?qa=r3-e2e058-059`.
+2. Opened T01.
+3. Clicked `Open customer QR`.
+4. Checked for new customer tab, URL, modal, or clipboard value.
+
+### Expected result
+
+Same active QR should open on two customer devices and both submissions should join the same active session exactly once.
+
+### Actual result
+
+Could not obtain an active QR URL. Same multi-device QR behavior remains untested.
+
+### Evidence observed
+
+- Tab count did not change.
+- Clipboard remained empty.
+- Staff URL stayed on `tableId=1`.
+- `Open customer QR` showed no visible success/failure feedback.
+
+### Defects
+
+1. Active QR handoff is still unavailable from POS.
+
+### Improvement notes
+
+- Fix QR handoff before retesting customer multi-device ordering.
+
+### Cleanup performed
+
+No customer order was created.
+
+---
+
+## Result - R3-E2E-059
+
+Scenario: Customer cart abandoned, then table is closed
+Run ID: `SKR-R3-20260719-E059`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, cashier
+Status: `BLOCKED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 4/10 |
+| UI/UX clarity | 4/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 4/10 |
+
+### Steps actually performed
+
+1. Reused the active QR handoff attempt from R3-E2E-058.
+2. Attempted to reach customer QR menu/cart state.
+
+### Expected result
+
+Customer abandoned cart should be blocked from submission after the table/session closes, with a clear explanation.
+
+### Actual result
+
+Could not create customer QR cart because active QR URL is unavailable.
+
+### Evidence observed
+
+- POS QR handoff produced no customer URL or modal.
+
+### Defects
+
+1. Abandoned QR cart closure behavior remains unverified.
+
+### Improvement notes
+
+- After QR is fixed, test stale customer cart submission after:
+  - payment started
+  - payment completed
+  - table cleared
+  - new session opened on same table.
+
+### Cleanup performed
+
+No customer order/cart was created.
+
+---
+
+## Result - R3-E2E-060
+
+Scenario: Special instructions with unsafe-looking text
+Run ID: `SKR-R3-20260719-E060`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, kitchen
+Status: `BLOCKED / NEEDS INPUT FIELD`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 6/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 6/10 |
+
+### Steps actually performed
+
+1. Attempted active QR path; blocked by missing QR handoff.
+2. Inspected POS table menu/cart controls for item notes or special-instruction text areas.
+3. Added `Coffee` to a local POS cart and inspected the cart before clearing it.
+
+### Expected result
+
+Special-instruction fields should accept punctuation, HTML-like text, apostrophes, newline, emoji, and non-Latin text, then display safely in kitchen/orders.
+
+### Actual result
+
+No special-instructions field was visible in the POS cart/menu flow, and QR was unavailable. The unsafe-text path could not be executed.
+
+### Evidence observed
+
+- Product cards immediately add items.
+- Cart showed item, quantity and total, but no notes/customization field.
+- QR customer path remains blocked.
+
+### Defects
+
+1. Item-level special instructions are not visible in POS.
+2. QR instructions path cannot be tested while QR handoff is broken.
+
+### Improvement notes
+
+- Add optional item notes with safe rendering in Kitchen/Orders.
+- Retest with HTML-like and multilingual text once the input exists.
+
+### Cleanup performed
+
+The local POS cart was cleared; no order submitted.
+
+---
+
+## Result - R3-E2E-061
+
+Scenario: Required modifier missing on QR and POS
+Run ID: `SKR-R3-20260719-E061`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, cashier
+Status: `NEEDS SPECIFICATION`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 6/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 6/10 |
+
+### Steps actually performed
+
+1. Inspected POS product cards and cart controls.
+2. Checked visible menu items for required modifier prompts.
+3. Confirmed QR path could not be reached.
+
+### Expected result
+
+QR and POS should enforce required modifiers consistently if modifier-enabled products exist.
+
+### Actual result
+
+No modifier-enabled items or required modifier prompts were visible in the seeded menu. Products add directly to cart.
+
+### Evidence observed
+
+- Product cards shown: Chile Relleno, Coca Cola, Coffee, Enchiladas, Mole Poblano, Pozole, Tacos de Carne Asada, Tecate Light, Tecate Roja.
+- No modifier selection UI appeared.
+
+### Defects
+
+1. Modifier feature is not discoverable in the launch menu.
+
+### Improvement notes
+
+- If modifiers are in scope, seed at least one required modifier item for QA.
+- If out of scope, document this as a post-launch feature.
+
+### Cleanup performed
+
+No order submitted.
+
+---
+
+## Result - R3-E2E-062
+
+Scenario: Duplicate same item with different modifiers stays distinct
+Run ID: `SKR-R3-20260719-E062`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, kitchen
+Status: `NEEDS SPECIFICATION`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 6/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 6/10 |
+
+### Steps actually performed
+
+1. Reused POS menu inspection from R3-E2E-061.
+2. Looked for modifier-enabled products or item customization controls.
+
+### Expected result
+
+Same product with different modifiers should remain as distinct lines with correct labels/pricing.
+
+### Actual result
+
+No modifier-enabled product was visible, so the case cannot be executed.
+
+### Evidence observed
+
+- POS product cards add directly to cart.
+- No modifier labels, required options, add-ons, or custom pricing controls appeared.
+
+### Defects
+
+1. No seeded modifier scenario exists for browser QA.
+
+### Improvement notes
+
+- Seed a test product such as `Noodle soup` with required soup/spice modifiers and optional add-ons.
+- Ensure bill/kitchen distinguish same base item with different modifiers.
+
+### Cleanup performed
+
+No order submitted.
+
+---
+
+## Result - R3-E2E-063
+
+Scenario: Discount requires manager and recalculates bill correctly
+Run ID: `SKR-R3-20260719-E063`
+Browser/device: Desktop in-app browser
+Roles simulated: Cashier, manager
+Status: `NEEDS SPECIFICATION / NOT VISIBLE`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 6/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 5/10 |
+
+### Steps actually performed
+
+1. Opened active POS table/cart.
+2. Added an item locally.
+3. Inspected cart, Bill/Pay, and visible controls for discount actions.
+4. Cleared the local cart without submitting.
+
+### Expected result
+
+Discount flow should require authorization, recalculate totals correctly, and record audit data.
+
+### Actual result
+
+No discount action was visible in POS cart or payment entry area.
+
+### Evidence observed
+
+- Cart showed `Coffee`, `SGD 2.50`, quantity, total, and Checkout.
+- No `Discount`, `%`, `Comp`, `Promo`, `Manager approve`, or adjustment field appeared.
+
+### Defects
+
+1. Discount workflow is absent or not discoverable.
+
+### Improvement notes
+
+- Add manager-only discount with reason, type, amount, and receipt/report visibility.
+- If discounts are intentionally not supported at launch, document policy in Settings/Reports.
+
+### Cleanup performed
+
+The local cart was cleared; no order submitted.
+
+---
+
+## Result - R3-E2E-064
+
+Scenario: Service charge/tax/rounding visible before payment
+Run ID: `SKR-R3-20260719-E064`
+Browser/device: Desktop in-app browser
+Roles simulated: Cashier
+Status: `PARTIAL / QR BLOCKED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 6/10 |
+| UI/UX clarity | 6/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 6/10 |
+
+### Steps actually performed
+
+1. Opened a POS table.
+2. Added `Coffee` to cart.
+3. Inspected cart totals before payment.
+4. Cleared the local cart.
+
+### Expected result
+
+Staff and customer should see matching subtotal, tax, service charge, rounding, and total before payment.
+
+### Actual result
+
+POS showed item total and final total only. No subtotal/tax/service-charge/rounding breakdown appeared. QR/customer side could not be compared because active QR handoff is blocked.
+
+### Evidence observed
+
+- Cart showed:
+  - `Coffee`
+  - `SGD 2.50`
+  - `Items 1 item`
+  - `Total SGD 2.50`
+- No `Subtotal`, `Tax`, `GST`, `Service charge`, or `Rounding` line appeared.
+
+### Defects
+
+1. Charge breakdown is not visible before payment.
+2. QR/POS total comparison remains blocked by QR handoff issue.
+
+### Improvement notes
+
+- Add explicit bill breakdown even when charges are zero.
+- Use same bill component renderer for POS and QR.
+
+### Cleanup performed
+
+The local cart was cleared; no order submitted.
+
+---
+
+## Result - R3-E2E-065
+
+Scenario: Takeaway order without table
+Run ID: `SKR-R3-20260719-E065`
+Browser/device: Desktop in-app browser
+Roles simulated: Cashier
+Status: `NEEDS SPECIFICATION / NOT SUPPORTED IN POS`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 7/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 6/10 |
+
+### Steps actually performed
+
+1. Opened POS root at `https://staff.sakorio.com/pos?qa=r3-e2e065`.
+2. Looked for takeaway/counter sale/start order without table.
+3. Inspected visible controls.
+
+### Expected result
+
+If takeaway is supported, cashier should be able to start an order without selecting a table. If unsupported, POS should make table-only policy clear.
+
+### Actual result
+
+POS is table-first. The header says `Pick a table, build the order, take payment.` There is no visible takeaway/counter-sale start action.
+
+### Evidence observed
+
+- POS root showed table grid only.
+- Visible actions were table cards, `Start order`, and `Orders`.
+- No `Takeaway`, `Counter sale`, `Walk-in order`, or non-table checkout action appeared.
+
+### Defects
+
+1. Takeaway/non-table order policy is not implemented or not discoverable.
+
+### Improvement notes
+
+- Add `Takeaway / Counter order` as a separate POS lane if launch requires non-table sales.
+- Otherwise document table-only POS behavior.
+
+### Cleanup performed
+
+No order submitted.

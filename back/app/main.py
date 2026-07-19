@@ -9029,6 +9029,113 @@ def _reservable_capacity_for_tenant(
     return (total_seats, n_tables)
 
 
+def _largest_reservable_party_unit_for_tenant(
+    session: Session,
+    tenant_id: int,
+    res_date: date,
+    tenant: models.Tenant,
+    slot_time: time,
+    *,
+    floor_id: int | None = None,
+) -> int:
+    """Largest single reservable seating unit at a slot.
+
+    A seating unit is either a standalone table or an explicitly grouped/combined table. This is
+    separate from total venue capacity: ten 2-seat tables do not safely accept one 20-pax party.
+    """
+    now_utc = datetime.now(timezone.utc)
+    tables = session.exec(
+        select(models.Table).where(models.Table.tenant_id == tenant_id)
+    ).all()
+    if floor_id is not None:
+        tables = [t for t in tables if t.floor_id == floor_id]
+    if not tables:
+        return 0
+    table_ids = [t.id for t in tables if t.id is not None]
+    if not table_ids:
+        return 0
+
+    seated_rows = session.exec(
+        select(models.Reservation).where(
+            models.Reservation.tenant_id == tenant_id,
+            models.Reservation.table_id.in_(table_ids),
+            models.Reservation.status == models.ReservationStatus.seated,
+        )
+    ).all()
+    seated_by_table: dict[int, models.Reservation] = {
+        r.table_id: r for r in seated_rows if r.table_id is not None
+    }
+
+    orders_all = session.exec(
+        select(models.Order).where(
+            models.Order.table_id.in_(table_ids),
+            models.Order.status.in_(
+                [
+                    models.OrderStatus.pending,
+                    models.OrderStatus.preparing,
+                    models.OrderStatus.ready,
+                    models.OrderStatus.partially_delivered,
+                ]
+            ),
+        )
+    ).all()
+    orders_by_table: dict[int, models.Order] = {}
+    for o in orders_all:
+        tid = o.table_id
+        if tid not in orders_by_table or o.created_at < orders_by_table[tid].created_at:
+            orders_by_table[tid] = o
+
+    blocked: set[int] = set()
+    for t in tables:
+        if t.id is None:
+            continue
+        if _table_blocks_reservation_slot(
+            t,
+            seated_by_table.get(t.id),
+            orders_by_table.get(t.id),
+            res_date,
+            slot_time,
+            tenant,
+            now_utc,
+        ):
+            blocked.add(t.id)
+
+    seen_group: set[int] = set()
+    for t in tables:
+        if t.id is None or not t.table_group_id:
+            continue
+        if t.table_group_id in seen_group:
+            continue
+        seen_group.add(t.table_group_id)
+        member_ids = [
+            x.id for x in tables if x.table_group_id == t.table_group_id and x.id is not None
+        ]
+        if any(mid in blocked for mid in member_ids):
+            blocked.update(member_ids)
+
+    units: list[tuple[int, int]] = []
+    seen_group = set()
+    for t in tables:
+        if t.id is None:
+            continue
+        if t.table_group_id:
+            if t.table_group_id in seen_group:
+                continue
+            seen_group.add(t.table_group_id)
+            members = [x for x in tables if x.table_group_id == t.table_group_id]
+            member_ids = [m.id for m in members if m.id is not None]
+            if any(mid in blocked for mid in member_ids):
+                continue
+            units.append((sum(m.seat_count for m in members), min(member_ids)))
+        elif t.id not in blocked:
+            units.append((t.seat_count, t.id))
+
+    units.sort(key=lambda u: (u[0], u[1]))
+    walk = max(0, tenant.reservation_walk_in_tables_reserved or 0)
+    pool = units[walk:] if walk < len(units) else []
+    return max((seat_count for seat_count, _ in pool), default=0)
+
+
 def _normalize_floor_seating_zone_value(raw: str | None) -> str:
     if raw is None or not str(raw).strip():
         return "any"
@@ -9518,6 +9625,17 @@ def create_reservation(
     total_seats, total_tables = _reservable_capacity_for_tenant(
         session, tenant_id, res_date, tenant, res_time, floor_id=eff_floor
     )
+    max_party_unit = _largest_reservable_party_unit_for_tenant(
+        session, tenant_id, res_date, tenant, res_time, floor_id=eff_floor
+    )
+    if data.party_size > max_party_unit:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"No available table setup can seat {data.party_size} guests at this time. "
+                f"Largest available table/group seats {max_party_unit}."
+            ),
+        )
     reserved_guests, reserved_parties = _demand_for_slot(
         session, tenant_id, res_date, res_time, exclude_reservation_id=None, floor_id=eff_floor
     )

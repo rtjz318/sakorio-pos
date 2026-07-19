@@ -971,8 +971,14 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                       {{ serviceTable.active_order_id ? 'Live order #' + serviceTable.active_order_id : getTableStateLabel(serviceTable) }}
                     </span>
                     @if (customerMenuUrl(serviceTable)) {
+                      <span class="service-status service-status--qr">
+                        {{ serviceTable.is_active ? 'QR active' : 'QR opens on tap' }}
+                      </span>
                       <button type="button" class="btn btn-secondary btn-sm" (click)="openCustomerMenu(serviceTable)">
-                        Open customer QR
+                        {{ pendingTableId() === serviceTable.id ? 'Opening QR...' : 'Open customer QR' }}
+                      </button>
+                      <button type="button" class="btn btn-ghost btn-sm" (click)="copyCustomerMenuLink(serviceTable)">
+                        {{ qrLinkCopiedTableId() === serviceTable.id ? 'QR copied' : 'Copy QR link' }}
                       </button>
                     }
                     <button type="button" class="pos-service-close" (click)="closeTableWorkspace()" aria-label="Close POS table service">x</button>
@@ -1149,9 +1155,20 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                       <div class="pos-service-cart-footer">
                         <div><span>Items</span><strong>{{ checkoutSummaryItemsCopy() }}</strong></div>
                         <div><span>Total</span><strong>{{ checkoutSummaryTotalCopy() }}</strong></div>
-                        <button type="button" class="pos-service-submit" (click)="setPosDrawerView('checkout')" [disabled]="!hasCheckoutWork()">
-                          Checkout
-                        </button>
+                        <div class="pos-service-cart-actions">
+                          @if (cartLines().length > 0) {
+                            <button
+                              type="button"
+                              class="pos-service-submit pos-service-submit--secondary"
+                              (click)="sendOrderToKitchen()"
+                              [disabled]="!canSendOrderToKitchen()">
+                              {{ processingCheckout() ? 'Sending...' : 'Send order' }}
+                            </button>
+                          }
+                          <button type="button" class="pos-service-submit" (click)="setPosDrawerView('checkout')" [disabled]="!hasCheckoutWork()">
+                            Pay bill
+                          </button>
+                        </div>
                       </div>
                     </aside>
                   </div>
@@ -1704,6 +1721,11 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       color: var(--color-primary-strong);
     }
 
+    .service-status--qr {
+      background: #ecfeff;
+      color: #0e7490;
+    }
+
     .pos-service-loop {
       display: grid;
       grid-template-columns: minmax(0, 1.1fr) minmax(14rem, 0.75fr) auto;
@@ -2092,6 +2114,16 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       gap: 0.75rem;
     }
 
+    .pos-service-cart-footer .pos-service-cart-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.55rem;
+    }
+
+    .pos-service-cart-footer .pos-service-cart-actions .pos-service-submit:only-child {
+      grid-column: 1 / -1;
+    }
+
     .pos-service-submit {
       width: 100%;
       min-height: 3.1rem;
@@ -2102,6 +2134,11 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       font-weight: 900;
       cursor: pointer;
       box-shadow: 0 12px 28px color-mix(in srgb, var(--color-primary) 22%, transparent);
+    }
+
+    .pos-service-submit--secondary {
+      background: #0f766e;
+      box-shadow: 0 12px 28px rgba(15, 118, 110, 0.18);
     }
 
     .pos-service-submit:disabled {
@@ -5341,6 +5378,7 @@ export class CashierPosComponent {
   lastCheckoutOutcome = signal<PosCheckoutOutcome | null>(null);
   hitPayFlowState = signal<PosHitPayFlowState>('idle');
   tableHistoryExpanded = signal(false);
+  qrLinkCopiedTableId = signal<number | null>(null);
 
   /**
    * The POS now uses the table-service drawer as the single ordering/payment workflow.
@@ -5696,6 +5734,13 @@ export class CashierPosComponent {
   canSubmitCart = computed(() =>
     !!this.effectiveCheckoutTable() &&
     this.hasCheckoutWork() &&
+    !this.cartTableConflict() &&
+    !this.processingCheckout(),
+  );
+
+  canSendOrderToKitchen = computed(() =>
+    !!this.effectiveCheckoutTable() &&
+    this.cartItemCount() > 0 &&
     !this.cartTableConflict() &&
     !this.processingCheckout(),
   );
@@ -6731,10 +6776,38 @@ export class CashierPosComponent {
       : baseUrl;
   }
 
-  openCustomerMenu(table: CanvasTable): void {
+  async openCustomerMenu(table: CanvasTable): Promise<void> {
     const url = this.customerMenuUrl(table);
     if (!url || typeof window === 'undefined') return;
-    window.open(url, '_blank', 'noopener,noreferrer');
+    this.error.set(null);
+    try {
+      await this.ensureTableReady(table);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      this.notice.set(`${table.name} QR is open. Guests can order from the current table session.`);
+      this.loadData();
+    } catch (err) {
+      this.error.set(this.getErrorMessage(err, `Unable to open QR ordering for ${table.name}.`));
+    }
+  }
+
+  copyCustomerMenuLink(table: CanvasTable): void {
+    const url = this.customerMenuUrl(table);
+    if (!url || typeof navigator === 'undefined' || !navigator.clipboard) {
+      this.error.set('This browser cannot copy the QR link automatically. Use Open customer QR instead.');
+      return;
+    }
+    navigator.clipboard.writeText(url).then(
+      () => {
+        this.qrLinkCopiedTableId.set(table.id ?? null);
+        this.notice.set(`${table.name} QR link copied. ${table.is_active ? 'Session is active.' : 'Open the QR once to activate this table before guests order.'}`);
+        window.setTimeout(() => {
+          if (this.qrLinkCopiedTableId() === table.id) {
+            this.qrLinkCopiedTableId.set(null);
+          }
+        }, 1800);
+      },
+      () => this.error.set('Could not copy the QR link from this browser.'),
+    );
   }
 
   queueOrderActionLabel(order: Order): string {
@@ -7177,6 +7250,71 @@ export class CashierPosComponent {
         this.hitPayFlowState.set('failed');
       }
       this.error.set(this.getErrorMessage(err, 'Unable to complete the cashier action.'));
+    } finally {
+      this.processingCheckout.set(false);
+    }
+  }
+
+  async sendOrderToKitchen(): Promise<void> {
+    const table = this.cartBoundTable() || this.effectiveCheckoutTable();
+    if (!table?.id) {
+      this.error.set('Select a table before sending the order.');
+      return;
+    }
+    if (this.cartLines().length === 0) {
+      this.error.set('Add at least one item before sending the order.');
+      return;
+    }
+
+    const tableId = table.id;
+    const liveBill = this.payableLiveBillOrder();
+    this.processingCheckout.set(true);
+    this.error.set(null);
+    this.notice.set(null);
+    this.hitPayFlowState.set('idle');
+
+    try {
+      await this.ensureTableReady(table);
+      const handoffPrefill = this.activeHandoffPrefill();
+      const payload = {
+        items: this.cartLines().map((line) => ({
+          product_id: line.productId,
+          quantity: line.quantity,
+          source: line.source,
+          customization_answers: line.customizationAnswers,
+        })),
+        customer_name: handoffPrefill?.guestName?.trim() || undefined,
+        notes: handoffPrefill?.note?.trim() || undefined,
+      };
+
+      const orderResponse = liveBill
+        ? await (async () => {
+            const access = await this.ensureStaffAccess(tableId);
+            return firstValueFrom(
+              this.api.submitOrder(access.table_token, {
+                ...payload,
+                staff_access: access.token,
+              }),
+            );
+          })()
+        : await firstValueFrom(
+            this.api.createStaffOrder({
+              table_id: tableId,
+              ...payload,
+            }),
+          );
+      const orderId = Number(orderResponse?.order_id);
+      if (!Number.isFinite(orderId) || orderId <= 0) {
+        throw new Error('The backend did not return a valid order id.');
+      }
+
+      this.selectedOrderId.set(orderId);
+      this.clearCart();
+      this.posDrawerView.set('orders');
+      this.notice.set(`Order #${orderId} sent for ${table.name}. The bill remains open for add-ons or payment later.`);
+      this.loadData();
+    } catch (err) {
+      this.error.set(this.getErrorMessage(err, 'Unable to send the order to the kitchen.'));
     } finally {
       this.processingCheckout.set(false);
     }

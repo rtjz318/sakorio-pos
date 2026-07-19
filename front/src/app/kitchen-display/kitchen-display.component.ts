@@ -398,7 +398,17 @@ function getWorkflowSortWeight(
                                 <span class="item-qty">{{ item.quantity }}x</span>
                                 <div class="item-body">
                                   <div class="item-title-row">
-                                    <span class="item-name">{{ item.product_name }}</span>
+                                    <div class="item-name-stack">
+                                      <span class="item-name">{{ item.product_name }}</span>
+                                      <div class="item-route-chips">
+                                        <span class="item-route-chip item-route-chip--{{ inferItemRoute(item) }}">
+                                          {{ itemRouteLabel(item) }}
+                                        </span>
+                                        @if (itemStationLabel(item); as stationLabel) {
+                                          <span class="item-route-chip item-route-chip--station">{{ stationLabel }}</span>
+                                        }
+                                      </div>
+                                    </div>
                                     @if (canUpdateItemStatus() && item.id != null && item.status !== 'delivered' && item.status !== 'cancelled') {
                                       <div class="item-status-control">
                                         <button
@@ -1086,6 +1096,11 @@ function getWorkflowSortWeight(
       flex-wrap: wrap;
       min-width: 0;
     }
+    .item-name-stack {
+      min-width: 0;
+      display: grid;
+      gap: 0.32rem;
+    }
     .item-notes {
       font-size: 0.7rem;
       color: var(--color-text-muted);
@@ -1114,6 +1129,36 @@ function getWorkflowSortWeight(
     .item-status.status-preparing { background: rgba(59, 130, 246, 0.15); color: #3B82F6; }
     .item-status.status-ready { background: var(--color-success-light); color: var(--color-success); }
     .item-status.status-delivered { background: var(--color-bg); color: var(--color-text-muted); }
+    .item-route-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.28rem;
+    }
+    .item-route-chip {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      border-radius: 999px;
+      padding: 0.2rem 0.48rem;
+      font-size: 0.68rem;
+      font-weight: 850;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      background: #eef2ff;
+      color: #3730a3;
+    }
+    .item-route-chip--kitchen {
+      background: #fff7ed;
+      color: #c2410c;
+    }
+    .item-route-chip--bar {
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+    .item-route-chip--station {
+      background: #ecfdf5;
+      color: #047857;
+    }
     .item-status-control {
       position: relative;
       display: inline-flex;
@@ -1988,6 +2033,21 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   normalizeItemStatus(status: string | null | undefined): 'pending' | 'preparing' | 'ready' | 'delivered' | 'cancelled' {
     return normalizeItemWorkflowStatus(status);
+  }
+
+  inferItemRoute(item: OrderItem): 'kitchen' | 'bar' {
+    return inferKitchenRouteFromItem(item);
+  }
+
+  itemRouteLabel(item: OrderItem): string {
+    return this.inferItemRoute(item) === 'bar' ? 'Beverage' : 'Kitchen';
+  }
+
+  itemStationLabel(item: OrderItem): string | null {
+    const station = item.kitchen_station_name?.trim();
+    if (station) return station;
+    const category = item.category?.trim();
+    return category || null;
   }
 
   getItemStatusLabel(status: string): string {

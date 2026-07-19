@@ -4,6 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, forkJoin, firstValueFrom, map, of, switchMap } from 'rxjs';
+import { QRCodeComponent } from 'angularx-qrcode';
 import {
   ApiService,
   CanvasTable,
@@ -84,7 +85,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 @Component({
   selector: 'app-cashier-pos',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, SidebarComponent, StaffPosToolbarComponent],
+  imports: [CommonModule, FormsModule, RouterLink, QRCodeComponent, SidebarComponent, StaffPosToolbarComponent],
   template: `
     <app-sidebar>
       <div class="page-shell">
@@ -994,6 +995,29 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                   </div>
                 }
 
+                @if (qrHandoffTableId() === serviceTable.id) {
+                  @if (qrHandoffUrl(); as handoffUrl) {
+                    <section class="customer-qr-handoff" aria-label="Customer QR handoff">
+                      <div class="customer-qr-handoff__code">
+                        <qrcode [qrdata]="handoffUrl" [width]="132" [errorCorrectionLevel]="'M'" cssClass="qr-code"></qrcode>
+                      </div>
+                      <div class="customer-qr-handoff__copy">
+                        <p class="eyebrow">Customer self-ordering</p>
+                        <h3>{{ serviceTable.name }} QR is ready</h3>
+                        <p>Show this QR or send the link below. The table session is open so guests can order from the current visit.</p>
+                        <a [href]="handoffUrl" target="_blank" rel="noopener noreferrer">{{ handoffUrl }}</a>
+                      </div>
+                      <div class="customer-qr-handoff__actions">
+                        <button type="button" class="btn btn-primary btn-sm" (click)="openCustomerMenuUrl(handoffUrl, serviceTable)">Open</button>
+                        <button type="button" class="btn btn-secondary btn-sm" (click)="copyCustomerMenuUrl(serviceTable, handoffUrl)">
+                          {{ qrLinkCopiedTableId() === serviceTable.id ? 'Copied' : 'Copy link' }}
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-sm" (click)="hideCustomerQrHandoff()">Hide</button>
+                      </div>
+                    </section>
+                  }
+                }
+
                 <section class="pos-service-loop" aria-label="Selected table service loop">
                   <div class="pos-service-loop-copy">
                     <p class="eyebrow">Service loop</p>
@@ -1730,6 +1754,63 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
     .service-status--qr {
       background: #ecfeff;
       color: #0e7490;
+    }
+
+    .customer-qr-handoff {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 0.85rem;
+      align-items: center;
+      margin: 0.75rem 0.8rem 0;
+      padding: 0.75rem;
+      border: 1px solid color-mix(in srgb, #06b6d4 32%, var(--color-border));
+      border-radius: 22px;
+      background:
+        linear-gradient(135deg, rgba(236, 254, 255, 0.95), rgba(255, 255, 255, 0.98)),
+        var(--color-surface);
+      box-shadow: 0 12px 28px rgba(8, 145, 178, 0.12);
+    }
+
+    .customer-qr-handoff__code {
+      display: grid;
+      place-items: center;
+      width: 9rem;
+      min-height: 9rem;
+      border-radius: 18px;
+      background: white;
+      box-shadow: inset 0 0 0 1px rgba(8, 145, 178, 0.12);
+    }
+
+    .customer-qr-handoff__copy {
+      min-width: 0;
+    }
+
+    .customer-qr-handoff__copy h3 {
+      margin: 0;
+      color: var(--color-text);
+      font-size: 1rem;
+    }
+
+    .customer-qr-handoff__copy p {
+      margin: 0.22rem 0;
+      color: var(--color-muted);
+      font-size: 0.88rem;
+    }
+
+    .customer-qr-handoff__copy a {
+      display: block;
+      max-width: 100%;
+      color: #0e7490;
+      font-size: 0.82rem;
+      font-weight: 800;
+      overflow-wrap: anywhere;
+    }
+
+    .customer-qr-handoff__actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 0.45rem;
     }
 
     .pos-service-loop {
@@ -4830,6 +4911,16 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
         padding: 0.86rem 0.9rem 0.72rem;
       }
 
+      .customer-qr-handoff {
+        grid-template-columns: auto minmax(0, 1fr);
+        margin-inline: 0.75rem;
+      }
+
+      .customer-qr-handoff__actions {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
+      }
+
       .pos-service-loop {
         grid-template-columns: 1fr;
         align-items: stretch;
@@ -4886,6 +4977,22 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       .pos-service-header-actions {
         width: 100%;
         justify-content: space-between;
+      }
+
+      .customer-qr-handoff {
+        grid-template-columns: 1fr;
+      }
+
+      .customer-qr-handoff__code {
+        width: 100%;
+      }
+
+      .customer-qr-handoff__actions {
+        justify-content: stretch;
+      }
+
+      .customer-qr-handoff__actions .btn {
+        flex: 1 1 8rem;
       }
 
       .pos-service-product-grid {
@@ -5399,6 +5506,8 @@ export class CashierPosComponent {
   hitPayFlowState = signal<PosHitPayFlowState>('idle');
   tableHistoryExpanded = signal(false);
   qrLinkCopiedTableId = signal<number | null>(null);
+  qrHandoffTableId = signal<number | null>(null);
+  qrHandoffUrl = signal<string | null>(null);
 
   /**
    * The POS now uses the table-service drawer as the single ordering/payment workflow.
@@ -6802,32 +6911,73 @@ export class CashierPosComponent {
     this.error.set(null);
     try {
       await this.ensureTableReady(table);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      this.notice.set(`${table.name} QR is open. Guests can order from the current table session.`);
+      this.showCustomerQrHandoff(table, url);
+      const opened = window.open(url, '_blank', 'noopener,noreferrer');
+      this.notice.set(
+        opened
+          ? `${table.name} QR is open. The QR card and link are also shown below.`
+          : `${table.name} QR is ready below. If the browser blocked the new tab, use the QR card or copy the link.`,
+      );
       this.loadData();
     } catch (err) {
       this.error.set(this.getErrorMessage(err, `Unable to open QR ordering for ${table.name}.`));
     }
   }
 
-  copyCustomerMenuLink(table: CanvasTable): void {
+  async copyCustomerMenuLink(table: CanvasTable): Promise<void> {
     const url = this.customerMenuUrl(table);
-    if (!url || typeof navigator === 'undefined' || !navigator.clipboard) {
-      this.error.set('This browser cannot copy the QR link automatically. Use Open customer QR instead.');
+    if (!url) {
       return;
     }
-    navigator.clipboard.writeText(url).then(
-      () => {
-        this.qrLinkCopiedTableId.set(table.id ?? null);
-        this.notice.set(`${table.name} QR link copied. ${table.is_active ? 'Session is active.' : 'Open the QR once to activate this table before guests order.'}`);
-        window.setTimeout(() => {
-          if (this.qrLinkCopiedTableId() === table.id) {
-            this.qrLinkCopiedTableId.set(null);
-          }
-        }, 1800);
-      },
-      () => this.error.set('Could not copy the QR link from this browser.'),
+    this.error.set(null);
+    try {
+      await this.ensureTableReady(table);
+      await this.copyCustomerMenuUrl(table, url);
+      this.loadData();
+    } catch (err) {
+      this.error.set(this.getErrorMessage(err, `Unable to prepare QR ordering for ${table.name}.`));
+    }
+  }
+
+  openCustomerMenuUrl(url: string, table: CanvasTable): void {
+    if (!url || typeof window === 'undefined') return;
+    this.showCustomerQrHandoff(table, url);
+    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    this.notice.set(
+      opened
+        ? `${table.name} customer QR opened in a new tab.`
+        : `${table.name} customer QR is ready below. Copy the link if the browser blocked the new tab.`,
     );
+  }
+
+  async copyCustomerMenuUrl(table: CanvasTable, url: string): Promise<void> {
+    this.showCustomerQrHandoff(table, url);
+    if (!url || typeof navigator === 'undefined' || !navigator.clipboard) {
+      this.error.set('This browser cannot copy the QR link automatically. Use the visible link or Open instead.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      this.qrLinkCopiedTableId.set(table.id ?? null);
+      this.notice.set(`${table.name} QR link copied. Guests can order from the current table session.`);
+      window.setTimeout(() => {
+        if (this.qrLinkCopiedTableId() === table.id) {
+          this.qrLinkCopiedTableId.set(null);
+        }
+      }, 1800);
+    } catch {
+      this.error.set('Could not copy the QR link from this browser. Use the visible link or Open instead.');
+    }
+  }
+
+  hideCustomerQrHandoff(): void {
+    this.qrHandoffTableId.set(null);
+    this.qrHandoffUrl.set(null);
+  }
+
+  private showCustomerQrHandoff(table: CanvasTable, url: string): void {
+    this.qrHandoffTableId.set(table.id ?? null);
+    this.qrHandoffUrl.set(url);
   }
 
   queueOrderActionLabel(order: Order): string {

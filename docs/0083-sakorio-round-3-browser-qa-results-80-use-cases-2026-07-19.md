@@ -10,8 +10,8 @@ Run prefix: `SKR-R3-20260719`
 
 | Case range | Status |
 |---|---|
-| R3-E2E-001 to R3-E2E-025 | Executed / attempted |
-| R3-E2E-026 to R3-E2E-080 | Pending execution |
+| R3-E2E-001 to R3-E2E-035 | Executed / attempted |
+| R3-E2E-036 to R3-E2E-080 | Pending execution |
 
 ## Cross-run notes
 
@@ -1634,3 +1634,605 @@ No duplicate submitted order was observed, but the unsaved cart was silently los
 ### Cleanup performed
 
 No additional cleanup was needed after refresh because the unsaved cart disappeared.
+
+---
+
+## Result - R3-E2E-026
+
+Scenario: Browser Back/Forward does not corrupt table/order state
+Run ID: `SKR-R3-20260719-E026`
+Browser/device: Desktop in-app browser
+Roles simulated: Cashier
+Status: `FAIL`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 6/10 |
+| UI/UX clarity | 5/10 |
+| Workflow speed | 6/10 |
+| Layout/stability | 7/10 |
+| Launch readiness | 6/10 |
+
+### Steps actually performed
+
+1. Opened POS at `https://staff.sakorio.com/pos?qa=r3-e2e026`.
+2. Selected T02.
+3. Added `Coca Cola` to the cart.
+4. Clicked `Checkout`.
+5. Used browser Back once.
+6. Used browser Forward once.
+7. Waited for POS to finish reloading and checked T02 state.
+
+### Expected result
+
+Browser Back/Forward should not create ghost checkout, duplicate submitted order, stale table state, or silently lose a cart.
+
+### Actual result
+
+No duplicate order was observed, but the unsaved cart was silently lost. Browser Back briefly moved to the previous POS URL for T01 with a syncing/loading state. Browser Forward returned to T02 but the `Coca Cola` cart was gone and T02 showed `0 items`.
+
+### Evidence observed
+
+- Before navigation: T02 showed `1 in cart`, `SGD 3.00`, and `Charge terminal - SGD 3.00`.
+- After Back: page URL reverted to the previous `r3-e2e025&tableId=1` state and showed `Loading floor tables`.
+- After Forward and wait: T02 drawer showed `Ready for items`, `0 items`, `SGD 0.00`.
+- No duplicate paid/submitted order appeared.
+
+### Defects
+
+1. Browser Back/Forward can silently discard unsaved POS cart state.
+2. Back/Forward shows confusing stale previous-table/loading states.
+3. There is no navigation guard warning when an unsent cart exists.
+
+### Improvement notes
+
+- Add a browser navigation guard for unsent carts.
+- Persist table draft cart or show a clear discard/recovery message after navigation.
+- Avoid restoring stale previous table context during route reload.
+
+### Cleanup performed
+
+No submitted order was created; no cleanup was needed.
+
+---
+
+## Result - R3-E2E-027
+
+Scenario: QR token after table close cannot expose old bill
+Run ID: `SKR-R3-20260719-E027`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, cashier
+Status: `BLOCKED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 4/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 4/10 |
+
+### Steps actually performed
+
+1. Opened POS at `https://staff.sakorio.com/pos?qa=r3-e2e027`.
+2. Selected T04.
+3. Clicked `Open customer QR`.
+4. Checked browser tabs and clipboard.
+5. Opened Tables and attempted to use the `waiter / QR` path.
+
+### Expected result
+
+Staff should be able to open an active customer QR session, customer should submit an order, staff should close/pay the table, and the old QR link should no longer expose the closed bill/history.
+
+### Actual result
+
+The active QR session could not be opened. POS `Open customer QR` did not open a new tab, did not change page state, and did not copy a URL to the browser clipboard. The Tables `waiter / QR` path was not accessible as a clear clickable browser control.
+
+### Evidence observed
+
+- After clicking `Open customer QR`, browser tab list still contained only the staff POS tab.
+- Browser clipboard remained empty.
+- Staff page still showed T04 service drawer with no generated QR URL.
+- Tables page displayed `waiter / QR` text on table cards, but automation could not click it as an accessible button.
+
+### Defects
+
+1. Active customer QR handoff remains unavailable from POS.
+2. Tables `waiter / QR` is not discoverable/accessibility-friendly as an actionable control.
+3. QR privacy after close cannot be certified until active QR generation works.
+
+### Improvement notes
+
+- Make `Open customer QR` visibly open a modal with copyable URL and QR code.
+- Add success/error feedback if popups are blocked or QR generation fails.
+- Give table QR controls accessible button names.
+
+### Cleanup performed
+
+No QR order or payment was created.
+
+---
+
+## Result - R3-E2E-028
+
+Scenario: New customer at same table gets clean session
+Run ID: `SKR-R3-20260719-E028`
+Browser/device: Desktop in-app browser
+Roles simulated: Host, customer
+Status: `BLOCKED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 4/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 4/10 |
+
+### Steps actually performed
+
+1. Attempted to open a new QR/customer session from staff POS.
+2. Attempted the Tables QR path.
+3. Confirmed active QR link was unavailable.
+
+### Expected result
+
+After a previous customer is closed, a new customer at the same table should receive a clean QR session showing only their own current bill and orders.
+
+### Actual result
+
+Could not execute session rollover because the active QR session/link could not be generated from browser-accessible staff controls.
+
+### Evidence observed
+
+- Same evidence as R3-E2E-027: no new tab, no clipboard URL, no visible QR modal.
+
+### Defects
+
+1. New customer clean-session testing is blocked by QR handoff failure.
+2. This is launch-critical because QR privacy/session rollover is one of the main customer-facing risks.
+
+### Improvement notes
+
+- Fix QR handoff first, then retest:
+  - old token after close
+  - new token after reopen
+  - old customer cannot see new customer’s bill
+  - new customer cannot see old customer’s bill/history
+
+### Cleanup performed
+
+No data created.
+
+---
+
+## Result - R3-E2E-029
+
+Scenario: Long reservation/order notes render safely
+Run ID: `SKR-R3-20260719-E029`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, host, kitchen
+Status: `PARTIAL PASS`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 7/10 |
+| UI/UX clarity | 7/10 |
+| Workflow speed | 6/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 7/10 |
+
+### Steps actually performed
+
+1. Opened public booking page at `https://order.sakorio.com/book/1?qa=r3-e2e029`.
+2. Waited for availability to load.
+3. Entered long allergy/client notes with apostrophe, accents, Chinese characters, emoji, symbols, and tag-like text.
+4. Selected Monday July 20, 2026 by coordinate click because semantic calendar click failed.
+5. Submitted reservation.
+6. Confirmed public booking `#50`.
+7. Logged back into staff after staff session expired.
+8. Opened staff Reservations for July 20, 2026.
+9. Searched by phone `+6591000029`.
+10. Verified long notes rendered in staff Reservations.
+11. Cancelled reservation `#50` for cleanup.
+
+### Expected result
+
+Long notes and special characters should be preserved, remain readable, not break layout, and not execute as markup.
+
+### Actual result
+
+Reservation notes passed for preservation/rendering in public-to-staff flow. Staff Reservations displayed accents, apostrophe, Chinese characters, emoji, and tag-like text as visible text. QR order notes could not be tested because QR handoff is unavailable.
+
+### Evidence observed
+
+- Public confirmation showed `Reservation number: #50`.
+- Staff Reservations showed `SKR-R3-20260719 E029 LongNote`.
+- Staff Reservations displayed:
+  - `O'Neil`
+  - `café jalapeño crème brûlée`
+  - `中文测试`
+  - `🍜🔥`
+  - `<b>not html</b>`
+  - `<script>no</script>` as text inside guest requirement.
+- After cleanup, #50 showed `CANCELLED`.
+
+### Defects
+
+1. Public booking calendar/date button is weak for semantic automation/accessibility; role/locator click failed while coordinate click worked.
+2. QR order notes remain untested because active QR handoff is blocked.
+
+### Improvement notes
+
+- Improve calendar button accessible names/interaction reliability.
+- Add a formal XSS/special-character smoke test for reservation notes and kitchen order notes.
+- Retest QR special instructions after QR handoff is fixed.
+
+### Cleanup performed
+
+Cancelled reservation `#50`.
+
+---
+
+## Result - R3-E2E-030
+
+Scenario: Sold-out/unavailable item is not silently accepted
+Run ID: `SKR-R3-20260719-E030`
+Browser/device: Desktop in-app browser
+Roles simulated: Manager/cashier, customer
+Status: `NEEDS SPECIFICATION / BLOCKED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 5/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 5/10 |
+
+### Steps actually performed
+
+1. Opened Products at `https://staff.sakorio.com/products?qa=r3-e2e030`.
+2. Searched for `Coffee`.
+3. Opened Coffee edit form.
+4. Inspected available product controls without saving changes.
+
+### Expected result
+
+Manager/cashier should be able to mark an item sold out/unavailable for service, and customer ordering should block or remove that item clearly.
+
+### Actual result
+
+Products has edit controls and customer-menu date availability fields, but no obvious quick operational `Sold out today` or `Unavailable now` toggle. QR/customer menu ordering could not be tested because active QR handoff is blocked.
+
+### Evidence observed
+
+- Product list has search, edit, delete, categories, and add product.
+- Coffee edit form includes:
+  - `Available from (date)`
+  - `Available until (date)`
+  - prep station
+  - tax override
+  - customization questions
+- No visible instant sold-out toggle was present.
+
+### Defects
+
+1. Sold-out workflow lacks an obvious launch-ready operational control.
+2. Date availability exists but is not the same as “86 this item now during service.”
+3. Customer-side unavailable-item rejection cannot be tested until QR handoff works.
+
+### Improvement notes
+
+- Add a fast `Sold out` / `Available` toggle in Products and POS menu management.
+- Show sold-out state immediately on staff POS and customer QR.
+- If item becomes unavailable while in cart, block checkout with a clear message.
+
+### Cleanup performed
+
+No product changes were saved.
+
+---
+
+## Result - R3-E2E-031
+
+Scenario: Timetable name and navigation are correct
+Run ID: `SKR-R3-20260719-E031`
+Browser/device: Desktop in-app browser
+Roles simulated: Manager, staff
+Status: `PASS WITH POLISH NOTES`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 9/10 |
+| UI/UX clarity | 8/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 7/10 |
+| Launch readiness | 8/10 |
+
+### Steps actually performed
+
+1. Opened staff navigation.
+2. Confirmed side navigation shows `Timetable`.
+3. Opened `https://staff.sakorio.com/working-plan?qa=r3-e2e031`.
+4. Inspected calendar layout, employee roster, coverage cards, and leave/MC area.
+
+### Expected result
+
+Navigation should say Timetable, and the scheduling screen should be understandable with employee list/shift tools discoverable.
+
+### Actual result
+
+Timetable naming is correct. The screen includes monthly calendar, Week/Calendar switch, employee roster, Add shift, Apply to month, coverage warnings, and planned-vs-clocked disclosure.
+
+### Evidence observed
+
+- Side nav showed `Timetable`.
+- Page header showed `Timetable`.
+- Smart scheduling panel showed `Employee roster`.
+- Calendar showed per-day `+ Add` controls and shift lines.
+- Leave area showed `Annual leave / MC balances COMING SOON`.
+
+### Defects
+
+No naming/navigation defect observed.
+
+### Improvement notes
+
+- Calendar content extends far below the viewport; sticky month/week controls would help.
+- Export Excel was disabled in All staff view; add clearer reason/tooltip.
+
+### Cleanup performed
+
+No data changed.
+
+---
+
+## Result - R3-E2E-032
+
+Scenario: Drag or assign employee into timetable shift
+Run ID: `SKR-R3-20260719-E032`
+Browser/device: Desktop in-app browser
+Roles simulated: Manager
+Status: `PASS WITH POLISH NOTES`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 9/10 |
+| UI/UX clarity | 7/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 7/10 |
+| Launch readiness | 8/10 |
+
+### Steps actually performed
+
+1. Opened Timetable.
+2. Clicked `Add shift`.
+3. Created a synthetic Jason Tan shift:
+   - Date: July 19, 2026
+   - Time: 21:00 to 21:30
+   - Label: `R3-032 QA`
+4. Verified it appeared on the calendar as `Jason 21-21:30`.
+5. Deleted the synthetic shift.
+6. Verified totals returned to baseline.
+
+### Expected result
+
+Shift appears at expected date/time and employee. If drag-and-drop is not implemented, add flow must be clear.
+
+### Actual result
+
+Add-shift flow works. The shift appeared immediately and totals updated. Delete worked and totals reverted.
+
+### Evidence observed
+
+- After save, Timetable showed `Shift saved.`
+- Scheduled shifts increased from `24` to `25`.
+- Jason hours increased from `185h 30m` to `186h`.
+- July 19 displayed `Jason 21-21:30`.
+- After delete, Timetable showed `Shift removed.`
+- Scheduled shifts returned to `24`.
+
+### Defects
+
+No functional add/delete defect observed.
+
+### Improvement notes
+
+- Modal form has several unlabeled selects/checkboxes from automation perspective; better labels would reduce mistakes.
+- Drag-and-drop was not tested; visible copy says desktop drag is supported, but a clean Add flow already exists.
+- Add a success toast with date/time/staff summary after saving.
+
+### Cleanup performed
+
+Deleted synthetic `R3-032 QA` shift.
+
+---
+
+## Result - R3-E2E-033
+
+Scenario: Annual leave / MC ledger records balance change
+Run ID: `SKR-R3-20260719-E033`
+Browser/device: Desktop in-app browser
+Roles simulated: Manager
+Status: `NOT IMPLEMENTED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 7/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 5/10 |
+
+### Steps actually performed
+
+1. Opened Timetable.
+2. Inspected Leave Control section.
+3. Checked whether annual leave/MC actions were available.
+
+### Expected result
+
+Manager should be able to record annual leave or MC and see balance deduction/audit.
+
+### Actual result
+
+Leave/MC ledger is explicitly not enabled yet. The UI clearly says it is coming soon.
+
+### Evidence observed
+
+- Section title: `Annual leave / MC balances COMING SOON`.
+- Annual leave card: `Ledger not enabled`.
+- MC/sick leave card: `Ledger not enabled`.
+- Copy says entitlement policy, approval flow, certificate recording, and balance deduction are coming soon.
+
+### Defects
+
+1. Leave/MC balance tracking is not launch-ready if it is required for launch scope.
+
+### Improvement notes
+
+- If leave/MC is post-launch, label as future module in the brief.
+- If needed for launch, implement entitlement, approvals, balance deduction, and audit trail.
+
+### Cleanup performed
+
+No data changed.
+
+---
+
+## Result - R3-E2E-034
+
+Scenario: Staff clocks in from assigned shift
+Run ID: `SKR-R3-20260719-E034`
+Browser/device: Desktop in-app browser
+Roles simulated: Staff, manager
+Status: `BLOCKED BY SHIFT WINDOW`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 7/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 6/10 |
+
+### Steps actually performed
+
+1. Opened My Shift at `https://staff.sakorio.com/my-shift?qa=r3-e2e034`.
+2. Confirmed staff profile selector exists.
+3. Selected `Jason Tan — Waiter`.
+4. Checked scheduled shifts and current clock-in state.
+5. Attempted to create a current synthetic shift from Timetable, but current time was after 22:00 and end-time options stopped at 22:00.
+
+### Expected result
+
+Staff should select their profile/shift and clock in when their assigned shift window is open.
+
+### Actual result
+
+Profile selection worked. Clock-in could not be executed because no shift was currently open. The UI correctly disabled clock-in and showed upcoming/closed shift cards. A current synthetic shift could not be safely created because the timetable end-time selector did not offer a time later than 22:00 after current time.
+
+### Evidence observed
+
+- My Shift showed profile selector:
+  - `Ajisen — Owner`
+  - `Jason Tan — Waiter`
+- After selecting Jason, My Shift showed:
+  - `Off shift`
+  - `No shift is currently open for attendance`
+  - disabled button `No shift available to clock in`
+  - upcoming Jason shifts for July 20 onward.
+- Attempted Timetable setup at current local time around `22:24`; form offered end times only up to `22:00`.
+
+### Defects
+
+1. Clock-in flow could not be tested outside a live shift window.
+2. Add-shift form’s “Use any hour / outside hours / split shift” checkbox UX is ambiguous enough that it is easy to toggle the wrong option.
+
+### Improvement notes
+
+- Add a manager QA/demo option to create an active attendance test shift.
+- Make shift cards clickable to explain why clock-in is disabled and when it opens.
+- Add clearer labels/ids for Timetable checkboxes.
+
+### Cleanup performed
+
+No active shift was created; the invalid add-shift modal was cancelled.
+
+---
+
+## Result - R3-E2E-035
+
+Scenario: Staff clocks out and shift duration is correct
+Run ID: `SKR-R3-20260719-E035`
+Browser/device: Desktop in-app browser
+Roles simulated: Staff, manager
+Status: `BLOCKED BY PRIOR CLOCK-IN`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 7/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 6/10 |
+
+### Steps actually performed
+
+1. Attempted R3-E2E-034 clock-in flow first.
+2. Confirmed no active shift could be clocked in.
+3. Checked Recent Attendance area.
+
+### Expected result
+
+After clock-in, staff should clock out and see correct duration/status reflected in staff and manager views.
+
+### Actual result
+
+Clock-out could not be executed because no active clock-in session existed.
+
+### Evidence observed
+
+- My Shift showed `Open sessions 0`.
+- Recent Attendance showed `No attendance yet`.
+- Clock-in button was disabled.
+
+### Defects
+
+1. Clock-out cannot be tested without a way to create/use an active shift window.
+2. Need a deterministic QA seed/demo shift for attendance testing.
+
+### Improvement notes
+
+- Add a browser-testable attendance scenario with a current shift.
+- Once available, retest:
+  - clock in
+  - active status
+  - clock out
+  - duration math
+  - manager planned-vs-clocked display.
+
+### Cleanup performed
+
+No attendance data was created.

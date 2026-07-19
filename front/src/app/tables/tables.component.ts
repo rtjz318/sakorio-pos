@@ -660,6 +660,16 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   <button type="button" class="btn btn-primary btn-sm" (click)="openQuickTable(table, 'menu')">
                     {{ table.active_order_id ? 'Add items' : 'Start order' }}
                   </button>
+                  @if (table.is_active && table.active_order_id) {
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-sm"
+                      (click)="openQuickTable(table, 'move')"
+                      title="Move this active bill to another ready table"
+                    >
+                      Move bill
+                    </button>
+                  }
                   @if (table.is_active) {
                     @if (tableNeedsSettlement(table)) {
                       <button
@@ -772,6 +782,11 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   </div>
 
                   <div class="table-actions">
+                    @if (table.is_active && table.active_order_id) {
+                      <button type="button" class="btn btn-secondary btn-sm" (click)="openQuickTable(table, 'move')">
+                        Move bill
+                      </button>
+                    }
                     <button type="button" class="btn btn-secondary btn-sm" (click)="openStaffMenu(table)"
                       [disabled]="staffMenuOpeningTableId() === table.id">{{ 'TABLES.OPEN_MENU' | translate }}</button>
                     <button
@@ -1615,9 +1630,10 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     .table-actions--primary {
       justify-content: stretch;
       margin-bottom: var(--space-3);
+      flex-wrap: wrap;
     }
     .table-actions--primary .btn {
-      flex: 1 1 0;
+      flex: 1 1 8.5rem;
       justify-content: center;
       min-width: 0;
     }

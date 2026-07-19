@@ -1,17 +1,17 @@
-# Sakorio POS Round 3 Browser QA Results - 80 Use Case Execution
+﻿# Sakorio POS Round 3 Browser QA Results - 80 Use Case Execution
 
-Date started: 2026-07-19  
-Source scenario brief: `docs/0082-sakorio-round-3-browser-qa-80-use-cases-2026-07-19.md`  
-Execution method: Browser-only live workflow execution through Sakorio staff/customer domains  
-Environment: `https://staff.sakorio.com`, `https://order.sakorio.com`, HitPay sandbox where applicable  
+Date started: 2026-07-19
+Source scenario brief: `docs/0082-sakorio-round-3-browser-qa-80-use-cases-2026-07-19.md`
+Execution method: Browser-only live workflow execution through Sakorio staff/customer domains
+Environment: `https://staff.sakorio.com`, `https://order.sakorio.com`, HitPay sandbox where applicable
 Run prefix: `SKR-R3-20260719`
 
 ## Summary status
 
 | Case range | Status |
 |---|---|
-| R3-E2E-001 to R3-E2E-010 | Executed / attempted |
-| R3-E2E-011 to R3-E2E-080 | Pending execution |
+| R3-E2E-001 to R3-E2E-025 | Executed / attempted |
+| R3-E2E-026 to R3-E2E-080 | Pending execution |
 
 ## Cross-run notes
 
@@ -24,10 +24,10 @@ Run prefix: `SKR-R3-20260719`
 
 ## Result - R3-E2E-001
 
-Scenario: Reservation to seated QR order to kitchen to close table  
-Run ID: `SKR-R3-20260719-E001`  
-Browser/device: Desktop in-app browser  
-Roles simulated: Customer, host, waiter/cashier, kitchen  
+Scenario: Reservation to seated QR order to kitchen to close table
+Run ID: `SKR-R3-20260719-E001`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, host, waiter/cashier, kitchen
 Status: `FAIL`
 
 ### Scores
@@ -57,7 +57,7 @@ Status: `FAIL`
 9. Confirmed T07 showed:
    - Guest `SKR-R3-20260719 E001 Guest`
    - Status `Seated`
-   - `Guests seated · 2`
+   - `Guests seated Â· 2`
    - No live orders yet
    - Prior orders were shown under History, separate from current orders.
 10. Clicked `Open customer QR`.
@@ -118,10 +118,10 @@ Clicked `Clear paid` for T07 after payment confirmation so the table returned to
 
 ## Result - R3-E2E-002
 
-Scenario: Walk-in queue to table assignment to cashier order to terminal checkout  
-Run ID: `SKR-R3-20260719-E002`  
-Browser/device: Desktop in-app browser  
-Roles simulated: Host, waiter/cashier  
+Scenario: Walk-in queue to table assignment to cashier order to terminal checkout
+Run ID: `SKR-R3-20260719-E002`
+Browser/device: Desktop in-app browser
+Roles simulated: Host, waiter/cashier
 Status: `FAIL`
 
 ### Scores
@@ -200,10 +200,10 @@ Clicked `Clear paid` for T09 after payment confirmation so the table returned to
 
 ## Result - R3-E2E-003
 
-Scenario: POS table-first flow mirrors Tables workflow with checkout added  
-Run ID: `SKR-R3-20260719-E003`  
-Browser/device: Desktop in-app browser  
-Roles simulated: Waiter/cashier  
+Scenario: POS table-first flow mirrors Tables workflow with checkout added
+Run ID: `SKR-R3-20260719-E003`
+Browser/device: Desktop in-app browser
+Roles simulated: Waiter/cashier
 Status: `NEEDS SPECIFICATION`
 
 ### Scores
@@ -245,7 +245,7 @@ However, after adding an item, `Back / switch table` did not switch tables. Inst
 - POS no-table state showed only the floor table grid and table cards.
 - Selecting T08 changed URL to include `tableId=8`.
 - Service drawer showed `T08`, `Ready for a new order`, `Add items`, `Bill / Pay`, `Orders`, `History`, and product grid.
-- After adding Coca Cola, service loop showed `T08 · 1 item · SGD 3.00`, `1 in cart`.
+- After adding Coca Cola, service loop showed `T08 Â· 1 item Â· SGD 3.00`, `1 in cart`.
 - `Back / switch table` showed warning text instead of returning to the grid.
 - Cleanup payment created bill `#69`, then `Clear paid` returned T08 to ready state.
 
@@ -271,10 +271,10 @@ Completed terminal checkout for bill `#69` and clicked `Clear paid` for T08.
 
 ## Result - R3-E2E-004
 
-Scenario: Add second order to same active table without moving first order to history  
-Run ID: `SKR-R3-20260719-E004`  
-Browser/device: Desktop in-app browser  
-Roles simulated: Customer, waiter/cashier  
+Scenario: Add second order to same active table without moving first order to history
+Run ID: `SKR-R3-20260719-E004`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, waiter/cashier
 Status: `BLOCKED`
 
 ### Scores
@@ -332,10 +332,10 @@ No new data was created for this case.
 
 ## Result - R3-E2E-005
 
-Scenario: Close table button is visible and closes only after bill is settled  
-Run ID: `SKR-R3-20260719-E005`  
-Browser/device: Desktop in-app browser  
-Roles simulated: Waiter/cashier  
+Scenario: Close table button is visible and closes only after bill is settled
+Run ID: `SKR-R3-20260719-E005`
+Browser/device: Desktop in-app browser
+Roles simulated: Waiter/cashier
 Status: `NEEDS SPECIFICATION`
 
 ### Scores
@@ -378,7 +378,7 @@ The main issue is terminology and discoverability. The restaurant workflow langu
 
 ### Evidence observed
 
-- Unpaid T07 with Coffee showed `T07 · 1 item · SGD 2.50`, `1 in cart`, `Checkout`.
+- Unpaid T07 with Coffee showed `T07 Â· 1 item Â· SGD 2.50`, `1 in cart`, `Checkout`.
 - Close-like controls while unpaid were drawer `x`, `Back / switch table`, cart `Clear`, and `Checkout`; no `Close table`.
 - After terminal payment, POS showed `Card terminal payment recorded for T07`.
 - T07 card showed `Ready`, `Last bill #70`, `Paid`, `Clear paid`.
@@ -406,10 +406,10 @@ Completed terminal checkout for bill `#70` and clicked `Clear paid` for T07.
 
 ## Result - R3-E2E-006
 
-Scenario: Customer QR shows only current session bill and orders  
-Run ID: `SKR-R3-20260719-E006`  
-Browser/device: Desktop in-app browser  
-Roles simulated: Customer  
+Scenario: Customer QR shows only current session bill and orders
+Run ID: `SKR-R3-20260719-E006`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer
 Status: `BLOCKED`
 
 ### Scores
@@ -466,10 +466,10 @@ No data created.
 
 ## Result - R3-E2E-010
 
-Scenario: Terminal checkout label and fallback behavior are clear  
-Run ID: `SKR-R3-20260719-E010`  
-Browser/device: Desktop in-app browser  
-Roles simulated: Waiter/cashier  
+Scenario: Terminal checkout label and fallback behavior are clear
+Run ID: `SKR-R3-20260719-E010`
+Browser/device: Desktop in-app browser
+Roles simulated: Waiter/cashier
 Status: `NEEDS SPECIFICATION`
 
 ### Scores
@@ -514,7 +514,7 @@ The remaining UX gap is that there is no explicit `Cancel payment` / `Back to ca
 
 - Checkout showed `Selected method Terminal`.
 - Checkout showed `Charge terminal - SGD 2.50`.
-- After clicking `Add items`, the cart still showed `T08 · 1 item · SGD 2.50`.
+- After clicking `Add items`, the cart still showed `T08 Â· 1 item Â· SGD 2.50`.
 - After clicking cart `Clear`, the cart showed `Ready for items`, `SGD 0.00`, and `0 items`.
 
 ### Defects
@@ -533,12 +533,269 @@ Cleared the unsent T08 cart. No order or payment was created for this case.
 
 ---
 
+## Result - R3-E2E-011
+
+Scenario: Move active bill from one table to another
+Run ID: `SKR-R3-20260719-E011`
+Browser/device: Desktop in-app browser
+Roles simulated: Host, waiter/cashier
+Status: `FAIL`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 4/10 |
+| UI/UX clarity | 5/10 |
+| Workflow speed | 5/10 |
+| Layout/stability | 7/10 |
+| Launch readiness | 4/10 |
+
+### Steps actually performed
+
+1. Logged back into staff app after the browser session expired.
+2. Opened Queue and created synthetic walk-in:
+   - Name: `SKR-R3-20260719 E011 MoveSource`
+   - Phone: `+6591000011`
+   - Party size: `2`
+   - Quoted wait: `5` minutes
+3. Seated the guest at T07 from the Queue recommended table choices.
+4. Confirmed POS opened with `tableId=7&queueEntryId=14`.
+5. Confirmed T07 was occupied in POS.
+6. Looked for a `Move table` action in POS table drawer.
+7. Opened Tables at `https://staff.sakorio.com/tables?qa=r3-e2e011`.
+8. Confirmed T07 appeared as `SEATED - START ORDER`.
+9. Looked for a visible `Move table` action in the T07 table card.
+10. Attempted to open the T07 `More` action, but the actual menu button was not visibly interactable to browser automation.
+11. Cleaned up by clicking `Close table` for T07 and confirming the close modal.
+
+### Expected result
+
+The waiter/host should be able to move the active table/session from T07 to an available destination table. Source table should become available; destination should carry the active session/orders.
+
+### Actual result
+
+The move-table workflow was not discoverable. POS did not show a visible `Move table` action. Tables showed `Close table`, but not `Move table`. The table card had a `More` label, but the underlying `Open menu` control was hidden/icon-like and failed as non-visible in browser interaction.
+
+### Evidence observed
+
+- T07 POS card showed `Occupied` after queue handoff.
+- POS table drawer showed `Open customer QR`, `Back / switch table`, `Current orders`, `Add items`, `Bill / Pay`, `Orders`, and `History`; no `Move table`.
+- Tables T07 card showed `Orders`, `Start order`, `Close table`, `More`, and `waiter / QR`; no visible `Move table`.
+- Attempt to click scoped `Open menu` inside T07 card failed because the element was not visible.
+- `Close table` opened a clear confirmation modal: `Close table "T07"? This will end the current session.`
+
+### Defects
+
+1. Move-table workflow is not visible/discoverable in POS or Tables.
+2. T07 queue guest name did not persist visibly on the POS/Tables table card; it showed generic `Occupied`.
+3. The `More` action has weak accessibility/automation visibility. If important actions are inside it, they are too hidden for launch-critical operations.
+
+### Improvement notes
+
+- Add first-class `Move table` button to the active table drawer and/or Tables card.
+- If `Move table` remains under `More`, make the More button visibly labelled and accessible.
+- Preserve queue/reservation guest context on the table card.
+- Keep the Tables `Close table` modal; it is clearer than POS `Clear paid`.
+
+### Cleanup performed
+
+Closed synthetic T07 table session through Tables `Close table` confirmation.
+
+---
+
+## Result - R3-E2E-012
+
+Scenario: Attempt to move active bill to occupied table
+Run ID: `SKR-R3-20260719-E012`
+Browser/device: Desktop in-app browser
+Roles simulated: Host, waiter
+Status: `BLOCKED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | 5/10 |
+| Workflow speed | N/A |
+| Layout/stability | 7/10 |
+| Launch readiness | 4/10 |
+
+### Steps actually performed
+
+1. Used the same POS/Tables inspection from R3-E2E-011.
+2. Confirmed there were occupied/seated tables available in the floor state, including T06 and T10.
+3. Attempted to locate a move-table action from an active/seated table.
+
+### Expected result
+
+System should allow starting a move action and then clearly block or warn when selecting an occupied destination table.
+
+### Actual result
+
+The occupied-destination guardrail could not be tested because the move-table action itself was not discoverable or accessible.
+
+### Evidence observed
+
+- T06 and T10 were already seated/occupied.
+- T07 was synthetically seated during R3-E2E-011.
+- No visible `Move table` action appeared in POS or Tables.
+
+### Defects
+
+1. Move-table action missing/hidden blocks occupied-destination guardrail testing.
+
+### Improvement notes
+
+- After implementing visible `Move table`, rerun this case specifically to verify occupied destination is blocked.
+- Destination picker should label tables as `Available`, `Occupied`, `Paid`, or `Unavailable` and prevent unsafe overwrite.
+
+### Cleanup performed
+
+No additional data created beyond R3-E2E-011 cleanup.
+
+---
+
+## Result - R3-E2E-013
+
+Scenario: Queue board sort and search remains usable during service
+Run ID: `SKR-R3-20260719-E013`
+Browser/device: Desktop in-app browser
+Roles simulated: Host
+Status: `FAIL`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 7/10 |
+| UI/UX clarity | 7/10 |
+| Workflow speed | 7/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 7/10 |
+
+### Steps actually performed
+
+1. Opened Queue at `https://staff.sakorio.com/queue?qa=r3-e2e013`.
+2. Created three synthetic queue entries:
+   - `SKR-R3-20260719 E013 Alpha`, 2 pax, 6 min quote
+   - `SKR-R3-20260719 E013 Bravo`, 3 pax, 12 min quote
+   - `SKR-R3-20260719 E013 Charlie`, 4 pax, 18 min quote
+3. Confirmed all three appeared in the Waiting lane.
+4. Used the queue search field with `E013 Bravo`.
+5. Cleared search.
+6. Seated `E013 Charlie` at recommended table T04.
+7. Returned to Queue and confirmed Charlie moved to Seated.
+8. Selected `E013 Bravo` and clicked `Cancel`.
+9. Cleaned up by cancelling remaining `E013 Alpha`.
+10. Closed synthetic T04 table from Tables.
+
+### Expected result
+
+Queue should support easy sorting/filtering/searching. Search should narrow the visible board to matching entries. Seat and cancel actions should update queue lanes and table state.
+
+### Actual result
+
+Queue creation, seating, cancellation, and table handoff worked. Table fit recommendations were useful. However, the search field did not filter the visible queue list: searching `E013 Bravo` still left `E013 Alpha` and `E013 Charlie` visible.
+
+### Evidence observed
+
+- After creating entries, Queue showed `6 active`, `6 visible`, `6 loaded`, and all three synthetic entries.
+- Searching `E013 Bravo` still showed Alpha, Bravo, and Charlie.
+- Charlie handoff opened POS with `tableId=4&queueEntryId=17`.
+- Queue later showed Charlie under `Seated` with `On T04`.
+- Bravo selected panel showed `cancelled` after clicking Cancel.
+- T04 was successfully closed from Tables cleanup.
+
+### Defects
+
+1. Queue search field does not visibly filter the queue board.
+2. Queue defaults still show old stale R2 entries at the top, making live service testing harder.
+3. Queue cancellation leaves cancelled entry visible in selected panel, which is fine for confirmation, but needs clearer visual separation from active waiting entries.
+
+### Improvement notes
+
+- Fix search filtering so only matching queue cards remain visible.
+- Add a quick `Hide stale/old QA entries` or stronger default of active/current service only.
+- Keep table recommendation copy; it is genuinely useful.
+
+### Cleanup performed
+
+Cancelled remaining synthetic queue entry and closed T04 synthetic seating session.
+
+---
+
+## Result - R3-E2E-014
+
+Scenario: Reservation double-submit does not create duplicate booking
+Run ID: `SKR-R3-20260719-E014`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, host
+Status: `PASS`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 9/10 |
+| UI/UX clarity | 8/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 9/10 |
+
+### Steps actually performed
+
+1. Opened public booking page at `https://order.sakorio.com/book/1?qa=r3-e2e014`.
+2. Today had no selectable upcoming slot late in the service day, so selected tomorrow, Monday July 20, 2026.
+3. Selected `09:00`.
+4. Entered synthetic guest details:
+   - Name: `SKR-R3-20260719 E014 DoubleSubmit`
+   - Phone: `+6591000014`
+   - Email: `ralf.roeber+skr-r3-e014@sakario.sg`
+5. Double-clicked `Book table`.
+6. Public confirmation displayed reservation `#49`.
+7. Opened staff Reservations.
+8. Used the service-date next control to view Monday, July 20.
+9. Verified staff Reservations showed exactly one matching booking.
+10. Cancelled reservation `#49` for cleanup.
+
+### Expected result
+
+Double-clicking the public booking confirmation action should create only one reservation or block the duplicate attempt clearly.
+
+### Actual result
+
+Only one reservation was created and visible in staff Reservations. Duplicate prevention appears to work for this flow.
+
+### Evidence observed
+
+- Public confirmation showed `Reservation number: #49`.
+- Staff Reservations for Monday, July 20 showed `1 reservations`.
+- Matching name appeared exactly once.
+- After cleanup, `#49` showed `CANCELLED`.
+
+### Defects
+
+No duplicate creation defect observed.
+
+### Improvement notes
+
+- Date navigation buttons in staff Reservations have weak accessible names; the next-day button had to be selected as `button.date-step` rather than by a clear label.
+- Public booking correctly disabled todayâ€™s time slot dropdown when no upcoming slots were available; that behavior is sensible.
+
+### Cleanup performed
+
+Cancelled reservation `#49`.
+
+---
+
 ## Result - R3-E2E-008
 
-Scenario: Staff POS HitPay checkout returns to the correct order/table state  
-Run ID: `SKR-R3-20260719-E008`  
-Browser/device: Desktop in-app browser  
-Roles simulated: Waiter/cashier  
+Scenario: Staff POS HitPay checkout returns to the correct order/table state
+Run ID: `SKR-R3-20260719-E008`
+Browser/device: Desktop in-app browser
+Roles simulated: Waiter/cashier
 Status: `FAIL`
 
 ### Scores
@@ -597,12 +854,80 @@ Cleared the unsent T08 cart. No order or payment was created for this case.
 
 ---
 
+## Result - R3-E2E-015
+
+Scenario: Reservation edit retains linked table/session state
+Run ID: `SKR-R3-20260719-E015`
+Browser/device: Desktop in-app browser
+Roles simulated: Host
+Status: `FAIL`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 4/10 |
+| UI/UX clarity | 3/10 |
+| Workflow speed | 3/10 |
+| Layout/stability | 3/10 |
+| Launch readiness | 4/10 |
+
+### Steps actually performed
+
+1. Opened staff Reservations at `https://staff.sakorio.com/reservations?qa=r3-e2e015b`.
+2. Clicked `New reservation`.
+3. Inspected the create-reservation form in the browser.
+4. Scrolled within the form area and attempted to enter a future reservation.
+5. Filled visible customer fields:
+   - Name: `SKR-R3-20260719 E015 EditBase`
+   - Phone: `+6591000015`
+   - Email: `ralf.roeber+skr-r3-e015@sakario.sg`
+   - Client notes: `R3 E015 edit flow base notes`
+6. Attempted to fill date and time fields.
+7. Clicked `Save`.
+
+### Expected result
+
+Host should be able to create a future reservation, edit name/time/party/notes, assign or change a table if supported, and seat the guest without creating duplicate reservations or losing the linked table/session state.
+
+### Actual result
+
+The normal browser workflow could not complete reservation creation. Customer fields were fillable after scrolling, but date/time controls were not reliably usable. The form stayed open after save and no new reservation was created for the synthetic E015 guest.
+
+### Evidence observed
+
+- In the open `New reservation` form, `gridDate` rendered at approximately `26px` wide and below the visible viewport.
+- `gridTime` also rendered at approximately `26px` wide and remained empty/unreachable.
+- The main calendar day buttons for July 20 and later were disabled as `Outside opening hours` in the staff modal, while the previous public reservation test was able to book July 20 at `09:00`.
+- Browser fill attempts for `input[name="gridDate"]` and `input[name="gridTime"]` timed out.
+- Clicking `Save` left the modal open and the reservations list unchanged.
+
+### Defects
+
+1. Staff `New reservation` modal has a layout/container issue: critical date/time controls render tiny and below the practical viewport.
+2. Staff reservation creation cannot be completed reliably through the live browser path.
+3. Public/staff availability behavior appears inconsistent: public booking allowed July 20 `09:00`, while the staff modal marked July 20 as outside opening hours.
+4. The scenario could not proceed to edit/seat validation because creation failed.
+
+### Improvement notes
+
+- Rebuild the staff reservation modal as a fixed-height, scrollable panel with sticky action buttons.
+- Ensure date/time controls have normal width, clear labels, and keyboard/focus support.
+- Align public booking and staff booking availability calculations.
+- Add an explicit validation message when date/time is missing instead of silently remaining on the form.
+
+### Cleanup performed
+
+No E015 reservation was created. No table was seated for this case.
+
+---
+
 ## Result - R3-E2E-009
 
-Scenario: Customer QR HitPay checkout completes without duplicate orders  
-Run ID: `SKR-R3-20260719-E009`  
-Browser/device: Desktop in-app browser  
-Roles simulated: Customer, cashier  
+Scenario: Customer QR HitPay checkout completes without duplicate orders
+Run ID: `SKR-R3-20260719-E009`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, cashier
 Status: `BLOCKED`
 
 ### Scores
@@ -649,12 +974,321 @@ No data created.
 
 ---
 
+## Result - R3-E2E-016
+
+Scenario: Orders overview is table-based and compact
+Run ID: `SKR-R3-20260719-E016`
+Browser/device: Desktop in-app browser
+Roles simulated: Cashier, manager
+Status: `PASS WITH POLISH NOTES`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 9/10 |
+| UI/UX clarity | 8/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 8/10 |
+
+### Steps actually performed
+
+1. Opened Orders at `https://staff.sakorio.com/staff/orders?qa=r3-e2e016`.
+2. Checked `Active Orders`, `Not Paid Yet`, and `Order History`.
+3. Created a synthetic mixed table ticket from Tables/POS:
+   - T01 / bill `#71`
+   - `1x Coffee`
+   - `1x Tacos de Carne Asada`
+   - Total `SGD 14.50`
+4. Reopened Orders and verified the active overview.
+5. Expanded the table card using `View tickets`.
+6. Compared the active order card against the live bill amount.
+
+### Expected result
+
+Orders should show a compact table-based overview by default for current service. One table should not consume most of the page until expanded. History should be separate.
+
+### Actual result
+
+Active Orders showed a compact table-grouped card for T01 with latest ticket, total, and quick actions. Expanding with `View tickets` revealed the item-level ticket details. This is a strong improvement over the previous wide/order-row-heavy flow.
+
+### Evidence observed
+
+- Active Orders showed `T01`, `1 active ticket`, `SGD 14.50`, `Latest #71`, `Open table POS`, and `View tickets`.
+- Expanded view showed ticket `#71`, `Coffee`, `Tacos de Carne Asada`, statuses, and total.
+- History remained separate under `Order History`.
+
+### Defects
+
+No functional defect observed in the active table-based overview.
+
+### Improvement notes
+
+- Add search/filter by table number in Orders for busy service.
+- Keep `View tickets` collapsed by default; this is the right direction.
+- History is still a long row table and would benefit from optional grouping by table/session/day.
+
+### Cleanup performed
+
+T01 bill `#71` was paid by terminal and cleared after related station/served-state tests.
+
+---
+
+## Result - R3-E2E-017
+
+Scenario: Current Orders versus History separation
+Run ID: `SKR-R3-20260719-E017`
+Browser/device: Desktop in-app browser
+Roles simulated: Cashier
+Status: `PASS WITH POLISH NOTES`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 9/10 |
+| UI/UX clarity | 8/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 8/10 |
+
+### Steps actually performed
+
+1. Created active bill `#71` on T01 through the Tables order workflow.
+2. Confirmed Orders showed `Active Orders 1`.
+3. Paid T01 by terminal from POS.
+4. Clicked `Clear paid` for T01.
+5. Reopened Orders.
+6. Checked `Active Orders`, `Not Paid Yet`, and `Order History`.
+
+### Expected result
+
+Current Orders should show only active/current-session orders. Closed/paid sessions should move to History only after the table is settled/cleared.
+
+### Actual result
+
+The active/current separation worked for the tested flow. After payment and clearing, Active Orders showed no orders, Not Paid Yet showed all paid, and History showed the paid synthetic orders.
+
+### Evidence observed
+
+- Before settlement: Active Orders displayed T01 with `1 active ticket`.
+- After terminal payment and `Clear paid`: POS showed `T01 is clear` and `OPEN BILLS 0` after T03 cleanup.
+- Orders after cleanup showed `No orders yet` in Active Orders.
+- Order History showed `#72 T03 Paid` and `#71 T01 Paid` at the top.
+
+### Defects
+
+No current/history lifecycle defect observed for this specific browser flow.
+
+### Improvement notes
+
+- History table should replace the temporary `Loading...` text once loaded; it currently remains visible above the loaded rows.
+- Add a clearer â€œHistoryâ€ entry from each table card so staff can review closed sessions without going through global Orders.
+
+### Cleanup performed
+
+T01 bill `#71` and T03 bill `#72` were paid by terminal and cleared.
+
+---
+
+## Result - R3-E2E-018
+
+Scenario: Kitchen station item chips improve clarity under mixed order
+Run ID: `SKR-R3-20260719-E018`
+Browser/device: Desktop in-app browser
+Roles simulated: Kitchen, beverage staff, waiter
+Status: `FAIL`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 5/10 |
+| UI/UX clarity | 6/10 |
+| Workflow speed | 7/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 5/10 |
+
+### Steps actually performed
+
+1. Reused synthetic mixed ticket `#71` on T01:
+   - Beverage: `Coffee`
+   - Food: `Tacos de Carne Asada`
+2. Opened Kitchen & Beverages at `https://staff.sakorio.com/kitchen?qa=r3-e2e018`.
+3. Checked `All`, `Kitchen`, and `Beverages` station filters.
+4. Moved `Tacos de Carne Asada` from `Pending` to `Preparing` to `Ready`.
+5. Verified the unrelated beverage item stayed separate.
+
+### Expected result
+
+Mixed food/beverage tickets should route clearly by station. Updating one station item should not overwrite or hide the unrelated station item.
+
+### Actual result
+
+Station filtering initially worked, but the lifecycle did not persist correctly after route reload/cleanup. Kitchen-only showed only the food item from #71 and Beverages-only showed the beverage item, but after later payment/clear and Kitchen reload, #71 reappeared in production as Pending even though the bill had been settled/cleared.
+
+### Evidence observed
+
+- `Kitchen 1` showed `#71 T01 1x Tacos de Carne Asada Pending`.
+- `Beverages 2` showed `#71 T01 1x Coffee Pending` plus one old stale beverage ticket.
+- After status update, #71 showed `Coffee Pending` and `Tacos de Carne Asada Ready`.
+- After returning later to Kitchen, #71 reappeared as `Pending` in both Kitchen/Beverages production despite T01 being paid and cleared.
+
+### Defects
+
+1. Backlog warning/count is still noisy during normal live service.
+2. Ready item counts/lanes were not always intuitive: after moving one item ready, the ticket still appeared in the Send to Prep lane because another item remained pending.
+3. Status action menus can conflict with similarly named summary controls (`Ready pass` versus dropdown `Ready`) for automation and accessibility.
+4. Kitchen item status/order lifecycle appears not to persist reliably across reload or paid/cleared table lifecycle.
+
+### Improvement notes
+
+- Keep the station filter behavior; it is useful.
+- Add clearer item-level station chips, e.g. `Kitchen Â· Ready`, `Beverage Â· Pending`.
+- Show a per-ticket mixed-state summary such as `1 pending drink Â· 1 ready kitchen item`.
+
+### Cleanup performed
+
+T01 bill `#71` was later paid by terminal and cleared.
+
+---
+
+## Result - R3-E2E-019
+
+Scenario: Beverage-only order routes without kitchen noise
+Run ID: `SKR-R3-20260719-E019`
+Browser/device: Desktop in-app browser
+Roles simulated: Waiter, beverage staff
+Status: `FAIL`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 5/10 |
+| UI/UX clarity | 7/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 5/10 |
+
+### Steps actually performed
+
+1. Created a synthetic beverage-only order from Tables:
+   - T03 / bill `#72`
+   - `1x Coca Cola`
+   - Total `SGD 3.00`
+2. Opened Kitchen & Beverages.
+3. Checked `Beverages`, `Kitchen`, and `All`.
+4. Moved Coca Cola from `Pending` to `Preparing` to `Ready` to `Delivered`.
+5. Paid and cleared T03 from POS.
+
+### Expected result
+
+Beverage-only orders should appear in the beverage workflow and should not clutter Kitchen-only unless the system is configured to show all.
+
+### Actual result
+
+Beverage-only routing initially worked, but lifecycle persistence failed after reload. T03/#72 appeared in Beverages and All, Kitchen-only initially showed no active tickets, and the item could be moved to Delivered. However, after later reload, #72 reappeared in Beverages as Pending even after being delivered, paid, and cleared.
+
+### Evidence observed
+
+- Beverages-only showed `#72 Pending T03 1x Coca Cola Pending`.
+- Kitchen-only showed `No active orders` and `Kitchen 0`.
+- Moving Coca Cola to Ready placed #72 in the `Hand off / Ready pass` lane.
+- Moving Coca Cola to Delivered removed #72 from the beverage live lane.
+- After route reload, Beverages-only again showed `#72 Pending T03 1x Coca Cola Pending`.
+
+### Defects
+
+1. Beverage item status did not persist reliably after route reload.
+2. Paid/cleared beverage-only bill reappeared in live beverage production.
+
+### Improvement notes
+
+- Routing itself is good, but lifecycle persistence must be fixed before launch.
+- Backlog warning remains visually prominent even when the active workflow is correct; consider collapsing it after acknowledgement.
+- The final station action says `Delivered`; waiter-facing language may be clearer as `Served` depending on restaurant operations.
+
+### Cleanup performed
+
+T03 bill `#72` was paid by terminal and cleared.
+
+---
+
+## Result - R3-E2E-020
+
+Scenario: Mark item served updates waiter/order view clearly
+Run ID: `SKR-R3-20260719-E020`
+Browser/device: Desktop in-app browser
+Roles simulated: Kitchen, waiter
+Status: `FAIL`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 5/10 |
+| UI/UX clarity | 7/10 |
+| Workflow speed | 7/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 5/10 |
+
+### Steps actually performed
+
+1. Used T01 bill `#71` with `Coffee` and `Tacos de Carne Asada`.
+2. In Kitchen & Beverages, moved `Tacos de Carne Asada` to `Ready`.
+3. Opened Orders.
+4. Expanded T01 using `View tickets`.
+5. Confirmed item statuses were visible in the waiter/order view.
+6. Clicked the Ready item status and moved it to `Delivered`.
+7. Verified the table bill stayed active and payable.
+
+### Expected result
+
+Served state should be visible to waiter/cashier and should not remove unpaid items from the bill.
+
+### Actual result
+
+The item-level served/delivered state worked in the immediate Orders view, but did not remain reliable after Kitchen reload and table settlement. Orders showed `Tacos de Carne Asada Ready`, then `Delivered`, while the T01 bill remained visible at `SGD 14.50` until payment. Later, Kitchen showed the same T01 food item as Pending again after T01 was paid and cleared.
+
+### Evidence observed
+
+- Orders expanded ticket showed:
+  - `Coffee SGD 2.50 Pending`
+  - `Tacos de Carne Asada SGD 12.00 Ready`
+- Clicking Ready opened actions: `GO BACK Preparing` and `MOVE FORWARD Delivered`.
+- After moving forward, Orders showed `Tacos de Carne Asada Delivered`.
+- Ticket summary changed to `Partially Delivered`.
+- The bill still showed `Total: SGD 14.50`.
+- After later Kitchen reload, `#71 T01 1x Tacos de Carne Asada Pending` reappeared in Kitchen-only view despite the prior Ready/Delivered progression and bill cleanup.
+
+### Defects
+
+1. Waiter-facing status language says `Delivered`, not `Served`. For restaurant floor staff, `Served` may be more intuitive.
+2. The ticket-level status showed `Preparing`/`Partially Delivered`, which is accurate but could be clearer when only some items are delivered.
+3. Action menu discoverability relies on clicking the small status badge; this may be missed on iPad during rush service.
+4. Served/delivered item state does not appear to persist reliably into Kitchen after reload.
+5. Paid/cleared table items can remain or reappear in production display, which is launch-critical.
+
+### Improvement notes
+
+- Add a prominent `Mark served` action for ready items in the waiter/order view.
+- Keep item-level statuses visible; this is valuable.
+- Add a small ticket progress label such as `1/2 served`.
+
+### Cleanup performed
+
+T01 bill `#71` was paid by terminal and cleared.
+
+---
+
 ## Result - R3-E2E-007
 
-Scenario: Customer QR payment offers HitPay/terminal only, not Cash  
-Run ID: `SKR-R3-20260719-E007`  
-Browser/device: Desktop in-app browser  
-Roles simulated: Customer  
+Scenario: Customer QR payment offers HitPay/terminal only, not Cash
+Run ID: `SKR-R3-20260719-E007`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer
 Status: `BLOCKED`
 
 ### Scores
@@ -698,3 +1332,305 @@ The payment screen could not be reached because both QR sessions were closed. No
 ### Cleanup performed
 
 No data created.
+
+---
+
+## Result - R3-E2E-021
+
+Scenario: Manager void of sent item creates clear bill and kitchen effect
+Run ID: `SKR-R3-20260719-E021`
+Browser/device: Desktop in-app browser
+Roles simulated: Cashier, manager, kitchen
+Status: `FAIL`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 6/10 |
+| UI/UX clarity | 6/10 |
+| Workflow speed | 7/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 6/10 |
+
+### Steps actually performed
+
+1. Created a synthetic sent kitchen item from Tables:
+   - T01 / bill `#73`
+   - `1x Enchiladas`
+   - Total `SGD 20.00`
+2. Opened Orders.
+3. Expanded the active T01 ticket.
+4. Clicked the item remove icon for Enchiladas.
+5. Confirmed the remove action in the browser modal.
+6. Opened Kitchen & Beverages to check production impact.
+
+### Expected result
+
+Voiding a sent item should require/record the right manager authority, remove the item from the bill, and show a clear kitchen cancellation/void indicator so production staff do not prepare the item.
+
+### Actual result
+
+The item was removed from the bill/order view, but the browser flow did not show a manager override reason, audit note, or clear kitchen cancellation/void marker. Kitchen no longer showed #73, but it also did not show a cancelled/voided Enchiladas indicator.
+
+### Evidence observed
+
+- Orders initially showed T01 `#73`, `1x Enchiladas`, `SGD 20.00`, `Pending`.
+- Remove action showed a simple modal: `Are you sure you want to remove this item?` with `Cancel` and `Confirm`.
+- After confirming, Orders showed `Item removed successfully`.
+- #73 disappeared from active Orders/History.
+- Kitchen after void did not show #73 or a cancellation marker.
+
+### Defects
+
+1. Sent-item void does not visibly require or record manager override details in the browser flow.
+2. No required void reason was requested.
+3. Kitchen cancellation/void indicator was not visible; the ticket simply disappeared.
+4. This creates operational risk: kitchen may have already started production but receives no clear â€œcancel itemâ€ signal.
+
+### Improvement notes
+
+- Require a reason for sent-item voids.
+- Show `VOIDED/CANCELLED` on Kitchen for a short period or in a cancellation lane.
+- Record who voided it and from which role/session.
+- Keep `Show Removed Items` useful in Orders by exposing removed item details and reason.
+
+### Cleanup performed
+
+No payment was needed after #73 item removal; the synthetic active bill disappeared from Orders.
+
+---
+
+## Result - R3-E2E-022
+
+Scenario: POS iPad/tablet layout with active checkout lane
+Run ID: `SKR-R3-20260719-E022`
+Browser/device: Desktop in-app browser, 1280 x 720 viewport
+Roles simulated: Waiter, cashier
+Status: `PARTIAL / DEVICE COVERAGE BLOCKED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 7/10 |
+| UI/UX clarity | 8/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 7/10 |
+
+### Steps actually performed
+
+1. Opened POS at `https://staff.sakorio.com/pos?qa=r3-e2e022-023`.
+2. Selected T01 from the POS table grid.
+3. Inspected selected-table drawer layout in the browser.
+4. Confirmed menu lane and cart/payment lane positioning at the available desktop viewport.
+
+### Expected result
+
+At iPad/tablet width, POS should keep menu compact and keep cart/payment reachable without overlapping text/containers.
+
+### Actual result
+
+The available in-app browser session did not expose a true tablet/iPad device mode, so this case could not be fully certified for iPad. At 1280 x 720, the selected-table drawer was stable: menu items were central/left and the cart lane stayed pinned on the right.
+
+### Evidence observed
+
+- Browser viewport was `1280 x 720`.
+- Selected-table drawer showed `pos-service-cart-pane` on the right at approximately `x=907`, `w=336`.
+- Cart lane showed `Current cart`, item count, total, and Checkout.
+- No overlap was observed at desktop width.
+
+### Defects
+
+1. True iPad/tablet viewport coverage was not available in the current in-app browser QA run.
+2. After the prior void case, POS still displayed `Live order #73` while also saying T01 was ready/new with 0 orders; that ghost label should be fixed.
+
+### Improvement notes
+
+- Add an automated iPad viewport smoke test in CI/browser QA.
+- Verify 1024 x 768 and 1180 x 820 specifically.
+- Keep the right-side cart/payment lane behavior; it is good at desktop width.
+
+### Cleanup performed
+
+No submitted order was created by this layout-only case.
+
+---
+
+## Result - R3-E2E-023
+
+Scenario: Large menu list remains compact and searchable
+Run ID: `SKR-R3-20260719-E023`
+Browser/device: Desktop in-app browser
+Roles simulated: Waiter
+Status: `PASS WITH POLISH NOTES`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 8/10 |
+| UI/UX clarity | 8/10 |
+| Workflow speed | 7/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 8/10 |
+
+### Steps actually performed
+
+1. Opened T01 in POS selected-table mode.
+2. Reviewed the visible menu grid.
+3. Used category chips: `All`, `Beverages`, `Main Course`.
+4. Added `Coffee` to the cart.
+5. Attempted to add a second item while testing table-switch behavior.
+
+### Expected result
+
+Menu cards should stay compact and staff should be able to filter/search/add items quickly without massive scrolling when the catalog grows to 20 to 30 items.
+
+### Actual result
+
+For the current 9-item demo catalog, cards are compact and much better than the earlier oversized-menu layout. Category filters are available. However, there was no obvious text search input despite the `Search menu` label, and the second item click did not add during the table-switch test sequence.
+
+### Evidence observed
+
+- POS showed `All 9`, `Beverages 4`, `Main Course 5`.
+- Cards were compact with initials, category, item name, price, and add control.
+- Cart updated to `1 item`, `SGD 2.50` after adding Coffee.
+- No clear text-entry search field was visible.
+
+### Defects
+
+1. `Search menu` appears as copy/label but a search box is not obvious.
+2. Add feedback for second/further item taps should be stronger so waiters know whether a tap registered.
+
+### Improvement notes
+
+- Add a visible search input with placeholder such as `Search menu items`.
+- Add a sticky category row for large menus.
+- Add a small toast or button animation when an item is added.
+
+### Cleanup performed
+
+The synthetic cart was later settled/cleared during cleanup because the clear-cart path was not obvious in Bill/Pay mode.
+
+---
+
+## Result - R3-E2E-024
+
+Scenario: Return from active table to table grid is obvious
+Run ID: `SKR-R3-20260719-E024`
+Browser/device: Desktop in-app browser
+Roles simulated: Waiter
+Status: `FAIL`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 5/10 |
+| UI/UX clarity | 5/10 |
+| Workflow speed | 5/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 5/10 |
+
+### Steps actually performed
+
+1. Opened T01 in POS.
+2. Added Coffee to the current cart.
+3. Clicked `Back / switch table`.
+4. Attempted to select another table from the table grid.
+5. Returned to T01 and checked cart/session state.
+6. Attempted to clear the cart from the visible controls.
+
+### Expected result
+
+Waiter should be able to switch tables quickly without losing submitted orders or becoming trapped. If an unsent cart blocks switching, the system should show clear choices: `Save/send`, `Discard cart`, or `Stay`.
+
+### Actual result
+
+With an unsent cart, `Back / switch table` did not actually return to table selection. It moved/kept the user in a Bill/Pay state and displayed `Finish or clear T01's current ticket before returning to the floor.` Attempting to select another table did not switch away. The clear-cart action was not discoverable from Bill/Pay mode.
+
+### Evidence observed
+
+- T01 showed `1 in cart`, `SGD 2.50`.
+- After `Back / switch table`, the app still showed T01 drawer and Bill/Pay controls.
+- Message displayed: `Finish or clear T01's current ticket before returning to the floor.`
+- No visible `Clear` action was found from Bill/Pay mode.
+- Cleanup required paying the synthetic cart by terminal and then clicking `Clear paid`.
+
+### Defects
+
+1. Table switching is blocked by unsent cart, but the exit/clear path is not obvious.
+2. `Back / switch table` behaves like a guard message instead of a navigation choice.
+3. The waiter cannot easily jump to another table mid-order without either submitting/paying or hunting for a hidden clear path.
+
+### Improvement notes
+
+- Replace the guard-only behavior with a clear modal:
+  - `Send to kitchen`
+  - `Discard cart`
+  - `Stay on table`
+- Keep table grid visible/usable once the waiter intentionally chooses to discard or save.
+- Add a persistent `Clear cart` button in Bill/Pay as well as Add Items.
+
+### Cleanup performed
+
+The synthetic Coffee cart was paid by terminal and T01 was cleared.
+
+---
+
+## Result - R3-E2E-025
+
+Scenario: Browser refresh on POS active table preserves state
+Run ID: `SKR-R3-20260719-E025`
+Browser/device: Desktop in-app browser
+Roles simulated: Cashier
+Status: `FAIL`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 6/10 |
+| UI/UX clarity | 5/10 |
+| Workflow speed | 7/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 6/10 |
+
+### Steps actually performed
+
+1. Opened POS at `https://staff.sakorio.com/pos?qa=r3-e2e025`.
+2. Selected T01.
+3. Added Coffee to the unsaved cart.
+4. Refreshed the browser.
+5. Checked T01 drawer, cart, and history after reload.
+
+### Expected result
+
+Refresh should not duplicate submitted orders. Unsaved cart behavior should be clear: either persist the cart, or discard it with a clear warning/recovery path.
+
+### Actual result
+
+No duplicate submitted order was observed, but the unsaved cart was silently lost after refresh. T01 reopened with `0 items`, while T01 history remained stable.
+
+### Evidence observed
+
+- Before refresh: T01 showed `1 in cart`, `Coffee`, `SGD 2.50`, and `Checkout`.
+- After refresh: T01 drawer showed `Ready for items`, `0 items`, `SGD 0.00`.
+- T01 history still showed the prior paid Coffee ticket from cleanup; no extra duplicate was seen.
+
+### Defects
+
+1. Unsaved POS cart is silently discarded on browser refresh.
+2. No warning, draft recovery, or confirmation explains what happened.
+
+### Improvement notes
+
+- Add a refresh/navigation guard when an unsent cart exists.
+- Persist draft cart per table/session for a short period, or explicitly discard with a clear banner.
+- Add a recovery toast after reload: `Draft cart was cleared` or `Draft cart restored`.
+
+### Cleanup performed
+
+No additional cleanup was needed after refresh because the unsaved cart disappeared.

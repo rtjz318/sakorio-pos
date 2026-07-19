@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { ApiService, UserRole } from '../services/api.service';
+import { ApiService, User, UserRole } from '../services/api.service';
 import { PermissionService } from '../services/permission.service';
 import { firstValueFrom } from 'rxjs';
 
@@ -22,18 +22,13 @@ export function roleGuard(allowedRoles: UserRole[]): CanActivateFn {
     const router = inject(Router);
     const permissionService = inject(PermissionService);
 
-    // First check if user is authenticated
-    let user = api.getCurrentUser();
-
-    // If no user in memory, try to fetch from backend
-    if (!user) {
-      try {
-        user = await firstValueFrom(api.checkAuth());
-      } catch {
-        // Not authenticated - redirect to login
-        router.navigate(['/login']);
-        return false;
-      }
+    let user: User | null;
+    try {
+      user = await firstValueFrom(api.checkAuth());
+    } catch {
+      // Not authenticated - redirect to login
+      router.navigate(['/login']);
+      return false;
     }
 
     // Check if user is authenticated

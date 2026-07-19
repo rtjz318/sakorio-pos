@@ -707,6 +707,7 @@ interface OrderTableGroup {
                     [rowData]="completedOrders()"
                     [columnDefs]="columnDefs"
                     [defaultColDef]="defaultColDef"
+                    [overlayNoRowsTemplate]="gridNoRowsTemplate"
                   />
                 </div>
               } @else {
@@ -2371,6 +2372,8 @@ export class OrdersComponent implements OnInit, OnDestroy {
     borderRadius: 10,
     wrapperBorderRadius: 10,
   });
+
+  gridNoRowsTemplate = '<span></span>';
 
   private groupOrdersByTable(orders: readonly Order[]): OrderTableGroup[] {
     const groups = new Map<string, OrderTableGroup>();

@@ -266,6 +266,14 @@ export class BookComponent implements OnInit {
       this.error.set(this.translate.instant('BOOK.INVALID_PHONE'));
       return;
     }
+    if (!this.formPartySize || this.formPartySize < 1) {
+      this.error.set('Party size must be at least 1.');
+      return;
+    }
+    if (this.formPartySize > this.maxPartySize()) {
+      this.error.set(`For online booking, the maximum party size is ${this.maxPartySize()} guests.`);
+      return;
+    }
     const em = this.formEmail.trim();
     if (em && !contactEmailValid(em)) {
       this.error.set(this.translate.instant('BOOK.INVALID_EMAIL'));

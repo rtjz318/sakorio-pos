@@ -9164,6 +9164,38 @@ def _normalize_allergies_for_booking(
     return (True, detail)
 
 
+def _reservation_party_size_limit_for_tenant(
+    tenant: models.Tenant,
+    *,
+    public_booking: bool,
+) -> int | None:
+    """Business-facing reservation party-size ceiling.
+
+    Slot capacity is still validated separately. This keeps public guests from bypassing the
+    book-page max input with a crafted request while preserving staff/manager override room.
+    """
+    configured = tenant.reservation_max_guests_per_slot
+    if configured is not None and configured > 0:
+        return min(20, configured) if public_booking else configured
+    return 20 if public_booking else None
+
+
+def _raise_if_reservation_party_size_invalid(
+    party_size: int,
+    tenant: models.Tenant,
+    *,
+    public_booking: bool,
+) -> None:
+    if party_size < 1:
+        raise HTTPException(status_code=400, detail="Party size must be at least 1.")
+    limit = _reservation_party_size_limit_for_tenant(tenant, public_booking=public_booking)
+    if limit is not None and party_size > limit:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Party size is too large for online booking. Maximum allowed is {limit} guests.",
+        )
+
+
 @app.get("/reservations/slot-capacity")
 def get_slot_capacity(
     current_user: Annotated[models.User, Depends(require_permission(Permission.RESERVATION_READ))],
@@ -9398,6 +9430,11 @@ def create_reservation(
     tenant = session.get(models.Tenant, tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail=api_error_payload("tenant_not_found", lang))
+    _raise_if_reservation_party_size_invalid(
+        data.party_size,
+        tenant,
+        public_booking=current_user is None,
+    )
     try:
         res_date = _parse_reservation_date(data.reservation_date)
         res_time = _parse_reservation_time(data.reservation_time)
@@ -10668,6 +10705,13 @@ def create_guest_queue_entry(
     current_user: models.User = Depends(require_permission(Permission.RESERVATION_WRITE)),
     session: Session = Depends(get_session),
 ) -> dict:
+    phone_e164: str | None = None
+    if isinstance(body.customer_phone, str) and body.customer_phone.strip():
+        try:
+            phone_e164 = normalize_phone_e164(body.customer_phone, settings.default_phone_country)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Enter a valid mobile number") from exc
+
     if body.preferred_floor_id is not None:
         floor = session.exec(
             select(models.Floor).where(
@@ -10686,11 +10730,48 @@ def create_guest_queue_entry(
         ).first()
         if not reservation:
             raise HTTPException(status_code=404, detail="Linked reservation not found")
+    active_statuses = [models.GuestQueueStatus.waiting, models.GuestQueueStatus.notified]
+    if phone_e164:
+        existing = session.exec(
+            select(models.GuestQueueEntry)
+            .where(
+                models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+                models.GuestQueueEntry.customer_phone == phone_e164,
+                models.GuestQueueEntry.status.in_(active_statuses),
+            )
+            .order_by(models.GuestQueueEntry.requested_at.desc())
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"{existing.customer_name} is already in the active queue as "
+                    f"#{existing.id} ({existing.status.value}). Update that entry instead."
+                ),
+            )
+    if body.linked_reservation_id is not None:
+        existing_link = session.exec(
+            select(models.GuestQueueEntry)
+            .where(
+                models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+                models.GuestQueueEntry.linked_reservation_id == body.linked_reservation_id,
+                models.GuestQueueEntry.status.in_(active_statuses),
+            )
+            .order_by(models.GuestQueueEntry.requested_at.desc())
+        ).first()
+        if existing_link:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"This reservation is already in the active queue as "
+                    f"#{existing_link.id} ({existing_link.status.value}). Seat or update that entry instead."
+                ),
+            )
     now_utc = datetime.now(timezone.utc)
     queue_entry = models.GuestQueueEntry(
         tenant_id=current_user.tenant_id,
         customer_name=body.customer_name.strip(),
-        customer_phone=body.customer_phone.strip() if isinstance(body.customer_phone, str) and body.customer_phone.strip() else None,
+        customer_phone=phone_e164,
         party_size=body.party_size,
         quoted_wait_minutes=body.quoted_wait_minutes,
         preferred_floor_id=body.preferred_floor_id,

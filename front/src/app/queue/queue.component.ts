@@ -1920,8 +1920,13 @@ export class QueueComponent implements OnInit {
         this.reload();
         this.selectEntry(entry);
       },
-      error: () => {
-        this.error.set('Could not add this guest to the queue.');
+      error: (err) => {
+        const detail = err?.error?.detail;
+        this.error.set(
+          typeof detail === 'string' && detail.trim()
+            ? detail
+            : 'Could not add this guest to the queue.',
+        );
         this.saving.set(false);
       },
     });

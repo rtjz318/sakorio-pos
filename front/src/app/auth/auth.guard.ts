@@ -22,15 +22,8 @@ export const authGuard: CanActivateFn = (route, state) => {
     return null;
   };
 
-  // Check if we already have a user in memory
-  const cached = apiService.getCurrentUser();
-  if (cached) {
-    const roleRedirect = redirectForRole(cached);
-    if (roleRedirect) return roleRedirect;
-    return true;
-  }
-
-  // If not, verify with backend
+  // Always verify protected navigation with the backend so logout/session expiry cannot leave
+  // stale in-memory permissions around on tablets or browser back/forward navigation.
   return apiService.checkAuth().pipe(
     map(user => {
       if (user) {

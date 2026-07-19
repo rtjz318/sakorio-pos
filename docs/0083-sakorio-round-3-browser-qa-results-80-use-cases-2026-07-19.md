@@ -10,8 +10,8 @@ Run prefix: `SKR-R3-20260719`
 
 | Case range | Status |
 |---|---|
-| R3-E2E-001 to R3-E2E-035 | Executed / attempted |
-| R3-E2E-036 to R3-E2E-080 | Pending execution |
+| R3-E2E-001 to R3-E2E-045 | Executed / attempted |
+| R3-E2E-046 to R3-E2E-080 | Pending execution |
 
 ## Cross-run notes
 
@@ -2236,3 +2236,634 @@ Clock-out could not be executed because no active clock-in session existed.
 ### Cleanup performed
 
 No attendance data was created.
+
+---
+
+## Result - R3-E2E-036
+
+Scenario: Create staff user and assign role
+Run ID: `SKR-R3-20260719-E036`
+Browser/device: Desktop in-app browser
+Roles simulated: Manager
+Status: `PASS WITH SECURITY/UX DEFECT`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 8/10 |
+| UI/UX clarity | 6/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 7/10 |
+
+### Steps actually performed
+
+1. Opened staff Users at `https://staff.sakorio.com/users?qa=r3-e2e036`.
+2. Clicked `Add User`.
+3. Created synthetic staff profile:
+   - Name: `SKR-R3-036 QA Waiter`
+   - Email: `ralf.roeber+skr-r3-036@sakario.sg`
+   - Role: `Waiter`
+   - Job title: `QA Waiter`
+   - Phone: `+6591000036`
+   - Hourly pay: `SGD 13.50`
+   - Employment start date: `2026-07-19`
+4. Saved the user.
+5. Verified the user card appeared in Users with role, job title, pay and `Profile ready`.
+6. Used the created profile for R3-E2E-037.
+7. Returned as owner and deleted the synthetic user through the visible `Delete User` confirmation modal.
+
+### Expected result
+
+User creation should start from a blank safe form, save one staff user, show role/pay/profile state clearly, and provide a safe cleanup path.
+
+### Actual result
+
+The user was created successfully and displayed correctly. Cleanup also worked. However, the Add User form opened with the currently signed-in owner's email and password fields already populated.
+
+### Evidence observed
+
+- Created user appeared as `SKR-R3-036 QA Waiter`.
+- Role displayed as `Waiter`.
+- Job title displayed as `QA Waiter`.
+- Pay displayed as `SGD 13.50/hr`.
+- Profile displayed as `Profile ready`.
+- Deletion confirmation text showed the synthetic email and deletion removed the card.
+
+### Defects
+
+1. `Add User` prefilled the form with the current account's email/password values. This is a security and UX defect.
+2. Delete controls are icon-like and not visually tied strongly enough to each card; automation had to confirm the correct row carefully.
+
+### Improvement notes
+
+- Always open Add User with blank email/password fields.
+- Add stronger accessible labels such as `Delete SKR-R3-036 QA Waiter`.
+- Consider a success toast after deletion.
+
+### Cleanup performed
+
+Synthetic user `ralf.roeber+skr-r3-036@sakario.sg` was deleted.
+
+---
+
+## Result - R3-E2E-037
+
+Scenario: Non-manager cannot perform manager-only bill actions
+Run ID: `SKR-R3-20260719-E037`
+Browser/device: Desktop in-app browser
+Roles simulated: Waiter, manager
+Status: `PASS WITH AUDIT GAP`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 8/10 |
+| UI/UX clarity | 8/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 7/10 |
+
+### Steps actually performed
+
+1. Logged out from the owner session through the browser.
+2. Logged in through `https://staff.sakorio.com/login?qa=r3-e2e037` as the synthetic waiter from R3-E2E-036.
+3. Confirmed the dashboard loaded as role `Waiter`.
+4. Opened POS.
+5. Inspected available table/order/payment controls.
+6. Opened Orders.
+7. Attempted direct navigation to manager/admin routes:
+   - `/reports?qa=r3-e2e037`
+   - `/users?qa=r3-e2e037-direct`
+8. Returned to owner session for cleanup and next tests.
+
+### Expected result
+
+Cashier/waiter should not be able to access manager-only routes or perform bill corrections such as refunds, reopen, discounts or unaudited voids.
+
+### Actual result
+
+Waiter account could access operational tabs, but `Users`, `Reports`, `Inventory`, and `Settings` were hidden from navigation. Direct URL access to `/reports` and `/users` redirected back to Dashboard. No refund/reopen/discount controls were visible in POS or Orders.
+
+### Evidence observed
+
+- Header showed `ralf.roeber+skr-r3-036@sakario.sg` and role `Waiter`.
+- Waiter nav included POS, Orders, Reservations, Queue, Tables, Kitchen & beverages, Customers, Products, Catalog, Timetable and Contracts.
+- Direct manager route attempts landed at `https://staff.sakorio.com/dashboard`.
+- Orders view exposed history/current filters but no refund/reopen/discount controls.
+
+### Defects
+
+1. No explicit denial message is shown when direct manager routes redirect to Dashboard.
+2. Bill correction audit could not be fully tested because refund/reopen tools are not visible even to the owner in later cases.
+
+### Improvement notes
+
+- Add a clear `You do not have access to this page` message for redirected restricted routes.
+- Add manager-only correction workflows with reason capture and audit trail before launch.
+
+### Cleanup performed
+
+Synthetic waiter account was deleted in R3-E2E-036 cleanup.
+
+---
+
+## Result - R3-E2E-038
+
+Scenario: Reports reflect closed table/payment totals
+Run ID: `SKR-R3-20260719-E038`
+Browser/device: Desktop in-app browser
+Roles simulated: Cashier, manager
+Status: `PASS WITH WORKFLOW POLISH`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 8/10 |
+| UI/UX clarity | 7/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 8/10 |
+
+### Steps actually performed
+
+1. Opened POS at `https://staff.sakorio.com/pos?qa=r3-e2e038`.
+2. Observed T01 had a conflicting recovery state, so used T05 for a cleaner reporting test.
+3. Opened T05.
+4. Added `Coffee`.
+5. Clicked the in-drawer `Checkout`.
+6. Confirmed the payment drawer showed `Amount due SGD 2.50`.
+7. Selected/used terminal settlement with `Charge terminal - SGD 2.50`.
+8. POS returned to table grid with `Card terminal payment recorded for T05`.
+9. Opened Orders and confirmed #75 existed first as current until table cleanup.
+10. Clicked visible `Clear paid`.
+11. Reopened Orders and confirmed #75 moved to Order History.
+12. Opened Reports and checked daily totals/table totals.
+
+### Expected result
+
+After payment and close-table/clear-table action, the paid order should appear in History and reporting totals should reflect the bill exactly.
+
+### Actual result
+
+Payment and reporting worked. POS paid-today total increased from `SGD 106.50` to `SGD 109.00`. Reports showed `19 Jul SGD 109.00`, Terminal revenue included the payment, and T05 table revenue/order count increased. Orders only moved the ticket from Active to History after pressing `Clear paid`.
+
+### Evidence observed
+
+- Order created: `#75`
+- Table: `T05`
+- Item: `1x Coffee`
+- Amount: `SGD 2.50`
+- Payment method: Terminal
+- POS paid today after payment: `SGD 109.00`
+- Orders History showed `#75 T05 1x Coffee SGD 2.50 Paid`.
+- Reports showed:
+  - Total revenue `SGD 971.00` for selected range after the run.
+  - Daily sales `19 Jul SGD 109.00`.
+  - T05 table row included updated table revenue.
+
+### Defects
+
+1. T01 recovery showed an old pending ticket while the POS KPI said `OPEN BILLS 0`; that is a table-state inconsistency.
+2. Two `Checkout` buttons share the same accessible label when a cart is active.
+3. Orders calls a paid-but-not-cleared ticket `current`, which can confuse staff until `Clear paid` is pressed.
+
+### Improvement notes
+
+- Make paid-not-cleared state visually distinct: `Paid - awaiting table clear`.
+- Rename the top mini-action to `Go to bill` or add accessible labels so it does not duplicate the cart submit button.
+- Add an explicit post-payment prompt: `Clear table now` / `Keep occupied`.
+
+### Cleanup performed
+
+T05 was cleared after payment; #75 remains in History as expected.
+
+---
+
+## Result - R3-E2E-039
+
+Scenario: Customer and cashier submit orders close together without duplicates
+Run ID: `SKR-R3-20260719-E039`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, cashier
+Status: `BLOCKED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 4/10 |
+| UI/UX clarity | 4/10 |
+| Workflow speed | 4/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 4/10 |
+
+### Steps actually performed
+
+1. Opened POS at `https://staff.sakorio.com/pos?qa=r3-e2e039`.
+2. Opened T02 using `Start order`.
+3. Clicked `Open customer QR`.
+4. Checked browser tab count, current URL, page text, and clipboard value.
+
+### Expected result
+
+Staff should be able to open/copy the active QR URL, customer should prepare a QR order, staff should submit an order on the same table, customer should submit, and both tickets should appear once on the same active session.
+
+### Actual result
+
+The QR entry point did not produce a usable customer order surface. No new tab opened, no URL changed, no modal appeared, and the clipboard remained empty.
+
+### Evidence observed
+
+- Before click URL: `https://staff.sakorio.com/pos?qa=r3-e2e039&tableId=2`
+- After click URL: unchanged.
+- Browser tab count: unchanged at 1.
+- Clipboard: empty.
+- Button still displayed `Open customer QR`.
+
+### Defects
+
+1. Active QR handoff is unavailable from POS.
+2. Concurrency between QR/customer and cashier orders cannot be tested until QR handoff is fixed.
+
+### Improvement notes
+
+- Make `Open customer QR` either open a QR modal, open a customer tab, or copy the URL with a visible success message.
+- Add test IDs/accessibility labels for QR controls.
+
+### Cleanup performed
+
+No order was submitted in this case.
+
+---
+
+## Result - R3-E2E-040
+
+Scenario: End-to-end service cycle twice on same table
+Run ID: `SKR-R3-20260719-E040`
+Browser/device: Desktop in-app browser
+Roles simulated: Cashier, kitchen/order reviewer
+Status: `PASS WITH QR COVERAGE GAP`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 8/10 |
+| UI/UX clarity | 7/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 8/10 |
+
+### Steps actually performed
+
+1. Ran staff-side cycle A on T08:
+   - Opened table.
+   - Added `Coffee`.
+   - Checked out.
+   - Paid by terminal.
+   - Cleared the table.
+2. Ran staff-side cycle B on T08:
+   - Opened the same table again.
+   - Added `Coca Cola`.
+   - Checked out.
+   - Paid by terminal.
+   - Cleared the table.
+3. Opened Orders History to compare the two tickets.
+4. Reopened POS to confirm T08 returned to available/ready state.
+
+### Expected result
+
+Two separate service cycles on the same table should create separate history records, and the second customer/session should not inherit the first customer/session's active bill.
+
+### Actual result
+
+Staff-side order/pay/clear cycle worked twice. Orders History showed two distinct paid tickets for T08: #76 and #77. T08 returned to `Available / Ready for order`.
+
+### Evidence observed
+
+- Cycle A order: `#76`, T08, `1x Coffee`, `SGD 2.50`, Paid, Terminal.
+- Cycle B order: `#77`, T08, `1x Coca Cola`, `SGD 3.00`, Paid, Terminal.
+- Orders History showed both records separately.
+- POS table grid later showed T08 as `Available` and `Ready for order`.
+- POS paid today increased to `SGD 114.50` after both cycles.
+
+### Defects
+
+1. QR side of the scenario could not be tested because active QR handoff is blocked.
+2. Product/history controls share names such as `Coca Cola`; the browser saw both a history row and product card with similar accessible labels.
+3. Paid table cleanup is a second step and needs stronger prompting.
+
+### Improvement notes
+
+- Add accessible names such as `Add Coca Cola to cart` and `Open order #69 receipt`.
+- After terminal payment, surface `Clear table now` as the primary next action.
+- Retest full QR privacy/session boundary once QR handoff is fixed.
+
+### Cleanup performed
+
+T08 was cleared after both cycles; #76 and #77 remain in History.
+
+---
+
+## Result - R3-E2E-041
+
+Scenario: Customer abandons HitPay checkout and returns later
+Run ID: `SKR-R3-20260719-E041`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, cashier
+Status: `BLOCKED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 4/10 |
+| UI/UX clarity | 4/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 4/10 |
+
+### Steps actually performed
+
+1. Confirmed POS `Open customer QR` did not expose an active QR URL in R3-E2E-039.
+2. Opened a previously known customer QR URL on `order.sakorio.com` in a new browser tab.
+3. Checked whether the QR session still had an active bill or payment path.
+
+### Expected result
+
+Customer should open an active QR bill, enter HitPay checkout, abandon payment, return later, and see the same unpaid recoverable bill without false payment status.
+
+### Actual result
+
+The known QR URL displayed `Table Closed` and no controls. No active QR payment path could be reached.
+
+### Evidence observed
+
+- QR URL opened on `https://order.sakorio.com/menu/...`.
+- Page showed:
+  - `Table Closed`
+  - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+  - `T04`
+- No buttons or payment controls were visible.
+
+### Defects
+
+1. Cannot start an active QR payment-abandonment scenario because staff cannot expose active QR.
+2. HitPay abandonment/retry behavior remains unverified for launch.
+
+### Improvement notes
+
+- Fix active QR URL handoff first.
+- Add a clear QR bill recovery page with `Unpaid`, `Retry payment`, and `Ask staff` states.
+
+### Cleanup performed
+
+No new order or payment was created.
+
+---
+
+## Result - R3-E2E-042
+
+Scenario: HitPay success callback opened twice
+Run ID: `SKR-R3-20260719-E042`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, cashier
+Status: `BLOCKED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | N/A |
+| UI/UX clarity | N/A |
+| Workflow speed | N/A |
+| Layout/stability | N/A |
+| Launch readiness | 4/10 |
+
+### Steps actually performed
+
+1. Attempted to establish an active QR/HitPay checkout path through POS QR handoff.
+2. Checked known QR URL from earlier QA.
+3. Did not force or replay stale payment callback URLs because the scenario needs a fresh sandbox payment reference tied to a current bill.
+
+### Expected result
+
+Refreshing or reopening a HitPay success callback should record payment once only and must not duplicate settlements, receipts, closes, or history rows.
+
+### Actual result
+
+Could not execute due to unavailable active QR/HitPay path.
+
+### Evidence observed
+
+- POS QR handoff produced no customer link.
+- Known QR URL was closed.
+- Staff POS payment drawer exposes Staff Cash and Terminal only; no staff HitPay button was visible in the tested drawer.
+
+### Defects
+
+1. HitPay idempotency remains unverified from the browser.
+2. Need a deterministic sandbox path to generate a fresh payment and replay the callback.
+
+### Improvement notes
+
+- Add a browser-testable HitPay sandbox scenario with visible test payment status.
+- Display payment reference in staff order detail/history for easier reconciliation.
+
+### Cleanup performed
+
+No new order or payment was created.
+
+---
+
+## Result - R3-E2E-043
+
+Scenario: Terminal payment marked failed then retried
+Run ID: `SKR-R3-20260719-E043`
+Browser/device: Desktop in-app browser
+Roles simulated: Cashier
+Status: `NEEDS SPECIFICATION`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 6/10 |
+| UI/UX clarity | 6/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 6/10 |
+
+### Steps actually performed
+
+1. Opened POS at `https://staff.sakorio.com/pos?qa=r3-e2e043`.
+2. Opened T07.
+3. Added `Coffee`.
+4. Opened checkout.
+5. Inspected terminal payment controls for cancel/fail/retry options.
+6. Completed the order with `Charge terminal - SGD 2.50` to avoid leaving an unpaid test bill.
+7. Cleared T07.
+
+### Expected result
+
+If terminal failure/cancel is supported, cashier should be able to mark/cancel a failed attempt without marking the bill paid, then retry cleanly.
+
+### Actual result
+
+No terminal failure or cancel path was visible. The terminal flow is currently a direct success action: pressing `Charge terminal` records payment immediately.
+
+### Evidence observed
+
+- Payment drawer showed:
+  - `STAFF CASH`
+  - `TERMINAL`
+  - `Charge terminal - SGD 2.50`
+- No `Failed`, `Cancel`, `Retry`, `Pending terminal`, or device response state was visible.
+- POS showed `Card terminal payment recorded for T07.`
+- POS paid today increased to `SGD 117.00`.
+
+### Defects
+
+1. Terminal payment model is currently a manual success confirmation, not a full terminal state machine.
+2. No way to record failed/cancelled terminal attempts.
+
+### Improvement notes
+
+- Decide whether terminal means manual staff confirmation or integrated device workflow.
+- If integrated later, add states: `Waiting`, `Approved`, `Declined`, `Cancelled`, `Retry`.
+- If manual-only, label button `Mark terminal payment received` to avoid implying device confirmation.
+
+### Cleanup performed
+
+T07 was paid and cleared; generated order remains in History.
+
+---
+
+## Result - R3-E2E-044
+
+Scenario: Partial payment or split tender decision
+Run ID: `SKR-R3-20260719-E044`
+Browser/device: Desktop in-app browser
+Roles simulated: Cashier, manager
+Status: `PASS AS UNSUPPORTED POLICY`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 8/10 |
+| UI/UX clarity | 7/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 7/10 |
+
+### Steps actually performed
+
+1. Opened POS at `https://staff.sakorio.com/pos?qa=r3-e2e044`.
+2. Opened T09.
+3. Added `Coffee`.
+4. Added `Coca Cola`.
+5. Opened checkout.
+6. Inspected payment drawer for split/partial tender controls.
+7. Completed full payment by terminal.
+8. Cleared T09.
+
+### Expected result
+
+If partial/split tender is supported, the UI should show amount-entry and balance math clearly. If unsupported, the UI should not imply partial payment exists.
+
+### Actual result
+
+No partial payment or split tender controls were visible. The drawer clearly offered full-bill settlement only through Staff Cash or Terminal.
+
+### Evidence observed
+
+- Amount due: `SGD 5.50`.
+- Bill contents: `2 items · T09`.
+- Controls visible:
+  - `STAFF CASH`
+  - `TERMINAL`
+  - `Charge terminal - SGD 5.50`
+- No amount entry, balance due, split by person/item, or mixed tender UI appeared.
+- POS paid today increased to `SGD 122.50`.
+
+### Defects
+
+1. No explicit note says split/partial payment is unsupported.
+2. Staff Cash remains visible in staff POS; if business policy wants cash removed everywhere, this needs change.
+
+### Improvement notes
+
+- Add a small policy note: `Split tender not supported yet` if not in launch scope.
+- If split tender is planned, defer behind a manager-controlled workflow with balance math and receipt split.
+
+### Cleanup performed
+
+T09 was paid and cleared; generated order remains in History.
+
+---
+
+## Result - R3-E2E-045
+
+Scenario: Refund or reverse paid bill
+Run ID: `SKR-R3-20260719-E045`
+Browser/device: Desktop in-app browser
+Roles simulated: Manager, cashier
+Status: `NOT IMPLEMENTED / NOT VISIBLE`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 5/10 |
+| UI/UX clarity | 6/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 5/10 |
+
+### Steps actually performed
+
+1. Opened Orders at `https://staff.sakorio.com/staff/orders?qa=r3-e2e045`.
+2. Reviewed paid Order History after the newly created paid bills.
+3. Looked for refund/reversal/void/reopen controls.
+4. Attempted to open a paid history row for details.
+5. Inspected visible row-level controls.
+
+### Expected result
+
+Paid bill refund/reversal should be manager-controlled, reasoned, auditable, mathematically correct, and should not reopen the table unintentionally.
+
+### Actual result
+
+No refund/reversal/reopen workflow was visible from Orders History. Paid history rows are shown in a table and expose invoice printing, but not correction actions.
+
+### Evidence observed
+
+- History showed newest paid orders including:
+  - `#79 T09 1x Coffee, 1x Coca Cola SGD 5.50 Paid`
+  - `#78 T07 1x Coffee SGD 2.50 Paid`
+  - `#77 T08 1x Coca Cola SGD 3.00 Paid`
+  - `#76 T08 1x Coffee SGD 2.50 Paid`
+  - `#75 T05 1x Coffee SGD 2.50 Paid`
+- Visible controls included `Order History`, `Not Paid Yet`, and many `Print invoice` buttons.
+- No `Refund`, `Reverse`, `Reopen`, `Void payment`, or manager approval action appeared.
+
+### Defects
+
+1. Refund/reversal workflow appears absent from the live UI.
+2. Paid history rows are not clearly openable for detail/audit review.
+3. Invoice printing is available, but financial correction controls are not discoverable.
+
+### Improvement notes
+
+- Add manager-only `Refund / reverse payment` with mandatory reason.
+- Add detail drawer for paid orders with payment method, reference, original cashier, correction history, and receipt actions.
+- Require explicit confirmation that refund does not reopen the table.
+
+### Cleanup performed
+
+No refund or reversal was performed.

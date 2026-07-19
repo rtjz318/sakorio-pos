@@ -132,7 +132,7 @@ These must be checked repeatedly:
 To keep the next QA pass manageable, execute in batches:
 
 1. Batch A: E2E-101 to E2E-115 — reservation and queue lifecycle.
-2. Batch B: E2E-116 to E2E-138 — tables, POS, orders, payment truth.
+2. Batch B: E2E-116 to E2E-130 — tables, POS, orders, payment truth.
 3. Batch C: E2E-131 to E2E-143 — POS edge cases, QR, HitPay sandbox, kitchen/beverage.
 4. Batch D: E2E-144 to E2E-150 — timetable, users, settings, reports, resilience.
 

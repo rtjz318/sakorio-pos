@@ -6890,6 +6890,132 @@ def list_schedule(
     return [_shift_to_dict(s, user_map.get(s.user_id, ("", ""))[0], user_map.get(s.user_id, ("", ""))[1]) for s in shifts]
 
 
+def _parse_schedule_date(value: str, field_name: str) -> date:
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}; use YYYY-MM-DD")
+
+
+def _leave_record_to_dict(record: models.StaffLeaveRecord, user: models.User | None = None) -> dict:
+    return {
+        "id": record.id,
+        "tenant_id": record.tenant_id,
+        "user_id": record.user_id,
+        "user_name": (user.full_name or user.email) if user else "",
+        "user_role": user.role.value if user and user.role else "",
+        "kind": record.kind,
+        "date_from": record.date_from.isoformat(),
+        "date_to": record.date_to.isoformat(),
+        "days": record.days,
+        "status": record.status,
+        "notes": record.notes,
+        "created_by_user_id": record.created_by_user_id,
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+    }
+
+
+@app.get("/schedule/leave-records")
+def list_schedule_leave_records(
+    current_user: Annotated[models.User, Depends(require_permission(Permission.SCHEDULE_READ))],
+    session: Session = Depends(get_session),
+    from_date: str = Query(..., description="Start date YYYY-MM-DD"),
+    to_date: str = Query(..., description="End date YYYY-MM-DD"),
+) -> list[dict]:
+    """List annual leave / MC records that overlap the selected Timetable range."""
+    if current_user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="Tenant required")
+    fd = _parse_schedule_date(from_date, "from_date")
+    td = _parse_schedule_date(to_date, "to_date")
+    if fd > td:
+        raise HTTPException(status_code=400, detail="from_date must be <= to_date")
+    if (td - fd).days > 366:
+        raise HTTPException(status_code=400, detail="Date range is too large")
+    records = session.exec(
+        select(models.StaffLeaveRecord)
+        .where(models.StaffLeaveRecord.tenant_id == current_user.tenant_id)
+        .where(models.StaffLeaveRecord.date_from <= td)
+        .where(models.StaffLeaveRecord.date_to >= fd)
+        .order_by(models.StaffLeaveRecord.date_from.asc(), models.StaffLeaveRecord.id.asc())
+    ).all()
+    user_ids = {r.user_id for r in records}
+    users = session.exec(select(models.User).where(models.User.id.in_(user_ids))).all() if user_ids else []
+    user_map = {u.id: u for u in users if u.id is not None}
+    return [_leave_record_to_dict(record, user_map.get(record.user_id)) for record in records]
+
+
+@app.post("/schedule/leave-records")
+def create_schedule_leave_record(
+    body: models.StaffLeaveRecordCreate,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.SCHEDULE_WRITE))],
+    session: Session = Depends(get_session),
+) -> dict:
+    """Create a simple approved leave/MC ledger row for Timetable planning."""
+    if current_user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="Tenant required")
+    if not can_manage_all_schedules(current_user):
+        raise HTTPException(status_code=403, detail="Only managers can record leave/MC entries")
+    fd = _parse_schedule_date(body.date_from, "date_from")
+    td = _parse_schedule_date(body.date_to, "date_to")
+    if fd > td:
+        raise HTTPException(status_code=400, detail="date_from must be <= date_to")
+    kind = (body.kind or "").strip().lower()
+    if kind not in {"annual_leave", "mc"}:
+        raise HTTPException(status_code=400, detail="kind must be annual_leave or mc")
+    status_value = (body.status or "approved").strip().lower()
+    if status_value not in {"approved", "pending", "rejected"}:
+        raise HTTPException(status_code=400, detail="status must be approved, pending, or rejected")
+    target = session.exec(
+        select(models.User).where(
+            models.User.id == body.user_id,
+            models.User.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+    if not target or target.role not in _SCHEDULE_PLAN_USER_ROLES:
+        raise HTTPException(status_code=400, detail="User cannot be scheduled on the working plan")
+    record = models.StaffLeaveRecord(
+        tenant_id=current_user.tenant_id,
+        user_id=target.id,
+        kind=kind,
+        date_from=fd,
+        date_to=td,
+        days=float(body.days),
+        status=status_value,
+        notes=(body.notes or "").strip() or None,
+        created_by_user_id=current_user.id,
+    )
+    session.add(record)
+    _mark_working_plan_updated(session, current_user.tenant_id)
+    session.commit()
+    session.refresh(record)
+    return _leave_record_to_dict(record, target)
+
+
+@app.delete("/schedule/leave-records/{record_id}")
+def delete_schedule_leave_record(
+    record_id: int,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.SCHEDULE_WRITE))],
+    session: Session = Depends(get_session),
+) -> dict:
+    """Delete a leave/MC ledger row. Kept simple for launch; audit table can follow with HR approvals."""
+    if current_user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="Tenant required")
+    if not can_manage_all_schedules(current_user):
+        raise HTTPException(status_code=403, detail="Only managers can delete leave/MC entries")
+    record = session.exec(
+        select(models.StaffLeaveRecord).where(
+            models.StaffLeaveRecord.id == record_id,
+            models.StaffLeaveRecord.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Leave record not found")
+    session.delete(record)
+    _mark_working_plan_updated(session, current_user.tenant_id)
+    session.commit()
+    return {"deleted": True, "id": record_id}
+
+
 _SCHEDULE_PLAN_USER_ROLES = frozenset(
     {
         models.UserRole.owner,

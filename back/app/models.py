@@ -716,6 +716,22 @@ class WorkSessionAdjustment(TenantMixin, table=True):
     new_ended_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
 
 
+class StaffLeaveRecord(TenantMixin, table=True):
+    """Simple staff leave/MC ledger row used by Timetable coverage planning."""
+
+    __tablename__ = "staff_leave_record"
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    kind: str = Field(default="annual_leave", max_length=32, index=True)
+    date_from: date = Field(sa_column=Column(Date, nullable=False))
+    date_to: date = Field(sa_column=Column(Date, nullable=False))
+    days: float = Field(default=1.0)
+    status: str = Field(default="approved", max_length=32, index=True)
+    notes: str | None = Field(default=None, max_length=500)
+    created_by_user_id: int | None = Field(default=None, foreign_key="user.id", index=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 class ReservationStatus(str, Enum):
     booked = "booked"
     seated = "seated"
@@ -1257,6 +1273,16 @@ class ShiftWeekCopy(SQLModel):
     source_week_start: str
     target_week_start: str
     skip_days_with_existing_shift: bool = True
+
+
+class StaffLeaveRecordCreate(SQLModel):
+    user_id: int
+    kind: str = Field(default="annual_leave", max_length=32)
+    date_from: str
+    date_to: str
+    days: float = Field(default=1.0, ge=0.5, le=365)
+    status: str = Field(default="approved", max_length=32)
+    notes: str | None = Field(default=None, max_length=500)
 
 
 class OrderItemCreate(SQLModel):

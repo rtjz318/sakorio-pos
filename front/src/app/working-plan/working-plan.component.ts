@@ -10,6 +10,8 @@ import {
   ShiftBulkCreate,
   PlannedVsActualRow,
   ScheduleComplianceWarning,
+  StaffLeaveKind,
+  StaffLeaveRecord,
   User,
 } from '../services/api.service';
 import { SidebarComponent } from '../shared/sidebar.component';
@@ -304,26 +306,87 @@ function isValidView(v: string | null): v is ViewMode {
             <div class="timetable-panel-head">
               <div>
                 <span class="staff-readiness-eyebrow">Leave control</span>
-                <h2>Annual leave / MC balances <span class="coming-soon-pill">Coming soon</span></h2>
-                <p>Leave/MC deduction is not active yet. Keep scheduling from this timetable; use the coverage card below for launch staffing checks.</p>
+                <h2>Annual leave / MC ledger</h2>
+                <p>Record approved annual leave or MC so managers can see deducted days while planning coverage.</p>
               </div>
             </div>
             <div class="leave-balance-grid">
-              <div class="leave-balance-card leave-balance-card--disabled">
+              <div class="leave-balance-card leave-balance-card--ready">
                 <span>Annual leave</span>
-                <strong>Ledger not enabled</strong>
-                <small>Coming soon: entitlement policy, approval flow and automatic balance deduction.</small>
+                <strong>{{ leaveDaysByKind('annual_leave') }} day(s)</strong>
+                <small>Approved/pending records in this timetable range.</small>
               </div>
-              <div class="leave-balance-card leave-balance-card--disabled">
+              <div class="leave-balance-card leave-balance-card--ready">
                 <span>MC / sick leave</span>
-                <strong>Ledger not enabled</strong>
-                <small>Coming soon: MC certificate recording and used-day deduction.</small>
+                <strong>{{ leaveDaysByKind('mc') }} day(s)</strong>
+                <small>Medical leave records in this timetable range.</small>
               </div>
               <div class="leave-balance-card leave-balance-card--ready">
                 <span>Coverage check</span>
                 <strong>{{ complianceWarnings().length ? complianceWarnings().length + ' warning(s)' : 'Clear' }}</strong>
                 <small>Uses opening-hours staffing requirements and scheduled shifts.</small>
               </div>
+            </div>
+            @if (canManageAllSchedules()) {
+              <div class="leave-form-grid">
+                <label>
+                  <span>Staff</span>
+                  <select [(ngModel)]="leaveDraftUserId">
+                    @for (u of payrollStaffUsers(); track u.id) {
+                      <option [ngValue]="u.id">{{ u.full_name || u.email }}</option>
+                    }
+                  </select>
+                </label>
+                <label>
+                  <span>Type</span>
+                  <select [(ngModel)]="leaveDraftKind">
+                    <option value="annual_leave">Annual leave</option>
+                    <option value="mc">MC / sick leave</option>
+                  </select>
+                </label>
+                <label>
+                  <span>From</span>
+                  <input type="date" [(ngModel)]="leaveDraftFrom">
+                </label>
+                <label>
+                  <span>To</span>
+                  <input type="date" [(ngModel)]="leaveDraftTo">
+                </label>
+                <label>
+                  <span>Days deducted</span>
+                  <input type="number" min="0.5" step="0.5" [(ngModel)]="leaveDraftDays">
+                </label>
+                <label class="leave-notes-field">
+                  <span>Notes</span>
+                  <input [(ngModel)]="leaveDraftNotes" placeholder="Optional note, e.g. MC submitted">
+                </label>
+              </div>
+              @if (leaveError()) {
+                <p class="leave-error">{{ leaveError() }}</p>
+              }
+              <button type="button" class="btn btn-secondary btn-sm" (click)="createLeaveRecord()" [disabled]="leaveSaving() || !payrollStaffUsers().length">
+                {{ leaveSaving() ? 'Saving...' : 'Record leave / MC' }}
+              </button>
+            }
+            <div class="leave-record-list">
+              @if (leaveRecords().length === 0) {
+                <p class="leave-empty">No leave or MC records in this timetable range.</p>
+              } @else {
+                @for (record of leaveRecords(); track record.id) {
+                  <div class="leave-record-row">
+                    <div>
+                      <strong>{{ record.user_name }}</strong>
+                      <span>{{ leaveKindLabel(record.kind) }} · {{ record.date_from }} → {{ record.date_to }} · {{ record.days }} day(s)</span>
+                      @if (record.notes) {
+                        <small>{{ record.notes }}</small>
+                      }
+                    </div>
+                    @if (canManageAllSchedules()) {
+                      <button type="button" class="btn btn-ghost btn-sm" (click)="deleteLeaveRecord(record.id)">Delete</button>
+                    }
+                  </div>
+                }
+              }
             </div>
           </article>
         </section>
@@ -931,6 +994,75 @@ function isValidView(v: string | null): v is ViewMode {
     .leave-balance-card--disabled span {
       color: #64748b;
     }
+    .leave-form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.55rem;
+      margin-top: 0.8rem;
+    }
+    .leave-form-grid label {
+      display: grid;
+      gap: 0.25rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-muted, #666);
+    }
+    .leave-form-grid input,
+    .leave-form-grid select {
+      min-height: 2.35rem;
+      border: 1px solid var(--border-color, #ddd);
+      border-radius: 10px;
+      padding: 0.45rem 0.55rem;
+      color: var(--text-color, #111827);
+      background: #fff;
+      font: inherit;
+    }
+    .leave-notes-field { grid-column: 1 / -1; }
+    .leave-error {
+      margin: 0.55rem 0;
+      color: var(--danger, #dc2626);
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+    .leave-record-list {
+      display: grid;
+      gap: 0.45rem;
+      margin-top: 0.75rem;
+    }
+    .leave-empty {
+      margin: 0;
+      padding: 0.75rem;
+      border: 1px dashed var(--border-color, #ddd);
+      border-radius: 12px;
+      color: var(--text-muted, #666);
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    .leave-record-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.65rem;
+      padding: 0.7rem 0.75rem;
+      border: 1px solid var(--border-color, #ddd);
+      border-radius: 12px;
+      background: #fff;
+    }
+    .leave-record-row > div {
+      display: grid;
+      gap: 0.15rem;
+      min-width: 0;
+    }
+    .leave-record-row strong {
+      color: var(--text-color, #111827);
+      font-size: 0.9rem;
+    }
+    .leave-record-row span,
+    .leave-record-row small {
+      color: var(--text-muted, #666);
+      font-size: 0.78rem;
+      line-height: 1.35;
+    }
     .coming-soon-pill {
       display: inline-flex;
       align-items: center;
@@ -1240,6 +1372,9 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
   /** Planned vs clocked rows for current date range (subset with activity). */
   plannedVsActualRows = signal<PlannedVsActualRow[]>([]);
   complianceWarnings = signal<ScheduleComplianceWarning[]>([]);
+  leaveRecords = signal<StaffLeaveRecord[]>([]);
+  leaveSaving = signal(false);
+  leaveError = signal<string | null>(null);
   copyWeekSaving = signal(false);
   scheduleUsers = signal<User[]>([]);
   /** Staff scope: null = all staff (planned vs clocked + optional PVA export); set = that worker for shift Excel + filtered PVA. Signal so computeds react to dropdown changes. */
@@ -1287,6 +1422,12 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
   formSplitShift = false;
   formStartTime2 = '16:00';
   formEndTime2 = '20:00';
+  leaveDraftUserId: number | null = null;
+  leaveDraftKind: StaffLeaveKind = 'annual_leave';
+  leaveDraftFrom = '';
+  leaveDraftTo = '';
+  leaveDraftDays = 1;
+  leaveDraftNotes = '';
 
   weekRange = computed(() => getWeekRange(this.weekStart()));
 
@@ -1371,6 +1512,16 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
   timetableScopeLabel = computed(() =>
     this.viewMode() === 'calendar' ? this.calendarMonthLabel() : this.weekLabel(),
   );
+
+  leaveDaysByKind(kind: StaffLeaveKind): number {
+    return this.leaveRecords()
+      .filter((record) => record.kind === kind && record.status !== 'rejected')
+      .reduce((total, record) => total + Number(record.days || 0), 0);
+  }
+
+  leaveKindLabel(kind: StaffLeaveKind | string): string {
+    return kind === 'mc' ? 'MC / sick leave' : 'Annual leave';
+  }
 
   /** Time options for bulk apply (Monday opening hours as template, or full day). */
   timeOptsForBulk(): string[] {
@@ -1573,6 +1724,9 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
     this.api.getUsersForSchedule().subscribe({
       next: (users) => {
         this.scheduleUsers.set(users);
+        if (this.leaveDraftUserId == null) {
+          this.leaveDraftUserId = users.find((u) => u.role !== 'owner' && u.role !== 'admin')?.id ?? users[0]?.id ?? null;
+        }
         if (!users.length) {
           this.exportUserId.set(null);
           return;
@@ -2112,6 +2266,14 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
     });
   }
 
+  private fetchLeaveRecords(): void {
+    const range = this.planDateRange();
+    this.api.getStaffLeaveRecords(range.from, range.to).subscribe({
+      next: (records) => this.leaveRecords.set(records),
+      error: () => this.leaveRecords.set([]),
+    });
+  }
+
   onExportUserIdSelected(value: number | null): void {
     this.exportUserId.set(value);
     this.fetchPlannedVsActual();
@@ -2120,6 +2282,8 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
   load(): void {
     this.loading.set(true);
     const range = this.planDateRange();
+    this.leaveDraftFrom ||= range.from;
+    this.leaveDraftTo ||= range.from;
     this.api.getSchedule(range.from, range.to).subscribe({
       next: (data) => {
         this.shifts.set(data);
@@ -2131,6 +2295,7 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
           });
         }
         this.fetchPlannedVsActual();
+        this.fetchLeaveRecords();
         this.api.getScheduleComplianceSummary(range.from, range.to).subscribe({
           next: (res) => this.complianceWarnings.set(res.warnings),
           error: () => this.complianceWarnings.set([]),
@@ -2140,9 +2305,62 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
         this.plannedVsActualFetchGen++;
         this.shifts.set([]);
         this.plannedVsActualRows.set([]);
+        this.leaveRecords.set([]);
         this.complianceWarnings.set([]);
         this.loading.set(false);
       },
+    });
+  }
+
+  createLeaveRecord(): void {
+    this.leaveError.set(null);
+    if (this.leaveDraftUserId == null) {
+      this.leaveError.set('Choose a staff member.');
+      return;
+    }
+    if (!this.leaveDraftFrom || !this.leaveDraftTo) {
+      this.leaveError.set('Choose the leave date range.');
+      return;
+    }
+    if (this.leaveDraftFrom > this.leaveDraftTo) {
+      this.leaveError.set('Leave start date must be before the end date.');
+      return;
+    }
+    const days = Number(this.leaveDraftDays);
+    if (!Number.isFinite(days) || days <= 0) {
+      this.leaveError.set('Enter days deducted, e.g. 1 or 0.5.');
+      return;
+    }
+    this.leaveSaving.set(true);
+    this.api.createStaffLeaveRecord({
+      user_id: this.leaveDraftUserId,
+      kind: this.leaveDraftKind,
+      date_from: this.leaveDraftFrom,
+      date_to: this.leaveDraftTo,
+      days,
+      status: 'approved',
+      notes: this.leaveDraftNotes?.trim() || null,
+    }).subscribe({
+      next: (record) => {
+        this.leaveRecords.update((records) => [...records, record].sort((a, b) => a.date_from.localeCompare(b.date_from)));
+        this.leaveDraftNotes = '';
+        this.leaveSaving.set(false);
+        this.showToast('Leave / MC record saved.', 'success');
+      },
+      error: (err) => {
+        this.leaveSaving.set(false);
+        this.leaveError.set(this.getApiErrorMessage(err));
+      },
+    });
+  }
+
+  deleteLeaveRecord(recordId: number): void {
+    this.api.deleteStaffLeaveRecord(recordId).subscribe({
+      next: () => {
+        this.leaveRecords.update((records) => records.filter((record) => record.id !== recordId));
+        this.showToast('Leave / MC record deleted.', 'success');
+      },
+      error: (err) => this.leaveError.set(this.getApiErrorMessage(err)),
     });
   }
 

@@ -251,6 +251,35 @@ export interface ShiftWeekCopyResult {
   skipped_existing_count: number;
 }
 
+export type StaffLeaveKind = 'annual_leave' | 'mc';
+export type StaffLeaveStatus = 'approved' | 'pending' | 'rejected';
+
+export interface StaffLeaveRecord {
+  id: number;
+  tenant_id: number;
+  user_id: number;
+  user_name: string;
+  user_role: string;
+  kind: StaffLeaveKind;
+  date_from: string;
+  date_to: string;
+  days: number;
+  status: StaffLeaveStatus;
+  notes?: string | null;
+  created_by_user_id?: number | null;
+  created_at?: string | null;
+}
+
+export interface StaffLeaveRecordCreate {
+  user_id: number;
+  kind: StaffLeaveKind;
+  date_from: string;
+  date_to: string;
+  days: number;
+  status?: StaffLeaveStatus;
+  notes?: string | null;
+}
+
 export interface PlannedVsActualRow {
   user_id: number;
   user_name: string;
@@ -3519,6 +3548,21 @@ export class ApiService {
   /** Copy all shifts from source week (Mon start) to target week (Mon start). */
   copyScheduleWeek(body: ShiftWeekCopy): Observable<ShiftWeekCopyResult> {
     return this.http.post<ShiftWeekCopyResult>(`${this.apiUrl}/schedule/copy-week`, body);
+  }
+
+  getStaffLeaveRecords(fromDate: string, toDate: string): Observable<StaffLeaveRecord[]> {
+    const params = new HttpParams().set('from_date', fromDate).set('to_date', toDate);
+    return this.http.get<StaffLeaveRecord[]>(`${this.apiUrl}/schedule/leave-records`, { params });
+  }
+
+  createStaffLeaveRecord(data: StaffLeaveRecordCreate): Observable<StaffLeaveRecord> {
+    return this.http.post<StaffLeaveRecord>(`${this.apiUrl}/schedule/leave-records`, data);
+  }
+
+  deleteStaffLeaveRecord(recordId: number): Observable<{ deleted: boolean; id: number }> {
+    return this.http.delete<{ deleted: boolean; id: number }>(
+      `${this.apiUrl}/schedule/leave-records/${recordId}`,
+    );
   }
 
   /** Planned shift minutes vs clocked net minutes per staff per day (UTC day for actual). */

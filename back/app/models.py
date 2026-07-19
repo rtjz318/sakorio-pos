@@ -1064,6 +1064,11 @@ class TableGroupCreate(SQLModel):
     table_ids: list[int]
 
 
+class TableMoveBill(SQLModel):
+    target_table_id: int
+    reason: str | None = Field(default=None, max_length=240)
+
+
 class ReservationCreate(SQLModel):
     customer_name: str
     customer_phone: str

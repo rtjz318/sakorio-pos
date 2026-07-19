@@ -11274,6 +11274,186 @@ def close_table(
     })
 
 
+@app.post("/tables/{table_id}/move-bill")
+@limiter.limit(
+    f"{getattr(settings, 'rate_limit_admin_per_minute', 30)}/minute",
+    key_func=_rate_limit_key_user,
+)
+def move_table_bill(
+    request: Request,
+    table_id: int,
+    body: models.TableMoveBill,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.TABLE_ACTIVATE, Permission.ORDER_READ))],
+    session: Session = Depends(get_session),
+) -> dict:
+    """
+    Move the currently open table visit to another ready table.
+
+    This is intentionally conservative: it refuses to merge two active bills so a
+    waiter cannot accidentally mix different guests' orders. Use joined-table
+    setup before seating for true combined tables.
+    """
+    source = session.exec(
+        select(models.Table).where(
+            models.Table.id == table_id,
+            models.Table.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+    target = session.exec(
+        select(models.Table).where(
+            models.Table.id == body.target_table_id,
+            models.Table.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+
+    if not source:
+        raise HTTPException(status_code=404, detail="Source table not found")
+    if not target:
+        raise HTTPException(status_code=404, detail="Target table not found")
+    if source.id == target.id:
+        raise HTTPException(status_code=400, detail="Choose a different table to move the bill.")
+    if not source.is_active:
+        raise HTTPException(status_code=400, detail="Source table has no active session to move.")
+    if source.active_order_id is None:
+        raise HTTPException(status_code=400, detail="Source table has no live bill to move.")
+    if target.is_active or target.active_order_id is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Target table already has an active session or live bill. Close or move it first.",
+        )
+
+    current_session_orders = session.exec(
+        select(models.Order).where(
+            models.Order.tenant_id == current_user.tenant_id,
+            models.Order.table_id == source.id,
+            models.Order.deleted_at.is_(None),
+        )
+    ).all()
+    orders_to_move = [
+        order for order in current_session_orders if _is_order_in_current_table_session(order, source)
+    ]
+    if not orders_to_move:
+        raise HTTPException(status_code=400, detail="No current-session orders found on the source table.")
+
+    moved_order_ids: list[int] = []
+    reason = (body.reason or "").strip()
+    actor = current_user.full_name or current_user.email or f"user#{current_user.id}"
+    move_note = f"[STAFF MOVE] Bill moved from {source.name} to {target.name} by {actor}."
+    if reason:
+        move_note = f"{move_note} Reason: {reason}"
+
+    for order in orders_to_move:
+        order.table_id = target.id
+        order.notes = f"{order.notes or ''}\n{move_note}".strip()
+        session.add(order)
+        if order.id is not None:
+            moved_order_ids.append(order.id)
+
+    seated_reservations = session.exec(
+        select(models.Reservation).where(
+            models.Reservation.tenant_id == current_user.tenant_id,
+            models.Reservation.table_id == source.id,
+            models.Reservation.status == models.ReservationStatus.seated,
+        )
+    ).all()
+    moved_reservation_ids: list[int] = []
+    for reservation in seated_reservations:
+        reservation.table_id = target.id
+        reservation.updated_at = datetime.now(timezone.utc)
+        session.add(reservation)
+        if reservation.id is not None:
+            moved_reservation_ids.append(reservation.id)
+
+    seated_queue_entries = session.exec(
+        select(models.GuestQueueEntry).where(
+            models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+            models.GuestQueueEntry.seated_table_id == source.id,
+            models.GuestQueueEntry.status == models.GuestQueueStatus.seated,
+        )
+    ).all()
+    moved_queue_entry_ids: list[int] = []
+    for queue_entry in seated_queue_entries:
+        queue_entry.seated_table_id = target.id
+        queue_entry.updated_at = datetime.now(timezone.utc)
+        session.add(queue_entry)
+        if queue_entry.id is not None:
+            moved_queue_entry_ids.append(queue_entry.id)
+
+    target.is_active = True
+    target.active_order_id = source.active_order_id
+    target.activated_at = source.activated_at or datetime.now(timezone.utc)
+    target.order_pin = None
+
+    source.is_active = False
+    source.active_order_id = None
+    source.activated_at = None
+    source.order_pin = None
+
+    session.add(source)
+    session.add(target)
+    session.commit()
+    session.refresh(source)
+    session.refresh(target)
+
+    publish_order_update(
+        tenant_id=current_user.tenant_id,
+        order_data={
+            "type": "table_bill_moved",
+            "from_table_id": source.id,
+            "from_table_name": source.name,
+            "to_table_id": target.id,
+            "to_table_name": target.name,
+            "order_ids": moved_order_ids,
+        },
+        table_id=source.id,
+    )
+    publish_order_update(
+        tenant_id=current_user.tenant_id,
+        order_data={
+            "type": "table_bill_moved",
+            "from_table_id": source.id,
+            "from_table_name": source.name,
+            "to_table_id": target.id,
+            "to_table_name": target.name,
+            "order_ids": moved_order_ids,
+        },
+        table_id=target.id,
+    )
+
+    for rid in moved_reservation_ids:
+        reservation = session.get(models.Reservation, rid)
+        if reservation:
+            publish_reservation_update(
+                current_user.tenant_id,
+                {
+                    "type": "reservation_table_moved",
+                    "reservation": _reservation_to_dict(reservation, session, include_client_tech=True),
+                },
+            )
+
+    for qid in moved_queue_entry_ids:
+        queue_entry = session.get(models.GuestQueueEntry, qid)
+        if queue_entry:
+            publish_queue_update(
+                current_user.tenant_id,
+                {"type": "queue_table_moved", "queue_entry": _queue_entry_to_dict(queue_entry, session)},
+            )
+
+    return JSONResponse(
+        content={
+            "status": "moved",
+            "from_table_id": source.id,
+            "from_table_name": source.name,
+            "to_table_id": target.id,
+            "to_table_name": target.name,
+            "active_order_id": target.active_order_id,
+            "moved_order_ids": moved_order_ids,
+            "moved_reservation_ids": moved_reservation_ids,
+            "moved_queue_entry_ids": moved_queue_entry_ids,
+        }
+    )
+
+
 @app.put("/tables/{table_id}/assign-waiter")
 @limiter.limit(
     f"{getattr(settings, 'rate_limit_admin_per_minute', 30)}/minute",

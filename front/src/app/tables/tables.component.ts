@@ -836,6 +836,9 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                 <button type="button" [class.active]="quickOrderView() === 'history'" (click)="quickOrderView.set('history')">
                   History <span>{{ quickHistoryOrders().length }}</span>
                 </button>
+                <button type="button" [class.active]="quickOrderView() === 'move'" (click)="quickOrderView.set('move')">
+                  Move bill
+                </button>
                 <button type="button" [class.active]="quickOrderView() === 'qr'" (click)="quickOrderView.set('qr')">Table QR</button>
               </nav>
 
@@ -1003,6 +1006,48 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                         </article>
                       }
                     </div>
+                  }
+                </div>
+              } @else if (quickOrderView() === 'move') {
+                <div class="quick-move-view">
+                  <div class="quick-orders-heading">
+                    <div>
+                      <span>Move active bill</span>
+                      <h3>Transfer {{ serviceTable.name }} to another table</h3>
+                    </div>
+                  </div>
+
+                  @if (!serviceTable.is_active || !serviceTable.active_order_id) {
+                    <div class="quick-empty">There is no live bill on this table yet. Add items first, or open the table for QR ordering.</div>
+                  } @else if (quickMoveTargetTables().length === 0) {
+                    <div class="quick-empty">No ready destination tables are available. Close or settle another table before moving this bill.</div>
+                  } @else {
+                    <section class="quick-move-panel">
+                      <div class="quick-move-summary">
+                        <span>Moving from</span>
+                        <strong>{{ serviceTable.name }}</strong>
+                        <small>Current orders: {{ quickCurrentSessionOrders().length }} · Live bill #{{ serviceTable.active_order_id }}</small>
+                      </div>
+
+                      <label class="quick-move-field">
+                        <span>Move to ready table</span>
+                        <select [ngModel]="quickMoveTargetTableId()" (ngModelChange)="quickMoveTargetTableId.set($event)">
+                          @for (target of quickMoveTargetTables(); track target.id) {
+                            <option [ngValue]="target.id">{{ target.name }} · {{ target.seat_count || 0 }} seats · {{ getFloorName(target.floor_id) }}</option>
+                          }
+                        </select>
+                      </label>
+
+                      <label class="quick-move-field">
+                        <span>Reason / note</span>
+                        <textarea rows="3" [ngModel]="quickMoveReason()" (ngModelChange)="quickMoveReason.set($event)" placeholder="Example: guest requested window table"></textarea>
+                      </label>
+
+                      <button type="button" class="quick-submit" (click)="moveQuickBill()" [disabled]="quickMovingBill() || !quickMoveTargetTableId()">
+                        {{ quickMovingBill() ? 'Moving bill…' : 'Move bill now' }}
+                      </button>
+                      <p class="quick-move-help">This keeps the same customer session and current orders, clears {{ serviceTable.name }}, and opens the destination table.</p>
+                    </section>
                   }
                 </div>
               } @else {
@@ -2136,6 +2181,49 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     .quick-order-items b { color: #25312b; }
     .quick-order-total { padding-top: 0.75rem; border-top: 1px solid #edf0ed; }
     .quick-order-total span { color: #6b766f; text-transform: capitalize; }
+    .quick-move-view { flex: 1; overflow: auto; padding: 1.25rem 1.5rem 1.5rem; }
+    .quick-move-panel {
+      width: min(620px, 100%);
+      display: grid;
+      gap: 1rem;
+      padding: 1.1rem;
+      border: 1px solid #dfe4df;
+      border-radius: 18px;
+      background: #fff;
+      box-shadow: 0 12px 32px rgba(30, 45, 38, 0.06);
+    }
+    .quick-move-summary {
+      display: grid;
+      gap: 0.25rem;
+      padding: 0.95rem;
+      border-radius: 14px;
+      background: #f3f6f2;
+      color: #55635b;
+    }
+    .quick-move-summary span,
+    .quick-move-field span {
+      font-size: 0.72rem;
+      font-weight: 850;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #c84f2f;
+    }
+    .quick-move-summary strong { color: #203027; font-size: 1.35rem; }
+    .quick-move-summary small,
+    .quick-move-help { color: #65716a; line-height: 1.45; }
+    .quick-move-field { display: grid; gap: 0.45rem; }
+    .quick-move-field select,
+    .quick-move-field textarea {
+      width: 100%;
+      padding: 0.8rem 0.9rem;
+      border: 1px solid #dce1dc;
+      border-radius: 12px;
+      background: #fff;
+      color: #223029;
+      font: inherit;
+    }
+    .quick-move-field textarea { resize: vertical; }
+    .quick-move-help { margin: 0; font-size: 0.86rem; }
     .quick-qr-view { flex: 1; overflow: auto; display: grid; place-content: center; justify-items: center; padding: 1.5rem; text-align: center; }
     .quick-qr-view h3 { margin-top: 0.25rem; font-size: 2rem; }
     .quick-qr-view > p { max-width: 540px; color: #65716a; }
@@ -2240,11 +2328,14 @@ export class TablesComponent implements OnInit {
   queueSummary = signal<GuestQueueSummary | null>(null);
   queueEntries = signal<GuestQueueEntry[]>([]);
   quickOrderTable = signal<CanvasTable | null>(null);
-  quickOrderView = signal<'menu' | 'orders' | 'history' | 'qr'>('menu');
+  quickOrderView = signal<'menu' | 'orders' | 'history' | 'move' | 'qr'>('menu');
   quickOrderProducts = signal<Product[]>([]);
   quickTableOrders = signal<Order[]>([]);
   quickOrderLoading = signal(false);
   quickOrderSubmitting = signal(false);
+  quickMovingBill = signal(false);
+  quickMoveTargetTableId = signal<number | null>(null);
+  quickMoveReason = signal('');
   quickOrderSearch = signal('');
   quickOrderCategory = signal('All items');
   quickOrderCart = signal<QuickOrderLine[]>([]);
@@ -2291,6 +2382,18 @@ export class TablesComponent implements OnInit {
   quickHistoryOrders = computed(() => {
     const currentIds = new Set(this.quickCurrentSessionOrders().map((order) => order.id));
     return this.quickTableOrders().filter((order) => !currentIds.has(order.id));
+  });
+  quickMoveTargetTables = computed(() => {
+    const current = this.quickOrderTable();
+    if (!current?.id) return [];
+    return this.tables()
+      .filter((table) => table.id != null && table.id !== current.id)
+      .filter((table) => !table.is_active && table.active_order_id == null)
+      .sort((a, b) => {
+        const floorCompare = this.getFloorName(a.floor_id).localeCompare(this.getFloorName(b.floor_id));
+        if (floorCompare !== 0) return floorCompare;
+        return (a.name || '').localeCompare(b.name || '');
+      });
   });
 
   // Confirmation Modal State
@@ -2547,13 +2650,15 @@ export class TablesComponent implements OnInit {
     return this.permissions.canAccessRoute(this.api.getCurrentUser(), '/staff/orders');
   }
 
-  openQuickTable(table: CanvasTable, view: 'menu' | 'orders' | 'history' | 'qr' = 'menu'): void {
+  openQuickTable(table: CanvasTable, view: 'menu' | 'orders' | 'history' | 'move' | 'qr' = 'menu'): void {
     if (!table.id) return;
     this.quickOrderTable.set(table);
     this.quickOrderView.set(view);
     this.quickOrderSearch.set('');
     this.quickOrderCategory.set('All items');
     this.quickOrderCart.set([]);
+    this.quickMoveReason.set('');
+    this.quickMoveTargetTableId.set(this.quickMoveTargetTables()[0]?.id ?? null);
     this.quickOrderError.set('');
     this.quickOrderSuccess.set('');
     this.loadQuickTableData(table.id);
@@ -2563,6 +2668,8 @@ export class TablesComponent implements OnInit {
     if (this.quickOrderSubmitting()) return;
     this.quickOrderTable.set(null);
     this.quickOrderCart.set([]);
+    this.quickMoveTargetTableId.set(null);
+    this.quickMoveReason.set('');
     this.quickOrderError.set('');
     this.quickOrderSuccess.set('');
     this.cancelQuickCustomization();
@@ -2803,6 +2910,64 @@ export class TablesComponent implements OnInit {
       error: (err) => {
         this.quickOrderSubmitting.set(false);
         this.quickOrderError.set(this.apiErr.fromHttpError(err, 'Could not open this table for ordering.'));
+      },
+    });
+  }
+
+  moveQuickBill(): void {
+    const source = this.quickOrderTable();
+    if (!source?.id) return;
+    const sourceId = source.id;
+    const targetId = this.quickMoveTargetTableId();
+    if (!targetId || this.quickMovingBill()) return;
+
+    const target = this.tables().find((table) => table.id === targetId);
+    if (!target) {
+      this.quickOrderError.set('Choose a valid destination table.');
+      return;
+    }
+
+    this.quickMovingBill.set(true);
+    this.quickOrderError.set('');
+    this.quickOrderSuccess.set('');
+    this.api.moveTableBill(sourceId, targetId, this.quickMoveReason()).subscribe({
+      next: (response) => {
+        const movedTarget: CanvasTable = {
+          ...target,
+          is_active: true,
+          active_order_id: response.active_order_id,
+          activated_at: source.activated_at || new Date().toISOString(),
+          operational_status: 'open_order',
+          payment_status: 'pending',
+          status: 'occupied',
+        };
+        const clearedSource: CanvasTable = {
+          ...source,
+          is_active: false,
+          active_order_id: null,
+          activated_at: null,
+          order_pin: null,
+          operational_status: source.upcoming_reservation ? 'reserved' : 'available',
+          payment_status: 'none',
+          status: source.upcoming_reservation ? 'reserved' : 'available',
+          seated_reservation: null,
+        };
+        this.tables.update((tables) => tables.map((table) => {
+          if (table.id === sourceId) return clearedSource;
+          if (table.id === targetId) return movedTarget;
+          return table;
+        }));
+        this.quickOrderTable.set(movedTarget);
+        this.quickMoveReason.set('');
+        this.quickMoveTargetTableId.set(this.quickMoveTargetTables()[0]?.id ?? null);
+        this.quickMovingBill.set(false);
+        this.quickOrderSuccess.set(`Bill moved from ${response.from_table_name} to ${response.to_table_name}.`);
+        this.quickOrderView.set('orders');
+        this.loadQuickTableData(targetId);
+      },
+      error: (err) => {
+        this.quickMovingBill.set(false);
+        this.quickOrderError.set(this.apiErr.fromHttpError(err, 'Could not move this bill. Choose a ready table and try again.'));
       },
     });
   }

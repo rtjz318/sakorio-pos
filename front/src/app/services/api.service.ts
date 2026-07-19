@@ -2358,6 +2358,32 @@ export class ApiService {
     return this.http.post<TableCloseResponse>(`${this.apiUrl}/tables/${tableId}/close`, {});
   }
 
+  moveTableBill(
+    sourceTableId: number,
+    targetTableId: number,
+    reason?: string,
+  ): Observable<{
+    status: string;
+    from_table_id: number;
+    from_table_name: string;
+    to_table_id: number;
+    to_table_name: string;
+    active_order_id: number | null;
+    moved_order_ids: number[];
+  }> {
+    const body: { target_table_id: number; reason?: string } = { target_table_id: targetTableId };
+    if (reason?.trim()) body.reason = reason.trim();
+    return this.http.post<{
+      status: string;
+      from_table_id: number;
+      from_table_name: string;
+      to_table_id: number;
+      to_table_name: string;
+      active_order_id: number | null;
+      moved_order_ids: number[];
+    }>(`${this.apiUrl}/tables/${sourceTableId}/move-bill`, body);
+  }
+
   assignWaiterToTable(tableId: number, waiterId: number | null): Observable<any> {
     return this.http.put(`${this.apiUrl}/tables/${tableId}/assign-waiter`, { waiter_id: waiterId });
   }

@@ -41,6 +41,14 @@ type PendingQueueStatusChange = {
   confirmLabel: string;
 };
 
+type QueueSortMode =
+  | 'priority'
+  | 'longest_wait'
+  | 'shortest_wait'
+  | 'party_desc'
+  | 'party_asc'
+  | 'newest';
+
 @Component({
   selector: 'app-queue',
   standalone: true,
@@ -357,6 +365,17 @@ type PendingQueueStatusChange = {
                 <option value="normal">Fresh queue</option>
               </select>
             </label>
+            <label>
+              <span>Sort board</span>
+              <select [(ngModel)]="queueSortMode" (ngModelChange)="syncSelectionWithVisibleBoard()">
+                <option value="priority">Priority: action first</option>
+                <option value="longest_wait">Longest wait first</option>
+                <option value="shortest_wait">Shortest wait first</option>
+                <option value="party_desc">Party size: largest first</option>
+                <option value="party_asc">Party size: smallest first</option>
+                <option value="newest">Newest first</option>
+              </select>
+            </label>
           </div>
 
           <div class="board-summary">
@@ -364,6 +383,7 @@ type PendingQueueStatusChange = {
               <span class="chip">{{ getEntriesForStatus('waiting').length }} waiting</span>
               <span class="chip">{{ getEntriesForStatus('notified').length }} notified</span>
               <span class="chip">{{ getEntriesForStatus('seated').length }} seated</span>
+              <span class="chip chip--good">Sorted: {{ queueSortLabel() }}</span>
               <span class="chip chip--warn">{{ actionNowCount() }} action now</span>
               <span class="chip">{{ visibleReservationLinkedCount() }} reservation-linked</span>
               @if (boardFilterActive()) {
@@ -1715,6 +1735,7 @@ export class QueueComponent implements OnInit {
     | 'reservation_linked' = 'all';
   queueFloorFilter = '';
   queueUrgencyFilter: 'all' | 'normal' | 'warn' | 'danger' = 'all';
+  queueSortMode: QueueSortMode = 'priority';
 
   preferredFloorDraft = '';
   draft: GuestQueueCreate = this.emptyDraft();
@@ -1996,7 +2017,7 @@ export class QueueComponent implements OnInit {
   getEntriesForStatus(status: GuestQueueStatus): GuestQueueEntry[] {
     return this.filteredBoardEntries()
       .filter((entry) => entry.status === status)
-      .sort((a, b) => this.queueLaneSortScore(b) - this.queueLaneSortScore(a) || this.queueSortTime(a) - this.queueSortTime(b));
+      .sort((a, b) => this.compareQueueEntries(a, b));
   }
 
   clearBoardFilters(): void {
@@ -2005,6 +2026,23 @@ export class QueueComponent implements OnInit {
     this.queueFloorFilter = '';
     this.queueUrgencyFilter = 'all';
     this.syncSelectionWithVisibleBoard();
+  }
+
+  queueSortLabel(): string {
+    switch (this.queueSortMode) {
+      case 'longest_wait':
+        return 'Longest wait';
+      case 'shortest_wait':
+        return 'Shortest wait';
+      case 'party_desc':
+        return 'Largest party';
+      case 'party_asc':
+        return 'Smallest party';
+      case 'newest':
+        return 'Newest';
+      default:
+        return 'Priority';
+    }
   }
 
   summaryCount(status: GuestQueueStatus): number {
@@ -2050,7 +2088,7 @@ export class QueueComponent implements OnInit {
     if (status === 'seated') {
       return lead.seated_table_name ? `On ${lead.seated_table_name}` : 'Already seated';
     }
-    return this.queuePriorityLabel(lead) ?? 'Newest first';
+    return this.queuePriorityLabel(lead) ?? this.queueSortLabel();
   }
 
   laneLeadTone(status: GuestQueueStatus): 'normal' | 'warn' | 'danger' {
@@ -2656,6 +2694,28 @@ export class QueueComponent implements OnInit {
       entry.arrived_at ||
       entry.requested_at;
     return this.queueTimestamp(value) ?? 0;
+  }
+
+  private compareQueueEntries(a: GuestQueueEntry, b: GuestQueueEntry): number {
+    const aTime = this.queueSortTime(a);
+    const bTime = this.queueSortTime(b);
+    const aParty = Number(a.party_size || 0);
+    const bParty = Number(b.party_size || 0);
+    const byName = (a.customer_name || '').localeCompare(b.customer_name || '');
+    switch (this.queueSortMode) {
+      case 'longest_wait':
+        return aTime - bTime || bParty - aParty || byName;
+      case 'shortest_wait':
+        return bTime - aTime || bParty - aParty || byName;
+      case 'party_desc':
+        return bParty - aParty || aTime - bTime || byName;
+      case 'party_asc':
+        return aParty - bParty || aTime - bTime || byName;
+      case 'newest':
+        return bTime - aTime || bParty - aParty || byName;
+      default:
+        return this.queueLaneSortScore(b) - this.queueLaneSortScore(a) || aTime - bTime || byName;
+    }
   }
 
   private queueLaneSortScore(entry: GuestQueueEntry): number {

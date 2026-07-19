@@ -10,8 +10,8 @@ Run prefix: `SKR-R3-20260719`
 
 | Case range | Status |
 |---|---|
-| R3-E2E-001 to R3-E2E-045 | Executed / attempted |
-| R3-E2E-046 to R3-E2E-080 | Pending execution |
+| R3-E2E-001 to R3-E2E-055 | Executed / attempted |
+| R3-E2E-056 to R3-E2E-080 | Pending execution |
 
 ## Cross-run notes
 
@@ -2867,3 +2867,628 @@ No refund/reversal/reopen workflow was visible from Orders History. Paid history
 ### Cleanup performed
 
 No refund or reversal was performed.
+
+---
+
+## Result - R3-E2E-046
+
+Scenario: Reopen closed bill and add forgotten item
+Run ID: `SKR-R3-20260719-E046`
+Browser/device: Desktop in-app browser
+Roles simulated: Manager, cashier
+Status: `NOT IMPLEMENTED / NOT VISIBLE`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 5/10 |
+| UI/UX clarity | 6/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 5/10 |
+
+### Steps actually performed
+
+1. Opened Orders at `https://staff.sakorio.com/staff/orders?qa=r3-e2e046`.
+2. Reviewed closed/paid History rows, including recent test tickets #75 to #81.
+3. Inspected visible row and page controls for `Reopen`, `Add forgotten item`, `Balance`, `Void`, `Refund`, or manager override options.
+
+### Expected result
+
+Reopening a closed bill should require manager authorization, show balance/payment implications, and create a clear kitchen/payment state for any forgotten item.
+
+### Actual result
+
+No reopen or add-forgotten-item workflow was visible in Orders History. Paid history rows only expose invoice printing.
+
+### Evidence observed
+
+- History showed paid orders #79, #78, #77, #76, #75 and earlier paid rows.
+- Visible actions were `Order History`, `Not Paid Yet`, and `Print invoice`.
+- No `Reopen`, `Add item`, `Balance due`, `Manager approve`, `Refund`, or `Void payment` action appeared.
+
+### Defects
+
+1. Manager reopen workflow appears absent from the live UI.
+2. There is no clear policy for forgotten items after payment/close.
+
+### Improvement notes
+
+- Add manager-only `Reopen bill` or `Add post-close item` with reason and audit trail.
+- Show whether the added item creates a new ticket, balance due, or separate bill.
+
+### Cleanup performed
+
+No bill was reopened or changed.
+
+---
+
+## Result - R3-E2E-047
+
+Scenario: Customer tries QR ordering while cashier is closing bill
+Run ID: `SKR-R3-20260719-E047`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, cashier
+Status: `BLOCKED`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 4/10 |
+| UI/UX clarity | 4/10 |
+| Workflow speed | N/A |
+| Layout/stability | 8/10 |
+| Launch readiness | 4/10 |
+
+### Steps actually performed
+
+1. Opened POS at `https://staff.sakorio.com/pos?qa=r3-e2e047`.
+2. Opened T03 with `Start order`.
+3. Clicked `Open customer QR`.
+4. Checked whether a customer QR link/tab/modal/clipboard value was produced.
+
+### Expected result
+
+Customer should be able to hold a QR menu/cart while the cashier starts close/payment, and the system should safely include or block the late customer submit.
+
+### Actual result
+
+Could not reach customer QR ordering. The QR button did not open a new tab, change URL, show a modal, or copy a link.
+
+### Evidence observed
+
+- URL after click remained `https://staff.sakorio.com/pos?qa=r3-e2e047&tableId=3`.
+- Browser tab count stayed unchanged.
+- Clipboard was empty.
+- Page still showed `Open customer QR`.
+
+### Defects
+
+1. Active QR handoff remains unavailable from POS.
+2. Closing-race behavior between QR and cashier cannot be certified.
+
+### Improvement notes
+
+- Fix `Open customer QR` as a launch-blocking issue.
+- Add explicit QR submit behavior when table is in checkout/paid/closed state.
+
+### Cleanup performed
+
+No order was submitted.
+
+---
+
+## Result - R3-E2E-048
+
+Scenario: Two hosts attempt to seat the same reservation
+Run ID: `SKR-R3-20260719-E048`
+Browser/device: Desktop in-app browser with two staff tabs
+Roles simulated: Host A, Host B
+Status: `FAIL`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 5/10 |
+| UI/UX clarity | 6/10 |
+| Workflow speed | 7/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 5/10 |
+
+### Steps actually performed
+
+1. Attempted staff-side New reservation first; the staff modal stayed on today with no time slot available.
+2. Created public reservation:
+   - Reservation: `#51`
+   - Name: `SKR-R3-20260719 E048 DoubleSeat`
+   - Date/time: `2026-07-26 09:00`
+   - Party: `2`
+3. Opened the same reservation date/search in two staff tabs.
+4. Confirmed both tabs initially saw #51 as `BOOKED`, no table assigned.
+5. In Tab A, clicked `Assign table` and assigned T07.
+6. In stale Tab B, clicked `Assign table` without refreshing.
+7. Tab B's drawer showed T07 as already reserved for the same guest, but still allowed assigning T09.
+8. Clicked T09 assignment in Tab B.
+9. Checked final state.
+10. Cancelled #51 as cleanup.
+
+### Expected result
+
+Second host action should be blocked, require refresh, or warn with a hard confirmation that prevents duplicate/overwrite assignment.
+
+### Actual result
+
+The stale second tab was allowed to overwrite the table assignment from T07 to T09. The system did notice T07 was reserved, but did not prevent assigning the same reservation to a different table.
+
+### Evidence observed
+
+- Tab A after assignment showed #51 planned at `T07`.
+- Tab B stale drawer showed:
+  - `Table T07 has an upcoming reservation at 09:00 (SKR-R3-20260719 E048 DoubleSeat). Seat here anyway?`
+  - T07 marked `Reserved`
+  - T09 still available.
+- After Tab B assigned T09, #51 showed `T09`.
+- Cleanup changed #51 to `CANCELLED`.
+
+### Defects
+
+1. Reservation assignment is vulnerable to stale-tab overwrite.
+2. The UI warns about the prior table but still permits assigning another table with no conflict confirmation.
+3. Staff New reservation modal had time-slot/date-selection friction.
+
+### Improvement notes
+
+- Add optimistic locking/version check for reservation assignment.
+- On stale assignment, show `This reservation was already assigned to T07. Refresh or change table intentionally`.
+- Require explicit `Change table` flow instead of allowing stale `Assign table` to overwrite.
+
+### Cleanup performed
+
+Reservation #51 was cancelled.
+
+---
+
+## Result - R3-E2E-049
+
+Scenario: Two waiters edit same table order at same time
+Run ID: `SKR-R3-20260719-E049`
+Browser/device: Desktop in-app browser with two staff tabs
+Roles simulated: Waiter A, Waiter B
+Status: `PASS WITH CONFLICT-UX GAP`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 8/10 |
+| UI/UX clarity | 6/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 7/10 |
+
+### Steps actually performed
+
+1. Opened T04 in POS in Tab A.
+2. Opened T04 in POS in Tab B from a stale/parallel view.
+3. Tab A added `Coffee`, checked out, and charged terminal.
+4. Tab B added `Coca Cola` from the stale view, checked out, and charged terminal.
+5. Returned to POS table grid.
+6. Cleared paid state for T04.
+7. Opened Orders History.
+
+### Expected result
+
+Both staff submissions should be preserved once or conflicts should be clearly handled. No silent overwrite or missing item should occur.
+
+### Actual result
+
+Both staff submissions were preserved as separate paid tickets on the same table. No overwrite occurred. However, the UI did not warn Tab B that the table changed after Tab A's payment.
+
+### Evidence observed
+
+- Tab A created #80: `T04`, `1x Coffee`, `SGD 2.50`, Paid.
+- Tab B created #81: `T04`, `1x Coca Cola`, `SGD 3.00`, Paid.
+- Orders History showed both #80 and #81.
+- POS paid today increased to `SGD 128.00`.
+- T04 was cleared and returned to available.
+
+### Defects
+
+1. Stale staff views can submit without table-state refresh warning.
+2. The result is safe as two tickets, but staff may expect one consolidated active bill.
+
+### Improvement notes
+
+- Add live table version warning: `This table changed in another tab`.
+- If same table/session is open, consider merging unpaid tickets into one current bill before payment.
+
+### Cleanup performed
+
+T04 was cleared after payment; #80 and #81 remain in History.
+
+---
+
+## Result - R3-E2E-050
+
+Scenario: Kitchen marks ready while cashier voids item
+Run ID: `SKR-R3-20260719-E050`
+Browser/device: Desktop in-app browser
+Roles simulated: Kitchen, cashier/manager
+Status: `BLOCKED WITH KITCHEN STATE DEFECT`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 4/10 |
+| UI/UX clarity | 5/10 |
+| Workflow speed | N/A |
+| Layout/stability | 7/10 |
+| Launch readiness | 4/10 |
+
+### Steps actually performed
+
+1. Opened Kitchen at `https://staff.sakorio.com/kitchen?qa=r3-e2e050`.
+2. Reviewed current production lanes and recent tickets.
+3. Checked whether cashier-side void/reopen controls existed from previous Orders/POS inspections.
+4. Did not mutate kitchen tickets because the matching cashier void workflow was not available.
+
+### Expected result
+
+Voided item should stay voided, and kitchen should receive a cancellation/stale-state signal if attempting to mark ready from an old ticket.
+
+### Actual result
+
+The full race cannot be executed because cashier/manager void controls are not visible. Kitchen also showed many paid/cleared orders as `Pending`, including recent tickets #75 to #81.
+
+### Evidence observed
+
+- Kitchen showed:
+  - `Review backlog 70`
+  - `10 New tickets`
+  - #75, #76, #77, #78, #79, #80, #81 all `Pending`
+- Recent paid/cleared tickets still appeared in Kitchen pending lane.
+- No cashier-side item void path was visible in POS/Orders History for paid tickets.
+
+### Defects
+
+1. Kitchen lifecycle is disconnected from payment/table clearing: paid/cleared orders remain pending.
+2. Void/cancel item workflow is not visible, so stale kitchen cancellation behavior cannot be validated.
+3. Kitchen backlog is dominated by old unresolved tickets, making live operations noisy.
+
+### Improvement notes
+
+- Decide kitchen lifecycle: paid order still needs prep, or paid/cleared should remove/archive kitchen ticket.
+- Add cancel/void status propagation to kitchen.
+- Add a daily service filter and one-tap stale backlog cleanup with audit.
+
+### Cleanup performed
+
+No kitchen statuses were changed.
+
+---
+
+## Result - R3-E2E-051
+
+Scenario: Party is seated at table smaller than reservation size
+Run ID: `SKR-R3-20260719-E051`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, host
+Status: `PASS`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 9/10 |
+| UI/UX clarity | 8/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 9/10 |
+
+### Steps actually performed
+
+1. Created public reservation:
+   - Reservation: `#52`
+   - Name: `SKR-R3-20260719 E051 Capacity`
+   - Date/time: `2026-07-27 09:00`
+   - Party: `4`
+2. Opened staff Reservations on July 27 and searched the phone.
+3. Clicked `Assign table`.
+4. Looked for 2-seat tables such as T07/T09.
+5. Attempted to assign T07.
+6. Cancelled #52 as cleanup.
+
+### Expected result
+
+System should warn or block assignment to a smaller table according to policy.
+
+### Actual result
+
+The assignment drawer filtered out 2-seat tables entirely for the 4-guest reservation. Only 4-seat tables were offered.
+
+### Evidence observed
+
+- #52 showed `4 guests`.
+- Drawer displayed:
+  - T04 `4 seats · Available`
+  - T05 `4 seats · Ready to serve`
+  - T01/T02/T03 `4 seats · Open order`
+- T07 and T09 did not appear in the assignment drawer.
+- Attempting to target T07 failed because no such assignment control existed.
+
+### Defects
+
+1. No explicit text says smaller tables are hidden due to capacity; the behavior is correct but implicit.
+
+### Improvement notes
+
+- Add a line such as `2-seat tables hidden because party size is 4`.
+- Consider a manager override only if the restaurant wants flexible seating policy.
+
+### Cleanup performed
+
+Reservation #52 was cancelled.
+
+---
+
+## Result - R3-E2E-052
+
+Scenario: Public reservation outside operating hours
+Run ID: `SKR-R3-20260719-E052`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer
+Status: `PASS`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 9/10 |
+| UI/UX clarity | 8/10 |
+| Workflow speed | 8/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 9/10 |
+
+### Steps actually performed
+
+1. Opened public booking page at `https://order.sakorio.com/book/1?qa=r3-e2e052`.
+2. Selected July 28, 2026.
+3. Inspected available time slots against visible opening hours.
+
+### Expected result
+
+Invalid/outside-hours time should be blocked or not offered.
+
+### Actual result
+
+Outside-hour times were not offered. The visible opening hours were `Mon-Sun 09:00-22:00`; the slot list started at `09:00` and ended at `21:00`.
+
+### Evidence observed
+
+- First selectable slot: `09:00`.
+- Last selectable slot: `21:00`.
+- No slots before 09:00.
+- No slots at/after 22:00.
+
+### Defects
+
+1. Slot list is very long and may be tiring on mobile/tablet.
+2. It is not explicitly explained why 21:00 is the final slot when opening hours end at 22:00.
+
+### Improvement notes
+
+- Add a note: `Last seating is 21:00`.
+- Consider grouping times by Lunch/Dinner periods.
+
+### Cleanup performed
+
+No reservation was submitted in this case.
+
+---
+
+## Result - R3-E2E-053
+
+Scenario: Late reservation arrival becomes queue/waitlist
+Run ID: `SKR-R3-20260719-E053`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, host
+Status: `PARTIAL / HANDOFF GAP`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 6/10 |
+| UI/UX clarity | 6/10 |
+| Workflow speed | 7/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 6/10 |
+
+### Steps actually performed
+
+1. Created public reservation:
+   - Reservation: `#53`
+   - Name: `SKR-R3-20260719 E053 QueueLate`
+   - Date/time: `2026-07-28 09:15`
+   - Party: `2`
+2. Opened staff Reservations and searched #53 by phone.
+3. Clicked `Send to queue`.
+4. Observed navigation into Queue with a `RESERVATION HANDOFF` prefill panel.
+5. Opened Queue again normally and checked whether a queue entry was created.
+6. Cancelled #53 as cleanup.
+
+### Expected result
+
+Host should be able to move a late reservation into the live queue/waitlist without losing reservation context, then seat the party later.
+
+### Actual result
+
+`Send to queue` navigated to Queue and displayed prefill instructions, but it did not create a linked queue entry automatically. After navigating to Queue normally, the prefill/context was gone and the queue showed `0 reservation-linked` entries.
+
+### Evidence observed
+
+- Reservation handoff panel said `Reservation #53 is ready for queue handoff`.
+- Queue page still showed:
+  - `3 active`
+  - `0 reservation-linked`
+  - only old QA R2 queue entries visible.
+- #53 remained `BOOKED` until manually cancelled.
+
+### Defects
+
+1. Reservation-to-queue handoff is not durable unless the host completes the add form immediately.
+2. Queue does not clearly show a linked reservation after clicking `Send to queue`.
+3. Existing stale queue entries dominate the board and obscure fresh testing.
+
+### Improvement notes
+
+- Make `Send to queue` create a linked queue entry directly, or make the prefilled form persistent until submitted/cleared.
+- Add reservation ID/source visibly on queue cards.
+- Add cleanup/archive tooling for stale QA/backlog queue entries.
+
+### Cleanup performed
+
+Reservation #53 was cancelled. No queue entry for #53 remained visible.
+
+---
+
+## Result - R3-E2E-054
+
+Scenario: No-show reservation releases assigned table
+Run ID: `SKR-R3-20260719-E054`
+Browser/device: Desktop in-app browser
+Roles simulated: Customer, host
+Status: `FAIL FOR NO-SHOW ACTION / CANCEL RELEASE WORKS`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 6/10 |
+| UI/UX clarity | 5/10 |
+| Workflow speed | 6/10 |
+| Layout/stability | 7/10 |
+| Launch readiness | 6/10 |
+
+### Steps actually performed
+
+1. Created public reservation:
+   - Reservation: `#54`
+   - Name: `SKR-R3-20260719 E054 NoShowRelease`
+   - Date/time: `2026-07-29 09:00`
+   - Party: `2`
+2. Opened staff Reservations for July 29 and searched by phone.
+3. Assigned #54 to T07.
+4. Clicked `Mark as no-show`.
+5. Attempted to confirm the no-show modal.
+6. Since no-show confirm did not complete, reloaded and cancelled #54 as cleanup.
+
+### Expected result
+
+No-show should mark reservation as no-show and release the assigned/held table from active arrival workflow.
+
+### Actual result
+
+Assignment to T07 worked. The no-show modal appeared, but the browser-accessible confirm control was ambiguous/non-functional in this run; the reservation stayed `BOOKED` with T07 assigned. Cancellation did work and released the table assignment.
+
+### Evidence observed
+
+- After assignment, #54 showed:
+  - `BOOKED`
+  - `T07`
+  - `Table is planned. Seat the guest from here when they arrive.`
+- No-show modal text appeared:
+  - `The guest did not show up. This will free the table and record the no-show.`
+- Attempting to confirm still left #54 as `BOOKED T07`.
+- Cancellation changed #54 to `CANCELLED` and table value returned to `—`.
+
+### Defects
+
+1. No-show confirmation action did not complete from browser automation.
+2. Row action and modal confirmation use the same label, creating ambiguity.
+3. Need verify whether this is an accessibility wiring issue or a functional click-handler issue.
+
+### Improvement notes
+
+- Give modal confirmation a distinct accessible label: `Confirm no-show for reservation #54`.
+- Add success toast and immediate release confirmation.
+- Add automated browser regression for no-show release.
+
+### Cleanup performed
+
+Reservation #54 was cancelled after the failed no-show attempt.
+
+---
+
+## Result - R3-E2E-055
+
+Scenario: Queue quoted wait time updates after seating others
+Run ID: `SKR-R3-20260719-E055`
+Browser/device: Desktop in-app browser
+Roles simulated: Host
+Status: `PARTIAL PASS WITH QUEUE POLISH ISSUES`
+
+### Scores
+
+| Score area | Score |
+|---|---:|
+| Functional correctness | 7/10 |
+| UI/UX clarity | 6/10 |
+| Workflow speed | 7/10 |
+| Layout/stability | 8/10 |
+| Launch readiness | 7/10 |
+
+### Steps actually performed
+
+1. Opened Queue at `https://staff.sakorio.com/queue?qa=r3-e2e055`.
+2. Observed existing stale queue entries with 470+ minute waits.
+3. Added two fresh queue entries:
+   - `SKR-R3-20260719 E055-A`, phone `+6591000551`, 2 pax, 12 min quote.
+   - `SKR-R3-20260719 E055-B`, phone `+6591000552`, 2 pax, 20 min quote.
+4. Selected/seated E055-B to T07.
+5. Reopened Queue to inspect lane counts and remaining entries.
+6. Cancelled E055-A.
+7. Cleared T07 from Tables so the floor was not left blocked.
+
+### Expected result
+
+After seating one party, remaining queue entries should show updated ready-table recommendations/quoted wait context so the host does not have to mentally recalculate.
+
+### Actual result
+
+Queue seating worked: E055-B moved to `Seated` on T07 and ready-table count dropped from 3 to 2. E055-A stayed in Waiting with its original 12-minute quote; no automatic revised quote or suggestion appeared. The board also remains cluttered by old 470+ minute QA entries.
+
+### Evidence observed
+
+- After adding, board showed `5 active`, `5 waiting`.
+- E055-A showed `12 min quote`.
+- E055-B showed `20 min quote`.
+- After seating E055-B:
+  - `4 waiting`
+  - `1 seated`
+  - E055-B `On T07`
+  - ready tables for waiting parties dropped to `2`.
+- E055-A was cancelled and disappeared.
+- Tables then showed T07 as `IDLE TABLE`.
+
+### Defects
+
+1. Quoted wait time is static; it does not update or prompt host adjustment after seating another party.
+2. Old active queue entries with 470+ minute waits make the live board noisy.
+3. Queue form labels collide (`Phone` matched a filter as well as the phone input).
+4. Cleanup/cancel controls are not sufficiently distinct when selected card and modal actions share labels.
+
+### Improvement notes
+
+- Add `Suggested wait update` after seat/no-show/cancel events.
+- Add one-click stale queue cleanup/archive.
+- Make form labels and filter labels unique for accessibility and automation.
+- Add clear `Complete seated queue entry` lifecycle once a table handoff is finished.
+
+### Cleanup performed
+
+E055-A was cancelled. E055-B was seated, then T07 was closed/cleared back to idle.

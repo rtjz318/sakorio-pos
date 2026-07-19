@@ -22,6 +22,8 @@ import { SidebarComponent } from '../shared/sidebar.component';
 import {
   ApiService,
   AttendancePaySummary,
+  CanvasTable,
+  Order,
   SalesReport,
   User,
   WorkSession,
@@ -102,6 +104,31 @@ export class ReportsComponent implements OnInit {
   /** Collapsible staff filter panel (replaces native multi-select). */
   attendanceExcelStaffPanelOpen = signal(false);
   attendanceExcelStaffSearch = signal('');
+  closeoutTables = signal<CanvasTable[]>([]);
+  closeoutOrders = signal<Order[]>([]);
+  closeoutLoading = signal(false);
+  closeoutError = signal<string | null>(null);
+  activeCloseoutTables = computed(() =>
+    this.closeoutTables().filter((table) => !!table.is_active || !!table.active_order_id),
+  );
+  clearableCloseoutTables = computed(() =>
+    this.activeCloseoutTables().filter((table) => {
+      const paymentState = String(table.payment_status || '').toLowerCase();
+      const order = table.active_order_id
+        ? this.closeoutOrders().find((candidate) => candidate.id === table.active_order_id)
+        : null;
+      return paymentState === 'paid' || (!!order && this.closeoutOrderPaid(order));
+    }),
+  );
+  unpaidCloseoutOrders = computed(() =>
+    this.closeoutOrders().filter((order) => this.closeoutOrderUnpaid(order)),
+  );
+  kitchenBacklogOrders = computed(() => {
+    const activeStatuses = new Set(['pending', 'preparing', 'ready', 'partially_delivered']);
+    return this.closeoutOrders().filter((order) =>
+      activeStatuses.has(String(order.status || '').toLowerCase()),
+    );
+  });
   filteredAttendanceExcelStaffUsers = computed(() => {
     const q = this.attendanceExcelStaffSearch().trim().toLowerCase();
     const users = this.attendanceExcelStaffUsers();
@@ -300,14 +327,49 @@ export class ReportsComponent implements OnInit {
       next: (data) => {
         this.report.set(data);
         this.loading.set(false);
+        this.loadCloseoutSnapshot();
         this.loadWorkSessions();
       },
       error: (err) => {
         this.error.set(err?.message || 'Failed to load report');
         this.loading.set(false);
+        this.loadCloseoutSnapshot();
         this.loadWorkSessions();
       },
     });
+  }
+
+  loadCloseoutSnapshot(): void {
+    this.closeoutLoading.set(true);
+    this.closeoutError.set(null);
+    this.api.getTablesWithStatus().subscribe({
+      next: (rows) => {
+        this.closeoutTables.set(rows);
+        this.closeoutLoading.set(false);
+      },
+      error: () => {
+        this.closeoutTables.set([]);
+        this.closeoutLoading.set(false);
+        this.closeoutError.set('Could not load table closeout state.');
+      },
+    });
+    this.api.getOrders(false).subscribe({
+      next: (rows) => this.closeoutOrders.set(rows),
+      error: () => {
+        this.closeoutOrders.set([]);
+        this.closeoutError.set('Could not load order closeout state.');
+      },
+    });
+  }
+
+  closeoutOrderPaid(order: Order): boolean {
+    return !!order.paid_at || String(order.status || '').toLowerCase() === 'paid';
+  }
+
+  closeoutOrderUnpaid(order: Order): boolean {
+    const status = String(order.status || '').toLowerCase();
+    if (this.closeoutOrderPaid(order) || status.includes('cancel')) return false;
+    return ['pending', 'preparing', 'ready', 'partially_delivered', 'completed'].includes(status);
   }
 
   canViewAttendance(): boolean {
@@ -795,6 +857,19 @@ export class ReportsComponent implements OnInit {
     if (!Number.isFinite(value as number)) return '0 min';
     const rounded = Math.max(0, Math.round(Number(value)));
     return `${rounded} min`;
+  }
+
+  formatMoney(cents: number | null | undefined): string {
+    const value = Number(cents || 0);
+    const code = this.currencyCode();
+    if (code) {
+      return new Intl.NumberFormat(this.translate.currentLang || this.translate.defaultLang || 'en', {
+        style: 'currency',
+        currency: code,
+        currencyDisplay: 'symbol',
+      }).format(value / 100);
+    }
+    return `${this.currency()}${(value / 100).toFixed(2)}`;
   }
 
   queueDailyPeakCount(): number {

@@ -32,6 +32,15 @@ type QueueTableChoice = {
   score: number;
 };
 
+type PendingQueueStatusChange = {
+  entry: GuestQueueEntry;
+  status: GuestQueueStatus;
+  reason: string;
+  title: string;
+  copy: string;
+  confirmLabel: string;
+};
+
 @Component({
   selector: 'app-queue',
   standalone: true,
@@ -551,14 +560,14 @@ type QueueTableChoice = {
                   type="button"
                   class="btn btn-secondary"
                   [disabled]="busyEntryId() === entry.id || !canCloseEntry(entry)"
-                  (click)="markStatus(entry, 'cancelled', 'Guest left the queue')">
+                  (click)="requestQueueStatus(entry, 'cancelled', 'Guest left the queue')">
                   Cancel
                 </button>
                 <button
                   type="button"
                   class="btn btn-secondary"
                   [disabled]="busyEntryId() === entry.id || !canCloseEntry(entry)"
-                  (click)="markStatus(entry, 'no_show', 'Guest did not return')">
+                  (click)="requestQueueStatus(entry, 'no_show', 'Guest did not return')">
                   No-show
                 </button>
               </div>
@@ -707,6 +716,25 @@ type QueueTableChoice = {
           }
         </article>
       </section>
+
+      @if (pendingQueueStatus(); as pending) {
+        <div class="queue-confirm-backdrop" (click)="cancelPendingQueueStatus()"></div>
+        <section class="queue-confirm-modal card" role="dialog" aria-modal="true" aria-label="Confirm queue status change">
+          <p class="eyebrow">Confirm host action</p>
+          <h2>{{ pending.title }}</h2>
+          <p>{{ pending.copy }}</p>
+          <div class="queue-confirm-actions">
+            <button type="button" class="btn btn-secondary" (click)="cancelPendingQueueStatus()">Keep guest active</button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              (click)="confirmPendingQueueStatus()"
+              [disabled]="busyEntryId() === pending.entry.id">
+              {{ busyEntryId() === pending.entry.id ? 'Updating...' : pending.confirmLabel }}
+            </button>
+          </div>
+        </section>
+      }
     </section>
     </app-sidebar>
   `,
@@ -799,6 +827,33 @@ type QueueTableChoice = {
       background: #fff1f2;
       color: #b91c1c;
       font-weight: 600;
+    }
+
+    .queue-confirm-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 120;
+      background: rgba(15, 23, 42, 0.34);
+    }
+
+    .queue-confirm-modal {
+      position: fixed;
+      z-index: 121;
+      left: 50%;
+      top: 50%;
+      width: min(440px, calc(100vw - 2rem));
+      transform: translate(-50%, -50%);
+      display: grid;
+      gap: 0.75rem;
+      box-shadow: 0 28px 70px rgba(15, 23, 42, 0.24);
+    }
+
+    .queue-confirm-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+      margin-top: 0.35rem;
     }
 
     .summary-grid {
@@ -1648,6 +1703,7 @@ export class QueueComponent implements OnInit {
   queueQrOpen = signal(false);
   queueLinkCopied = signal(false);
   publicQueueUrl = signal('');
+  pendingQueueStatus = signal<PendingQueueStatusChange | null>(null);
 
   queueSearch = '';
   queueSourceFilter:
@@ -2218,12 +2274,37 @@ export class QueueComponent implements OnInit {
     return entry.status === 'waiting' || entry.status === 'notified';
   }
 
+  requestQueueStatus(entry: GuestQueueEntry, status: GuestQueueStatus, reason: string): void {
+    const isNoShow = status === 'no_show';
+    this.pendingQueueStatus.set({
+      entry,
+      status,
+      reason,
+      title: isNoShow ? `Mark ${entry.customer_name} as no-show?` : `Cancel ${entry.customer_name}'s queue entry?`,
+      copy: isNoShow
+        ? 'This removes the guest from the active host board and records that they did not return.'
+        : 'This removes the guest from the active host board. Use this only when the guest has left or asked to cancel.',
+      confirmLabel: isNoShow ? 'Mark no-show' : 'Cancel queue entry',
+    });
+  }
+
+  cancelPendingQueueStatus(): void {
+    this.pendingQueueStatus.set(null);
+  }
+
+  confirmPendingQueueStatus(): void {
+    const pending = this.pendingQueueStatus();
+    if (!pending) return;
+    this.markStatus(pending.entry, pending.status, pending.reason);
+  }
+
   markStatus(entry: GuestQueueEntry, status: GuestQueueStatus, reason?: string): void {
     this.error.set(null);
     this.busyEntryId.set(entry.id);
     this.api.updateGuestQueueStatus(entry.id, { status, reason: reason ?? null }).subscribe({
       next: (updated) => {
         this.busyEntryId.set(null);
+        this.pendingQueueStatus.set(null);
         this.mergeEntry(updated);
       },
       error: () => {

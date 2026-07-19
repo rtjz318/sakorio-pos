@@ -100,24 +100,32 @@
         <a routerLink="/tables" class="close-step close-step--tables">
           <strong>1. Tables</strong>
           <span>Close or clear every table that has finished service.</span>
+          <em>{{ activeCloseoutTables().length }} active · {{ clearableCloseoutTables().length }} ready to clear</em>
         </a>
         <a routerLink="/orders" class="close-step close-step--orders">
           <strong>2. Orders</strong>
           <span>Review current-session tickets, unpaid orders, and newest items.</span>
+          <em>{{ unpaidCloseoutOrders().length }} unpaid / open bills</em>
         </a>
         <a routerLink="/kitchen" class="close-step close-step--kitchen">
           <strong>3. Kitchen</strong>
           <span>Complete served tickets and clear visible backlog before opening tomorrow.</span>
+          <em>{{ kitchenBacklogOrders().length }} kitchen tickets not settled</em>
         </a>
         <a routerLink="/my-shift" class="close-step close-step--shifts">
           <strong>4. Staff sessions</strong>
           <span>Check clock-in/out records and unresolved shift photos.</span>
+          <em>{{ workSessionsLive().length }} staff still clocked in</em>
         </a>
         <a routerLink="/reports" [queryParams]="{ preset: 'today' }" class="close-step close-step--reports">
           <strong>5. Export reports</strong>
           <span>Refresh today’s report and export CSV/Excel for handover.</span>
+          <em>{{ report()?.summary?.total_orders ?? 0 }} orders · {{ formatMoney(totalCollectedByPaymentMethod()) }} collected</em>
         </a>
       </div>
+      @if (closeoutError()) {
+        <p class="end-day-checklist__error">{{ closeoutError() }}</p>
+      }
     </section>
 
     <!-- Summary cards (always shown: revenue, orders, reservations) -->

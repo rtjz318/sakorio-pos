@@ -209,6 +209,14 @@
     line-height: 1.45;
   }
 
+  em {
+    margin-top: auto;
+    color: #215547;
+    font-size: 0.82rem;
+    font-style: normal;
+    font-weight: 850;
+  }
+
   &:hover,
   &:focus-visible {
     border-color: rgba(64, 88, 73, 0.32);
@@ -216,6 +224,17 @@
     outline: none;
     transform: translateY(-1px);
   }
+}
+
+.end-day-checklist__error {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fff7f7;
+  color: #b42318;
+  font-weight: 700;
 }
 
 .handover-card {

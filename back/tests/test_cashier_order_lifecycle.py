@@ -155,11 +155,18 @@ class TestCashierOrderLifecycle(PgClientTestCase):
             headers=self.headers,
         )
         self.assertEqual(close.status_code, 200, close.text)
+        self.assertEqual(close.json()["finalized_kitchen_items"], 1)
 
         available_status = self._table_status()
         self.assertFalse(available_status["is_active"])
         self.assertIsNone(available_status["active_order_id"])
         self.assertEqual(available_status["operational_status"], "available")
+
+        delivered_items = self.session.exec(
+            select(models.OrderItem).where(models.OrderItem.order_id == order_id)
+        ).all()
+        self.assertEqual({item.status for item in delivered_items}, {models.OrderItemStatus.delivered})
+        self.assertTrue(all(item.delivered_by_user_id is not None for item in delivered_items))
 
     def test_close_table_blocks_unpaid_current_session_tickets(self) -> None:
         activate = self.client.post(
@@ -253,12 +260,24 @@ class TestCashierOrderLifecycle(PgClientTestCase):
             headers=self.headers,
         )
         self.assertEqual(close.status_code, 200, close.text)
+        self.assertEqual(close.json()["finalized_kitchen_items"], 2)
 
         relisted = self.client.get("/orders", headers=self.headers)
         self.assertEqual(relisted.status_code, 200, relisted.text)
         closed_rows = {row["id"]: row for row in relisted.json()}
         self.assertFalse(closed_rows[first_order.id]["is_current_table_session"])
         self.assertFalse(closed_rows[second_order.id]["is_current_table_session"])
+
+        delivered_items = self.session.exec(
+            select(models.OrderItem).where(
+                models.OrderItem.order_id.in_([first_order.id, second_order.id])
+            )
+        ).all()
+        self.assertEqual(len(delivered_items), 2)
+        self.assertEqual(
+            {item.status for item in delivered_items},
+            {models.OrderItemStatus.delivered},
+        )
 
 
 if __name__ == "__main__":

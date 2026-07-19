@@ -11297,6 +11297,8 @@ def close_table(
         )
     ).all()
     open_order_ids: list[int] = []
+    finalized_kitchen_item_count = 0
+    closed_at = datetime.now(timezone.utc)
 
     for order in current_session_orders:
         if not _is_order_in_current_table_session(order, table):
@@ -11328,6 +11330,24 @@ def close_table(
                 "order_ids": open_order_ids,
             },
         )
+
+    for order in current_session_orders:
+        if not _is_order_in_current_table_session(order, table) or not _order_is_settled(order):
+            continue
+
+        items = session.exec(
+            select(models.OrderItem).where(models.OrderItem.order_id == order.id)
+        ).all()
+        for item in items:
+            if not _order_item_is_active(item):
+                continue
+            if item.status == models.OrderItemStatus.delivered:
+                continue
+            item.status = models.OrderItemStatus.delivered
+            item.status_updated_at = closed_at
+            item.delivered_by_user_id = current_user.id
+            session.add(item)
+            finalized_kitchen_item_count += 1
 
     # Clear session data
     table.order_pin = None
@@ -11396,6 +11416,7 @@ def close_table(
         "name": table.name,
         "is_active": False,
         "completed_queue_entries": len(completed_queue_entry_ids),
+        "finalized_kitchen_items": finalized_kitchen_item_count,
         "message": "Table closed successfully",
     })
 

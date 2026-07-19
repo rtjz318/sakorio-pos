@@ -764,6 +764,9 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                       </button>
                   }
                 </div>
+                <p class="settlement-policy-note">
+                  Customer QR checkout shows HitPay or card-at-table only. Cash is staff-only for counter settlement and manager reconciliation.
+                </p>
                 <div class="settlement-summary-row settlement-summary-row--active settlement-summary-row--cta">
                   <div class="settlement-summary-copy settlement-summary-copy--primary">
                     <p class="eyebrow">Selected method</p>
@@ -1253,6 +1256,9 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                           </button>
                         }
                       </div>
+                      <p class="settlement-policy-note settlement-policy-note--drawer">
+                        Customer QR checkout shows HitPay or card-at-table only. Cash is staff-only for counter settlement and manager reconciliation.
+                      </p>
                       <div class="pos-service-paybar">
                         <div>
                           <span>Selected method</span>
@@ -4232,6 +4238,20 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 
     .settlement-mode-chip {
       align-self: flex-start;
+    }
+
+    .settlement-policy-note {
+      margin: 0.55rem 0 0;
+      padding: 0.55rem 0.7rem;
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+      color: var(--color-text-muted);
+      font-size: 0.78rem;
+      line-height: 1.4;
+    }
+
+    .settlement-policy-note--drawer {
+      margin: 0.65rem 0;
     }
 
     .inline-hint-copy {

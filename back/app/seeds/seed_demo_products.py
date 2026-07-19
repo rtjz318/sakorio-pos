@@ -1,5 +1,5 @@
 """
-Seed default products for any tenant that has no products.
+Seed default products for every tenant.
 Idempotent: creates only products that don't exist (by tenant_id + name).
 No image filenames so it works on any new deployment.
 
@@ -22,12 +22,27 @@ DEMO_PRODUCTS = [
     ("Tacos de Carne Asada", 1200, "Main Course", "beef, tortillas, onion, cilantro, salsa"),
     ("Mole Poblano", 1500, "Main Course", "chocolate, chiles, chicken, sesame, almonds"),
     ("Pozole", 1800, "Main Course", "hominy, pork or chicken, chiles, oregano"),
+    ("Quesadilla", 900, "Main Course", "flour tortilla, cheese, salsa"),
+    ("Chicken Burrito", 1400, "Main Course", "chicken, rice, beans, tortilla, salsa"),
+    ("Fish Tacos", 1600, "Main Course", "fish, cabbage, tortilla, lime crema"),
+    ("Carnitas Bowl", 1500, "Main Course", "pork, rice, beans, pico de gallo"),
+    ("Vegetarian Fajitas", 1400, "Main Course", "peppers, onions, mushrooms, tortillas"),
+    ("Nachos Supreme", 1300, "Starters", "tortilla chips, cheese, beans, salsa, jalapenos"),
+    ("Guacamole & Chips", 850, "Starters", "avocado, lime, cilantro, tortilla chips"),
+    ("Elote", 700, "Starters", "corn, cotija, lime, chilli"),
+    ("Churros", 800, "Desserts", "fried dough, cinnamon sugar, chocolate sauce"),
+    ("Tres Leches Cake", 900, "Desserts", "sponge cake, milk, cream"),
     # Beverages
     ("Coca Cola", 300, "Beverages", None),
     ("Tecate Roja", 400, "Beverages", None),
     ("Tecate Light", 400, "Beverages", None),
     ("Water", 0, "Beverages", None),
     ("Coffee", 250, "Beverages", None),
+    ("Sparkling Water", 350, "Beverages", None),
+    ("Horchata", 450, "Beverages", "rice, cinnamon, milk"),
+    ("Lime Agua Fresca", 450, "Beverages", "lime, sugar, water"),
+    ("Margarita", 1200, "Beverages", "tequila, lime, triple sec"),
+    ("Mexican Hot Chocolate", 550, "Beverages", "cocoa, cinnamon, milk"),
 ]
 
 
@@ -64,19 +79,17 @@ def run() -> None:
             print("No tenants found.")
             return
 
-        result = session.execute(text("SELECT tenant_id FROM product GROUP BY tenant_id"))
-        tenants_with_products = {row[0] for row in result.fetchall()}
-        to_seed = [tid for tid in tenant_ids if tid not in tenants_with_products]
-
-        if not to_seed:
-            print("All tenants already have products. Nothing to seed.")
-            return
-
-        for tenant_id in to_seed:
+        total_created = 0
+        for tenant_id in tenant_ids:
             created = _seed_tenant_products(session, tenant_id)
             if created:
                 session.commit()
                 print(f"Tenant {tenant_id}: created {created} demo products.")
+                total_created += created
+
+        if not total_created:
+            print("All tenants already have demo products. Nothing to seed.")
+            return
 
     print("Done.")
 

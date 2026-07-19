@@ -997,17 +997,16 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 
                 @if (qrHandoffTableId() === serviceTable.id) {
                   @if (qrHandoffUrl(); as handoffUrl) {
-                    <section class="customer-qr-handoff" aria-label="Customer QR handoff">
-                      <div class="customer-qr-handoff__code">
+                    <section class="inline-hint inline-hint--info inline-hint--stack" aria-label="Customer QR handoff">
+                      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
                         <qrcode [qrdata]="handoffUrl" [width]="132" [errorCorrectionLevel]="'M'" cssClass="qr-code"></qrcode>
+                        <div class="inline-hint-copy" style="flex:1 1 18rem">
+                          <strong>{{ serviceTable.name }} QR is ready</strong>
+                          <p>Show this QR or send the link below. The table session is open so guests can order from the current visit.</p>
+                          <a [href]="handoffUrl" target="_blank" rel="noopener noreferrer" style="overflow-wrap:anywhere">{{ handoffUrl }}</a>
+                        </div>
                       </div>
-                      <div class="customer-qr-handoff__copy">
-                        <p class="eyebrow">Customer self-ordering</p>
-                        <h3>{{ serviceTable.name }} QR is ready</h3>
-                        <p>Show this QR or send the link below. The table session is open so guests can order from the current visit.</p>
-                        <a [href]="handoffUrl" target="_blank" rel="noopener noreferrer">{{ handoffUrl }}</a>
-                      </div>
-                      <div class="customer-qr-handoff__actions">
+                      <div class="action-row">
                         <button type="button" class="btn btn-primary btn-sm" (click)="openCustomerMenuUrl(handoffUrl, serviceTable)">Open</button>
                         <button type="button" class="btn btn-secondary btn-sm" (click)="copyCustomerMenuUrl(serviceTable, handoffUrl)">
                           {{ qrLinkCopiedTableId() === serviceTable.id ? 'Copied' : 'Copy link' }}
@@ -1754,63 +1753,6 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
     .service-status--qr {
       background: #ecfeff;
       color: #0e7490;
-    }
-
-    .customer-qr-handoff {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
-      gap: 0.85rem;
-      align-items: center;
-      margin: 0.75rem 0.8rem 0;
-      padding: 0.75rem;
-      border: 1px solid color-mix(in srgb, #06b6d4 32%, var(--color-border));
-      border-radius: 22px;
-      background:
-        linear-gradient(135deg, rgba(236, 254, 255, 0.95), rgba(255, 255, 255, 0.98)),
-        var(--color-surface);
-      box-shadow: 0 12px 28px rgba(8, 145, 178, 0.12);
-    }
-
-    .customer-qr-handoff__code {
-      display: grid;
-      place-items: center;
-      width: 9rem;
-      min-height: 9rem;
-      border-radius: 18px;
-      background: white;
-      box-shadow: inset 0 0 0 1px rgba(8, 145, 178, 0.12);
-    }
-
-    .customer-qr-handoff__copy {
-      min-width: 0;
-    }
-
-    .customer-qr-handoff__copy h3 {
-      margin: 0;
-      color: var(--color-text);
-      font-size: 1rem;
-    }
-
-    .customer-qr-handoff__copy p {
-      margin: 0.22rem 0;
-      color: var(--color-muted);
-      font-size: 0.88rem;
-    }
-
-    .customer-qr-handoff__copy a {
-      display: block;
-      max-width: 100%;
-      color: #0e7490;
-      font-size: 0.82rem;
-      font-weight: 800;
-      overflow-wrap: anywhere;
-    }
-
-    .customer-qr-handoff__actions {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      gap: 0.45rem;
     }
 
     .pos-service-loop {
@@ -4911,16 +4853,6 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
         padding: 0.86rem 0.9rem 0.72rem;
       }
 
-      .customer-qr-handoff {
-        grid-template-columns: auto minmax(0, 1fr);
-        margin-inline: 0.75rem;
-      }
-
-      .customer-qr-handoff__actions {
-        grid-column: 1 / -1;
-        justify-content: flex-start;
-      }
-
       .pos-service-loop {
         grid-template-columns: 1fr;
         align-items: stretch;
@@ -4977,22 +4909,6 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       .pos-service-header-actions {
         width: 100%;
         justify-content: space-between;
-      }
-
-      .customer-qr-handoff {
-        grid-template-columns: 1fr;
-      }
-
-      .customer-qr-handoff__code {
-        width: 100%;
-      }
-
-      .customer-qr-handoff__actions {
-        justify-content: stretch;
-      }
-
-      .customer-qr-handoff__actions .btn {
-        flex: 1 1 8rem;
       }
 
       .pos-service-product-grid {
@@ -5411,48 +5327,6 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       min-height: 2rem;
       padding: 0 0.75rem;
       font-size: 0.78rem;
-    }
-
-    .btn-lg {
-      min-height: 3rem;
-      font-size: 1rem;
-      font-weight: 700;
-    }
-
-    @media (max-width: 1560px) {
-      .catalog-toolbar {
-        grid-template-columns: minmax(0, 1fr) minmax(220px, 0.7fr);
-      }
-
-      .catalog-toolbar-actions {
-        grid-column: 1 / -1;
-        min-width: 0;
-        justify-content: flex-start;
-      }
-
-      .product-grid {
-        grid-template-columns: repeat(auto-fit, minmax(18.5rem, 1fr));
-      }
-    }
-
-    @media (max-width: 1480px) {
-      .cashier-grid {
-        grid-template-columns: minmax(0, 1fr);
-      }
-
-      .catalog-toolbar {
-        grid-template-columns: minmax(0, 1fr) minmax(220px, 0.72fr);
-      }
-
-      .catalog-toolbar-actions {
-        grid-column: 1 / -1;
-        min-width: 0;
-        justify-content: flex-start;
-      }
-
-      .product-grid {
-        grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
-      }
     }
 
     @media (max-width: 920px) {

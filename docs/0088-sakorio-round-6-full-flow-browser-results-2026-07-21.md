@@ -13,9 +13,9 @@ This result document is a live checkpoint. The full-flow journeys are being exec
 
 Current checkpoint:
 
-- Completed: 20 / 50
-- Pending: 30 / 50
-- Completed average score: 7.87 / 10
+- Completed: 22 / 50
+- Pending: 28 / 50
+- Completed average score: 7.93 / 10
 - Current launch posture: not ready yet. The core QR lifecycle is improving, but R6-FLOW-004, R6-FLOW-016, and R6-FLOW-020 exposed launch-blocking or high-friction POS session/product-hit-target issues. Timetable/reporting are stronger now, but attendance camera fallback, end-day Orders search/filtering, and HitPay sandbox completion resilience need polish.
 
 ## Score meaning
@@ -931,6 +931,126 @@ Current checkpoint:
   - Track direct QR sessions with a clear source label such as `Walk-in QR opened by staff` so reports do not lose context.
 - Launch decision: not launch-ready for busy-service pressure. The final cleanup is strong, but the staff POS product-add failure and table-state mismatch are too risky for peak service.
 
+### R6-FLOW-021 - Two simultaneous reservations -> staggered seating -> two QR orders -> KDS -> payment -> close
+
+- Priority: P0
+- Roles acted through browser: customer, host, waiter, kitchen, cashier
+- Status: PASS WITH RECURRING TIME/QR BUTTON POLISH
+- Score: 8.4 / 10
+- Artifacts:
+  - First reservation: `#65`, guest `R6 Flow 021 First 458745`, table `T07`, order `#111`, Coffee `SGD 2.50`
+  - Second reservation: `#66`, guest `R6 Flow 021 Second 468956`, table `T09`, order `#112`, Chile Relleno `SGD 15.00`
+  - Final table states: T07 available, T09 available
+  - Final QR states: both old QR links showed `Table Closed`
+  - Final KDS state: zero active tickets
+- Browser workflow executed:
+  1. Customer created first public reservation `#65`.
+  2. Customer created second public reservation `#66` for the same requested time.
+  3. Both public confirmations showed `2026-07-21 16:15` despite the helper requesting `20:15`, repeating the reservation time mismatch finding.
+  4. Staff opened Reservations and saw both bookings active, `EXPECTED GUESTS 4`, `AWAITING ARRIVAL 2`, and `NEEDS A TABLE 2`.
+  5. Host deliberately selected #65 first even though #66 sorted above it.
+  6. Host assigned #65 to exact-fit T07.
+  7. Reservations updated to #65 planned at T07 and `NEEDS A TABLE 1`.
+  8. Host clicked `Seat + customer QR` for #65.
+  9. #65 became `SEATED`, `AWAITING ARRIVAL 1`, `NOW SEATED 1`.
+  10. `Open QR/menu` did not visibly open a usable customer tab, so staff used `Open POS` and copied T07 QR from the POS drawer.
+  11. Customer opened T07 QR and placed order `#111` for Coffee.
+  12. Host returned to Reservations while #65 was live and #66 was still waiting.
+  13. Host assigned #66 to exact-fit T09.
+  14. Reservations updated to `NEEDS A TABLE 0`.
+  15. Host clicked `Seat + customer QR` for #66.
+  16. Reservations showed `AWAITING ARRIVAL 0`, `NOW SEATED 2`, and both #65/#66 as seated.
+  17. Staff opened POS for #66/T09 and copied the QR link.
+  18. Customer opened T09 QR and placed order `#112` for Chile Relleno.
+  19. KDS showed two active tickets split correctly: #111 beverage and #112 kitchen.
+  20. Kitchen moved both tickets through Start ticket -> Ready for pass -> Served / Delivered.
+  21. KDS returned to zero.
+  22. Cashier terminal-paid T07 #111; payment recorded but visible manual `Close table` was needed.
+  23. Cashier closed T07 and POS showed it available.
+  24. Cashier terminal-paid and closed T09 #112.
+  25. POS showed `OPEN BILLS 0`.
+  26. Customer reloaded old T07 and T09 QR links; both showed `Table Closed`.
+  27. Reservations audit showed #65 and #66 as `FINISHED`.
+- What passed:
+  - Host can manage two same-time reservations without mixing tables or guest names.
+  - The board clearly shows first seated / second still waiting, then both seated.
+  - Exact-fit table assignment worked for T07 and T09.
+  - Two active QR orders stayed separate by table and order ID.
+  - KDS station splitting was correct for beverage vs kitchen.
+  - Payment/close reset both table QR sessions correctly.
+  - Reservation final statuses advanced to FINISHED after payment/close.
+- Issues found:
+  - Public reservation time mismatch repeated: requested `20:15`, confirmations showed `16:15`.
+  - `Open QR/menu` from Reservations did not visibly open a usable customer tab in this browser run; staff had to open POS and copy QR from there.
+  - With same-time bookings, sorting placed #66 above #65; staff must read carefully to seat the intended guest first.
+  - Terminal payment again landed in paid-awaiting-close state with `Start order` visible beside `Close table`.
+- Improvements needed:
+  - Fix or clarify public reservation time-slot selection/confirmation mismatch.
+  - Make `Open QR/menu` reliable and obvious from Reservations, with copy/open feedback.
+  - Add a visible `Arrived order` or `Check-in sequence` marker when multiple bookings share the same time.
+  - After payment, suppress `Start order` until table close/reset completes.
+  - Add regression coverage for two same-time reservations, staggered seating, parallel QR orders, and final QR lockout.
+- Launch decision: launch-capable for concurrent reservation seating and QR order separation, but still needs time-selection and QR handoff polish.
+
+### R6-FLOW-022 - Reservation booked for 2 arrives with 4 -> edit party size -> larger table -> QR order -> KDS -> payment -> close
+
+- Priority: P0
+- Roles acted through browser: customer, host, waiter, kitchen, cashier
+- Status: PASS WITH TIME/CLOSE-FLOW POLISH
+- Score: 8.6 / 10
+- Artifacts:
+  - Reservation: `#67`
+  - Guest: `R6 Flow 022 PartySizeChange 782162`
+  - Original party size: `2`
+  - Updated party size: `4`
+  - Table: `T04`
+  - Order: `#113`
+  - Item/total: Pozole, `SGD 18.00`
+  - Final QR state: `Table Closed`
+- Browser workflow executed:
+  1. Customer created public reservation `#67` for 2 guests.
+  2. Public confirmation again showed `2026-07-21 16:15` despite the requested later slot.
+  3. Host opened Reservations and saw #67 booked for 2 guests, active, and needing a table.
+  4. Host clicked `Edit` on #67.
+  5. Inline edit form opened with party size, seating preference, allergies, calendar/time-slot selector, customer contact fields, reservation notes, staff notes, Cancel, and Save.
+  6. Host changed `Party size` from 2 to 4.
+  7. Availability recalculated and displayed `Party size: 4` plus time slots and remaining capacity.
+  8. Host attempted to keep/select `20:30`, then clicked `Save`.
+  9. Reservation list updated #67 to `4 guests`, but still displayed `4:15 PM`.
+  10. Host clicked `Assign table`.
+  11. Floor planning filtered candidates for 4 guests and showed T04 as clean available, with other 4-seat tables marked `Ready to serve` / `Currently occupied`.
+  12. Host assigned T04.
+  13. Reservations updated to #67 booked, 4 guests, T04, `NEEDS A TABLE 0`.
+  14. Host clicked `Seat + customer QR`.
+  15. #67 moved to `SEATED`, 4 guests, T04, `AWAITING ARRIVAL 0`, `NOW SEATED 1`.
+  16. Staff opened POS, copied T04 QR, and customer placed QR order `#113` for Pozole.
+  17. KDS showed #113 as a kitchen ticket for T04.
+  18. Kitchen moved #113 through Start ticket -> Ready for pass -> Served / Delivered.
+  19. KDS returned to zero active tickets.
+  20. Cashier terminal-paid #113. The helper stopped before close, but visible `Close table` was available.
+  21. Cashier clicked `Close table`.
+  22. POS showed T04 available, open bills zero.
+  23. Reservations audit showed #67 `FINISHED` with `4 guests`.
+  24. Customer reloaded old T04 QR and saw `Table Closed`.
+- What passed:
+  - Staff can edit an active booked reservation's party size.
+  - Updated party size persists into reservation summary and final FINISHED record.
+  - Table assignment filters/recommends correctly for a larger 4-person party.
+  - Seating, QR ordering, KDS, terminal payment, close, reservation finish, and QR lockout all completed.
+  - Host guidance was useful: T04 was clean available, while other 4-seat tables were flagged as needing turn/occupied state.
+- Issues found:
+  - Reservation time mismatch continues. The edit flow recalculated times, but after save the reservation still displayed `4:15 PM`.
+  - The system does not explicitly show an `arrived with more guests` reason or change log; staff only see the final 4-guest value.
+  - Terminal payment again required visible manual close after payment state.
+  - Some 4-seat tables were labelled `Ready to serve` but also `Currently occupied`, which may confuse hosts.
+- Improvements needed:
+  - Add an explicit party-size change audit line, e.g. `Party changed from 2 to 4 by staff`.
+  - Fix reservation time editing/confirmation persistence.
+  - Clarify table state wording: avoid combining `Ready to serve` with `Currently occupied`.
+  - Keep capacity filtering; this worked well.
+  - Add regression coverage for party-size increase before seating and larger-table assignment.
+- Launch decision: launch-capable for larger-party handling, with reservation time persistence and wording polish still needed.
+
 ## Cross-case findings so far
 
 1. The core customer-QR table lifecycle is working: reservation, seating, QR order, KDS, payment, close, QR lockout.
@@ -965,7 +1085,12 @@ Current checkpoint:
 26. Staff POS product add can fail even when product buttons are visible, especially with drawer/table-grid pressure. This is now a repeated launch-risk defect.
 27. Reservation/POS table availability can disagree; one surface showed T02 available while arrival handoff warned it was occupied.
 28. HitPay checkout creation works, and Cash is removed from the customer payment modal, but embedded sandbox card completion still needs a more deterministic QA path.
+29. Two simultaneous reservations can be seated, ordered, paid, closed, and finished without cross-table QR/session leakage.
+30. Reservation `Open QR/menu` is less reliable than opening POS and copying QR from the table drawer.
+31. Party-size increase before seating works and capacity-filtered larger table assignment is strong.
+32. Reservation edit/save still does not reliably preserve or display the intended time slot.
+33. Table-state copy such as `Ready to serve` plus `Currently occupied` needs clearer operational wording.
 
 ## Pending workflows
 
-`R6-FLOW-021` through `R6-FLOW-050` remain pending in this results brief.
+`R6-FLOW-023` through `R6-FLOW-050` remain pending in this results brief.

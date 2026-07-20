@@ -13,8 +13,8 @@ This result document is a live checkpoint. The full-flow journeys are being exec
 
 Current checkpoint:
 
-- Completed: 5 / 50
-- Pending: 45 / 50
+- Completed: 7 / 50
+- Pending: 43 / 50
 - Completed average score: 8.10 / 10
 - Current launch posture: not ready yet. The core QR lifecycle is improving, but R6-FLOW-004 exposed a launch-blocking mixed staff POS + customer QR ordering issue.
 
@@ -233,6 +233,85 @@ Current checkpoint:
   - Keep the confirmation dialog and make the post-confirm QR-closed state explicit in the success toast.
 - Launch decision: not a hard blocker because Tables handles it correctly, but POS workflow should be improved for launch smoothness.
 
+### R6-FLOW-006 - Public queue walk-in -> host notify/seat -> QR order -> waiter POS add-on -> KDS -> terminal payment -> close
+
+- Priority: P0
+- Roles acted through browser: walk-in customer, host, waiter, kitchen, cashier
+- Status: PASS WITH MINOR UX IMPROVEMENTS
+- Score: 8.8 / 10
+- Artifacts:
+  - Queue ticket: `Q0022`
+  - Guest: `R6 Flow 006 QueueWalkIn 116487`
+  - Table: `T07`
+  - Order: `#95`
+  - Final paid total: `SGD 14.50`
+- Browser workflow executed:
+  1. Customer joined public waitlist at `order.sakorio.com/waitlist/1`.
+  2. Customer received queue ticket `Q0022`, position 4, party size 2.
+  3. Host opened Queue and found the web waitlist entry immediately.
+  4. Host clicked Notify guest.
+  5. Customer phone view changed to "Your table is nearly ready".
+  6. Host seated guest to recommended exact-fit T07.
+  7. POS opened from queue handoff with T07 and QR active.
+  8. Customer used QR to order Tacos de Carne Asada.
+  9. Waiter later added Coffee from staff POS after the live bill existed.
+  10. Waiter sent the POS add-on round.
+  11. KDS received one mixed kitchen/beverage ticket and served it.
+  12. Cashier terminal-paid the bill.
+  13. Cashier closed T07.
+  14. Customer QR reload showed Table Closed.
+  15. Queue board returned to `0 active / 0 visible`.
+- What passed:
+  - Public waitlist creation worked.
+  - Host board showed the guest, source, party size, phone, notes, and fit guidance.
+  - Notify state synchronized to customer phone.
+  - Exact-fit table recommendation was clear and useful.
+  - Staff POS add-on worked once a live bill existed.
+  - Mixed QR + staff POS ticket reached KDS correctly.
+  - Payment, close/reset, QR lockout, and queue cleanup worked.
+- Issues found:
+  - After queue seating, POS showed QR active but did not make the active QR link as visibly available as reservation handoff.
+  - This case narrowed R6-FLOW-004: staff POS add-on works after an order exists; the broken state is seated/no-order first item creation.
+- Improvements needed:
+  - Expose the active QR link more clearly after queue seating, same as reservation handoff.
+  - Preserve waiter POS add-on after QR order with automated regression coverage.
+  - Fix seated/no-order staff POS cart creation from R6-FLOW-004.
+- Launch decision: launch-capable for public queue to seated dining lifecycle; polish QR handoff visibility and preserve POS add-on behavior.
+
+### R6-FLOW-007 - Public queue party of 6 -> host capacity safety -> no suitable table -> cleanup
+
+- Priority: P0
+- Roles acted through browser: walk-in customer, host
+- Status: PASS CAPACITY / FAIL HOST CANCEL CONTROLS
+- Score: 7.4 / 10
+- Artifacts:
+  - Queue ticket: `Q0023`
+  - Guest: `R6 Flow 007 QueueParty6 599387`
+- Browser workflow executed:
+  1. Customer joined public waitlist as a party of 6.
+  2. Customer received queue ticket `Q0023`, position 4, party size 6.
+  3. Host opened Queue and selected the guest.
+  4. Queue detail showed `READY TABLES 0`.
+  5. Seat-to-table section showed "No clear table currently matches this party size."
+  6. No unsafe T07/T09/T04 seating buttons were offered.
+  7. Host clicked Cancel and No-show controls for cleanup; the entry did not visibly change.
+  8. Customer clicked Leave queue.
+  9. Customer view showed Queue entry cancelled.
+  10. Staff Queue returned to `0 active / 0 visible`.
+- What passed:
+  - Capacity safety is strong. The host could not seat 6 guests into smaller 2-seat or 4-seat tables.
+  - The system explained the absence of matching tables clearly.
+  - Customer-side Leave queue worked and synchronized back to staff Queue.
+- Issues found:
+  - Host-side Cancel and No-show buttons appeared active but did not visibly update the entry or show a confirmation/error.
+  - For a no-fit party, the decision path should be clearer: wait, convert to reservation, split party, or cancel.
+- Improvements needed:
+  - Keep the `0 ready` capacity block; it prevents unsafe seating.
+  - Fix or clarify host-side Cancel and No-show queue controls.
+  - If no suitable table exists, offer a clearer "convert to reservation / split party / keep waiting" path.
+  - Show customer-facing status after host cancel/no-show, matching customer Leave queue behavior.
+- Launch decision: capacity handling is launch-capable; host queue cancellation/no-show controls need fixing before heavy service use.
+
 ## Cross-case findings so far
 
 1. The core customer-QR table lifecycle is working: reservation, seating, QR order, KDS, payment, close, QR lockout.
@@ -247,7 +326,9 @@ Current checkpoint:
 6. Staff POS add-to-cart from a seated/no-order reservation table failed silently in R6-FLOW-004. This is the first launch-blocking finding in this batch.
 7. Closing a seated no-order table works from Tables, but POS should expose the same action to reduce service friction.
 8. Public reservation confirmation/time selection needs follow-up because multiple later bookings displayed an unexpected confirmation time.
+9. Public queue flow is strong: waitlist join, notify, recommended seating, QR order, waiter add-on, KDS, payment, close, and queue cleanup all worked.
+10. Queue capacity safety is strong for oversized parties, but host-side Cancel/No-show controls need repair or clearer feedback.
 
 ## Pending workflows
 
-`R6-FLOW-006` through `R6-FLOW-050` remain pending in this results brief.
+`R6-FLOW-008` through `R6-FLOW-050` remain pending in this results brief.

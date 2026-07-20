@@ -5789,22 +5789,7 @@ export class CashierPosComponent {
       }))
       .sort((a, b) => this.compareQueueGroups(a, b));
   });
-  showQueuePanel = computed(
-    () => {
-      if (!this.tableWorkspaceOpen()) {
-        return false;
-      }
-
-      if (this.effectiveCheckoutTable()) {
-        return this.cartItemCount() === 0 && (this.queueOrders().length > 0 || !this.loading());
-      }
-
-      return (
-        !this.hasCheckoutWork() &&
-        (this.queueOrders().length > 0 || (!this.loading() && this.visibleOrders().length === 0))
-      );
-    },
-  );
+  showQueuePanel = computed(() => false);
   primaryCheckoutMode = computed<PosSettlementMode>(() => {
     const mode = this.selectedSettlementMode();
     if (mode === 'hitpay' && !this.hitPayConfigured()) {

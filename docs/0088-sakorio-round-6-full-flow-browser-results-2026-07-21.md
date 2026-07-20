@@ -13,9 +13,9 @@ This result document is a live checkpoint. The full-flow journeys are being exec
 
 Current checkpoint:
 
-- Completed: 23 / 50
-- Pending: 27 / 50
-- Completed average score: 7.97 / 10
+- Completed: 24 / 50
+- Pending: 26 / 50
+- Completed average score: 7.90 / 10
 - Current launch posture: not ready yet. The core QR lifecycle is improving, but R6-FLOW-004, R6-FLOW-016, and R6-FLOW-020 exposed launch-blocking or high-friction POS session/product-hit-target issues. Timetable/reporting are stronger now, but attendance camera fallback, end-day Orders search/filtering, and HitPay sandbox completion resilience need polish.
 
 ## Score meaning
@@ -1108,6 +1108,56 @@ Current checkpoint:
   - Continue simplifying post-payment close state.
 - Launch decision: launch-ready for same-table multi-device QR session integrity, with optional live-sync polish.
 
+### R6-FLOW-024 - QR order -> waiter adds item with special note from POS -> KDS note visibility -> payment -> close
+
+- Priority: P0
+- Roles acted through browser: customer, waiter, kitchen, cashier
+- Status: PARTIAL FAIL - STAFF ADD-ON WORKS, BUT NOTES ARE MISSING
+- Score: 6.2 / 10
+- Artifacts:
+  - Table: `T07`
+  - Order: `#115`
+  - Customer QR item: Coca Cola, `SGD 3.00`
+  - Staff add-on actually added: Mole Poblano, `SGD 15.00`
+  - Final total: `SGD 18.00`
+  - Final QR state: `Table Closed`
+- Browser workflow executed:
+  1. Staff opened a clean T07 session and copied the active QR link.
+  2. Customer opened T07 QR and placed Coca Cola order `#115`.
+  3. Waiter opened POS for T07/#115.
+  4. POS showed one live bill, one QR item, `SGD 3.00`, and Add items menu.
+  5. Waiter inspected POS controls for note/special-request/remark/comment fields.
+  6. No note or special-request input was visible in the POS table drawer.
+  7. Waiter attempted to add Enchiladas from POS.
+  8. The clicked product target/index resulted in Mole Poblano being added instead, showing the repeated product hit-target fragility.
+  9. Cart showed one staff add-on, total became `SGD 18.00`, and `Send order` appeared.
+  10. Waiter sent the add-on to kitchen without any note because no note field existed.
+  11. POS current session showed order #115 with `1x Coca Cola` and `1x Mole Poblano`.
+  12. KDS showed one ticket #115 with both lines split by station: Coca Cola beverage and Mole Poblano kitchen/main course.
+  13. KDS did not show any special note, because none could be entered.
+  14. Kitchen served the ticket and KDS returned to zero.
+  15. Initial payment helper failed to find Pay bill timing after KDS, but manual Pay bill worked.
+  16. Staff payment sheet showed staff-only Cash plus Terminal, with copy explaining customer QR checkout only shows HitPay/card-at-table.
+  17. Cashier selected Terminal, recorded payment, closed T07, and POS showed open bills zero.
+  18. Customer old QR reload showed `Table Closed`.
+- What passed:
+  - Staff can add an item to an existing QR-created bill and keep it under the same order ID.
+  - KDS receives the combined QR + staff add-on as one ticket with correct kitchen/beverage station split.
+  - Customer QR payment choices remain cashless; staff cash is clearly labelled as internal counter settlement.
+  - Terminal payment/close/reset completed and QR locked out.
+- Issues found:
+  - No POS note/special-request input exists in the add-on workflow.
+  - Because no note can be entered, KDS cannot display customer/waiter special instructions.
+  - Product hit target/index fragility caused the wrong product to be added during staff add-on testing.
+  - Payment helper/timing failed until manual Pay bill click, indicating the drawer state remains brittle after KDS transitions.
+- Improvements needed:
+  - Add item-level notes from POS before sending an add-on, e.g. `No spice`, `less ice`, `allergy`, `serve later`.
+  - Show item notes prominently in KDS, POS current session, order history, and printed receipts once printers are revisited.
+  - Fix product button hit targets/indexing so a waiter cannot accidentally add the wrong dish under pressure.
+  - Add regression coverage for QR order + waiter add-on + note -> KDS note display.
+  - Consider requiring confirmation when a staff add-on differs from the tapped product/category during UI testing.
+- Launch decision: not launch-ready for special-request handling. Functional add-on works, but notes are a must-have for real kitchen operations.
+
 ## Cross-case findings so far
 
 1. The core customer-QR table lifecycle is working: reservation, seating, QR order, KDS, payment, close, QR lockout.
@@ -1149,7 +1199,9 @@ Current checkpoint:
 33. Table-state copy such as `Ready to serve` plus `Currently occupied` needs clearer operational wording.
 34. Same QR opened on two devices correctly merges sequential submissions into one order/bill and one KDS ticket.
 35. Manual public booking with explicit slot selection can preserve the intended time; the recurring mismatch appears tied to fragile/incorrect slot selection paths rather than all booking flows.
+36. POS has no visible item-level special-request/note field for waiter add-ons, so kitchen cannot receive service notes from POS.
+37. Product hit-target fragility is now observed in multiple flows and can add the wrong item during staff POS add-ons.
 
 ## Pending workflows
 
-`R6-FLOW-024` through `R6-FLOW-050` remain pending in this results brief.
+`R6-FLOW-025` through `R6-FLOW-050` remain pending in this results brief.

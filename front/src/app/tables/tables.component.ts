@@ -643,7 +643,7 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                     [disabled]="activatingTableId() === table.id"
                     (click)="closeTableSession(table)"
                   >
-                    {{ activatingTableId() === table.id ? 'Clearing...' : 'Clear table' }}
+                    {{ activatingTableId() === table.id ? 'Closing...' : 'Close table' }}
                   </button>
                 } @else {
                   @if (canOpenStaffOrders()) {

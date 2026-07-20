@@ -195,15 +195,24 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
                 </div>
               <div class="card-actions">
                 @if (r.status === 'booked' && canWrite()) {
-                  <button class="btn btn-primary primary-reservation-action" (click)="openReservationTable(r)">{{ reservationTableActionLabel(r) }}</button>
                   @if (r.table_id) {
+                    <button class="btn btn-primary primary-reservation-action" (click)="openReservationTable(r, 'seat')">
+                      Seat now / open POS
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="openReservationTable(r, 'assign')">
+                      Change table
+                    </button>
                     <button
                       type="button"
                       class="btn btn-ghost btn-sm"
                       (click)="openReservationCustomerMenu(r)"
                       [disabled]="reservationMenuOpeningId() === r.id"
                     >
-                      {{ reservationMenuOpeningId() === r.id ? 'Opening…' : 'Open QR/menu' }}
+                      {{ reservationMenuOpeningId() === r.id ? 'Activating…' : 'Seat + customer QR' }}
+                    </button>
+                  } @else {
+                    <button class="btn btn-primary primary-reservation-action" (click)="openReservationTable(r)">
+                      {{ reservationTableActionLabel(r) }}
                     </button>
                   }
                   <div class="reservation-secondary-actions" aria-label="Reservation secondary actions">
@@ -1181,7 +1190,7 @@ export class ReservationsComponent implements OnInit, OnDestroy {
           : 'Arrival window is open. Pick a table to seat the guest and start ordering.';
       }
       return r.table_id
-        ? 'Table is planned. Seat the guest from here when they arrive.'
+        ? 'Table is planned. Use Seat now / open POS when the guest arrives, even if they arrive early.'
         : 'Assign a likely table before arrival to keep service smooth.';
     }
     if (r.status === 'seated') {
@@ -1190,9 +1199,9 @@ export class ReservationsComponent implements OnInit, OnDestroy {
     return '';
   }
 
-  openReservationTable(r: Reservation) {
+  openReservationTable(r: Reservation, forcedMode?: 'assign' | 'seat') {
     this.reservationToSeat.set(r);
-    this.reservationTableMode.set(this.reservationIsReadyToSeat(r) ? 'seat' : 'assign');
+    this.reservationTableMode.set(forcedMode ?? (this.reservationIsReadyToSeat(r) ? 'seat' : 'assign'));
     this.reservationTableError.set(null);
     this.reservationTableSubmittingId.set(null);
     this.upcomingNoTableCount.set(null);
@@ -1332,6 +1341,43 @@ export class ReservationsComponent implements OnInit, OnDestroy {
     const tableId = reservation.table_id ?? null;
     if (!tableId) return;
     this.reservationMenuOpeningId.set(reservation.id);
+    if (reservation.status === 'booked') {
+      this.api.seatReservation(reservation.id, tableId).subscribe({
+        next: () => {
+          this.load();
+          this.loadTables();
+          this.openCustomerMenuForReservationTable(reservation, tableId);
+        },
+        error: (err) => {
+          this.reservationMenuOpeningId.set(null);
+          this.reservationTableError.set(
+            this.apiErr.fromHttpError(err, 'Could not seat this reservation before opening the customer QR.'),
+          );
+        },
+      });
+      return;
+    }
+    this.openCustomerMenuForReservationTable(reservation, tableId);
+  }
+
+  private customerMenuUrlForReservationTable(tableId: number): string | null {
+    const table = this.tablesWithStatus().find((entry) => entry.id === tableId);
+    if (!table?.token) {
+      return null;
+    }
+    const baseUrl = `${getCustomerPublicOrigin()}/menu/${table.token}`;
+    return table.qr_access
+      ? `${baseUrl}?qr_access=${encodeURIComponent(table.qr_access)}`
+      : baseUrl;
+  }
+
+  private openCustomerMenuForReservationTable(reservation: Reservation, tableId: number): void {
+    const customerUrl = this.customerMenuUrlForReservationTable(tableId);
+    if (customerUrl) {
+      this.reservationMenuOpeningId.set(null);
+      window.open(customerUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
     this.api.getStaffMenuToken(tableId).subscribe({
       next: (res) => {
         this.reservationMenuOpeningId.set(null);

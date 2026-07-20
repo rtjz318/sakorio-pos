@@ -193,7 +193,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                           class="btn btn-secondary btn-sm btn-table-clear"
                           (click)="clearTable(table)"
                           [disabled]="pendingTableId() === table.id">
-                          {{ pendingTableId() === table.id ? 'Clearing...' : 'Clear paid' }}
+                          {{ pendingTableId() === table.id ? 'Closing...' : 'Close table' }}
                         </button>
                       }
                       <button
@@ -517,7 +517,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                       class="btn btn-ghost btn-sm"
                       (click)="clearTable(checkoutTable)"
                       [disabled]="pendingTableId() === checkoutTable.id">
-                      {{ pendingTableId() === checkoutTable.id ? 'Clearing...' : 'Clear table' }}
+                      {{ pendingTableId() === checkoutTable.id ? 'Closing...' : 'Close table' }}
                     </button>
                   }
                 </div>
@@ -642,7 +642,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                         style="min-height:2.45rem;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap"
                         (click)="clearLastCheckoutTable()"
                         [disabled]="pendingTableId() === lastCheckoutTableId()">
-                        {{ pendingTableId() === lastCheckoutTableId() ? 'Clearing...' : 'Clear table' }}
+                        {{ pendingTableId() === lastCheckoutTableId() ? 'Closing...' : 'Close table' }}
                       </button>
                     }
                     <button type="button" class="btn btn-secondary btn-sm" (click)="reviewLastCheckoutOutcome()">
@@ -671,7 +671,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                           class="btn btn-primary btn-sm"
                           (click)="clearTable(settledTable)"
                           [disabled]="pendingTableId() === settledTable.id">
-                          {{ pendingTableId() === settledTable.id ? 'Clearing...' : 'Clear table' }}
+                          {{ pendingTableId() === settledTable.id ? 'Closing...' : 'Close table' }}
                         </button>
                         <button
                           type="button"
@@ -1069,7 +1069,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                     </button>
                     @if (canClearTable(serviceTable)) {
                       <button type="button" class="btn btn-primary btn-sm" (click)="clearTable(serviceTable)" [disabled]="pendingTableId() === serviceTable.id">
-                        {{ pendingTableId() === serviceTable.id ? 'Clearing...' : 'Clear table' }}
+                        {{ pendingTableId() === serviceTable.id ? 'Closing...' : 'Close table' }}
                       </button>
                     } @else if (hasCheckoutWork()) {
                       <button type="button" class="btn btn-primary btn-sm" (click)="setPosDrawerView('checkout')">Checkout</button>
@@ -1254,7 +1254,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                         <div class="pos-service-action-row">
                           @if (canClearLastCheckoutTable()) {
                             <button type="button" class="btn btn-primary btn-sm" style="min-height:2.45rem;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap" (click)="clearLastCheckoutTable()" [disabled]="pendingTableId() === lastCheckoutTableId()">
-                              {{ pendingTableId() === lastCheckoutTableId() ? 'Clearing...' : 'Clear table' }}
+                              {{ pendingTableId() === lastCheckoutTableId() ? 'Closing...' : 'Close table' }}
                             </button>
                           }
                           <button type="button" class="btn btn-secondary btn-sm" (click)="dismissCheckoutOutcome()">Close</button>
@@ -1265,7 +1265,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                         @if (canClearTable(serviceTable)) {
                           <strong>{{ serviceTable.name }} is ready to clear.</strong>
                           <button type="button" class="btn btn-primary btn-sm" (click)="clearTable(serviceTable)" [disabled]="pendingTableId() === serviceTable.id">
-                            {{ pendingTableId() === serviceTable.id ? 'Clearing...' : 'Clear table' }}
+                            {{ pendingTableId() === serviceTable.id ? 'Closing...' : 'Close table' }}
                           </button>
                         } @else {
                           <strong>No payable bill yet.</strong>
@@ -5866,7 +5866,7 @@ export class CashierPosComponent {
     }
 
     if (this.canClearTable(this.effectiveCheckoutTable())) {
-      return 'Paid - clear next';
+      return 'Paid - close table next';
     }
 
     return 'Ready for items';
@@ -5874,7 +5874,7 @@ export class CashierPosComponent {
 
   posNextStepCopy(table: CanvasTable): string {
     if (this.canClearTable(table)) {
-      return 'Payment received - clear the table';
+      return 'Payment received - close the table';
     }
     if (this.cartItemCount() > 0) {
       return 'Send this round to kitchen';
@@ -6672,7 +6672,7 @@ export class CashierPosComponent {
       case 'cancelled':
         return 'No payment was taken. The bill is still open: retry HitPay, use the terminal, or return to the cart.';
       case 'failed':
-        return 'Payment was not confirmed. Do not clear the table yet: retry, switch method, or return to the cart.';
+        return 'Payment was not confirmed. Do not close the table yet: retry, switch method, or return to the cart.';
       case 'idle':
       default:
         return '';
@@ -7579,7 +7579,7 @@ export class CashierPosComponent {
       this.queueReadyTableAfterReload(table.id, 'catalog');
       this.loadData();
     } catch (err) {
-      this.error.set(this.getErrorMessage(err, 'Unable to clear the table.'));
+      this.error.set(this.getErrorMessage(err, 'Unable to close the table.'));
     } finally {
       this.pendingTableId.set(null);
     }

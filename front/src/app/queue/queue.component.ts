@@ -95,23 +95,23 @@ type QueueSortMode =
         <section class="summary-grid">
           <article class="card stat">
             <span class="label">Waiting guests</span>
-            <strong>{{ summary()?.waiting_guests ?? 0 }}</strong>
-            <span class="hint">Across the active queue</span>
+            <strong>{{ visibleStatusCount('waiting') }}</strong>
+            <span class="hint">{{ boardFilterActive() ? 'Visible after filters' : 'Currently waiting on this board' }}</span>
           </article>
           <article class="card stat">
             <span class="label">Notified</span>
-            <strong>{{ summaryCount('notified') }}</strong>
+            <strong>{{ visibleStatusCount('notified') }}</strong>
             <span class="hint">Ready to be seated now</span>
           </article>
           <article class="card stat">
             <span class="label">Seated</span>
-            <strong>{{ summaryCount('seated') }}</strong>
-            <span class="hint">Already handed to floor service</span>
+            <strong>{{ visibleStatusCount('seated') }}</strong>
+            <span class="hint">Visible seated handoffs</span>
           </article>
           <article class="card stat">
-            <span class="label">Total entries</span>
-            <strong>{{ summary()?.total_entries ?? 0 }}</strong>
-            <span class="hint">Including completed queue records</span>
+            <span class="label">Loaded records</span>
+            <strong>{{ queue().length }}</strong>
+            <span class="hint">{{ includeClosed ? 'Includes closed queue records' : 'Current queue records loaded' }}</span>
           </article>
         </section>
 
@@ -2047,6 +2047,10 @@ export class QueueComponent implements OnInit {
 
   summaryCount(status: GuestQueueStatus): number {
     return this.summary()?.counts?.[status] ?? 0;
+  }
+
+  visibleStatusCount(status: GuestQueueStatus): number {
+    return this.filteredBoardEntries().filter((entry) => entry.status === status).length;
   }
 
   prettyStatus(status: GuestQueueStatus): string {

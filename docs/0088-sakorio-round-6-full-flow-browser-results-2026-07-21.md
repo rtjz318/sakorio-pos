@@ -13,9 +13,9 @@ This result document is a live checkpoint. The full-flow journeys are being exec
 
 Current checkpoint:
 
-- Completed: 24 / 50
-- Pending: 26 / 50
-- Completed average score: 7.90 / 10
+- Completed: 25 / 50
+- Pending: 25 / 50
+- Completed average score: 7.91 / 10
 - Current launch posture: not ready yet. The core QR lifecycle is improving, but R6-FLOW-004, R6-FLOW-016, and R6-FLOW-020 exposed launch-blocking or high-friction POS session/product-hit-target issues. Timetable/reporting are stronger now, but attendance camera fallback, end-day Orders search/filtering, and HitPay sandbox completion resilience need polish.
 
 ## Score meaning
@@ -1158,6 +1158,59 @@ Current checkpoint:
   - Consider requiring confirmation when a staff add-on differs from the tapped product/category during UI testing.
 - Launch decision: not launch-ready for special-request handling. Functional add-on works, but notes are a must-have for real kitchen operations.
 
+### R6-FLOW-025 - Pure waiter POS order for non-QR guest -> served -> verbal add-on -> payment -> close
+
+- Priority: P0
+- Roles acted through browser: waiter, kitchen, cashier
+- Status: PASS WITH MENU/WORDING/CLOSE POLISH
+- Score: 8.1 / 10
+- Artifacts:
+  - Table: `T01`
+  - Order: `#116`
+  - Initial staff order: Coffee + Enchiladas, `SGD 22.50`
+  - Verbal add-on used because no dessert SKU existed: Coca Cola, `SGD 3.00`
+  - Final total: `SGD 25.50`
+  - Final table state: T01 available, open bills zero
+- Browser workflow executed:
+  1. Waiter opened clean T01 in POS for an elderly/non-QR customer.
+  2. Waiter added Coffee and Enchiladas from POS product cards.
+  3. Cart showed 2 items and `SGD 22.50`.
+  4. Waiter clicked `Send order`.
+  5. POS created order `#116` and kept the bill open for add-ons/payment.
+  6. KDS received ticket #116 with Coffee as beverage and Enchiladas as kitchen/main course.
+  7. Kitchen moved #116 through Start ticket -> Ready for pass -> Served / Delivered.
+  8. KDS returned to zero.
+  9. Customer verbally requested an add-on/dessert.
+  10. Waiter reopened T01/#116 in POS.
+  11. No dessert category or dessert menu item existed, so waiter used Coca Cola as a stand-in add-on.
+  12. POS add-on cart showed Coca Cola, and total became `SGD 25.50`.
+  13. The service loop copy said `3 items not sent yet` even though only the 1 add-on item was unsent; the cart itself correctly showed `1 in cart`.
+  14. Waiter sent the add-on.
+  15. POS kept #116 as one order with Coffee, Enchiladas, and Coca Cola, status partially delivered / awaiting payment.
+  16. KDS received only the add-on Coca Cola as a new 1-item beverage ticket.
+  17. Kitchen served the add-on and KDS returned to zero.
+  18. Cashier terminal-paid #116. The helper stopped at paid-awaiting-close again, but manual visible close worked.
+  19. Cashier closed T01.
+  20. POS showed T01 available and open bills zero.
+- What passed:
+  - Pure waiter/POS ordering can work smoothly when product card hit targets behave.
+  - Initial mixed station ticket split correctly in KDS.
+  - Verbal add-on stayed under the same order/bill #116.
+  - Add-on created a new KDS ticket only for the new item, not the whole bill again.
+  - Payment and close cleaned up the table.
+- Issues found:
+  - No dessert SKU/category exists, so a real dessert add-on workflow cannot be tested properly.
+  - Add-on summary copy is misleading: `3 items not sent yet` should say 1 new item pending, 3 total items on bill.
+  - Post-payment close remains a two-step state that frequently breaks helper automation and can confuse staff.
+  - Earlier POS hit-target failures mean this pass is not enough to clear the product-click risk globally.
+- Improvements needed:
+  - Add demo dessert items/category or ensure real restaurant menus support desserts/add-ons if expected in service.
+  - Change POS service-loop wording to distinguish `new unsent cart items` from `total bill items`.
+  - Keep the add-on KDS behavior; it correctly sent only the newly added item.
+  - Simplify/strengthen post-payment close behavior.
+  - Add regression coverage for pure staff order -> served -> add-on -> only add-on sent to KDS -> payment/close.
+- Launch decision: launch-capable for pure waiter service and add-on rounds, with menu data, wording, and close-state polish.
+
 ## Cross-case findings so far
 
 1. The core customer-QR table lifecycle is working: reservation, seating, QR order, KDS, payment, close, QR lockout.
@@ -1201,7 +1254,10 @@ Current checkpoint:
 35. Manual public booking with explicit slot selection can preserve the intended time; the recurring mismatch appears tied to fragile/incorrect slot selection paths rather than all booking flows.
 36. POS has no visible item-level special-request/note field for waiter add-ons, so kitchen cannot receive service notes from POS.
 37. Product hit-target fragility is now observed in multiple flows and can add the wrong item during staff POS add-ons.
+38. Pure waiter/POS order plus later add-on can work and correctly sends only the new add-on to KDS.
+39. POS add-on copy confuses total bill items with unsent cart items.
+40. Demo/restaurant catalog lacks dessert items, limiting real dessert/add-on workflow QA.
 
 ## Pending workflows
 
-`R6-FLOW-025` through `R6-FLOW-050` remain pending in this results brief.
+`R6-FLOW-026` through `R6-FLOW-050` remain pending in this results brief.

@@ -13,9 +13,9 @@ This result document is a live checkpoint. The full-flow journeys are being exec
 
 Current checkpoint:
 
-- Completed: 10 / 50
-- Pending: 40 / 50
-- Completed average score: 8.28 / 10
+- Completed: 13 / 50
+- Pending: 37 / 50
+- Completed average score: 8.25 / 10
 - Current launch posture: not ready yet. The core QR lifecycle is improving, but R6-FLOW-004 exposed a launch-blocking mixed staff POS + customer QR ordering issue.
 
 ## Score meaning
@@ -438,6 +438,154 @@ Current checkpoint:
   - Keep Cash removed from customer QR payment options.
 - Launch decision: launch-capable for abandoned HitPay recovery, with QR return-state messaging polish.
 
+### R6-FLOW-011 - Customer QR order -> HitPay sandbox card success -> staff POS sync -> close table
+
+- Priority: P0
+- Roles acted through browser: customer, kitchen, cashier
+- Status: PASS WITH CLOSE-FLOW UX CAVEAT
+- Score: 8.9 / 10
+- Artifacts:
+  - Queue ticket: `Q0027`
+  - Guest: `R6 Flow 011 HitPaySuccess 531465`
+  - Table: `T07`
+  - Order: `#99`
+  - HitPay reference: `a24e7833-8144-47f8-872b-e11b90d3d828`
+- Browser workflow executed:
+  1. Fresh public queue guest was seated to T07.
+  2. Customer opened the active T07 QR link and placed Coffee order `#99`.
+  3. Kitchen processed the ticket through start, ready, and served.
+  4. Customer clicked Pay Now.
+  5. Recurring optional name prompt appeared and had to be skipped.
+  6. Payment sheet showed Pay with HitPay and Pay with Card at Table; Cash was not shown.
+  7. Customer clicked Pay with HitPay and was sent to HitPay sandbox checkout.
+  8. Customer entered sandbox card details and completed payment.
+  9. HitPay redirected to Sakorio `/payment-success` with `status=completed` and the expected reference.
+  10. Staff POS opened T07/order `#99` and showed `Last bill #99 paid`, `Payment received - close the table`, and `SGD 0.00`.
+  11. First close attempt was ambiguous because two visible `Close table` buttons existed and the table remained active.
+  12. Clicking the table-drawer close button completed the reset: POS showed `T07 is clear and ready for the next cashier bill`.
+  13. Customer QR reload showed `Table Closed`.
+- What passed:
+  - End-to-end customer-side HitPay sandbox success worked.
+  - Staff POS payment sync reflected the paid state after the HitPay redirect.
+  - Customer QR payment options correctly excluded Cash.
+  - Final table reset blocked the old QR after close.
+- Issues found:
+  - Two visible `Close table` buttons created an ambiguous close action after a paid HitPay bill.
+  - Optional QR name prompt still appears before payment even when it is not important to the payment task.
+  - Staff POS needs a clearer post-HitPay state transition after pressing close.
+- Improvements needed:
+  - Deduplicate or clearly distinguish the two `Close table` buttons.
+  - Ensure either close button uses the same final close-table handler.
+  - Persist skipped/entered QR name before payment.
+  - Keep this HitPay success path protected with regression coverage.
+- Launch decision: launch-capable for HitPay payment sync, but the paid-close UX should be polished before final launch.
+
+### R6-FLOW-012 - Staff POS table order -> many items -> KDS -> add-on round -> terminal payment -> close -> Orders history
+
+- Priority: P0
+- Roles acted through browser: cashier, kitchen
+- Status: PASS WITH LAUNCH-RISK POS LAYOUT DEFECT
+- Score: 7.4 / 10
+- Artifacts:
+  - Table: `T01`
+  - Order: `#100`
+  - First round: Enchiladas, Coffee, Mole Poblano, Pozole, Tecate Roja
+  - Add-on round: Coffee
+  - Final total: `SGD 62.00`
+- Browser workflow executed:
+  1. Cashier opened POS directly on available T01.
+  2. POS table-service drawer showed T01, QR actions, service loop, current orders, add items, bill/pay, and history tabs.
+  3. Attempting to click an early left-side product card from the live browser navigated to Customers instead of adding the item.
+  4. Rechecked button coordinates and confirmed the POS product grid was rendering at the far-left of the viewport while the table grid/navigation remained behind/near it.
+  5. Cashier retried using product cards positioned farther right; Enchiladas added successfully.
+  6. Cashier added Coffee, Mole Poblano, Pozole, and Tecate Roja.
+  7. Cashier sent order `#100`; T01 became `Open order`, current session showed 5 items and `SGD 59.50`.
+  8. Kitchen & beverages showed order `#100` with 5 mixed food/beverage items.
+  9. Kitchen moved the ticket from Start ticket to Ready for pass to Served / Delivered; KDS returned to zero.
+  10. Cashier reopened POS for T01/order `#100`, added a second Coffee round, and sent it.
+  11. KDS showed the second Coffee as a new pending beverage ticket on the same order.
+  12. Kitchen served the add-on; KDS returned to zero.
+  13. POS bill showed 6 items and `SGD 62.00`.
+  14. Cashier opened Bill / Pay and selected the terminal payment path.
+  15. Terminal payment recorded successfully.
+  16. POS returned to table grid and showed T01 paid / ready to close.
+  17. Cashier closed T01 from the grid.
+  18. Orders page showed order `#100` in Order History as Paid with all six items and `SGD 62.00`.
+- What passed:
+  - Pure staff POS order creation works when the product hit target is actually reachable.
+  - Multi-item staff order sent correctly to KDS.
+  - KDS handled mixed food and beverage items on one ticket.
+  - Same-bill add-on round worked before payment.
+  - Terminal payment posted correctly.
+  - Table close/reset worked.
+  - Orders history preserved the paid order and full item list.
+- Issues found:
+  - Product cards in the POS service drawer are mispositioned across the page instead of staying inside the selected-table drawer.
+  - Left-side POS product cards can sit behind or collide with navigation/table-grid clickable areas; one attempted product click navigated to Customers.
+  - Payment has multiple `Pay bill` buttons, which increases ambiguity.
+  - After terminal payment, the drawer closes and cashier must find/click Close table from the grid.
+  - Orders page has duplicate `Order History` heading/count text and no obvious table/session search focus by default.
+- Improvements needed:
+  - Fix POS drawer layout so menu, cart, and payment rail stay inside one coherent table-service workspace.
+  - Ensure every product card has a clean, non-overlapped hit target at desktop and iPad widths.
+  - Deduplicate or visually prioritize `Pay bill` actions.
+  - After payment, keep the selected table drawer open with one obvious `Close table` CTA.
+  - Add an Orders search/filter shortcut for the just-closed table/order.
+- Launch decision: not launch-ready for staff POS-only ordering until the drawer/menu hit-target layout is fixed, even though the backend lifecycle works.
+
+### R6-FLOW-013 - Customer QR large order -> cart review -> KDS readable ticket -> terminal payment -> close
+
+- Priority: P0
+- Roles acted through browser: customer, host, kitchen, cashier
+- Status: PASS WITH CART/KDS WORDING POLISH
+- Score: 8.2 / 10
+- Artifacts:
+  - Queue ticket: `Q0028`
+  - Guest: `R6 Flow 013 QRLarge 648055 652640`
+  - Table: `T07`
+  - Order: `#101`
+  - Final total: `SGD 98.50`
+- Browser workflow executed:
+  1. Customer joined public queue from the live waitlist page.
+  2. Host selected the queue guest and seated them to recommended exact-fit T07.
+  3. Staff POS opened T07 from queue handoff with QR active.
+  4. Customer opened the T07 QR link from the staff handoff.
+  5. Customer skipped the optional name prompt.
+  6. Customer added a large cart across food and drinks.
+  7. Sticky cart summary showed `10 items` and `SGD 98.50`.
+  8. Customer opened the sticky cart sheet.
+  9. Cart review showed grouped quantities, including `2` Enchiladas, and total `SGD 98.50`.
+  10. Customer placed order `#101`.
+  11. Customer current order showed all ordered lines with Pending status and Pay Now.
+  12. Kitchen & beverages showed order `#101` for T07 with grouped quantities and station tags.
+  13. Kitchen moved the ticket from Start ticket to Ready for pass to Served / Delivered.
+  14. KDS briefly showed the ticket in ready lane with a “cleared from KDS” message, then cleared to zero after refresh.
+  15. Staff POS opened T07/order `#101` and showed `10 items` / `SGD 98.50`.
+  16. Cashier terminal-settled the bill.
+  17. Cashier closed T07.
+  18. Customer QR reload showed `Table Closed`.
+- What passed:
+  - Full queue-to-QR-to-KDS-to-payment-to-close lifecycle completed.
+  - QR cart review handled a large order without duplicate lines or bill corruption.
+  - Customer order summary was readable after submission.
+  - KDS grouped quantities and station tags clearly enough for kitchen/beverage staff.
+  - POS bill total matched customer QR total.
+  - Terminal payment and close/reset worked.
+  - Old QR was blocked after close.
+- Issues found:
+  - QR add buttons remain icon-only; customers need clearer visible add controls.
+  - Cart action is hidden inside the sticky cart summary; `Place order` is only visible after expanding it.
+  - One intended item, Mole Poblano, did not appear in the final cart, likely from a missed horizontal featured-card tap; the UI should make missed taps more obvious.
+  - Customer cart says `10 items`; KDS says `9 items` because it counts lines, not quantity. POS later shows both `10 items` and a 9-line bill list. This is technically correct but confusing.
+  - KDS briefly displayed a served ticket with “cleared from KDS” before the board refreshed to zero.
+- Improvements needed:
+  - Make customer add buttons visibly labeled or add a clear plus/quantity affordance.
+  - Add stronger tap feedback when a product is added, especially in the horizontal Featured carousel.
+  - Expose `Place order` more clearly from the sticky cart state.
+  - Standardize wording: `10 items / 9 lines` or `10 total items` across QR, KDS, and POS.
+  - After `Served / Delivered`, remove the KDS ticket immediately or show an explicit fading/transition state.
+- Launch decision: launch-capable for large QR order lifecycle, but below 9/10 until cart discoverability and count wording are polished.
+
 ## Cross-case findings so far
 
 1. The core customer-QR table lifecycle is working: reservation, seating, QR order, KDS, payment, close, QR lockout.
@@ -457,7 +605,10 @@ Current checkpoint:
 11. Table move before ordering is functionally correct, including old QR lockout and destination QR activation.
 12. QR rapid double-submit protection is effective; no duplicate order, KDS ticket, or bill line was produced.
 13. Abandoned HitPay checkout is recoverable; POS remains unpaid and terminal settlement can finish the bill safely.
+14. HitPay sandbox success synchronizes into POS correctly, but the paid table close action has duplicate visible buttons and needs cleanup.
+15. Pure staff POS order lifecycle works from order to KDS to payment to history, but the POS product grid can overlap navigation/table hit targets, making staff ordering unreliable.
+16. Large QR orders are operationally stable, but cart expansion and item/line-count wording need usability polish.
 
 ## Pending workflows
 
-`R6-FLOW-011` through `R6-FLOW-050` remain pending in this results brief.
+`R6-FLOW-014` through `R6-FLOW-050` remain pending in this results brief.

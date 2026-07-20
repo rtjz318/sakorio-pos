@@ -13,10 +13,10 @@ This result document is a live checkpoint. The full-flow journeys are being exec
 
 Current checkpoint:
 
-- Completed: 33 / 50
-- Pending: 17 / 50
-- Completed average score: 7.74 / 10
-- Current launch posture: not ready yet. The core QR lifecycle is improving, but R6-FLOW-004, R6-FLOW-016, and R6-FLOW-020 exposed launch-blocking or high-friction POS session/product-hit-target issues. Timetable/reporting are stronger now, but attendance camera fallback, end-day Orders search/filtering, and HitPay sandbox completion resilience need polish.
+- Completed: 50 / 50
+- Pending: 0 / 50
+- Completed average score: 7.59 / 10
+- Current launch posture: not ready yet. The core QR/order/payment lifecycle is much stronger, and end-day close checks now pass with open bills zero and KDS zero. However, launch-blocking or major polish gaps remain in table move, manager void/refund controls, sold-out item handling, booking time reliability, split/merge bill policy, notes/modifiers, and KDS action-state noise.
 
 ## Score meaning
 
@@ -1505,7 +1505,538 @@ Current checkpoint:
   - Add regression coverage for table move with QR link refresh.
 - Launch decision: launch-blocking for table move workflows.
 
-## Cross-case findings so far
+### R6-FLOW-034 - Merge two tables before ordering -> support/workaround -> separate bills cleanup
+
+- Priority: P1
+- Roles acted through browser: host, cashier, kitchen
+- Status: UNSUPPORTED WITH SAFE WORKAROUND
+- Score: 5.5 / 10
+- Artifacts:
+  - Tables checked: T07 and T08
+  - Orders: `#125` T07 Coffee, `#126` T08 Coca Cola
+  - Final state: open bills zero; T07/T08 available
+- Browser workflow executed:
+  1. Host opened Tables and searched for merge/combine/link-table controls.
+  2. No merge/combine table action was visible; only `Move table` appeared.
+  3. Cashier created separate bills on T07 and T08 as the workaround.
+  4. Orders tab showed two independent active table orders.
+  5. Kitchen received tickets and staff processed them.
+  6. Cashier terminal-paid and closed both tables.
+- What passed:
+  - Separate-table workaround is safe.
+  - Orders remain separated by table and can be paid independently.
+- Issues found:
+  - No table merge/combine workflow for groups spanning tables.
+  - KDS cleanup again showed more action buttons than expected for the number of created tickets.
+- Improvements needed:
+  - Add explicit merge/link table workflow or a clear “not supported” policy.
+  - If unsupported, provide staff guidance: keep separate bills or move to one larger table.
+- Launch decision: acceptable only if merge/split-table service is explicitly out of launch scope.
+
+### R6-FLOW-035 - Split bill/partial payment after ordering -> inspect payment support -> full-pay cleanup
+
+- Priority: P1
+- Roles acted through browser: cashier
+- Status: UNSUPPORTED WITH FULL-PAY WORKAROUND
+- Score: 6.2 / 10
+- Artifacts:
+  - Table: `T09`
+  - Order: `#127`
+  - Items: Coffee + Coca Cola, `SGD 5.50`
+  - Final state: T09 available after extra close
+- Browser workflow executed:
+  1. Cashier created a two-item bill on T09.
+  2. Cashier opened Bill / Pay.
+  3. Payment sheet showed amount due and staff payment methods.
+  4. The sheet exposed Cash, Terminal, HitPay/context copy, and custom/counter wording.
+  5. No split-by-item, split-by-person, or partial amount workflow was visible.
+  6. Cashier full-paid by terminal.
+  7. T09 required an extra close action after refresh before becoming available.
+- What passed:
+  - Full bill payment is clear.
+  - Staff-only cash copy is explicit.
+- Issues found:
+  - No split bill or partial payment support.
+  - Paid table remained in close-required state until explicitly closed.
+- Improvements needed:
+  - Add split bill support or label it out-of-scope.
+  - Add partial payment/tendered amount if cash-counter workflows remain.
+- Launch decision: usable for single-payment restaurants, incomplete for split-bill dining.
+
+### R6-FLOW-036 - Paid bill then missed item before guest leaves -> add-on attempt -> close/reset
+
+- Priority: P1
+- Roles acted through browser: cashier, waiter
+- Status: PASS WITH POLICY COPY NEEDED
+- Score: 7.6 / 10
+- Artifacts:
+  - Table: `T07`
+  - Order: `#128`
+  - Final state: T07 available
+- Browser workflow executed:
+  1. Cashier created a Coffee order on T07.
+  2. Cashier terminal-paid the bill but did not immediately close the table.
+  3. Staff attempted to add Coca Cola into the paid-awaiting-close state.
+  4. Add/send was not allowed in the settled bill state.
+  5. Staff closed/reset the table.
+- What passed:
+  - The system protects paid bills from casual post-payment modification.
+  - Table can be reset safely.
+- Issues found:
+  - Staff copy does not clearly explain the policy: close/reset first, then start a new bill if the guest orders again.
+- Improvements needed:
+  - Add paid-state helper copy: `This bill is paid. Close table to start a new order.`
+  - Add a `Start new bill after close` shortcut.
+- Launch decision: safe, but staff policy copy should be clearer.
+
+### R6-FLOW-037 - Queue guest leaves before seating -> rejoins same phone -> staff queue visibility
+
+- Priority: P1
+- Roles acted through browser: customer, host
+- Status: PASS WITH SESSION-STATE POLISH
+- Score: 8.0 / 10
+- Artifacts:
+  - Queue entry observed: `Q0031`
+  - Rejoin entry observed: `Q0032`
+  - Staff queue saw rejoined guest
+- Browser workflow executed:
+  1. Customer opened public waitlist.
+  2. Existing completed queue status offered `Join again`.
+  3. Customer/public flow created an active queue entry.
+  4. Customer clicked `Leave queue`.
+  5. Public page showed `Queue entry cancelled`.
+  6. Customer clicked `Join again`.
+  7. Customer rejoined with the same phone and a new QA name.
+  8. Public page showed a new queue number.
+  9. Staff Queue showed the rejoined guest in the live board.
+- What passed:
+  - Customer can cancel and rejoin.
+  - Staff sees the rejoined guest.
+  - Public waitlist has a useful saved status page.
+- Issues found:
+  - After cleanup, the public page appeared to fall back to the earlier queue number/status in one refresh path.
+  - Host-side cancellation controls are less obvious than customer-side `Leave queue`.
+- Improvements needed:
+  - Tighten public queue session identity after cancel/rejoin.
+  - Make host cancel/remove action more discoverable in Queue.
+- Launch decision: launch-capable with session-state polish.
+
+### R6-FLOW-038 - Fully booked/late reservation while queue waiting -> host priority context
+
+- Priority: P1
+- Roles acted through browser: customer, host
+- Status: FAILS TIME-SELECTION RELIABILITY
+- Score: 6.3 / 10
+- Artifacts:
+  - Reservation: `#69`
+  - Attempted intent: July 22, 2026 at 19:00
+  - Actual confirmation: `2026-07-22 09:00`
+  - Cleanup: public cancellation completed
+- Browser workflow executed:
+  1. Customer opened public booking page.
+  2. Customer attempted to book a future reservation for July 22 at 19:00.
+  3. Booking confirmed successfully, but at `09:00` instead of intended `19:00`.
+  4. Staff Reservations today view did not show the booking because it was for tomorrow.
+  5. Tables best-next-seats and Queue showed walk-in/queue priority context separately.
+  6. Customer opened the reservation status page and cancelled #69.
+- What passed:
+  - Public booking can create and cancel a reservation.
+  - Staff Reservations can see future cancelled reservation after date navigation.
+  - Queue and Tables provide useful host context.
+- Issues found:
+  - Date/time selection is unreliable or unclear; attempted 19:00 became 09:00.
+  - Staff has to navigate service date to see tomorrow’s booking.
+  - Queue-vs-reservation priority is contextual, not a single decision workflow.
+- Improvements needed:
+  - Fix or clarify public booking time-slot selection.
+  - Add stronger confirmation before submit: selected date/time in large text.
+  - Add host priority panel combining queue + upcoming reservations.
+- Launch decision: public booking time accuracy must be fixed before launch.
+
+### R6-FLOW-039 - Public reservation cancel -> staff cancellation visibility -> no table residue
+
+- Priority: P1
+- Roles acted through browser: customer, host
+- Status: PASS
+- Score: 8.4 / 10
+- Artifacts:
+  - Reservation: `#69`
+  - Final status: `CANCELLED`
+  - Staff date checked: Wednesday, July 22, 2026
+- Browser workflow executed:
+  1. Customer opened the reservation status link.
+  2. Customer clicked `Cancel`.
+  3. Customer confirmed `Yes, cancel reservation`.
+  4. Public page showed `Cancelled`.
+  5. Staff opened Reservations.
+  6. Staff navigated to July 22.
+  7. Staff saw #69 with customer name, phone, email, party size, and `CANCELLED`.
+- What passed:
+  - Customer cancellation works.
+  - Staff cancellation visibility works.
+  - Cancelled reservation did not create a table residue.
+- Issues found:
+  - Staff date navigation is manual; the cancellation is easy to miss if staff remains on today.
+- Improvements needed:
+  - Add recent changes/cancellations feed.
+  - Add “tomorrow changed” badge or notification.
+- Launch decision: launch-capable.
+
+### R6-FLOW-040 - Unavailable/sold-out item handling
+
+- Priority: P0
+- Roles acted through browser: manager, cashier
+- Status: MISSING SOLD-OUT WORKFLOW
+- Score: 4.5 / 10
+- Artifacts:
+  - Checked Products page
+  - Checked Inventory page
+  - Inventory state: setup needed, zero items
+- Browser workflow executed:
+  1. Manager opened Products.
+  2. Manager searched visible product list/actions for Available, Unavailable, Sold out, In stock, Disable, Hide.
+  3. No menu-item availability toggle was visible.
+  4. Manager opened Inventory.
+  5. Inventory showed setup-needed and zero items.
+  6. No menu sold-out linkage was visible.
+- What passed:
+  - Product list is readable.
+  - Inventory clearly says setup is needed.
+- Issues found:
+  - No same-day sold-out/unavailable item workflow.
+  - QR/POS cannot visibly hide or disable sold-out items.
+  - Inventory is not connected to menu availability in the visible UI.
+- Improvements needed:
+  - Add per-product `Available / Sold out` toggle.
+  - Reflect sold-out state in customer QR, POS, and KDS.
+  - Add quick sold-out controls from KDS/POS for rush service.
+- Launch decision: launch-blocking for real service unless menu availability is handled outside the system.
+
+### R6-FLOW-041 - Customer notes/modifiers across multiple QR rounds
+
+- Priority: P0
+- Roles acted through browser: customer, waiter, kitchen
+- Status: MISSING NOTES/MODIFIERS
+- Score: 6.5 / 10
+- Artifacts:
+  - Table: `T07`
+  - Order: `#129`
+  - Round 1: Coffee
+  - Round 2: Coca Cola
+  - Final total: `SGD 5.50`
+- Browser workflow executed:
+  1. Staff copied T07 QR.
+  2. Customer opened QR and added Coffee.
+  3. Customer cart showed Coffee and `Place order`.
+  4. No notes/special request/modifier input was visible.
+  5. Customer placed order #129.
+  6. Customer added Coca Cola in a second round.
+  7. Same order #129 updated to two pending items and `SGD 5.50`.
+  8. Staff POS showed both items on the live bill.
+  9. KDS showed both beverage items.
+  10. No note/modifier text appeared in POS or KDS.
+  11. Staff processed, paid, and closed the table.
+- What passed:
+  - Multi-round QR ordering stays on the same bill.
+  - Customer total and staff POS total matched.
+  - KDS ticket received both items.
+- Issues found:
+  - No visible customer notes/special requests.
+  - No item modifiers/options.
+  - POS and KDS cannot receive prep notes from QR.
+- Improvements needed:
+  - Add item-level notes and optional modifiers.
+  - Show notes clearly in KDS and POS bill.
+  - Consider high-friction guard for allergies.
+- Launch decision: launch-capable for simple menu; not launch-complete for modifier-heavy operations.
+
+### R6-FLOW-042 - Unpaid/unserved close guardrails
+
+- Priority: P0
+- Roles acted through browser: cashier, kitchen
+- Status: PARTIAL PASS
+- Score: 7.2 / 10
+- Artifacts:
+  - Table: `T08`
+  - Order: `#130`
+  - Item: Coffee
+  - Final state: T08 available
+- Browser workflow executed:
+  1. Cashier created Coffee order #130 on T08.
+  2. Before payment, POS did not show `Close table`; unpaid close was guarded.
+  3. Cashier paid the bill by terminal before kitchen started/served the ticket.
+  4. KDS still showed #130 as pending after payment.
+  5. Kitchen processed the ticket after payment.
+  6. Staff closed/reset T08.
+- What passed:
+  - Unpaid table cannot be casually closed.
+  - Payment before service is possible for prepaid/counter-service mode.
+  - Kitchen ticket remains visible after prepayment.
+- Issues found:
+  - POS allows payment while KDS still has unserved items without a strong warning.
+  - Dine-in operators may assume paid means service completed.
+- Improvements needed:
+  - Add warning before payment/close when any kitchen item is pending/in prep.
+  - Add mode-specific policy: counter prepaid vs dine-in settle-after-service.
+- Launch decision: safe but needs clearer unserved-ticket warning.
+
+### R6-FLOW-043 - KDS refresh during rush
+
+- Priority: P0
+- Roles acted through browser: cashier, kitchen
+- Status: PASS WITH KDS ACTION-STATE NOISE
+- Score: 7.1 / 10
+- Artifacts:
+  - Orders: `#131` T01 Coffee, `#132` T02 Coca Cola, `#133` T03 Tecate Light
+  - Initial KDS: 3 beverage tickets
+  - Final state: open bills zero; residue cleaned
+- Browser workflow executed:
+  1. Cashier created three quick beverage tickets across T01/T02/T03.
+  2. Kitchen opened KDS and saw all three tickets.
+  3. Kitchen refreshed/reloaded the KDS view.
+  4. All three tickets remained visible and actionable after refresh.
+  5. Kitchen processed tickets through the standard lanes.
+  6. Staff terminal-paid and closed the tables.
+- What passed:
+  - KDS refresh does not lose tickets.
+  - Ticket table labels, item names, and lane counts are visible.
+  - Cleanup can restore open bills to zero.
+- Issues found:
+  - The click/action sequence showed more Start/Ready actions than the three tickets warranted.
+  - One ready ticket residue remained after the first sweep and needed a second cleanup.
+  - KDS action-state transitions feel noisy under rush automation.
+- Improvements needed:
+  - Debounce or disable KDS action buttons immediately after click.
+  - Reconcile lane counters instantly after each state transition.
+  - Add stronger “all clear” confirmation.
+- Launch decision: usable but KDS state polish is needed for rush confidence.
+
+### R6-FLOW-044 - iPad landscape cashier full lifecycle
+
+- Priority: P0
+- Roles acted through browser: cashier, kitchen
+- Status: PASS WITH KDS NOISE NOTE
+- Score: 8.5 / 10
+- Artifacts:
+  - Viewport: tablet landscape override, observed browser width around `1280px`
+  - Table: `T07`
+  - Order: `#134`
+  - Final state: T07 available, open bills zero
+- Browser workflow executed:
+  1. Browser viewport was set to tablet/iPad landscape.
+  2. Cashier opened POS for T07.
+  3. Layout check showed no horizontal overflow.
+  4. Cashier added Coffee; cart remained inside the table drawer.
+  5. Cashier sent order #134.
+  6. Kitchen processed the ticket.
+  7. Cashier terminal-paid and closed T07.
+  8. Final POS board showed open bills zero and T07 available after sync.
+- What passed:
+  - POS cashier workflow works on tablet landscape.
+  - No horizontal overflow detected.
+  - Table drawer/cart/payment remained usable.
+- Issues found:
+  - KDS cleanup again showed duplicate delivered-action noise.
+  - Close-state sync still needed a short wait after clicks.
+- Improvements needed:
+  - Keep tablet CSS as a required regression breakpoint.
+  - Stabilize KDS action transition counts.
+- Launch decision: launch-capable for iPad POS.
+
+### R6-FLOW-045 - iPad host reservations/queue/tables
+
+- Priority: P1
+- Roles acted through browser: host
+- Status: PASS
+- Score: 8.2 / 10
+- Artifacts:
+  - Pages checked: Tables, Queue, Reservations
+  - Viewport: tablet landscape
+  - Horizontal overflow: none detected
+- Browser workflow executed:
+  1. Host opened Tables on tablet landscape.
+  2. Host verified floor board, best-next-seats, Start order, Orders, and waiter/QR actions.
+  3. Host opened Queue.
+  4. Host verified permanent waitlist QR, Add to queue, live board, filters, and waiting lanes.
+  5. Host opened Reservations.
+  6. Host verified New reservation, status filters, service date navigation, and timeline.
+  7. Layout metrics showed no horizontal overflow on all three pages.
+- What passed:
+  - Host pages are tablet-usable.
+  - Key actions are present on the visible page.
+  - No container overlap/horizontal scroll issue was detected.
+- Issues found:
+  - Pages are vertically long; host may scroll heavily during rush.
+  - Queue still contains stale hidden entries and best-next-seat cards from previous QA data.
+- Improvements needed:
+  - Add sticky host action toolbar for iPad.
+  - Add one-tap stale queue cleanup/review mode.
+- Launch decision: launch-capable.
+
+### R6-FLOW-046 - iPad kitchen ticket handling
+
+- Priority: P0
+- Roles acted through browser: customer, kitchen, cashier
+- Status: PASS AFTER SESSION RECOVERY
+- Score: 8.4 / 10
+- Artifacts:
+  - Table: `T08`
+  - Order: `#135`
+  - Item: Coca Cola
+  - Final KDS state: zero active orders
+  - Final POS state: T08 available, open bills zero
+- Browser workflow executed:
+  1. Staff session had expired during tablet testing and redirected to login.
+  2. Staff logged back in through browser.
+  3. Staff copied T08 QR link from POS.
+  4. Customer placed Coca Cola order #135 via QR.
+  5. Kitchen opened KDS on tablet landscape.
+  6. KDS showed one beverage ticket with no horizontal overflow.
+  7. Kitchen completed Start ticket -> Ready for pass -> Served / Delivered.
+  8. KDS showed `No active tickets` and `No active orders`.
+  9. Cashier terminal-paid and closed T08.
+- What passed:
+  - KDS is clean and efficient for a single tablet ticket.
+  - QR handoff to KDS works after staff relogin.
+  - Final cleanup restored table/open-bill state.
+- Issues found:
+  - POS product-grid click timed out once in tablet testing before relogin/state recovery.
+  - Staff session expiry can interrupt long QA/service operations.
+- Improvements needed:
+  - Add session-expiry warning or smoother return-to-intended-page after login.
+  - Keep tablet KDS in regression tests.
+- Launch decision: launch-capable with session-timeout polish.
+
+### R6-FLOW-047 - User/profile/timetable/shift readiness
+
+- Priority: P1
+- Roles acted through browser: manager, staff
+- Status: PARTIAL PASS
+- Score: 7.0 / 10
+- Artifacts:
+  - Users page: Owner + Jason Tan waiter visible
+  - Actual timetable route: `/working-plan`
+  - My Shift: profile selector visible; no open shift currently available
+- Browser workflow executed:
+  1. Manager opened Users and verified Add User plus existing owner/waiter profiles.
+  2. Manager opened `/timetable`; it redirected to Dashboard.
+  3. Manager inspected dashboard links and found `Timetable` points to `/working-plan`.
+  4. Manager opened `/working-plan`.
+  5. Timetable showed Add shift, Week/Calendar, employee roster, coverage warnings, export, and leave/MC ledger.
+  6. Staff opened My Shift.
+  7. My Shift showed profile selector, employee profile details, scheduled shifts, and “No shift available to clock in.”
+- What passed:
+  - Users/profiles exist and roles are visible.
+  - Timetable has strong roster planning features.
+  - My Shift now supports selecting staff profile before attendance.
+- Issues found:
+  - `/timetable` route is not valid despite the tab being named Timetable; actual route is `/working-plan`.
+  - No current open shift meant clock-in/out could not be completed end-to-end in this pass.
+  - Camera/photo fallback was not re-tested here.
+- Improvements needed:
+  - Add `/timetable` redirect/alias to `/working-plan`.
+  - Provide manager “open test shift now” or easier shift-start path.
+  - Re-run clock-in/out when an active shift window exists.
+- Launch decision: timetable planning is strong; attendance E2E needs another pass with an active shift.
+
+### R6-FLOW-048 - Annual leave / MC ledger
+
+- Priority: P1
+- Roles acted through browser: manager
+- Status: PASS WITH FORM-DENSITY POLISH
+- Score: 7.5 / 10
+- Artifacts:
+  - Page: `/working-plan`
+  - Existing leave record visible: Jason Tan annual leave, 2026-07-01, 1 day
+  - Annual leave total showed `1 day(s)`
+  - MC / sick leave total showed `0 day(s)`
+- Browser workflow executed:
+  1. Manager opened Timetable.
+  2. Manager opened/activated `Record leave / MC`.
+  3. Leave control area showed Staff, Type, From, To, Days deducted, Notes, and Record leave / MC.
+  4. Existing annual leave record appeared in the ledger with Delete action.
+  5. Form fields could be interacted with, but no new record was intentionally submitted in this pass.
+- What passed:
+  - Annual leave and MC ledger exists.
+  - Deducted days are visible.
+  - Existing records can be reviewed.
+- Issues found:
+  - Form is dense on iPad because it lives inside a very large calendar page.
+  - Control discovery is noisy due many calendar add/delete shift buttons.
+- Improvements needed:
+  - Use a focused modal/drawer for leave/MC record creation.
+  - Add leave balance remaining per staff, not just records in current timetable range.
+- Launch decision: usable for basic leave ledger, not yet “world-class” leave management.
+
+### R6-FLOW-049 - Payment settings -> reports reconciliation -> secret safety
+
+- Priority: P0
+- Roles acted through browser: manager
+- Status: PASS
+- Score: 8.6 / 10
+- Artifacts:
+  - Settings Payment section checked
+  - Reports payment breakdown checked
+  - No raw key/salt leak detected in visible page text
+- Browser workflow executed:
+  1. Manager opened Settings.
+  2. Manager opened Payment Settings.
+  3. Payment Settings showed SGD, HitPay Sandbox/Live controls, Business API Key field, Webhook Salt field, fiscal settings, immediate payment required, tip settings, and location verification.
+  4. Key/salt values were not exposed in visible page text.
+  5. Manager opened Reports.
+  6. Reports showed payment method reconciliation: HitPay, Terminal, Cash, and other.
+- What passed:
+  - Payment settings are discoverable and secret-safe.
+  - Reports reconcile payment methods clearly.
+  - HitPay configuration is visibly available without leaking credentials.
+- Issues found:
+  - Cash remains in Reports because staff-side historical/internal cash payments exist, even though customer QR cash is removed.
+  - Payment Settings is a long form with many unrelated fiscal/location settings.
+- Improvements needed:
+  - Add a payment-health card showing HitPay configured, webhook reachable, and current mode.
+  - Add explanation that Cash in reports is staff/internal only.
+- Launch decision: launch-capable.
+
+### R6-FLOW-050 - Final launch rehearsal: POS/KDS/Orders/Reports/public surfaces
+
+- Priority: P0
+- Roles acted through browser: manager, cashier, kitchen, customer
+- Status: PASS WITH NON-CORE OPEN ITEMS
+- Score: 8.8 / 10
+- Artifacts:
+  - POS: `OPEN BILLS 0`
+  - KDS: `No active tickets`, `No active orders`
+  - Reports launch close flow: 0 active/ready tables, 0 unpaid/open bills, 0 kitchen tickets not settled, 0 staff still clocked in
+  - Reports: `110 orders`, `SGD 1,899.50 collected`
+  - Public booking page loaded
+  - Public waitlist active QA entry cancelled after check
+- Browser workflow executed:
+  1. Manager opened POS board.
+  2. POS showed open bills zero.
+  3. Manager opened KDS.
+  4. KDS showed zero active tickets/orders.
+  5. Manager opened Orders.
+  6. Orders history showed the latest QA paid orders.
+  7. Manager opened Reports.
+  8. Launch close flow checklist showed zero active/open/backlog/staff-session blockers.
+  9. Customer opened public booking page.
+  10. Customer opened public waitlist page.
+  11. Remaining QA waitlist entry was cancelled.
+  12. Tablet viewport override was reset after testing.
+- What passed:
+  - Core end-day state is clean.
+  - Reports checklist is useful and accurate for launch close.
+  - Public booking/waitlist surfaces load.
+  - No open bills or KDS backlog remained after the full 50-case run.
+- Issues found:
+  - Public waitlist can retain active QA/customer session state until explicitly cancelled.
+  - Launch readiness is held back by feature gaps rather than core close-state failure.
+- Improvements needed:
+  - Add a QA/service cleanup dashboard for stale public waitlist sessions.
+  - Resolve the P0/P1 gaps listed in this brief before calling the system launch-ready.
+- Launch decision: core close rehearsal passes, but overall launch remains conditional on the documented high-priority fixes.
+
+## Cross-case findings after all 50 browser workflows
 
 1. The core customer-QR table lifecycle is working: reservation, seating, QR order, KDS, payment, close, QR lockout.
 2. QR customer ordering is the main recurring UX drag:
@@ -1529,7 +2060,7 @@ Current checkpoint:
 16. Large QR orders are operationally stable, but cart expansion and item/line-count wording need usability polish.
 17. POS supports pre-send cart correction, but there is no discoverable void/remove path for a submitted pending ticket before KDS starts.
 18. After-prep correction/manager override policy is not visible. POS/Orders need explicit safe handling for changes once kitchen has started.
-19. Paid-but-not-closed tables can still accept and send new POS items, creating a second order before table reset. This is launch-blocking session integrity risk.
+19. Earlier paid-but-not-closed testing showed a second POS order could be created before table reset. The later R6-FLOW-036 retest blocked add/send after payment, so this appears improved but must stay in regression coverage.
 20. Reservation no-show is functional and confirmed by modal, but public booking time mismatch continues and assigned-table no-show release still needs direct verification.
 21. Timetable now has strong roster/calendar/leave/coverage foundations, and My shift has the requested staff profile picker.
 22. Attendance clock-in is blocked on devices without camera access and needs a manager-approved fallback path.
@@ -1552,7 +2083,16 @@ Current checkpoint:
 39. POS add-on copy confuses total bill items with unsent cart items.
 40. Demo/restaurant catalog lacks dessert items, limiting real dessert/add-on workflow QA.
 41. Customer QR bill and cashier POS bill stay synchronized after waiter POS add-ons.
+42. Table move is currently not safe enough: the destination/confirmation UX is unclear, and one live move attempt appeared to move a bill to an unexpected table.
+43. Paid-order manager controls are incomplete: no visible refund, partial adjustment, reopen, comp, or manager override workflow was found.
+44. Sold-out/unavailable menu item handling is missing from Products, POS, QR, and visible Inventory workflows.
+45. Split bill, partial payment, and table merge/link workflows are not available; restaurants needing these should not launch without a policy/workaround.
+46. Customer QR and staff POS both lack item-level notes/modifiers, which limits allergy/special-request handling.
+47. KDS refresh preserves tickets, but state transitions can show extra action buttons or require an additional cleanup pass under rush conditions.
+48. iPad/tablet layout is mostly strong: POS, Tables, Queue, Reservations, KDS, Settings, and Reports showed no horizontal overflow at the tested landscape viewport.
+49. The Timetable page is implemented at `/working-plan`; `/timetable` redirects to Dashboard and should become an alias.
+50. Final launch rehearsal passed core operational close checks: POS open bills zero, KDS zero active tickets, Reports checklist zero unresolved tables/orders/kitchen/staff sessions.
 
 ## Pending workflows
 
-`R6-FLOW-034` through `R6-FLOW-050` remain pending in this results brief.
+All `R6-FLOW-001` through `R6-FLOW-050` have been executed through the browser and documented in this results brief.

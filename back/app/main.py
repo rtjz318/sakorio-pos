@@ -11077,6 +11077,38 @@ def update_guest_queue_entry(
         if not floor:
             raise HTTPException(status_code=404, detail="Preferred floor not found")
     update_data = body.model_dump(exclude_unset=True)
+    if "customer_phone" in update_data:
+        raw_phone = update_data.get("customer_phone")
+        phone_e164: str | None = None
+        if isinstance(raw_phone, str) and raw_phone.strip():
+            try:
+                phone_e164 = normalize_phone_e164(raw_phone, settings.default_phone_country)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail="Enter a valid mobile number") from exc
+
+            if queue_entry.status in {models.GuestQueueStatus.waiting, models.GuestQueueStatus.notified}:
+                existing = session.exec(
+                    select(models.GuestQueueEntry)
+                    .where(
+                        models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+                        models.GuestQueueEntry.id != queue_entry.id,
+                        models.GuestQueueEntry.customer_phone == phone_e164,
+                        models.GuestQueueEntry.status.in_(
+                            [models.GuestQueueStatus.waiting, models.GuestQueueStatus.notified]
+                        ),
+                    )
+                    .order_by(models.GuestQueueEntry.requested_at.desc())
+                ).first()
+                if existing:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            f"{existing.customer_name} is already in the active queue as "
+                            f"#{existing.id} ({existing.status.value}). Update that entry instead."
+                        ),
+                    )
+        update_data["customer_phone"] = phone_e164
+
     for key, value in update_data.items():
         if isinstance(value, str):
             value = value.strip() or None

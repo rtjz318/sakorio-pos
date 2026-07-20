@@ -83,7 +83,7 @@ class TestSeatingActivatesTable(PgClientTestCase):
         self.assertIsNotNone(table)
         assert table is not None
         self.assertTrue(table.is_active)
-        self.assertRegex(table.order_pin or "", r"^\d{4}$")
+        self.assertIsNone(table.order_pin)
         self.assertIsNone(table.active_order_id)
         self.assertIsNotNone(table.activated_at)
 

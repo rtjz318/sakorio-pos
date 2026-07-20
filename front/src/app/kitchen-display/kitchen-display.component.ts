@@ -2355,19 +2355,42 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.backlogClearMessage.set('');
     this.backlogClearConfirmArmed.set(false);
     this.backlogClearConfirmKey.set(null);
-    forkJoin(tasks).subscribe({
-      next: () => {
-        this.backlogClearBusy.set(false);
-        this.backlogClearMessage.set(`Completed ${itemCount} backlog item${itemCount === 1 ? '' : 's'}.`);
-        this.loadOrders({ background: true });
-      },
-      error: () => {
-        this.backlogClearBusy.set(false);
-        this.backlogClearConfirmKey.set(null);
+
+    let completedCount = 0;
+    let failedCount = 0;
+    const finishBatch = () => {
+      this.backlogClearBusy.set(false);
+      if (failedCount > 0 && completedCount > 0) {
+        this.backlogClearMessage.set(
+          `Completed ${completedCount} backlog item${completedCount === 1 ? '' : 's'}; ${failedCount} item${failedCount === 1 ? '' : 's'} need review.`
+        );
+      } else if (failedCount > 0) {
         this.backlogClearMessage.set('Some backlog items could not be completed. Refresh and review the remaining tickets.');
-        this.loadOrders({ background: true });
-      },
-    });
+      } else {
+        this.backlogClearMessage.set(`Completed ${completedCount} backlog item${completedCount === 1 ? '' : 's'}.`);
+      }
+      this.loadOrders({ background: true });
+    };
+
+    const runNext = (index: number) => {
+      const task = tasks[index];
+      if (!task) {
+        finishBatch();
+        return;
+      }
+      task.subscribe({
+        next: () => {
+          completedCount += 1;
+          runNext(index + 1);
+        },
+        error: () => {
+          failedCount += 1;
+          runNext(index + 1);
+        },
+      });
+    };
+
+    runNext(0);
   }
 
   backlogClearButtonLabel(): string {

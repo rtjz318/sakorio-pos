@@ -13,9 +13,9 @@ This result document is a live checkpoint. The full-flow journeys are being exec
 
 Current checkpoint:
 
-- Completed: 22 / 50
-- Pending: 28 / 50
-- Completed average score: 7.93 / 10
+- Completed: 23 / 50
+- Pending: 27 / 50
+- Completed average score: 7.97 / 10
 - Current launch posture: not ready yet. The core QR lifecycle is improving, but R6-FLOW-004, R6-FLOW-016, and R6-FLOW-020 exposed launch-blocking or high-friction POS session/product-hit-target issues. Timetable/reporting are stronger now, but attendance camera fallback, end-day Orders search/filtering, and HitPay sandbox completion resilience need polish.
 
 ## Score meaning
@@ -1051,6 +1051,63 @@ Current checkpoint:
   - Add regression coverage for party-size increase before seating and larger-table assignment.
 - Launch decision: launch-capable for larger-party handling, with reservation time persistence and wording polish still needed.
 
+### R6-FLOW-023 - Same seated reservation QR opened on two phones -> sequential orders -> one combined bill -> payment -> close
+
+- Priority: P0
+- Roles acted through browser: customer on phone A, customer on phone B, host, kitchen, cashier
+- Status: PASS - MULTI-DEVICE QR SESSION INTEGRITY WORKS
+- Score: 9.0 / 10
+- Artifacts:
+  - Reservation: `#68`
+  - Guest: `R6 Flow 023 MultiDevice 314191`
+  - Table: `T07`
+  - Shared QR: T07 session QR
+  - Combined order: `#114`
+  - Phone A item: Enchiladas, `SGD 20.00`
+  - Phone B item: Coffee, `SGD 2.50`
+  - Combined bill total: `SGD 22.50`
+  - Final QR state on both tabs: `Table Closed`
+- Browser workflow executed:
+  1. Initial booking helper timed out because the public booking page's expected time selector was not immediately available.
+  2. Customer manually used the visible booking form, selected `20:45`, filled contact details, and submitted.
+  3. Public confirmation correctly preserved `2026-07-21 20:45` for reservation `#68`.
+  4. Host opened Reservations and saw #68 at `8:45 PM`, booked for 2 guests.
+  5. Host assigned #68 to exact-fit T07.
+  6. Host clicked `Seat + customer QR`.
+  7. Staff opened POS for T07 and copied the active QR link.
+  8. Customer phone A opened the QR and placed Enchiladas.
+  9. Phone A showed order `#114`, pending, `SGD 20.00`.
+  10. Customer phone B opened the same QR and placed Coffee.
+  11. Phone B showed the same order `#114`, pending, total `SGD 22.50`, with both Coffee and Enchiladas listed.
+  12. Cashier opened POS for T07/#114.
+  13. POS showed one combined live bill #114 with 2 items and `SGD 22.50`.
+  14. KDS showed one ticket #114 with both station lines: Coffee as beverage and Enchiladas as kitchen/main course.
+  15. Kitchen moved #114 through Start ticket -> Ready for pass -> Served / Delivered.
+  16. KDS returned to zero.
+  17. Cashier terminal-paid #114. The helper again stopped at post-payment close, but visible `Close table` was available.
+  18. Cashier closed T07.
+  19. POS showed T07 available and open bills zero.
+  20. Reservations audit showed #68 as `FINISHED`.
+  21. Phone A reloaded the old QR and saw `Table Closed`.
+  22. Phone B reloaded the old QR and also saw `Table Closed`.
+- What passed:
+  - Same QR on two devices did not create two separate bills.
+  - Sequential QR submissions merged into the same order ID and total.
+  - POS cashier view showed the combined bill clearly.
+  - KDS kept one ticket while still splitting station/category lines correctly.
+  - Payment/close reset both QR tabs and finalized the reservation.
+  - Manual public booking preserved the intended time, unlike the helper-driven failures seen earlier.
+- Issues found:
+  - Public booking automation exposed a fragile state where `bookSlotTime` timed out until the visible form was inspected; staff/customer UI itself was usable manually.
+  - Post-payment close still has the recurring helper/UX issue: payment records, then staff must click visible close.
+  - Same-table multi-device ordering is strong, but no visible "another device just added item" live toast was observed on phone A after phone B submitted.
+- Improvements needed:
+  - Add live refresh/toast on already-open QR tabs when another device adds to the same bill.
+  - Stabilize booking time-slot control loading so automated and fast human interactions do not hit a half-ready state.
+  - Keep backend session merge logic; it performed very well.
+  - Continue simplifying post-payment close state.
+- Launch decision: launch-ready for same-table multi-device QR session integrity, with optional live-sync polish.
+
 ## Cross-case findings so far
 
 1. The core customer-QR table lifecycle is working: reservation, seating, QR order, KDS, payment, close, QR lockout.
@@ -1090,7 +1147,9 @@ Current checkpoint:
 31. Party-size increase before seating works and capacity-filtered larger table assignment is strong.
 32. Reservation edit/save still does not reliably preserve or display the intended time slot.
 33. Table-state copy such as `Ready to serve` plus `Currently occupied` needs clearer operational wording.
+34. Same QR opened on two devices correctly merges sequential submissions into one order/bill and one KDS ticket.
+35. Manual public booking with explicit slot selection can preserve the intended time; the recurring mismatch appears tied to fragile/incorrect slot selection paths rather than all booking flows.
 
 ## Pending workflows
 
-`R6-FLOW-023` through `R6-FLOW-050` remain pending in this results brief.
+`R6-FLOW-024` through `R6-FLOW-050` remain pending in this results brief.

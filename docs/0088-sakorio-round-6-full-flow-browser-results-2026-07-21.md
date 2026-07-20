@@ -13,10 +13,10 @@ This result document is a live checkpoint. The full-flow journeys are being exec
 
 Current checkpoint:
 
-- Completed: 13 / 50
-- Pending: 37 / 50
-- Completed average score: 8.25 / 10
-- Current launch posture: not ready yet. The core QR lifecycle is improving, but R6-FLOW-004 exposed a launch-blocking mixed staff POS + customer QR ordering issue.
+- Completed: 16 / 50
+- Pending: 34 / 50
+- Completed average score: 7.88 / 10
+- Current launch posture: not ready yet. The core QR lifecycle is improving, but R6-FLOW-004 and R6-FLOW-016 exposed launch-blocking POS session integrity issues.
 
 ## Score meaning
 
@@ -586,6 +586,146 @@ Current checkpoint:
   - After `Served / Delivered`, remove the KDS ticket immediately or show an explicit fading/transition state.
 - Launch decision: launch-capable for large QR order lifecycle, but below 9/10 until cart discoverability and count wording are polished.
 
+### R6-FLOW-014 - Wrong item correction before kitchen starts -> correct order served -> payment -> close
+
+- Priority: P1
+- Roles acted through browser: cashier, kitchen
+- Status: PARTIAL PASS - PRE-SEND CORRECTION WORKS, POST-SUBMIT CORRECTION NOT DISCOVERABLE
+- Score: 7.1 / 10
+- Artifacts:
+  - Table: `T01`
+  - Wrong item tested: Coffee
+  - Correct order: `#102`
+  - Correct item sent: Enchiladas
+  - Final total: `SGD 20.00`
+- Browser workflow executed:
+  1. Cashier opened available T01 in POS.
+  2. Cashier added wrong item Coffee to the cart.
+  3. POS cart showed Coffee, `SGD 2.50`, Clear, minus, plus, Send order, and Pay bill controls.
+  4. Cashier clicked the minus/remove control.
+  5. Cart reset to zero items and `SGD 0.00`.
+  6. Cashier added the correct item, Enchiladas.
+  7. Cashier sent order `#102`.
+  8. POS showed T01/order `#102` pending with 1x Enchiladas and `SGD 20.00`.
+  9. Before kitchen started the ticket, cashier opened Orders overview.
+  10. Orders overview showed T01 active, latest `#102`, `1x Enchiladas`, and View tickets.
+  11. Cashier opened View tickets.
+  12. Ticket detail showed `#102`, item, Pending, Open table POS, Hide tickets, and Open bill.
+  13. No visible void/remove/edit/correction action was present before kitchen start.
+  14. Kitchen then processed the correct order through start, ready, and served.
+  15. Cashier terminal-paid `SGD 20.00`.
+  16. Cashier closed T01 and table reset to available.
+- What passed:
+  - Cart-level mistake correction before sending is functional.
+  - Removing the last cart item resets the order total correctly.
+  - Corrected order sent cleanly to KDS.
+  - KDS processed the correct item only; Coffee was not sent.
+  - Payment and close/reset worked.
+- Issues found:
+  - Once a mistaken order is submitted but before kitchen starts, no void/remove/edit/correct path is visible in Orders or ticket detail.
+  - Orders detail has `Show Removed Items`, but there is no obvious way to remove an active item.
+  - The only recovery path appears to be operational/manual: add a correcting item later or abandon/settle outside a proper audit trail.
+  - POS menu layout overlap from R6-FLOW-012 still affects correction workflows because selecting the intended replacement item can be hit-target sensitive.
+- Improvements needed:
+  - Add a clear pre-prep correction action for pending submitted tickets: Void item, Void ticket, or Send correction.
+  - Require reason/manager override if needed, but do not hide the path.
+  - Surface correction state in KDS immediately if a pending ticket is removed before prep.
+  - Make `Show Removed Items` meaningful by pairing it with a visible remove/void workflow.
+  - Add audit trail: who voided, reason, timestamp, and original item.
+- Launch decision: launch-risk for manager/cashier correction workflows. Cart mistakes are safe before send, but submitted pending-ticket corrections are not operationally ready.
+
+### R6-FLOW-015 - Customer changes mind after kitchen started -> correction policy check -> final bill -> close
+
+- Priority: P1
+- Roles acted through browser: cashier, kitchen, manager-policy reviewer
+- Status: PARTIAL FAIL - AFTER-PREP CORRECTION PATH NOT VISIBLE
+- Score: 6.6 / 10
+- Artifacts:
+  - Table: `T01`
+  - Order: `#103`
+  - Item: Enchiladas
+  - Final total: `SGD 20.00`
+- Browser workflow executed:
+  1. Cashier opened available T01 in POS.
+  2. Cashier added Enchiladas and sent order `#103`.
+  3. Kitchen & beverages showed `#103` pending for T01.
+  4. Kitchen clicked Start ticket.
+  5. KDS moved `#103` into Preparing / In prep.
+  6. Cashier returned to POS for T01/order `#103` while the ticket was preparing.
+  7. POS showed bill `#103`, 1 item, `SGD 20.00`, Pay bill, and Add items.
+  8. No visible void, remove, edit, manager override, or “blocked after prep” message was present.
+  9. Cashier opened Orders while the ticket was in kitchen.
+  10. Orders showed T01 active, latest `#103`, `1 in kitchen`, and View tickets.
+  11. Orders controls still only showed Open table POS and View tickets; no after-prep correction path.
+  12. Kitchen clicked Ready for pass during cleanup.
+  13. KDS text briefly showed `#103 moved to ready`, while still visually describing the ticket under the preparing lane.
+  14. After refresh, KDS cleared to zero.
+  15. Cashier terminal-paid `SGD 20.00`.
+  16. Cashier closed T01 and the table reset.
+- What passed:
+  - KDS correctly exposes that the order is already in prep.
+  - Orders overview shows `1 in kitchen`, which is useful operational context.
+  - Final payment and table close/reset worked.
+  - No orphan KDS ticket remained after refresh.
+- Issues found:
+  - No visible after-prep correction workflow exists: no manager override, no void-with-reason, no compensated item, no explicit policy block.
+  - The user is left guessing whether changing an in-prep item is impossible, manager-only, or unsupported.
+  - POS still allows payment flow while a ticket is/was in prep; it should at least warn when kitchen completion is not clearly served.
+  - KDS transition text briefly says the ticket moved to ready while it still appears in the preparing lane, which is confusing.
+- Improvements needed:
+  - Add a manager-controlled after-prep correction policy: block with clear reason, void with reason, comp item, or manager approval.
+  - Show the correction policy directly in POS and Orders when a ticket is in prep.
+  - Prevent or warn before payment/close if any ticket is not clearly served/delivered.
+  - Make KDS transition states unambiguous: preparing, ready, served/cleared.
+  - Store and show an audit trail for after-prep corrections.
+- Launch decision: not launch-ready for real restaurant correction policy. The normal happy-path bill can complete, but after-prep exception handling is under-specified.
+
+### R6-FLOW-016 - Paid terminal bill -> cashier tries new order before table close -> audit/close/reset
+
+- Priority: P1
+- Roles acted through browser: cashier, kitchen, manager/audit reviewer
+- Status: FAIL - PAID-BUT-NOT-CLOSED SESSION CAN ACCEPT NEW ORDER
+- Score: 5.0 / 10
+- Artifacts:
+  - Table: `T01`
+  - Paid first bill: `#104`, Coffee, `SGD 2.50`
+  - Accidental second bill/order before close: `#105`, Enchiladas, `SGD 20.00`
+- Browser workflow executed:
+  1. Cashier opened available T01 in POS.
+  2. Cashier added Coffee and sent order `#104`.
+  3. Cashier terminal-paid bill `#104` for `SGD 2.50` but deliberately did not close T01.
+  4. POS grid showed T01 with `Last bill #104`, `Paid`, `Close table`, and `Start order`.
+  5. Cashier clicked `Start order` on T01 before closing.
+  6. System did not create a new bill immediately; it reopened paid bill `#104` with message `Payment received - close the table`.
+  7. The drawer still exposed Add items, menu cards, cart, Send order, and Pay bill.
+  8. Cashier clicked Enchiladas on the paid bill.
+  9. POS accepted it into cart on the paid-but-not-closed session.
+  10. Cashier clicked Send order.
+  11. System created/sent order `#105` on T01 before table reset.
+  12. POS current session showed unpaid `#105` plus paid `#104` together.
+  13. KDS showed old ready ticket `#104` and new pending/ready ticket `#105` during cleanup.
+  14. Cashier processed and terminal-paid `#105` for `SGD 20.00`.
+  15. Cashier closed T01.
+  16. Final KDS recheck showed zero active tickets and T01 reset available.
+- What passed:
+  - Initial `Start order` click did not immediately create a new bill; it reopened the paid bill state.
+  - Final cleanup/payment/close was possible.
+  - KDS eventually returned to zero after refresh.
+- Issues found:
+  - Paid-but-not-closed table still allows Add items and Send order.
+  - A new order `#105` can be created before closing/resetting the previous paid session `#104`.
+  - Current session can display paid and unpaid orders together after payment, which is exactly the session-mixing risk this case was designed to catch.
+  - The grid still shows `Start order` next to a paid-but-not-closed table, which invites the mistake.
+  - KDS can still show older ready tickets during this state, adding operational confusion.
+- Improvements needed:
+  - Hard-block all Add items / Send order actions once the active bill is paid.
+  - Replace `Start order` with a single dominant `Close table` action for paid-but-not-closed tables.
+  - If staff tries to add items after payment, show a clear modal: `Close table first to start a new visit`.
+  - Do not allow a new order ID/session to be created on a paid table until table close/reset completes.
+  - Add backend guardrails too; this cannot be frontend-only.
+  - Add regression coverage for paid table -> attempted add/send before close.
+- Launch decision: launch-blocking. This can mix customer sessions and create cashier/accounting confusion in real service.
+
 ## Cross-case findings so far
 
 1. The core customer-QR table lifecycle is working: reservation, seating, QR order, KDS, payment, close, QR lockout.
@@ -608,7 +748,10 @@ Current checkpoint:
 14. HitPay sandbox success synchronizes into POS correctly, but the paid table close action has duplicate visible buttons and needs cleanup.
 15. Pure staff POS order lifecycle works from order to KDS to payment to history, but the POS product grid can overlap navigation/table hit targets, making staff ordering unreliable.
 16. Large QR orders are operationally stable, but cart expansion and item/line-count wording need usability polish.
+17. POS supports pre-send cart correction, but there is no discoverable void/remove path for a submitted pending ticket before KDS starts.
+18. After-prep correction/manager override policy is not visible. POS/Orders need explicit safe handling for changes once kitchen has started.
+19. Paid-but-not-closed tables can still accept and send new POS items, creating a second order before table reset. This is launch-blocking session integrity risk.
 
 ## Pending workflows
 
-`R6-FLOW-014` through `R6-FLOW-050` remain pending in this results brief.
+`R6-FLOW-017` through `R6-FLOW-050` remain pending in this results brief.

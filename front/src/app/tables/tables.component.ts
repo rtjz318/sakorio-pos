@@ -660,7 +660,7 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   <button type="button" class="btn btn-primary btn-sm" (click)="openQuickTable(table, 'menu')">
                     {{ table.active_order_id ? 'Add items' : 'Start order' }}
                   </button>
-                  @if (table.is_active) {
+                  @if (tableHasMovableVisit(table)) {
                     <button
                       type="button"
                       class="btn btn-secondary btn-sm"
@@ -782,7 +782,7 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   </div>
 
                   <div class="table-actions">
-                    @if (table.is_active) {
+                    @if (tableHasMovableVisit(table)) {
                       <button type="button" class="btn btn-secondary btn-sm" (click)="openQuickTable(table, 'move')">
                         Move table
                       </button>
@@ -1032,7 +1032,7 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                     </div>
                   </div>
 
-                  @if (!serviceTable.is_active) {
+                  @if (!tableHasMovableVisit(serviceTable)) {
                     <div class="quick-empty">There is no active table visit to move yet. Seat guests, add items, or open the table for QR ordering first.</div>
                   } @else if (quickMoveTargetTables().length === 0) {
                     <div class="quick-empty">No ready destination tables are available. Close or settle another table before moving this visit.</div>
@@ -3061,6 +3061,10 @@ export class TablesComponent implements OnInit {
 
   tableNeedsSettlement(table: CanvasTable): boolean {
     return !!table.is_active && !!table.active_order_id && !this.tableIsPaid(table);
+  }
+
+  tableHasMovableVisit(table: CanvasTable): boolean {
+    return !!table.active_order_id || !!table.is_active || !!table.seated_reservation;
   }
 
   tablePrimaryActionLabel(table: CanvasTable): string {

@@ -862,7 +862,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
               @if (effectiveCheckoutTable()) {
                 @if (queueHistoryOrders().length > 0) {
                   <div class="queue-history-summary">
-                    <span class="muted-pill muted-pill--accent">{{ queueHistoryOpenCount() }} live</span>
+                    <span class="muted-pill muted-pill--accent">{{ queueHistoryOpenCount() }} needs review</span>
                     <span class="muted-pill">{{ queueHistoryPaidCount() }} settled</span>
                     <span class="muted-pill">{{ queueHistoryLatestLabel() }}</span>
                   </div>
@@ -6753,7 +6753,7 @@ export class CashierPosComponent {
   queuePanelSubtitle(): string {
     const table = this.effectiveCheckoutTable();
     if (table) {
-      return 'Open the live bill or review table history.';
+      return 'Current-session orders stay in the table drawer. Previous unpaid bills are marked for review.';
     }
     return 'Grouped by table for fast cashier follow-up.';
   }
@@ -6796,8 +6796,10 @@ export class CashierPosComponent {
   }
 
   queueHistoryOrders(): Order[] {
-    const liveBillId = this.payableLiveBillOrder()?.id ?? null;
-    return this.sortQueueOrders(this.queueOrders().filter((order) => order.id !== liveBillId));
+    if (this.effectiveCheckoutTable()) {
+      return this.posHistoryOrders();
+    }
+    return this.sortQueueOrders(this.queueOrders());
   }
 
   queueHistoryHasOverflow(): boolean {
@@ -6825,7 +6827,7 @@ export class CashierPosComponent {
     if (!latest) {
       return 'No recent bills';
     }
-    return `${this.isPaid(latest) ? 'Last settled' : 'Last live'} / ${this.queueOrderAgeLabel(latest)}`;
+    return `${this.isPaid(latest) ? 'Last settled' : 'Previous unpaid'} / ${this.queueOrderAgeLabel(latest)}`;
   }
 
   queueSettlementCount(): number {

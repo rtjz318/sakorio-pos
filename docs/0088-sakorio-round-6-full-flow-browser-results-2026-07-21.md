@@ -13,9 +13,9 @@ This result document is a live checkpoint. The full-flow journeys are being exec
 
 Current checkpoint:
 
-- Completed: 7 / 50
-- Pending: 43 / 50
-- Completed average score: 8.10 / 10
+- Completed: 10 / 50
+- Pending: 40 / 50
+- Completed average score: 8.28 / 10
 - Current launch posture: not ready yet. The core QR lifecycle is improving, but R6-FLOW-004 exposed a launch-blocking mixed staff POS + customer QR ordering issue.
 
 ## Score meaning
@@ -312,6 +312,132 @@ Current checkpoint:
   - Show customer-facing status after host cancel/no-show, matching customer Leave queue behavior.
 - Launch decision: capacity handling is launch-capable; host queue cancellation/no-show controls need fixing before heavy service use.
 
+### R6-FLOW-008 - Queue guest seated -> moved before ordering -> new QR order -> KDS -> payment -> close
+
+- Priority: P0
+- Roles acted through browser: walk-in customer, host, waiter, kitchen, cashier
+- Status: PASS WITH QR HANDOFF UX IMPROVEMENTS
+- Score: 8.5 / 10
+- Artifacts:
+  - Queue ticket: `Q0024`
+  - Guest: `R6 Flow 008 MoveBeforeOrder 638602`
+  - Moved from: `T07`
+  - Moved to: `T09`
+  - Order: `#96`
+  - Final paid total: `SGD 2.50`
+- Browser workflow executed:
+  1. Customer joined public waitlist.
+  2. Host seated guest to T07.
+  3. Guest requested another table before ordering.
+  4. Staff opened Tables and used Move table on T07.
+  5. Move modal explained that the customer session, queue entry, and current orders would move while T07 clears.
+  6. Staff moved the visit from T07 to T09.
+  7. T07 became idle/available.
+  8. Old T07 QR showed Table Closed.
+  9. Staff opened POS for T09 and used Open customer QR to reveal the actual T09 QR link.
+  10. New T09 QR was active and accepted Coffee order `#96`.
+  11. KDS showed `#96` tagged T09 and served it.
+  12. Cashier terminal-paid and closed T09.
+  13. T09 QR showed Table Closed.
+  14. Queue board no longer showed the guest active.
+- What passed:
+  - Table move before ordering preserved the live session correctly.
+  - Old table QR was locked after the move.
+  - Destination table QR was active and created the order under the new table.
+  - KDS used the new table label.
+  - Payment and close/reset worked.
+- Issues found:
+  - After move, the destination QR/link was not obvious in Tables.
+  - POS required using Open customer QR before the link became visible.
+  - Destination table card did not make guest/queue identity very obvious.
+- Improvements needed:
+  - After moving a table, immediately show the destination table QR card/link in the success panel.
+  - Keep old-table QR lockout behavior.
+  - Add regression coverage for old QR closed + new QR active after no-order table move.
+  - Consider showing moved guest/queue name on the destination table card.
+- Launch decision: launch-capable for table move before ordering, with QR handoff polish needed.
+
+### R6-FLOW-009 - Customer QR one-item order with rapid double Place order tap -> duplicate protection -> KDS/payment/close
+
+- Priority: P0
+- Roles acted through browser: customer, kitchen, cashier
+- Status: PASS WITH MINOR FEEDBACK IMPROVEMENT
+- Score: 8.9 / 10
+- Artifacts:
+  - Queue ticket: `Q0025`
+  - Guest: `R6 Flow 009 DoubleSubmit 951566`
+  - Table: `T07`
+  - Order: `#97`
+  - Final paid total: `SGD 2.50`
+- Browser workflow executed:
+  1. Fresh public queue guest was seated to T07.
+  2. Customer opened T07 QR.
+  3. Customer added Coffee.
+  4. Customer rapidly clicked Place order twice.
+  5. First click succeeded.
+  6. Second click could not submit because the button disappeared/disabled during submission.
+  7. Customer view showed one order `#97`.
+  8. POS showed `T07 · 1 item · SGD 2.50`.
+  9. KDS showed exactly one ticket `#97` with `1x Coffee`.
+  10. KDS cleared to zero after service.
+  11. Cashier terminal-paid and closed T07.
+  12. QR showed Table Closed.
+- What passed:
+  - No duplicate order was created.
+  - No duplicate KDS ticket appeared.
+  - No duplicate bill line appeared.
+  - Cleanup lifecycle worked.
+- Issues found:
+  - Customer does not get an explicit "Submitting order..." state; the button simply disappears/flow changes.
+- Improvements needed:
+  - Keep the post-submit disabled/disappearing behavior.
+  - Add a clear submitting spinner/state and success toast.
+  - Add automated regression for rapid double-submit on QR Place order.
+- Launch decision: launch-capable for QR double-submit protection.
+
+### R6-FLOW-010 - QR order -> start HitPay sandbox -> abandon without paying -> POS remains unpaid -> terminal recovery -> close
+
+- Priority: P0
+- Roles acted through browser: customer, kitchen, cashier
+- Status: PASS WITH UX IMPROVEMENTS
+- Score: 8.7 / 10
+- Artifacts:
+  - Queue ticket: `Q0026`
+  - Guest: `R6 Flow 010 HitPayCancel 143807`
+  - Table: `T07`
+  - Order: `#98`
+  - HitPay: sandbox checkout opened, then abandoned without payment
+  - Final recovery payment: terminal, `SGD 2.50`
+- Browser workflow executed:
+  1. Fresh public queue guest was seated to T07.
+  2. Customer placed Coffee order `#98`.
+  3. KDS served the order and returned to zero.
+  4. Customer clicked Pay Now.
+  5. Recurring optional name prompt appeared and had to be skipped.
+  6. Payment sheet showed only Pay with HitPay and Pay with Card at Table; Cash was not shown.
+  7. Customer clicked Pay with HitPay.
+  8. HitPay sandbox checkout opened.
+  9. Customer abandoned payment by returning to Sakorio without paying.
+  10. Customer QR still showed delivered/unpaid Pay Now state.
+  11. Staff POS still showed `Bill #98 payable` for `SGD 2.50`.
+  12. Cashier terminal-settled the bill.
+  13. Cashier closed T07.
+  14. QR showed Table Closed.
+- What passed:
+  - HitPay checkout opened correctly.
+  - Abandoned checkout did not falsely mark the bill paid.
+  - POS remained payable/unpaid.
+  - Terminal recovery worked.
+  - Customer QR payment sheet correctly removed Cash.
+- Issues found:
+  - Optional name prompt reappeared on return and blocked payment action until skipped.
+  - After abandoning HitPay, QR simply returned to Pay Now instead of saying payment was not completed.
+- Improvements needed:
+  - Persist skipped/entered QR name so abandoned-payment return does not show the prompt again.
+  - Show a clear "Payment not completed" status after unpaid HitPay return.
+  - Keep Cash removed from customer QR payment options.
+- Launch decision: launch-capable for abandoned HitPay recovery, with QR return-state messaging polish.
+
 ## Cross-case findings so far
 
 1. The core customer-QR table lifecycle is working: reservation, seating, QR order, KDS, payment, close, QR lockout.
@@ -328,7 +454,10 @@ Current checkpoint:
 8. Public reservation confirmation/time selection needs follow-up because multiple later bookings displayed an unexpected confirmation time.
 9. Public queue flow is strong: waitlist join, notify, recommended seating, QR order, waiter add-on, KDS, payment, close, and queue cleanup all worked.
 10. Queue capacity safety is strong for oversized parties, but host-side Cancel/No-show controls need repair or clearer feedback.
+11. Table move before ordering is functionally correct, including old QR lockout and destination QR activation.
+12. QR rapid double-submit protection is effective; no duplicate order, KDS ticket, or bill line was produced.
+13. Abandoned HitPay checkout is recoverable; POS remains unpaid and terminal settlement can finish the bill safely.
 
 ## Pending workflows
 
-`R6-FLOW-008` through `R6-FLOW-050` remain pending in this results brief.
+`R6-FLOW-011` through `R6-FLOW-050` remain pending in this results brief.

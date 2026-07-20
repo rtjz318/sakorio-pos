@@ -17,6 +17,7 @@ describe('KitchenDisplayComponent', () => {
     getCurrentUser: jasmine.Spy;
     getKitchenStations: jasmine.Spy;
     getKitchenDisplaySettings: jasmine.Spy;
+    updateOrderItemStatus: jasmine.Spy;
   };
   let mockAudio: { setEnabled: jasmine.Spy; playRestaurantOrderChange: jasmine.Spy };
 
@@ -31,6 +32,7 @@ describe('KitchenDisplayComponent', () => {
       getKitchenDisplaySettings: jasmine
         .createSpy('getKitchenDisplaySettings')
         .and.returnValue(of({ yellow_minutes: 5, orange_minutes: 10, red_minutes: 15 })),
+      updateOrderItemStatus: jasmine.createSpy('updateOrderItemStatus').and.returnValue(of({ status: 'updated' })),
     };
     mockAudio = {
       setEnabled: jasmine.createSpy('setEnabled'),
@@ -50,7 +52,7 @@ describe('KitchenDisplayComponent', () => {
           provide: PermissionService,
           useValue: {
             getCurrentUser: () => ({ id: 1, role: 'kitchen' }),
-            hasPermission: () => false,
+            hasPermission: () => true,
           },
         },
       ],
@@ -194,6 +196,47 @@ describe('KitchenDisplayComponent', () => {
       'Lemon Tea',
     ]);
   });
+
+  it('should start a whole ticket by moving all pending items to preparing', fakeAsync(() => {
+    const order = {
+      id: 18,
+      status: 'pending',
+      table_name: 'T09',
+      created_at: new Date().toISOString(),
+      items: [
+        {
+          id: 1801,
+          product_name: 'Coffee',
+          quantity: 2,
+          status: 'pending',
+          price_cents: 250,
+          category: 'Beverages',
+        },
+        {
+          id: 1802,
+          product_name: 'Enchiladas',
+          quantity: 1,
+          status: 'pending',
+          price_cents: 2000,
+          category: 'Main Course',
+        },
+      ],
+      total_cents: 2500,
+    };
+    mockApi.getOrders.and.returnValue(of([order]));
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+
+    const action = fixture.componentInstance.getTicketBulkAction(order as any);
+    expect(action?.label).toBe('Start ticket');
+    fixture.componentInstance.advanceTicketStatus(order as any, action!);
+    tick();
+
+    expect(mockApi.updateOrderItemStatus).toHaveBeenCalledTimes(2);
+    expect(mockApi.updateOrderItemStatus).toHaveBeenCalledWith(18, 1801, 'preparing');
+    expect(mockApi.updateOrderItemStatus).toHaveBeenCalledWith(18, 1802, 'preparing');
+    expect(fixture.componentInstance.ticketActionMessage()).toContain('#18 started');
+  }));
 
   it('should keep kitchen tickets visible when the order is paid or completed but line items are still active', () => {
     const orders = [

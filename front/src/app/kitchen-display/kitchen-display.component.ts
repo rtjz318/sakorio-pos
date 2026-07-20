@@ -45,6 +45,12 @@ type FullscreenDocument = Document & {
 type KitchenLaneKey = 'pending' | 'preparing' | 'ready';
 type ProductionRouteKey = 'all' | 'kitchen' | 'bar';
 type ProductionRouteFilterKey = 'kitchen' | 'bar';
+type TicketBulkAction = {
+  label: string;
+  targetStatus: 'preparing' | 'ready' | 'delivered';
+  sourceStatuses: Array<'pending' | 'preparing' | 'ready'>;
+  doneLabel: string;
+};
 
 function getFullscreenElement(): Element | null {
   const d = document as FullscreenDocument;
@@ -392,6 +398,22 @@ function getWorkflowSortWeight(
                             <div class="order-timer-bar-fill" [class]="getTimerBarFillClass(order)" [style.width.%]="getTimerBarPercent(order)"></div>
                           </div>
                         </div>
+                        @if (getTicketBulkAction(order); as ticketAction) {
+                          <div class="ticket-action-bar">
+                            <button
+                              type="button"
+                              class="ticket-action-btn ticket-action-btn--{{ ticketAction.targetStatus }}"
+                              [disabled]="!canUpdateItemStatus() || ticketActionBusy() === order.id + '-' + ticketAction.targetStatus"
+                              [attr.aria-label]="ticketAction.label + ' #' + order.id"
+                              (click)="advanceTicketStatus(order, ticketAction)">
+                              <span>{{ ticketActionBusy() === order.id + '-' + ticketAction.targetStatus ? 'Updating...' : ticketAction.label }}</span>
+                              <small>{{ getTicketBulkActionItemCount(order, ticketAction) }} item{{ getTicketBulkActionItemCount(order, ticketAction) === 1 ? '' : 's' }}</small>
+                            </button>
+                            @if (ticketActionMessage().startsWith('#' + order.id + ' ')) {
+                              <span class="ticket-action-message">{{ ticketActionMessage() }}</span>
+                            }
+                          </div>
+                        }
                         <ul class="order-items">
                           @for (item of getSortedItems(order.items); track item.id) {
                             @if (!item.removed_by_customer) {
@@ -1050,6 +1072,61 @@ function getWorkflowSortWeight(
     .status-badge.status-preparing { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
     .status-badge.status-ready { background: var(--color-success-light); color: var(--color-success); }
     .status-badge.status-partially_delivered { background: var(--color-success-light); color: var(--color-success); }
+    .ticket-action-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.62rem 0.72rem;
+      border-bottom: 1px solid var(--color-border);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.8));
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+    .ticket-action-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.55rem;
+      min-height: 52px;
+      min-width: min(100%, 210px);
+      padding: 0.68rem 0.95rem;
+      border: 0;
+      border-radius: 16px;
+      color: white;
+      font-size: 0.9rem;
+      font-weight: 900;
+      letter-spacing: 0.01em;
+      box-shadow: 0 10px 18px rgba(15, 23, 42, 0.16);
+      cursor: pointer;
+      transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+    }
+    .ticket-action-btn small {
+      padding: 0.2rem 0.46rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.24);
+      font-size: 0.68rem;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+    .ticket-action-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      filter: brightness(1.03);
+      box-shadow: 0 14px 24px rgba(15, 23, 42, 0.2);
+    }
+    .ticket-action-btn:disabled {
+      cursor: wait;
+      opacity: 0.68;
+      box-shadow: none;
+    }
+    .ticket-action-btn--preparing { background: linear-gradient(135deg, #2563eb, #0891b2); }
+    .ticket-action-btn--ready { background: linear-gradient(135deg, #16a34a, #059669); }
+    .ticket-action-btn--delivered { background: linear-gradient(135deg, #7c3aed, #4f46e5); }
+    .ticket-action-message {
+      color: var(--color-success);
+      font-size: 0.78rem;
+      font-weight: 850;
+      overflow-wrap: anywhere;
+    }
     .order-items {
       list-style: none;
       margin: 0;
@@ -1429,6 +1506,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   lastRefreshAt = signal<Date | null>(null);
   soundEnabled = signal(true);
   itemStatusDropdownOpen = signal<string | null>(null);
+  ticketActionBusy = signal<string | null>(null);
+  ticketActionMessage = signal('');
   /** Loaded prep stations for the combined kitchen and beverage production board. */
   kitchenStations = signal<KitchenStation[]>([]);
   /** KDS station filter across every production station. */
@@ -2162,6 +2241,71 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     };
     const key = normalizeItemWorkflowStatus(currentStatus);
     return transitions[key] ?? { forward: [], backward: [] };
+  }
+
+  getTicketBulkAction(order: Order): TicketBulkAction | null {
+    const lane = this.getOrderLane(order);
+    if (lane === 'pending') {
+      return {
+        label: 'Start ticket',
+        targetStatus: 'preparing',
+        sourceStatuses: ['pending'],
+        doneLabel: 'started',
+      };
+    }
+    if (lane === 'preparing') {
+      return {
+        label: 'Ready for pass',
+        targetStatus: 'ready',
+        sourceStatuses: ['preparing'],
+        doneLabel: 'moved to ready',
+      };
+    }
+    return {
+      label: 'Served / Delivered',
+      targetStatus: 'delivered',
+      sourceStatuses: ['ready'],
+      doneLabel: 'cleared from KDS',
+    };
+  }
+
+  private getTicketBulkActionItems(order: Order, action: TicketBulkAction): OrderItem[] {
+    const source = new Set(action.sourceStatuses);
+    return this.getSortedItems(order.items ?? []).filter((item) => {
+      if (item.id == null || item.removed_by_customer) return false;
+      return source.has(normalizeItemWorkflowStatus(item.status) as 'pending' | 'preparing' | 'ready');
+    });
+  }
+
+  getTicketBulkActionItemCount(order: Order, action: TicketBulkAction): number {
+    return this.getTicketBulkActionItems(order, action).length;
+  }
+
+  advanceTicketStatus(order: Order, action: TicketBulkAction): void {
+    if (!this.canUpdateItemStatus() || this.ticketActionBusy()) return;
+    const items = this.getTicketBulkActionItems(order, action);
+    if (items.length === 0) {
+      this.ticketActionMessage.set(`#${order.id} has no ${action.sourceStatuses.join('/')} items to update.`);
+      return;
+    }
+
+    const busyKey = `${order.id}-${action.targetStatus}`;
+    this.itemStatusDropdownOpen.set(null);
+    this.ticketActionBusy.set(busyKey);
+    this.ticketActionMessage.set('');
+
+    forkJoin(items.map((item) => this.api.updateOrderItemStatus(order.id, item.id!, action.targetStatus))).subscribe({
+      next: () => {
+        this.ticketActionBusy.set(null);
+        this.ticketActionMessage.set(`#${order.id} ${action.doneLabel} (${items.length} item${items.length === 1 ? '' : 's'}).`);
+        this.loadOrders({ background: true });
+      },
+      error: () => {
+        this.ticketActionBusy.set(null);
+        this.ticketActionMessage.set(`#${order.id} could not update. Refresh and try again.`);
+        this.loadOrders({ background: true });
+      },
+    });
   }
 
   toggleItemStatusDropdown(orderId: number, itemId: number): void {

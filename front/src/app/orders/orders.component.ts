@@ -55,6 +55,8 @@ interface OrderTableGroup {
   orders: Order[];
 }
 
+type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
+
 @Component({
   selector: 'app-orders',
   standalone: true,
@@ -104,6 +106,15 @@ interface OrderTableGroup {
                 {{ 'ORDERS.NOT_PAID_YET' | translate }}
                 @if (notPaidOrders().length > 0) {
                   <span class="tab-badge">{{ notPaidOrders().length }}</span>
+                }
+              </button>
+              <button
+                class="filter-tab"
+                [class.active]="viewMode() === 'paid_close'"
+                (click)="viewMode.set('paid_close')">
+                Paid - awaiting close
+                @if (paidAwaitingCloseOrders().length > 0) {
+                  <span class="tab-badge">{{ paidAwaitingCloseOrders().length }}</span>
                 }
               </button>
               <button 
@@ -402,7 +413,7 @@ interface OrderTableGroup {
                 </div>
             }
 
-            @if (viewMode() === 'active' && activeOrders().length === 0 && notPaidOrders().length === 0) {
+            @if (viewMode() === 'active' && activeOrders().length === 0 && notPaidOrders().length === 0 && paidAwaitingCloseOrders().length === 0) {
               <div class="empty-state">
                 <div class="empty-icon">
                   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -689,6 +700,113 @@ interface OrderTableGroup {
                   </div>
                   <h3>{{ 'ORDERS.ALL_ORDERS_PAID' | translate }}</h3>
                   <p>{{ 'ORDERS.NO_UNPAID_ORDERS' | translate }}</p>
+                </div>
+              }
+            }
+
+            <!-- Paid but table still occupied: service close required -->
+            @if (viewMode() === 'paid_close') {
+              @if (paidAwaitingCloseOrders().length > 0) {
+                <div class="table-order-stack">
+                  @for (group of paidAwaitingCloseOrderGroups(); track group.key) {
+                    <section class="table-order-group table-order-group--paid-close">
+                      <div class="table-order-group-header">
+                        <div class="table-order-group-copy">
+                          <p class="eyebrow">Paid - awaiting close</p>
+                          <h3>{{ group.tableName }}</h3>
+                          <p class="table-order-group-summary">
+                            {{ formatPaidAwaitingCloseGroupSummary(group) }}
+                          </p>
+                          <div class="table-order-group-meta">
+                            <span class="group-pill group-pill--success">{{ group.orders.length }} paid</span>
+                            @if (group.orders[0]; as latestOrder) {
+                              <span class="group-pill group-pill--accent">Latest #{{ latestOrder.id }}</span>
+                            }
+                            <span class="group-pill">{{ formatPrice(group.totalCents) }}</span>
+                            <span class="group-pill group-pill--info">Close table when guests leave</span>
+                            @if (group.latestCreatedAt) {
+                              <span class="group-pill">{{ formatOrderTime(group.latestCreatedAt) }}</span>
+                            }
+                          </div>
+                          @if (group.orders[0]; as latestOrder) {
+                            <div class="table-order-latest" role="status">
+                              <span>Settlement recorded</span>
+                              <strong>#{{ latestOrder.id }} · {{ orderPreview(latestOrder) }}</strong>
+                            </div>
+                          }
+                        </div>
+                        @if (group.tableId != null) {
+                          <div class="table-order-group-actions">
+                            <button type="button" class="btn btn-primary btn-sm" (click)="openPosForTable(group)">
+                              Close table in POS
+                            </button>
+                          </div>
+                        }
+                      </div>
+                      <div class="order-grid order-grid--table">
+                        @for (order of group.orders; track order.id) {
+                          <div class="order-card status-paid" [id]="'order-card-' + order.id">
+                            <div class="order-header">
+                              <div class="order-header-main">
+                                <span class="order-id">#{{ order.id }}</span>
+                                @if (order.customer_name) {
+                                  <span class="order-customer">{{ 'ORDERS.CUSTOMER' | translate }}: {{ order.customer_name }}</span>
+                                } @else {
+                                  <span class="order-customer">Walk-in / table guest</span>
+                                }
+                                <span class="order-time" [title]="formatExactTime(order.created_at)">{{ 'ORDERS.ORDER_TIME' | translate }}: {{ formatOrderTime(order.created_at) }}</span>
+                              </div>
+                              <span class="status-badge-btn paid">Paid - awaiting close</span>
+                            </div>
+                            <div class="order-items">
+                              @for (item of getSortedItems(order.items); track item.id) {
+                                <div class="order-item">
+                                  <div class="item-name-row">
+                                    <span class="item-qty">{{ item.quantity }}x</span>
+                                    <span class="item-name">{{ item.product_name }}</span>
+                                    @if (hasItemModifiersLine(item)) {
+                                      <span class="item-customization">{{ formatItemModifiersLine(item) }}</span>
+                                    }
+                                  </div>
+                                  <div class="item-details-row">
+                                    <span class="item-price">{{ formatPrice(item.price_cents * item.quantity) }}</span>
+                                  </div>
+                                </div>
+                              }
+                            </div>
+                            <div class="order-footer">
+                              <div class="order-footer-left">
+                                <span class="order-total">{{ 'ORDERS.TOTAL' | translate }}: {{ formatPrice(order.total_cents) }}</span>
+                                <span class="order-line-count">Paid{{ order.payment_method ? ' by ' + paymentMethodLabel(order.payment_method) : '' }}</span>
+                              </div>
+                              <div class="order-actions">
+                                @if (order.table_id != null) {
+                                  <button type="button" class="btn btn-primary-action" (click)="openPosForOrder(order)">
+                                    Close table
+                                  </button>
+                                }
+                                <button type="button" class="btn btn-print btn-icon-only" (click)="openFacturaModal(order)" [title]="'CUSTOMERS.PRINT_FACTURA' | translate">
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    </section>
+                  }
+                </div>
+              } @else {
+                <div class="empty-state">
+                  <div class="empty-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path d="M9 12l2 2 4-4M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/>
+                    </svg>
+                  </div>
+                  <h3>No paid tables waiting to close</h3>
+                  <p>Paid bills move here only while the table session is still open.</p>
                 </div>
               }
             }
@@ -2230,7 +2348,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
   currency = signal<string>('$');
   currencyCode = signal<string | null>(null);
   showRemovedItems = false;
-  viewMode = signal<'active' | 'not_paid' | 'history'>('active');
+  viewMode = signal<OrdersViewMode>('active');
   expandedActiveTableKey = signal<string | null>(null);
   orderToMarkPaid = signal<Order | null>(null);
   paymentMethod = 'cash';
@@ -2326,8 +2444,19 @@ export class OrdersComponent implements OnInit, OnDestroy {
     if (tid != null) list = list.filter(o => o.table_id === tid);
     return list;
   });
+  paidAwaitingCloseOrders = computed(() => {
+    const tid = this.tableScopeId();
+    let list = this.orders().filter(o =>
+      this.isCurrentServiceOrder(o) &&
+      this.isOrderPaid(o) &&
+      o.table_id != null
+    );
+    if (tid != null) list = list.filter(o => o.table_id === tid);
+    return [...list].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  });
   activeOrderGroups = computed(() => this.groupOrdersByTable(this.activeOrders()));
   notPaidOrderGroups = computed(() => this.groupOrdersByTable(this.notPaidOrders()));
+  paidAwaitingCloseOrderGroups = computed(() => this.groupOrdersByTable(this.paidAwaitingCloseOrders()));
 
   private isCurrentTableSessionOrder(order: Order): boolean {
     if (order.table_id == null) return false;
@@ -2343,6 +2472,9 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
   private isHistoryOrder(order: Order): boolean {
     if (this.isOrderPaid(order)) {
+      if (order.table_id != null && this.isCurrentTableSessionOrder(order)) {
+        return false;
+      }
       return true;
     }
     if (
@@ -2501,6 +2633,23 @@ export class OrdersComponent implements OnInit, OnDestroy {
     const completedCount = this.countOrdersWithStatuses(group.orders, ['completed']);
     if (completedCount > 0) {
       parts.push(`${completedCount} ready to close`);
+    }
+
+    return parts.join(' | ');
+  }
+
+  formatPaidAwaitingCloseGroupSummary(group: OrderTableGroup): string {
+    const parts = [
+      `${group.orders.length} paid ticket${group.orders.length === 1 ? '' : 's'} awaiting table close`,
+      `${this.formatPrice(group.totalCents)} settled`,
+    ];
+
+    const latestPaidAt = group.orders
+      .map((order) => order.paid_at)
+      .filter((value): value is string => !!value)
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+    if (latestPaidAt) {
+      parts.push(`paid ${this.formatOrderTime(latestPaidAt)}`);
     }
 
     return parts.join(' | ');
@@ -2811,6 +2960,10 @@ export class OrdersComponent implements OnInit, OnDestroy {
         this.viewMode.set('not_paid');
         return;
       }
+      if (this.paidAwaitingCloseOrders().length > 0) {
+        this.viewMode.set('paid_close');
+        return;
+      }
       if (this.completedOrders().length > 0) {
         this.viewMode.set('history');
       }
@@ -2820,6 +2973,25 @@ export class OrdersComponent implements OnInit, OnDestroy {
     if (mode === 'not_paid' && this.notPaidOrders().length === 0) {
       if (this.activeOrders().length > 0) {
         this.viewMode.set('active');
+        return;
+      }
+      if (this.paidAwaitingCloseOrders().length > 0) {
+        this.viewMode.set('paid_close');
+        return;
+      }
+      if (this.completedOrders().length > 0) {
+        this.viewMode.set('history');
+      }
+      return;
+    }
+
+    if (mode === 'paid_close' && this.paidAwaitingCloseOrders().length === 0) {
+      if (this.activeOrders().length > 0) {
+        this.viewMode.set('active');
+        return;
+      }
+      if (this.notPaidOrders().length > 0) {
+        this.viewMode.set('not_paid');
         return;
       }
       if (this.completedOrders().length > 0) {
@@ -2858,6 +3030,11 @@ export class OrdersComponent implements OnInit, OnDestroy {
       o.status === 'completed' &&
       !this.isOrderPaid(o)
     );
+    const rawPaidAwaitingClose = this.orders().filter(o =>
+      this.isCurrentServiceOrder(o) &&
+      this.isOrderPaid(o) &&
+      o.table_id != null
+    );
 
     let preserveTableId: number | null = null;
 
@@ -2874,7 +3051,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
       });
     };
 
-    let mode: 'active' | 'not_paid' | 'history' | null = null;
+    let mode: OrdersViewMode | null = null;
     let scrollId: number | null = null;
     let openEdit: Order | null = null;
 
@@ -2889,6 +3066,9 @@ export class OrdersComponent implements OnInit, OnDestroy {
           scrollId = focusOrderId;
         } else if (rawNotPaid.some(o => o.id === focusOrderId)) {
           mode = 'not_paid';
+          scrollId = focusOrderId;
+        } else if (rawPaidAwaitingClose.some(o => o.id === focusOrderId)) {
+          mode = 'paid_close';
           scrollId = focusOrderId;
         } else {
           mode = 'history';
@@ -2915,13 +3095,21 @@ export class OrdersComponent implements OnInit, OnDestroy {
           mode = 'not_paid';
           scrollId = notPaid[0].id;
         } else {
-          const hist = forTable.filter(o => this.isHistoryOrder(o)).sort((a, b) => b.id - a.id);
-          if (hist.length > 0) {
-            mode = 'history';
-            openEdit = hist[0];
+          const paidAwaitingClose = forTable
+            .filter(o => this.isCurrentServiceOrder(o) && this.isOrderPaid(o))
+            .sort((a, b) => b.id - a.id);
+          if (paidAwaitingClose.length > 0) {
+            mode = 'paid_close';
+            scrollId = paidAwaitingClose[0].id;
           } else {
-            this.showToast(this.translate.instant('ORDERS.FOCUS_TABLE_NO_ORDERS'), 'error');
-            mode = 'active';
+            const hist = forTable.filter(o => this.isHistoryOrder(o)).sort((a, b) => b.id - a.id);
+            if (hist.length > 0) {
+              mode = 'history';
+              openEdit = hist[0];
+            } else {
+              this.showToast(this.translate.instant('ORDERS.FOCUS_TABLE_NO_ORDERS'), 'error');
+              mode = 'active';
+            }
           }
         }
       }
@@ -3066,6 +3254,18 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
   getStatusLabel(status: string): string {
     return this.translate.instant(`ORDER_STATUS.${status}`) || status;
+  }
+
+  paymentMethodLabel(method: string): string {
+    const normalized = String(method || '').trim().toLowerCase();
+    const labels: Record<string, string> = {
+      cash: 'cash',
+      terminal: 'card terminal',
+      hitpay: 'HitPay',
+      card_at_table: 'card at table',
+      qr_hitpay: 'HitPay',
+    };
+    return labels[normalized] ?? normalized.replace(/_/g, ' ');
   }
 
   getItemStatusLabel(status: string): string {

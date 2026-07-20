@@ -309,7 +309,7 @@ interface OrderTableGroup {
                             <div class="order-actions">
                               @if (order.table_id != null) {
                                 <button type="button" class="btn btn-primary-action" (click)="openPosForOrder(order)">
-                                  {{ order.status === 'completed' && !order.paid_at ? 'Collect payment' : 'Open bill' }}
+                                  {{ order.status === 'completed' && !isOrderPaid(order) ? 'Collect payment' : 'Open bill' }}
                                 </button>
                               } @else {
                                 <button type="button" class="btn btn-primary-action" (click)="openOrderEdit(order)">
@@ -359,7 +359,7 @@ interface OrderTableGroup {
                                   }
                                 </div>
                               }
-                              @if (order.status !== 'paid' && order.status !== 'cancelled' && canMarkPaid()) {
+                              @if (!isOrderPaid(order) && order.status !== 'cancelled' && canMarkPaid()) {
                                 <div class="dropdown-section">
                                   <button
                                     class="dropdown-item forward"
@@ -371,7 +371,7 @@ interface OrderTableGroup {
                                   </button>
                                 </div>
                               }
-                              @if (order.status === 'paid' && canMarkPaid()) {
+                              @if (isOrderPaid(order) && canMarkPaid()) {
                                 <div class="dropdown-section">
                                   <button
                                     class="dropdown-item backward"
@@ -590,7 +590,7 @@ interface OrderTableGroup {
                         <div class="order-actions">
                           @if (order.table_id != null) {
                             <button type="button" class="btn btn-primary-action" (click)="openPosForOrder(order)">
-                              {{ order.status === 'completed' && !order.paid_at ? 'Collect payment' : 'Open bill' }}
+                              {{ order.status === 'completed' && !isOrderPaid(order) ? 'Collect payment' : 'Open bill' }}
                             </button>
                           } @else {
                             <button type="button" class="btn btn-primary-action" (click)="openOrderEdit(order)">
@@ -640,7 +640,7 @@ interface OrderTableGroup {
                                     }
                                   </div>
                                 }
-                                @if (order.status !== 'paid' && order.status !== 'cancelled' && canMarkPaid()) {
+                                @if (!isOrderPaid(order) && order.status !== 'cancelled' && canMarkPaid()) {
                                   <div class="dropdown-section">
                                     <button
                                       class="dropdown-item forward"
@@ -652,7 +652,7 @@ interface OrderTableGroup {
                                     </button>
                                   </div>
                                 }
-                                @if (order.status === 'paid' && canMarkPaid()) {
+                                @if (isOrderPaid(order) && canMarkPaid()) {
                                   <div class="dropdown-section">
                                     <button
                                       class="dropdown-item backward"
@@ -823,7 +823,7 @@ interface OrderTableGroup {
                 <button type="button" class="btn btn-secondary" (click)="closeOrderEdit()">{{ 'COMMON.CLOSE' | translate }}</button>
                 <button type="button" class="btn btn-secondary" (click)="saveEditOrderBilling()">{{ 'COMMON.SAVE' | translate }}</button>
                 <button type="button" class="btn btn-secondary" (click)="printEditOrderInvoice()">{{ 'ORDERS.PRINT_INVOICE' | translate }}</button>
-                @if (order.status !== 'paid' && order.status !== 'cancelled' && canMarkPaid()) {
+                @if (!isOrderPaid(order) && order.status !== 'cancelled' && canMarkPaid()) {
                   <button type="button" class="btn btn-primary" (click)="markEditOrderAsPaid(order)">{{ 'ORDERS.MARK_AS_PAID' | translate }}</button>
                 }
               </div>
@@ -2299,10 +2299,8 @@ export class OrdersComponent implements OnInit, OnDestroy {
     const tid = this.tableScopeId();
     let list = this.orders().filter(o =>
       this.isCurrentServiceOrder(o) &&
-      (
-        ['pending', 'preparing', 'ready', 'partially_delivered', 'paid'].includes(o.status) ||
-        !!o.paid_at
-      )
+      !this.isOrderPaid(o) &&
+      ['pending', 'preparing', 'ready', 'partially_delivered'].includes(o.status)
     );
     if (tid != null) list = list.filter(o => o.table_id === tid);
     return [...list].sort((a, b) => {
@@ -2323,7 +2321,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     let list = this.orders().filter(o =>
       this.isCurrentServiceOrder(o) &&
       o.status === 'completed' &&
-      !o.paid_at
+      !this.isOrderPaid(o)
     );
     if (tid != null) list = list.filter(o => o.table_id === tid);
     return list;
@@ -2344,6 +2342,9 @@ export class OrdersComponent implements OnInit, OnDestroy {
   }
 
   private isHistoryOrder(order: Order): boolean {
+    if (this.isOrderPaid(order)) {
+      return true;
+    }
     if (
       order.table_id != null &&
       this.isCurrentTableSessionOrder(order) &&
@@ -2354,7 +2355,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     if (order.table_id != null && !this.isCurrentTableSessionOrder(order)) {
       return true;
     }
-    return ['completed', 'cancelled', 'paid'].includes(order.status);
+    return ['completed', 'cancelled'].includes(order.status);
   }
 
   // AG Grid configuration - custom light theme matching app colors
@@ -2443,7 +2444,10 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
   countOrdersWithStatuses(orders: readonly Order[], statuses: string[]): number {
     const lookup = new Set(statuses);
-    return orders.reduce((count, order) => count + (lookup.has(order.status) ? 1 : 0), 0);
+    return orders.reduce((count, order) => {
+      if (lookup.has('paid') && this.isOrderPaid(order)) return count + 1;
+      return count + (lookup.has(order.status) ? 1 : 0);
+    }, 0);
   }
 
   orderPreview(order: Order): string {
@@ -2507,7 +2511,11 @@ export class OrdersComponent implements OnInit, OnDestroy {
   }
 
   private isOrderUnpaidForGroup(order: Order): boolean {
-    return order.status === 'completed' && !order.paid_at;
+    return order.status === 'completed' && !this.isOrderPaid(order);
+  }
+
+  isOrderPaid(order: Order): boolean {
+    return !!order.paid_at || String(order.status || '').trim().toLowerCase() === 'paid';
   }
 
   get columnDefs(): ColDef[] {
@@ -2774,7 +2782,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
     return (
       sorted.find((order) => ['pending', 'preparing', 'ready', 'partially_delivered'].includes(order.status)) ??
-      sorted.find((order) => order.status === 'completed' && !order.paid_at) ??
+      sorted.find((order) => order.status === 'completed' && !this.isOrderPaid(order)) ??
       sorted[0] ??
       null
     );
@@ -2842,12 +2850,13 @@ export class OrdersComponent implements OnInit, OnDestroy {
     /** Resolve focus using full order list (ignore table scope filter). */
     const rawActive = this.orders().filter(o =>
       this.isCurrentServiceOrder(o) &&
+      !this.isOrderPaid(o) &&
       ['pending', 'preparing', 'ready', 'partially_delivered'].includes(o.status)
     );
     const rawNotPaid = this.orders().filter(o =>
       this.isCurrentServiceOrder(o) &&
       o.status === 'completed' &&
-      !o.paid_at
+      !this.isOrderPaid(o)
     );
 
     let preserveTableId: number | null = null;
@@ -2900,7 +2909,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
         const notPaid = forTable.filter(o =>
           this.isCurrentServiceOrder(o) &&
           o.status === 'completed' &&
-          !o.paid_at
+          !this.isOrderPaid(o)
         );
         if (notPaid.length > 0) {
           mode = 'not_paid';
@@ -2947,7 +2956,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
   }
 
   canAddItemsToOrder(order: Order): boolean {
-    return !!(order.table_id != null && order.table_token && order.status !== 'paid' && order.status !== 'cancelled');
+    return !!(order.table_id != null && order.table_token && !this.isOrderPaid(order) && order.status !== 'cancelled');
   }
 
   updateEditItemQuantity(orderId: number, itemId: number, quantity: number) {

@@ -729,6 +729,31 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                   <div class="payment-state-strip" [class.payment-state-strip--error]="hitPayFlowState() === 'failed'">
                     <span class="muted-pill muted-pill--accent">{{ hitPayStateLabel() }}</span>
                     <small>{{ hitPayStateCopy() }}</small>
+                    @if (paymentRecoveryVisible()) {
+                      <div class="action-row action-row--secondary">
+                        <button
+                          type="button"
+                          class="btn btn-primary btn-sm"
+                          (click)="retryHitPayPayment()"
+                          [disabled]="!canRetryHitPayPayment()">
+                          Retry HitPay
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-sm"
+                          (click)="switchPaymentRecoveryToTerminal()"
+                          [disabled]="processingCheckout()">
+                          Use terminal instead
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-ghost btn-sm"
+                          (click)="backToCartFromPaymentRecovery()"
+                          [disabled]="processingCheckout()">
+                          Back to cart
+                        </button>
+                      </div>
+                    }
                   </div>
                 }
                 <div class="settlement-mode-grid settlement-mode-grid--compact">
@@ -1269,6 +1294,31 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                         <div class="payment-state-strip" [class.payment-state-strip--error]="hitPayFlowState() === 'failed'">
                           <span class="muted-pill muted-pill--accent">{{ hitPayStateLabel() }}</span>
                           <small>{{ hitPayStateCopy() }}</small>
+                          @if (paymentRecoveryVisible()) {
+                            <div class="action-row action-row--secondary">
+                              <button
+                                type="button"
+                                class="btn btn-primary btn-sm"
+                                (click)="retryHitPayPayment()"
+                                [disabled]="!canRetryHitPayPayment()">
+                                Retry HitPay
+                              </button>
+                              <button
+                                type="button"
+                                class="btn btn-secondary btn-sm"
+                                (click)="switchPaymentRecoveryToTerminal()"
+                                [disabled]="processingCheckout()">
+                                Use terminal instead
+                              </button>
+                              <button
+                                type="button"
+                                class="btn btn-ghost btn-sm"
+                                (click)="backToCartFromPaymentRecovery()"
+                                [disabled]="processingCheckout()">
+                                Back to cart
+                              </button>
+                            </div>
+                          }
                         </div>
                       }
                       <div class="pos-service-payment-grid">
@@ -6620,13 +6670,53 @@ export class CashierPosComponent {
       case 'confirming':
         return 'Waiting for the cashier return to confirm the hosted payment and close the ticket.';
       case 'cancelled':
-        return 'The hosted checkout was cancelled or left unpaid. The bill is still open and can be retried.';
+        return 'No payment was taken. The bill is still open: retry HitPay, use the terminal, or return to the cart.';
       case 'failed':
-        return 'The hosted checkout did not confirm cleanly. Retry the bill from this checkout dock.';
+        return 'Payment was not confirmed. Do not clear the table yet: retry, switch method, or return to the cart.';
       case 'idle':
       default:
         return '';
     }
+  }
+
+  paymentRecoveryVisible(): boolean {
+    const state = this.hitPayFlowState();
+    return state === 'cancelled' || state === 'failed';
+  }
+
+  canRetryHitPayPayment(): boolean {
+    return this.hitPayConfigured() && this.canSubmitCart();
+  }
+
+  retryHitPayPayment(): void {
+    if (!this.canRetryHitPayPayment()) {
+      return;
+    }
+    this.hitPayFlowState.set('idle');
+    this.selectSettlementMode('hitpay');
+    void this.submitCart('hitpay');
+  }
+
+  switchPaymentRecoveryToTerminal(): void {
+    if (this.processingCheckout()) {
+      return;
+    }
+    this.hitPayFlowState.set('idle');
+    this.selectSettlementMode('card_terminal');
+    this.notice.set('Terminal selected. Keep this bill open until the card machine confirms payment.');
+  }
+
+  backToCartFromPaymentRecovery(): void {
+    if (this.processingCheckout()) {
+      return;
+    }
+    this.hitPayFlowState.set('idle');
+    if (this.tableWorkspaceOpen()) {
+      this.setPosDrawerView('menu');
+    } else {
+      this.scrollToCartLines();
+    }
+    this.notice.set('Payment was not completed. Review the cart or current bill before retrying.');
   }
 
   checkoutTotalCaption(): string | null {

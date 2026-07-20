@@ -369,7 +369,14 @@ export class ReportsComponent implements OnInit {
   closeoutOrderUnpaid(order: Order): boolean {
     const status = String(order.status || '').toLowerCase();
     if (this.closeoutOrderPaid(order) || status.includes('cancel')) return false;
+    if (!this.closeoutOrderBelongsToCurrentService(order)) return false;
     return ['pending', 'preparing', 'ready', 'partially_delivered', 'completed'].includes(status);
+  }
+
+  closeoutOrderBelongsToCurrentService(order: Order): boolean {
+    if (order.table_id == null) return true;
+    if (order.is_current_table_session === true) return true;
+    return !!order.table_is_active && order.table_active_order_id != null && order.table_active_order_id === order.id;
   }
 
   canViewAttendance(): boolean {

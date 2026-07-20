@@ -159,7 +159,8 @@ function normalizeOrderWorkflowStatus(
   if (status.includes('ready')) return 'ready';
   if (status.includes('prepar') || status.includes('cook') || status === 'open') return 'preparing';
   if (status.includes('complete') || status.includes('deliver') || status.includes('closed')) return 'delivered';
-  if (status.includes('paid') || status.includes('pending')) return 'pending';
+  if (status.includes('paid')) return 'delivered';
+  if (status.includes('pending')) return 'pending';
   return 'pending';
 }
 

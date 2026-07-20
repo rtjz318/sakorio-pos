@@ -225,6 +225,35 @@ describe('KitchenDisplayComponent', () => {
     expect(fixture.componentInstance.getOrderDisplayStatus(fixture.componentInstance.activeOrders()[0])).toBe('pending');
   });
 
+  it('should not resurrect paid tickets after all line items are delivered', () => {
+    const orders = [
+      {
+        id: 84,
+        status: 'paid',
+        table_name: 'T01',
+        created_at: new Date().toISOString(),
+        items: [
+          {
+            id: 8401,
+            product_name: 'Coffee',
+            quantity: 1,
+            status: 'delivered',
+            price_cents: 250,
+            category: 'Beverages',
+          },
+        ],
+        total_cents: 250,
+        paid_at: new Date().toISOString(),
+      },
+    ];
+    mockApi.getOrders.and.returnValue(of(orders));
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activeOrders()).toEqual([]);
+    expect(fixture.componentInstance.kitchenLanes().flatMap((lane) => lane.orders)).toEqual([]);
+  });
+
   it('should treat custom non-bar station routes as kitchen tickets', () => {
     const orders = [
       {

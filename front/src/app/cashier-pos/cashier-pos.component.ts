@@ -772,9 +772,18 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                   <div class="settlement-summary-copy settlement-summary-copy--primary">
                     <p class="eyebrow">Selected method</p>
                     <strong>{{ primarySettlementModeLabel() }}</strong>
-                    <small>Collect {{ checkoutSummaryTotalCopy() }} and close the bill.</small>
+                    <small>{{ settlementActionSupportCopy() }}</small>
                   </div>
                   <div class="settlement-summary-actions">
+                    @if (cartItemCount() > 0) {
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-lg settlement-submit-btn"
+                        (click)="sendOrderToKitchen()"
+                        [disabled]="!canSendOrderToKitchen()">
+                        {{ processingCheckout() ? 'Sending...' : 'Send order to kitchen' }}
+                      </button>
+                    }
                     <button
                       type="button"
                       id="cashier-settlement-submit"
@@ -1239,6 +1248,23 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                         }
                       </div>
                     } @else {
+                      @if (cartItemCount() > 0) {
+                        <section class="inline-hint inline-hint--info inline-hint--compact" aria-label="Unsent cart guidance">
+                          <div class="inline-hint-copy">
+                            <strong>Send this round before payment</strong>
+                            <small>Kitchen receives the ticket, the bill stays open, and you can add more items or collect payment later.</small>
+                          </div>
+                          <div class="action-row action-row--secondary">
+                            <button
+                              type="button"
+                              class="btn btn-primary btn-sm"
+                              (click)="sendOrderToKitchen()"
+                              [disabled]="!canSendOrderToKitchen()">
+                              {{ processingCheckout() ? 'Sending...' : 'Send order to kitchen' }}
+                            </button>
+                          </div>
+                        </section>
+                      }
                       @if (hitPayFlowState() !== 'idle') {
                         <div class="payment-state-strip" [class.payment-state-strip--error]="hitPayFlowState() === 'failed'">
                           <span class="muted-pill muted-pill--accent">{{ hitPayStateLabel() }}</span>
@@ -1286,7 +1312,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                         <div>
                           <span>Selected method</span>
                           <strong>{{ primarySettlementModeLabel() }}</strong>
-                          <small>Collect {{ checkoutSummaryTotalCopy() }} and close the bill.</small>
+                          <small>{{ settlementActionSupportCopy() }}</small>
                         </div>
                         <button
                           type="button"
@@ -5750,14 +5776,15 @@ export class CashierPosComponent {
 
   checkoutPrimaryActionText(): string {
     const amount = this.checkoutSummaryTotalCopy();
+    const prefix = this.cartItemCount() > 0 ? 'Send & ' : '';
     switch (this.primaryCheckoutMode()) {
       case 'card_terminal':
-        return `Charge terminal - ${amount}`;
+        return `${prefix}charge terminal - ${amount}`;
       case 'hitpay':
-        return `Send HitPay - ${amount}`;
+        return `${prefix}send HitPay - ${amount}`;
       case 'cash':
       default:
-        return `Take cash - ${amount}`;
+        return `${prefix}take cash - ${amount}`;
     }
   }
 
@@ -5772,7 +5799,7 @@ export class CashierPosComponent {
   posCurrentTicketsCopy(): string {
     const count = this.posCurrentSessionOrders().length;
     if (count <= 0) {
-      return 'No tickets yet';
+      return this.cartItemCount() > 0 ? 'New ticket not sent' : 'No tickets yet';
     }
     return `${count} current ticket${count === 1 ? '' : 's'}`;
   }
@@ -5799,6 +5826,9 @@ export class CashierPosComponent {
     if (this.canClearTable(table)) {
       return 'Payment received - clear the table';
     }
+    if (this.cartItemCount() > 0) {
+      return 'Send this round to kitchen';
+    }
     if (this.hasCheckoutWork()) {
       return 'Collect payment or add more items';
     }
@@ -5811,6 +5841,9 @@ export class CashierPosComponent {
   posLoopSupportCopy(table: CanvasTable): string {
     if (this.canClearTable(table)) {
       return `${table.name} is settled. Clear it to move this visit into History.`;
+    }
+    if (this.cartItemCount() > 0) {
+      return `${this.checkoutSummaryItemsCopy()} not sent yet · ${this.checkoutSummaryTotalCopy()} cart value`;
     }
     if (this.hasCheckoutWork()) {
       return `${this.checkoutSummaryTableCopy()} · ${this.checkoutSummaryItemsCopy()} · ${this.checkoutSummaryTotalCopy()}`;
@@ -6526,6 +6559,16 @@ export class CashierPosComponent {
       return 'Ready for payment.';
     }
     return 'Choose a table and add items.';
+  }
+
+  settlementActionSupportCopy(): string {
+    if (this.cartItemCount() > 0 && this.hasPayableLiveBill()) {
+      return 'Send the add-ons and settle the full live bill now, or send this round first and collect payment later.';
+    }
+    if (this.cartItemCount() > 0) {
+      return 'For dine-in, send the order to kitchen first. Use Send & pay now only for immediate counter settlement.';
+    }
+    return `Collect ${this.checkoutSummaryTotalCopy()} and close the bill.`;
   }
 
   checkoutOutcomeTitle(): string {

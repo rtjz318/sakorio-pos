@@ -660,14 +660,14 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   <button type="button" class="btn btn-primary btn-sm" (click)="openQuickTable(table, 'menu')">
                     {{ table.active_order_id ? 'Add items' : 'Start order' }}
                   </button>
-                  @if (table.is_active && table.active_order_id) {
+                  @if (table.is_active) {
                     <button
                       type="button"
                       class="btn btn-secondary btn-sm"
                       (click)="openQuickTable(table, 'move')"
-                      title="Move this active bill to another ready table"
+                      title="Move this active table visit to another ready table"
                     >
-                      Move bill
+                      Move table
                     </button>
                   }
                   @if (table.is_active) {
@@ -782,9 +782,9 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   </div>
 
                   <div class="table-actions">
-                    @if (table.is_active && table.active_order_id) {
+                    @if (table.is_active) {
                       <button type="button" class="btn btn-secondary btn-sm" (click)="openQuickTable(table, 'move')">
-                        Move bill
+                        Move table
                       </button>
                     }
                     <button type="button" class="btn btn-secondary btn-sm" (click)="openStaffMenu(table)"
@@ -1027,25 +1027,29 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                 <div class="quick-move-view">
                   <div class="quick-orders-heading">
                     <div>
-                      <span>Move active bill</span>
+                      <span>Move active table</span>
                       <h3>Transfer {{ serviceTable.name }} to another table</h3>
                     </div>
                   </div>
 
-                  @if (!serviceTable.is_active || !serviceTable.active_order_id) {
-                    <div class="quick-empty">There is no live bill on this table yet. Add items first, or open the table for QR ordering.</div>
+                  @if (!serviceTable.is_active) {
+                    <div class="quick-empty">There is no active table visit to move yet. Seat guests, add items, or open the table for QR ordering first.</div>
                   } @else if (quickMoveTargetTables().length === 0) {
-                    <div class="quick-empty">No ready destination tables are available. Close or settle another table before moving this bill.</div>
+                    <div class="quick-empty">No ready destination tables are available. Close or settle another table before moving this visit.</div>
                   } @else {
                     <section class="quick-move-panel">
                       <div class="quick-move-summary">
                         <span>Moving from</span>
                         <strong>{{ serviceTable.name }}</strong>
-                        <small>Current orders: {{ quickCurrentSessionOrders().length }} · Live bill #{{ serviceTable.active_order_id }}</small>
+                        <small>
+                          Current orders: {{ quickCurrentSessionOrders().length }}
+                          @if (serviceTable.active_order_id) { · Live bill #{{ serviceTable.active_order_id }} }
+                          @else { · No bill yet }
+                        </small>
                       </div>
 
                       <label class="quick-move-field">
-                        <span>Move to ready table</span>
+                        <span>Move visit to ready table</span>
                         <select [ngModel]="quickMoveTargetTableId()" (ngModelChange)="quickMoveTargetTableId.set($event)">
                           @for (target of quickMoveTargetTables(); track target.id) {
                             <option [ngValue]="target.id">{{ target.name }} · {{ target.seat_count || 0 }} seats · {{ getFloorName(target.floor_id) }}</option>
@@ -1059,9 +1063,9 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                       </label>
 
                       <button type="button" class="quick-submit" (click)="moveQuickBill()" [disabled]="quickMovingBill() || !quickMoveTargetTableId()">
-                        {{ quickMovingBill() ? 'Moving bill…' : 'Move bill now' }}
+                        {{ quickMovingBill() ? 'Moving table…' : 'Move table now' }}
                       </button>
-                      <p class="quick-move-help">This keeps the same customer session and current orders, clears {{ serviceTable.name }}, and opens the destination table.</p>
+                      <p class="quick-move-help">This keeps the same customer session, seated reservation, queue entry, and current orders, then clears {{ serviceTable.name }} and opens the destination table.</p>
                     </section>
                   }
                 </div>
@@ -2977,13 +2981,13 @@ export class TablesComponent implements OnInit {
         this.quickMoveReason.set('');
         this.quickMoveTargetTableId.set(this.quickMoveTargetTables()[0]?.id ?? null);
         this.quickMovingBill.set(false);
-        this.quickOrderSuccess.set(`Bill moved from ${response.from_table_name} to ${response.to_table_name}.`);
+        this.quickOrderSuccess.set(`Table visit moved from ${response.from_table_name} to ${response.to_table_name}.`);
         this.quickOrderView.set('orders');
         this.loadQuickTableData(targetId);
       },
       error: (err) => {
         this.quickMovingBill.set(false);
-        this.quickOrderError.set(this.apiErr.fromHttpError(err, 'Could not move this bill. Choose a ready table and try again.'));
+        this.quickOrderError.set(this.apiErr.fromHttpError(err, 'Could not move this table visit. Choose a ready table and try again.'));
       },
     });
   }

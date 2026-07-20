@@ -11459,10 +11459,6 @@ def move_table_bill(
         raise HTTPException(status_code=404, detail="Target table not found")
     if source.id == target.id:
         raise HTTPException(status_code=400, detail="Choose a different table to move the bill.")
-    if not source.is_active:
-        raise HTTPException(status_code=400, detail="Source table has no active session to move.")
-    if source.active_order_id is None:
-        raise HTTPException(status_code=400, detail="Source table has no live bill to move.")
     if target.is_active or target.active_order_id is not None:
         raise HTTPException(
             status_code=409,
@@ -11479,7 +11475,27 @@ def move_table_bill(
     orders_to_move = [
         order for order in current_session_orders if _is_order_in_current_table_session(order, source)
     ]
-    if not orders_to_move:
+
+    seated_reservations = session.exec(
+        select(models.Reservation).where(
+            models.Reservation.tenant_id == current_user.tenant_id,
+            models.Reservation.table_id == source.id,
+            models.Reservation.status == models.ReservationStatus.seated,
+        )
+    ).all()
+
+    seated_queue_entries = session.exec(
+        select(models.GuestQueueEntry).where(
+            models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+            models.GuestQueueEntry.seated_table_id == source.id,
+            models.GuestQueueEntry.status == models.GuestQueueStatus.seated,
+        )
+    ).all()
+
+    has_seated_visit = bool(seated_reservations or seated_queue_entries)
+    if not source.is_active and not has_seated_visit:
+        raise HTTPException(status_code=400, detail="Source table has no active visit to move.")
+    if source.active_order_id is not None and not orders_to_move:
         raise HTTPException(status_code=400, detail="No current-session orders found on the source table.")
 
     moved_order_ids: list[int] = []
@@ -11496,13 +11512,6 @@ def move_table_bill(
         if order.id is not None:
             moved_order_ids.append(order.id)
 
-    seated_reservations = session.exec(
-        select(models.Reservation).where(
-            models.Reservation.tenant_id == current_user.tenant_id,
-            models.Reservation.table_id == source.id,
-            models.Reservation.status == models.ReservationStatus.seated,
-        )
-    ).all()
     moved_reservation_ids: list[int] = []
     for reservation in seated_reservations:
         reservation.table_id = target.id
@@ -11511,13 +11520,6 @@ def move_table_bill(
         if reservation.id is not None:
             moved_reservation_ids.append(reservation.id)
 
-    seated_queue_entries = session.exec(
-        select(models.GuestQueueEntry).where(
-            models.GuestQueueEntry.tenant_id == current_user.tenant_id,
-            models.GuestQueueEntry.seated_table_id == source.id,
-            models.GuestQueueEntry.status == models.GuestQueueStatus.seated,
-        )
-    ).all()
     moved_queue_entry_ids: list[int] = []
     for queue_entry in seated_queue_entries:
         queue_entry.seated_table_id = target.id

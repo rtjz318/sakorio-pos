@@ -846,7 +846,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                       type="button"
                       class="btn btn-ghost btn-sm"
                       (click)="toggleTableHistory()">
-                      {{ tableHistoryExpanded() ? 'Recent only' : 'Show all' }}
+                      {{ queueHistoryToggleLabel() }}
                     </button>
                   }
                 }
@@ -6816,7 +6816,7 @@ export class CashierPosComponent {
   }
 
   queueHistoryHasOverflow(): boolean {
-    return this.queueHistoryOrders().length > this.queuePreviewLimit;
+    return this.queueHistoryOrders().length > this.queueVisibleHistoryOrders().length;
   }
 
   queueVisibleHistoryOrders(): Order[] {
@@ -6824,7 +6824,18 @@ export class CashierPosComponent {
     if (this.tableHistoryExpanded()) {
       return history;
     }
-    return history.slice(0, this.queuePreviewLimit);
+    const safeReceipts = history.filter((order) => this.isPaid(order));
+    return safeReceipts.slice(0, this.queuePreviewLimit);
+  }
+
+  queueHistoryToggleLabel(): string {
+    if (this.tableHistoryExpanded()) {
+      return 'Hide review';
+    }
+    if (this.queueHistoryOpenCount() > 0) {
+      return 'Review stale bills';
+    }
+    return 'Show all';
   }
 
   queueHistoryOpenCount(): number {
@@ -6836,7 +6847,8 @@ export class CashierPosComponent {
   }
 
   queueHistoryLatestLabel(): string {
-    const latest = this.queueHistoryOrders()[0] ?? null;
+    const history = this.queueHistoryOrders();
+    const latest = history.find((order) => this.isPaid(order)) ?? history[0] ?? null;
     if (!latest) {
       return 'No recent bills';
     }

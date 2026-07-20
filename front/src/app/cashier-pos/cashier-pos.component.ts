@@ -624,7 +624,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
               <div class="lane-header lane-header--tight">
                 <div>
                   <p class="eyebrow">Payment</p>
-                  <h3>{{ hasCheckoutWork() ? 'Collect payment' : 'Checkout' }}</h3>
+                  <h3>{{ hasCheckoutWork() ? 'Collect payment' : 'Payment' }}</h3>
                 </div>
               </div>
               @if (lastCheckoutOutcome() && !hasCheckoutWork()) {
@@ -1072,7 +1072,13 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                         {{ pendingTableId() === serviceTable.id ? 'Closing...' : 'Close table' }}
                       </button>
                     } @else if (hasCheckoutWork()) {
-                      <button type="button" class="btn btn-primary btn-sm" (click)="setPosDrawerView('checkout')">Checkout</button>
+                      <button
+                        type="button"
+                        class="btn btn-primary btn-sm"
+                        aria-label="Pay bill for selected table"
+                        (click)="setPosDrawerView('checkout')">
+                        Pay bill
+                      </button>
                     } @else {
                       <button type="button" class="btn btn-primary btn-sm" (click)="setPosDrawerView('menu')">Add items</button>
                     }
@@ -1167,7 +1173,13 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                           <div class="pos-service-live-bill">
                             <strong>Bill #{{ liveBill.id }}</strong>
                             <span>{{ liveBill.items.length }} items · {{ formatPrice(liveBill.total_cents || 0) }}</span>
-                            <button type="button" class="btn btn-primary btn-sm" (click)="setPosDrawerView('checkout')">Checkout</button>
+                            <button
+                              type="button"
+                              class="btn btn-primary btn-sm"
+                              aria-label="Pay bill for live order"
+                              (click)="setPosDrawerView('checkout')">
+                              Pay bill
+                            </button>
                           </div>
                           <div class="pos-service-cart-lines pos-service-cart-lines--readonly">
                             @for (item of liveBill.items; track $index) {
@@ -5470,6 +5482,7 @@ export class CashierPosComponent {
   private focusNextClearTableAfterReload = false;
   private preferredReadyTableIdAfterReload: number | null = null;
   private scrollTargetAfterReload: 'catalog' | 'payment' | null = null;
+  private showNextTableHintAfterReload = true;
   private processedHitPayReturnKey: string | null = null;
   private brokenProductImageKeys = signal<Record<string, true>>({});
 
@@ -6645,7 +6658,7 @@ export class CashierPosComponent {
       return '';
     }
 
-    return `${outcome.tableName} bill #${outcome.orderId} is complete. Pick the next table or dismiss this summary.`;
+    return `${outcome.tableName} bill #${outcome.orderId} is complete. Close the table when guests leave.`;
   }
   hitPayStateLabel(): string {
     switch (this.hitPayFlowState()) {
@@ -7308,7 +7321,7 @@ export class CashierPosComponent {
     const liveBill = this.payableLiveBillOrder();
     const hasCartLines = this.cartLines().length > 0;
     if (!hasCartLines && !liveBill) {
-      this.error.set('Add at least one item before checkout.');
+      this.error.set('Add at least one item before payment.');
       return;
     }
 
@@ -7328,8 +7341,6 @@ export class CashierPosComponent {
       await this.ensureTableReady(table);
       let orderId = liveBill?.id ?? null;
       let access: Awaited<ReturnType<CashierPosComponent['ensureStaffAccess']>> | null = null;
-      const nextReadyTable = this.nextReadyTableCandidate(tableId);
-
       if (hasCartLines) {
         const handoffPrefill = this.activeHandoffPrefill();
         const payload = {
@@ -7380,12 +7391,8 @@ export class CashierPosComponent {
         });
         this.notice.set(
           mode === 'cash'
-            ? nextReadyTable
-              ? `Cash payment recorded for ${table.name}. ${nextReadyTable.name} is up next.`
-              : `Cash payment recorded for ${table.name}.`
-            : nextReadyTable
-              ? `Terminal payment recorded for ${table.name}. ${nextReadyTable.name} is up next.`
-              : `Card terminal payment recorded for ${table.name}.`,
+            ? `Cash payment recorded for ${table.name}. Close the table when guests leave.`
+            : `Terminal payment recorded for ${table.name}. Close the table when guests leave.`,
         );
       } else if (mode === 'hitpay') {
         this.hitPayFlowState.set('redirecting');
@@ -7405,9 +7412,9 @@ export class CashierPosComponent {
           hitPayCheckoutWindow.location.href = payment.checkout_url;
           this.selectedOrderId.set(orderId);
           this.clearCart();
-          this.queueReadyTableAfterReload(tableId, 'catalog');
+          this.queueReadyTableAfterReload(tableId, 'catalog', false);
           this.hitPayFlowState.set('idle');
-          this.notice.set(`HitPay checkout opened in a new tab for ${table.name}. This POS is ready for the next table.`);
+          this.notice.set(`HitPay checkout opened in a new tab for ${table.name}. Keep this bill open until payment is confirmed.`);
           this.loadData();
           return;
         }
@@ -7418,7 +7425,7 @@ export class CashierPosComponent {
       this.selectedOrderId.set(null);
       this.clearCart();
       if (mode === 'cash' || mode === 'card_terminal') {
-        this.queueReadyTableAfterReload(tableId, 'catalog');
+        this.queueReadyTableAfterReload(tableId, 'catalog', false);
       }
       this.loadData();
     } catch (err) {
@@ -7564,21 +7571,16 @@ export class CashierPosComponent {
     this.error.set(null);
 
     try {
-      const nextReadyTable = this.nextReadyTableCandidate(table.id);
       await firstValueFrom(this.api.closeTable(table.id));
       if (this.cartTableId() === table.id) {
         this.clearCart();
       }
-      this.notice.set(
-        nextReadyTable
-          ? `${table.name} is clear. ${nextReadyTable.name} is ready for the next cashier bill.`
-          : `${table.name} is clear and ready for the next cashier bill.`,
-      );
+      this.notice.set(`${table.name} is clear and ready for the next cashier bill.`);
       if (this.selectedTableId() === table.id) {
         this.selectedTableId.set(null);
         this.selectedOrderId.set(null);
       }
-      this.queueReadyTableAfterReload(table.id, 'catalog');
+      this.queueReadyTableAfterReload(table.id, 'catalog', false);
       this.loadData();
     } catch (err) {
       this.error.set(this.getErrorMessage(err, 'Unable to close the table.'));
@@ -7736,11 +7738,13 @@ export class CashierPosComponent {
   private queueReadyTableAfterReload(
     currentTableId: number | null,
     scrollTarget: 'catalog' | 'payment' | null = 'catalog',
+    showNextTableHint = true,
   ): void {
     const candidate = this.nextReadyTableCandidate(currentTableId);
     this.focusNextClearTableAfterReload = true;
     this.preferredReadyTableIdAfterReload = candidate?.id ?? null;
     this.scrollTargetAfterReload = scrollTarget;
+    this.showNextTableHintAfterReload = showNextTableHint;
   }
 
   private focusReadyTableAfterReload(): void {
@@ -7749,12 +7753,14 @@ export class CashierPosComponent {
 
     const scrollTarget = this.scrollTargetAfterReload;
     this.scrollTargetAfterReload = null;
+    const showNextTableHint = this.showNextTableHintAfterReload;
+    this.showNextTableHintAfterReload = true;
     this.tableWorkspaceOpen.set(false);
     this.selectedTableId.set(null);
     this.selectedOrderId.set(null);
     this.syncSelectionToQuery(null, null);
 
-    if (preferredId != null) {
+    if (showNextTableHint && preferredId != null) {
       const preferredTable = this.tables().find((table) => table.id === preferredId) ?? null;
       if (preferredTable) {
         const existingNotice = this.notice();
@@ -8405,12 +8411,11 @@ export class CashierPosComponent {
         this.orders().find((order) => order.id === normalizedOrderId) ??
         this.tableLatestOrderFallback(table.id) ??
         null;
-      const nextReadyTable = this.nextReadyTableCandidate(table.id);
       this.selectedTableId.set(table.id);
       this.selectedOrderId.set(normalizedOrderId);
       this.selectedSettlementMode.set('hitpay');
       this.clearCart();
-      this.queueReadyTableAfterReload(table.id, 'catalog');
+      this.queueReadyTableAfterReload(table.id, 'catalog', false);
       this.lastCheckoutOutcome.set({
         mode: 'hitpay',
         tableName: table.name,
@@ -8418,11 +8423,7 @@ export class CashierPosComponent {
         amountCents: confirmedOrder?.total_cents || 0,
       });
       this.hitPayFlowState.set('idle');
-      this.notice.set(
-        nextReadyTable
-          ? `HitPay checkout completed for ${table.name}. ${nextReadyTable.name} is up next.`
-          : `HitPay checkout completed for ${table.name}.`,
-      );
+      this.notice.set(`HitPay checkout completed for ${table.name}. Close the table when guests leave.`);
       await this.clearHitPayReturnQuery();
       this.loadData();
     } catch (err) {

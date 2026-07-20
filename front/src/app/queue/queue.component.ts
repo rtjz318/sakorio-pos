@@ -75,7 +75,10 @@ const QUEUE_STALE_MINUTES = 12 * 60;
               Include closed
             </label>
             <label class="closed-toggle">
-              <input type="checkbox" [(ngModel)]="showStaleQueueEntries" (change)="syncSelectionWithVisibleBoard()" />
+              <input
+                type="checkbox"
+                [ngModel]="showStaleQueueEntries()"
+                (ngModelChange)="showStaleQueueEntries.set($event); syncSelectionWithVisibleBoard()" />
               Show stale
             </label>
           </div>
@@ -331,7 +334,7 @@ const QUEUE_STALE_MINUTES = 12 * 60;
               <span class="chip">{{ filteredActiveEntries().length }} active</span>
               <span class="chip">{{ filteredBoardEntries().length }} visible</span>
               <span class="chip">{{ queue().length }} loaded</span>
-              @if (hiddenStaleQueueCount() > 0 && !showStaleQueueEntries && !includeClosed) {
+              @if (hiddenStaleQueueCount() > 0 && !showStaleQueueEntries() && !includeClosed) {
                 <span class="chip chip--warn">{{ hiddenStaleQueueCount() }} stale hidden</span>
               }
             </div>
@@ -403,7 +406,7 @@ const QUEUE_STALE_MINUTES = 12 * 60;
               <p class="board-summary-copy">
                 Showing {{ filteredBoardEntries().length }} queue entries after filters.
               </p>
-            } @else if (hiddenStaleQueueCount() > 0 && !showStaleQueueEntries && !includeClosed) {
+            } @else if (hiddenStaleQueueCount() > 0 && !showStaleQueueEntries() && !includeClosed) {
               <p class="board-summary-copy">
                 Current service view is hiding {{ hiddenStaleQueueCount() }} stale queue entr{{ hiddenStaleQueueCount() === 1 ? 'y' : 'ies' }} older than 12 hours. Turn on Show stale to review them.
               </p>
@@ -1749,7 +1752,7 @@ export class QueueComponent implements OnInit {
   queueFloorFilter = '';
   queueUrgencyFilter: 'all' | 'normal' | 'warn' | 'danger' = 'all';
   queueSortMode: QueueSortMode = 'priority';
-  showStaleQueueEntries = false;
+  showStaleQueueEntries = signal(false);
 
   preferredFloorDraft = '';
   draft: GuestQueueCreate = this.emptyDraft();
@@ -1774,7 +1777,7 @@ export class QueueComponent implements OnInit {
     const term = this.queueSearch.trim().toLowerCase();
     const floorFilterId = this.queueFloorFilter ? Number(this.queueFloorFilter) : null;
     return this.queue().filter((entry) => {
-      if (!this.includeClosed && !this.showStaleQueueEntries && this.isStaleQueueEntry(entry)) {
+      if (!this.includeClosed && !this.showStaleQueueEntries() && this.isStaleQueueEntry(entry)) {
         return false;
       }
       if (

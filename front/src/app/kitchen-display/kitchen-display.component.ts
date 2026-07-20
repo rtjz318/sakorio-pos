@@ -316,7 +316,7 @@ function getWorkflowSortWeight(
               <strong>Backlog maintenance mode</strong>
               <span>{{ visibleOrders().length }} visible stale ticket{{ visibleOrders().length === 1 ? '' : 's' }} in this route/filter. Complete only tickets that were already handled before service.</span>
               @if (visibleOrders().length > backlogBulkCompleteLimit) {
-                <small class="backlog-lock-warning">Bulk complete is locked above {{ backlogBulkCompleteLimit }} tickets. Narrow the station/route filter first, then clear in smaller reviewed batches.</small>
+                <small class="backlog-lock-warning">Large backlog detected. This button will complete the next {{ backlogBulkCompleteLimit }} oldest visible tickets, then you can review and repeat.</small>
               }
               @if (backlogClearMessage()) {
                 <small>{{ backlogClearMessage() }}</small>
@@ -1521,6 +1521,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   backlogClearBusy = signal(false);
   backlogClearMessage = signal('');
   backlogClearConfirmArmed = signal(false);
+  backlogClearConfirmKey = signal<string | null>(null);
   /** Timer thresholds (minutes) for card color. Defaults 5, 10, 15. */
   timerSettings = signal<{ yellow_minutes: number; orange_minutes: number; red_minutes: number }>({
     yellow_minutes: 5,
@@ -1721,8 +1722,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.showBacklog() &&
     this.canUpdateItemStatus() &&
     !this.loading() &&
-    this.visibleOrders().length <= this.backlogBulkCompleteLimit &&
-    this.visibleOrders().some((order) =>
+    this.backlogBatchOrders().some((order) =>
       this.getSortedItems(order.items ?? []).some((item) => item.id != null)
     )
   );
@@ -2328,7 +2328,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   completeVisibleBacklogTickets(): void {
     if (!this.canCompleteVisibleBacklog() || this.backlogClearBusy()) return;
-    const orders = this.visibleOrders();
+    const orders = this.backlogBatchOrders();
     const tasks = orders.flatMap((order) =>
       this.getSortedItems(order.items ?? [])
         .filter((item) => item.id != null)
@@ -2341,8 +2341,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
     const ticketCount = orders.length;
     const itemCount = tasks.length;
-    if (!this.backlogClearConfirmArmed()) {
+    const batchKey = this.backlogBatchKey(orders);
+    if (!this.backlogClearConfirmArmed() || this.backlogClearConfirmKey() !== batchKey) {
       this.backlogClearConfirmArmed.set(true);
+      this.backlogClearConfirmKey.set(batchKey);
       this.backlogClearMessage.set(
         `Review selected backlog: ${itemCount} item${itemCount === 1 ? '' : 's'} across ${ticketCount} ticket${ticketCount === 1 ? '' : 's'}. Click confirm only if these were already handled.`
       );
@@ -2352,6 +2354,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.backlogClearBusy.set(true);
     this.backlogClearMessage.set('');
     this.backlogClearConfirmArmed.set(false);
+    this.backlogClearConfirmKey.set(null);
     forkJoin(tasks).subscribe({
       next: () => {
         this.backlogClearBusy.set(false);
@@ -2360,6 +2363,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       },
       error: () => {
         this.backlogClearBusy.set(false);
+        this.backlogClearConfirmKey.set(null);
         this.backlogClearMessage.set('Some backlog items could not be completed. Refresh and review the remaining tickets.');
         this.loadOrders({ background: true });
       },
@@ -2368,8 +2372,18 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   backlogClearButtonLabel(): string {
     if (this.backlogClearBusy()) return 'Completing...';
-    if (this.visibleOrders().length > this.backlogBulkCompleteLimit) return 'Narrow backlog first';
     if (this.backlogClearConfirmArmed()) return 'Confirm complete visible backlog';
+    if (this.visibleOrders().length > this.backlogBulkCompleteLimit) {
+      return `Complete next ${this.backlogBulkCompleteLimit} backlog tickets`;
+    }
     return 'Complete visible backlog';
+  }
+
+  private backlogBatchOrders(): Order[] {
+    return this.visibleOrders().slice(0, this.backlogBulkCompleteLimit);
+  }
+
+  private backlogBatchKey(orders: Order[]): string {
+    return `${this.productionRoute()}|${this.stationSelection()}|${orders.map((order) => order.id).join(',')}`;
   }
 }

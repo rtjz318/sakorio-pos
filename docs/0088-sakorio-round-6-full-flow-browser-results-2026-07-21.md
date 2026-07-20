@@ -13,9 +13,9 @@ This result document is a live checkpoint. The full-flow journeys are being exec
 
 Current checkpoint:
 
-- Completed: 25 / 50
-- Pending: 25 / 50
-- Completed average score: 7.91 / 10
+- Completed: 33 / 50
+- Pending: 17 / 50
+- Completed average score: 7.74 / 10
 - Current launch posture: not ready yet. The core QR lifecycle is improving, but R6-FLOW-004, R6-FLOW-016, and R6-FLOW-020 exposed launch-blocking or high-friction POS session/product-hit-target issues. Timetable/reporting are stronger now, but attendance camera fallback, end-day Orders search/filtering, and HitPay sandbox completion resilience need polish.
 
 ## Score meaning
@@ -1211,6 +1211,300 @@ Current checkpoint:
   - Add regression coverage for pure staff order -> served -> add-on -> only add-on sent to KDS -> payment/close.
 - Launch decision: launch-capable for pure waiter service and add-on rounds, with menu data, wording, and close-state polish.
 
+### R6-FLOW-026 - QR order active -> waiter adds POS item -> customer QR checks updated bill -> terminal payment -> close
+
+- Priority: P0
+- Roles acted through browser: customer, waiter, cashier, kitchen
+- Status: PASS WITH WORDING/CLOSE POLISH
+- Score: 8.7 / 10
+- Artifacts:
+  - Table: `T07`
+  - Order: `#117`
+  - Customer QR item: Coca Cola, `SGD 3.00`
+  - Waiter POS add-on: Coffee, `SGD 2.50`
+  - Customer/cashier verified total: `SGD 5.50`
+  - Final QR state: `Table Closed`
+- Browser workflow executed:
+  1. Staff opened clean T07 and copied the QR link.
+  2. Customer opened the T07 QR and placed Coca Cola order `#117`.
+  3. Waiter opened POS for T07/#117.
+  4. POS showed one live bill #117 with Coca Cola and `SGD 3.00`.
+  5. Waiter added Coffee from POS.
+  6. POS add-on cart showed Coffee and total `SGD 5.50`.
+  7. Service-loop copy said `2 items not sent yet` even though only Coffee was the new unsent item; cart correctly said `1 in cart`.
+  8. Waiter clicked `Send order`.
+  9. POS kept the same order #117 and showed two items, `SGD 5.50`.
+  10. Customer reloaded/checks QR and saw the same order #117 with Coffee + Coca Cola, total `SGD 5.50`.
+  11. Cashier opened POS and confirmed the same bill/order/total.
+  12. KDS showed one beverage ticket #117 with both Coca Cola and Coffee.
+  13. Kitchen moved the ticket through Start ticket -> Ready for pass -> Served / Delivered.
+  14. KDS returned to zero.
+  15. Cashier terminal-paid #117.
+  16. Cashier closed T07.
+  17. POS showed open bills zero and T07 available.
+  18. Customer reloaded old QR and saw `Table Closed`.
+- What passed:
+  - QR-originated bill and staff POS add-on synchronized correctly.
+  - Customer QR showed the waiter-added item and same total.
+  - Cashier POS total matched customer QR total.
+  - KDS received the combined beverage ticket and cleared normally.
+  - Payment/close reset the QR session safely.
+- Issues found:
+  - Add-on wording again confuses total bill item count with unsent cart item count.
+  - Post-payment still requires a separate close-table action.
+  - Browser helper/tab state was brittle during the run; manual direct browser interaction recovered the flow without losing the live order.
+- Improvements needed:
+  - Change add-on copy to `1 new item to send · 2 total bill items`.
+  - Keep the QR/POS sync behavior; it worked well.
+  - Continue simplifying paid-awaiting-close state.
+  - Add regression coverage for QR order -> POS add-on -> QR bill reload total parity.
+- Launch decision: launch-capable for mixed QR + staff POS item sync.
+
+### R6-FLOW-027 - QR order -> cashier terminal payment instead of HitPay -> kitchen -> close
+
+- Priority: P0
+- Roles acted through browser: customer, cashier, kitchen
+- Status: PASS WITH CLOSE-POLISH NOTE
+- Score: 8.8 / 10
+- Artifacts:
+  - Table: `T07`
+  - Order: `#118`
+  - Item: Coca Cola, `SGD 3.00`
+  - Payment: cashier terminal/card-at-table path
+  - Final QR state: `Table Closed`
+- Browser workflow executed:
+  1. Staff opened T07 in POS and copied the live customer QR link.
+  2. Customer opened the QR and placed Coca Cola.
+  3. Customer order panel showed `Order #118`, Pending, `SGD 3.00`.
+  4. Cashier opened POS for T07/#118 and saw one open bill.
+  5. Kitchen & beverages received the beverage ticket.
+  6. Kitchen moved it through Start ticket -> Ready for pass -> Served / Delivered.
+  7. Cashier reopened POS and selected Pay bill.
+  8. Cashier used the terminal/card-at-table payment path.
+  9. Cashier closed T07.
+  10. POS board showed `OPEN BILLS 0` and T07 available.
+  11. Customer reloaded the old QR and saw `Table Closed`.
+- What passed:
+  - Customer can choose not to pay by HitPay and still be settled safely by cashier.
+  - Staff POS recognized the QR order as an open bill.
+  - KDS ticket lifecycle worked for the beverage order.
+  - Terminal payment and close reset QR access correctly.
+- Issues found:
+  - KDS sweep had extra `Served / Delivered` buttons visible during the run, implying previous/secondary ticket rows can still be visually noisy during rush-state cleanup.
+  - Payment and close are still two distinct cashier actions.
+- Improvements needed:
+  - Keep the terminal fallback path; it is important and works.
+  - Reduce KDS residual action noise after a ticket is delivered.
+  - Continue making paid-awaiting-close state more obvious.
+- Launch decision: launch-capable for QR-to-cashier terminal settlement.
+
+### R6-FLOW-028 - QR order -> customer starts payment but abandons -> cashier terminal recovery -> close
+
+- Priority: P0
+- Roles acted through browser: customer, cashier, kitchen
+- Status: PASS WITH RECOVERY FRICTION
+- Score: 7.8 / 10
+- Artifacts:
+  - Table: `T08`
+  - Order: `#119`
+  - Item: Coffee, `SGD 2.50`
+  - Recovery payment: cashier terminal/card-at-table path
+  - Final staff state: T08 verified available after refresh
+- Browser workflow executed:
+  1. Staff opened T08 in POS and copied the customer QR link.
+  2. Customer opened the QR and placed Coffee.
+  3. Customer order panel showed `Order #119`, Pending, `SGD 2.50`.
+  4. Customer clicked `Pay Now`.
+  5. Customer remained in the in-app payment-choice modal area (`How would you...`) rather than completing HitPay, simulating abandonment before external payment completion.
+  6. Cashier opened T08/#119 in POS and saw `OPEN BILLS 1`.
+  7. Kitchen received and completed the beverage ticket.
+  8. Cashier selected Pay bill and used terminal/card-at-table payment.
+  9. POS changed to paid/ready-close state for bill #119.
+  10. A first close attempt did not fully remove the close affordance from the board until refresh/retry.
+  11. After retry/refresh, T08 verified as `Available` and `Ready for order`.
+- What passed:
+  - Abandoned customer payment did not corrupt the order.
+  - Cashier could recover the unpaid QR bill and terminal-settle it.
+  - Kitchen ticket processing remained independent of payment abandonment.
+  - The table could be cleaned after a retry/refresh.
+- Issues found:
+  - `Pay Now` first lands in the payment choice modal; the next required step is not strong enough if the customer hesitates.
+  - Paid-awaiting-close state briefly left a stale close affordance on the table board until refresh.
+  - Customer-side post-abandonment copy should more clearly say the order is still unpaid and can be paid at the cashier.
+- Improvements needed:
+  - Add a stronger customer payment-choice CTA such as `Pay online with HitPay` and `Pay at cashier`.
+  - After terminal payment, auto-refresh the table board or make close-state reconciliation immediate.
+  - Add regression coverage for customer-abandoned online payment -> cashier terminal recovery.
+- Launch decision: safe recovery path exists, but the customer payment-choice and close-state refresh polish should be improved before launch.
+
+### R6-FLOW-029 - Cashier selects wrong table -> catches before send -> switches to correct table -> order/pay/close
+
+- Priority: P0
+- Roles acted through browser: cashier, kitchen
+- Status: PASS WITH CLOSE POLISH
+- Score: 8.5 / 10
+- Artifacts:
+  - Wrong table cart: T01, Coca Cola, not sent
+  - Correct table: T02
+  - Correct order: `#120`
+  - Final state: T02 available, open bills zero
+- Browser workflow executed:
+  1. Cashier opened T01 in POS by mistake.
+  2. Cashier added Coca Cola to the current cart.
+  3. Before sending, cashier used `Back / switch table`.
+  4. Board still showed `OPEN BILLS 0`; the unsent wrong-table cart did not become a live ticket.
+  5. Cashier opened correct table T02.
+  6. Cashier added Coca Cola and clicked `Send order`.
+  7. POS created `Order #120` for T02.
+  8. Kitchen received the ticket and completed Start ticket -> Ready for pass -> Served / Delivered.
+  9. Cashier terminal-paid and closed T02.
+  10. Final board verified T02 available and `OPEN BILLS 0`.
+- What passed:
+  - Wrong-table mistakes can be caught safely before send.
+  - Switching table before send does not open a bill.
+  - Correct-table POS order, KDS, payment, and close all completed.
+- Issues found:
+  - Close-state action again required repeated click/refresh behavior before the board fully settled.
+  - There is no explicit warning when leaving a table with an unsent cart; this is safe but could surprise a cashier.
+- Improvements needed:
+  - Add `Discard unsent cart?` confirmation when switching away from a table with items.
+  - Stabilize paid-close refresh behavior.
+- Launch decision: launch-capable for pre-send wrong-table recovery.
+
+### R6-FLOW-030 - Wrong item submitted before kitchen starts -> attempt correction -> workaround/pay/close
+
+- Priority: P0
+- Roles acted through browser: cashier, manager, kitchen
+- Status: FAILS MANAGER-CORRECTION EXPECTATION
+- Score: 6.4 / 10
+- Artifacts:
+  - Table: `T03`
+  - Order: `#121`
+  - Wrong item: Coca Cola
+  - Corrective add-on: Coffee
+  - Final state: T03 available, open bills zero
+- Browser workflow executed:
+  1. Cashier opened T03 in POS.
+  2. Cashier intentionally submitted the wrong item, Coca Cola.
+  3. POS created `Order #121`.
+  4. Before starting kitchen, cashier/manager inspected POS and Orders for correction controls.
+  5. POS had no obvious `Void`, `Cancel item`, `Edit`, or `Correction` action.
+  6. Orders tab exposed `Show Removed Items`, but not a clear actionable item-void workflow.
+  7. Cashier used the workaround: add the correct Coffee item to the same bill.
+  8. Kitchen processed the visible ticket.
+  9. Cashier terminal-paid and closed the table for cleanup.
+- What passed:
+  - The wrong item stayed visible in Orders and POS.
+  - The table/order could still be settled and closed.
+  - Adding a corrective item did not create a duplicate table session.
+- Issues found:
+  - There is no clear pre-kitchen manager void/correction path.
+  - `Show Removed Items` reads like a filter, not a correction tool.
+  - The workaround overcharges unless staff manually compensate outside the system.
+- Improvements needed:
+  - Add manager-authorized item void before kitchen starts.
+  - Record void reason, staff, time, and removed amount.
+  - Surface voided/removed items in order history and reports.
+- Launch decision: not launch-complete for cashier mistake recovery.
+
+### R6-FLOW-031 - Wrong item already started in kitchen -> correction attempt -> safe cleanup
+
+- Priority: P0
+- Roles acted through browser: cashier, manager, kitchen
+- Status: FAILS MANAGER-CORRECTION EXPECTATION
+- Score: 6.0 / 10
+- Artifacts:
+  - Table: `T04`
+  - Order: `#122`
+  - Item: Coca Cola
+  - Kitchen state observed: Preparing / in prep
+  - Final state: T04 available, open bills zero
+- Browser workflow executed:
+  1. Cashier opened T04 in POS.
+  2. Cashier submitted Coca Cola.
+  3. POS created `Order #122`.
+  4. Kitchen opened the ticket and clicked `Start ticket`.
+  5. KDS showed #122 in `WORKING NOW`, Preparing, T04.
+  6. Manager/cashier inspected Orders for post-start correction options.
+  7. Orders showed the active kitchen ticket but no clear manager override, void, comp, or cancel action.
+  8. Kitchen finished the ticket.
+  9. Cashier terminal-paid and closed the table for cleanup.
+- What passed:
+  - Kitchen started-state visibility is clear.
+  - The system avoids casual destructive edits after kitchen has started.
+  - Cleanup through serve/payment/close remained safe.
+- Issues found:
+  - No manager policy path is visible for already-started item corrections.
+  - There is no clear distinction between `cannot void because kitchen started` and `void tool not available`.
+- Improvements needed:
+  - Add a manager-only correction workflow for started tickets: void/comp with kitchen acknowledgement, reason, and audit trail.
+  - If correction is intentionally blocked, show the reason and recommended procedure.
+- Launch decision: not launch-complete for real-world started-ticket mistakes.
+
+### R6-FLOW-032 - Paid order complaint -> partial refund/adjustment/reopen visibility
+
+- Priority: P1
+- Roles acted through browser: manager, cashier
+- Status: MISSING REFUND/ADJUSTMENT WORKFLOW
+- Score: 5.5 / 10
+- Artifacts:
+  - Checked latest paid history including `#122`, `#121`, `#120`, `#119`, `#118`
+  - Reports range showed `97 orders`, `SGD 1,858.00 collected`
+- Browser workflow executed:
+  1. Manager opened Orders after recent paid orders.
+  2. Orders history listed paid orders with table, items, total, status, and date.
+  3. Manager searched the page for refund/partial refund/adjustment/reopen/void controls.
+  4. No action controls were visible.
+  5. Manager opened Reports.
+  6. Reports summarized payment method totals, end-day checklist, and exports.
+  7. Reports did not expose a refund or paid-bill adjustment workflow.
+- What passed:
+  - Paid order history is readable and useful.
+  - Reports summarize payment methods clearly.
+  - End-day checklist gives a good operations frame.
+- Issues found:
+  - No partial refund, adjustment, reopen, or manager override path is visible for paid orders.
+  - No refund audit trail exists in the visible manager workflow.
+- Improvements needed:
+  - Add manager-only paid bill correction/refund workflow.
+  - Require refund reason and link it to original payment method.
+  - Add refund totals and net/gross reporting.
+- Launch decision: not launch-complete for manager cash-up controls.
+
+### R6-FLOW-033 - Customer table move after first order -> move attempt -> QR/session/table labels
+
+- Priority: P0
+- Roles acted through browser: host, waiter, cashier, kitchen
+- Status: FAILS MOVE-TABLE UX EXPECTATION
+- Score: 5.8 / 10
+- Artifacts:
+  - First order: `#123` on T01, cleaned normally
+  - Move attempt order: `#124`, started on T05
+  - Unexpected visual result: order appeared under T01 after pressing `Move table`
+  - Final cleanup: open bills zero; T01/T05/T09 available
+- Browser workflow executed:
+  1. Cashier created a simple Coffee order on T01 to inspect move controls.
+  2. POS did not show a clear move action; Tables tab did show `Move table`.
+  3. Cashier cleaned T01.
+  4. Cashier created fresh order `#124` on T05.
+  5. Host opened Tables and clicked `Move table` on the live T05 order.
+  6. No clear destination selection or confirmation was presented to the operator.
+  7. The live order appeared to jump to T01 while T05 became idle.
+  8. Staff cleaned the resulting order safely and verified open bills zero.
+- What passed:
+  - The Tables tab surfaces table-move intent.
+  - The system kept a single live bill and could be cleaned.
+- Issues found:
+  - Table move is not safe enough: destination/confirmation was unclear.
+  - The order appeared to move to an unexpected table.
+  - QR/session implications of a move are not explained to staff.
+- Improvements needed:
+  - Replace current move action with an explicit `Move bill from T05 to...` modal.
+  - Require destination selection, confirmation, and show old/new QR status.
+  - Add success toast: `Bill #124 moved from T05 to T09`.
+  - Add regression coverage for table move with QR link refresh.
+- Launch decision: launch-blocking for table move workflows.
+
 ## Cross-case findings so far
 
 1. The core customer-QR table lifecycle is working: reservation, seating, QR order, KDS, payment, close, QR lockout.
@@ -1257,7 +1551,8 @@ Current checkpoint:
 38. Pure waiter/POS order plus later add-on can work and correctly sends only the new add-on to KDS.
 39. POS add-on copy confuses total bill items with unsent cart items.
 40. Demo/restaurant catalog lacks dessert items, limiting real dessert/add-on workflow QA.
+41. Customer QR bill and cashier POS bill stay synchronized after waiter POS add-ons.
 
 ## Pending workflows
 
-`R6-FLOW-026` through `R6-FLOW-050` remain pending in this results brief.
+`R6-FLOW-034` through `R6-FLOW-050` remain pending in this results brief.

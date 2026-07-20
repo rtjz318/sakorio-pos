@@ -13,10 +13,10 @@ This result document is a live checkpoint. The full-flow journeys are being exec
 
 Current checkpoint:
 
-- Completed: 16 / 50
-- Pending: 34 / 50
-- Completed average score: 7.88 / 10
-- Current launch posture: not ready yet. The core QR lifecycle is improving, but R6-FLOW-004 and R6-FLOW-016 exposed launch-blocking POS session integrity issues.
+- Completed: 20 / 50
+- Pending: 30 / 50
+- Completed average score: 7.87 / 10
+- Current launch posture: not ready yet. The core QR lifecycle is improving, but R6-FLOW-004, R6-FLOW-016, and R6-FLOW-020 exposed launch-blocking or high-friction POS session/product-hit-target issues. Timetable/reporting are stronger now, but attendance camera fallback, end-day Orders search/filtering, and HitPay sandbox completion resilience need polish.
 
 ## Score meaning
 
@@ -726,6 +726,211 @@ Current checkpoint:
   - Add regression coverage for paid table -> attempted add/send before close.
 - Launch decision: launch-blocking. This can mix customer sessions and create cashier/accounting confusion in real service.
 
+### R6-FLOW-017 - Reservation no-show -> later walk-in same service board/table flow -> QR order -> payment -> close
+
+- Priority: P1
+- Roles acted through browser: customer, host, kitchen, cashier
+- Status: PASS WITH RESERVATION/TIME CAVEATS
+- Score: 8.3 / 10
+- Artifacts:
+  - Reservation: `#63`
+  - Reservation guest: `R6 Flow 017 NoShow 175201`
+  - No-show final status: `NO-SHOW`
+  - Walk-in queue guest: `R6 Flow 017 WalkInAfterNoShow 545457 761760`
+  - Walk-in table: `T07`
+  - Walk-in order: `#106`
+  - Final total: `SGD 2.50`
+- Browser workflow executed:
+  1. Customer created public reservation `#63`.
+  2. Public confirmation displayed reservation time `2026-07-21 16:15`, even though the requested helper input was 19:00.
+  3. Staff opened Reservations and found `#63` in Booked status.
+  4. Staff clicked `Mark as no-show`.
+  5. Confirmation modal explained that the guest did not show and the action would free the table/record no-show.
+  6. Staff confirmed `Mark as no-show`.
+  7. Reservation board updated `#63` to `NO-SHOW`; active expected guests/awaiting arrival dropped to zero.
+  8. Later customer joined public waitlist.
+  9. Staff queue board showed the generated walk-in name and recommended T07 as exact fit.
+  10. Staff seated the walk-in to T07.
+  11. POS opened T07 from queue handoff with QR active and no prior reservation contamination.
+  12. Customer opened T07 QR and placed Coffee order `#106`.
+  13. KDS received the beverage ticket, processed it, and returned to zero.
+  14. Cashier terminal-paid `SGD 2.50`.
+  15. Cashier closed T07 and table reset.
+  16. Final Reservations check still showed `#63` as `NO-SHOW`.
+- What passed:
+  - Reservation no-show action is visible and guarded by a confirmation modal.
+  - No-show status persisted after confirmation.
+  - No-show booking no longer counted as active expected/awaiting guests.
+  - Queue later recommended/seated a walk-in table cleanly.
+  - Walk-in QR, KDS, payment, close, and reservation audit all completed without cross-contamination.
+- Issues found:
+  - This run did not pre-assign a table before marking no-show, so assigned-table release specifically still needs a sharper follow-up case.
+  - Public reservation time mismatch recurred: requested 19:00, confirmation showed 16:15.
+  - Queue helper generated an extra unique suffix, causing one seating lookup miss during automation; human-visible queue board was still clear.
+  - Staff login session expired mid-run and required live browser re-login.
+- Improvements needed:
+  - Add a dedicated regression: assign table -> mark no-show -> verify exact table returns to available.
+  - Fix or explain public reservation time-slot selection/confirmation mismatch.
+  - Keep the no-show confirmation modal; it is good UX.
+  - Consider a no-show audit badge linking the later walk-in/session when the same table is reused.
+- Launch decision: launch-capable for unassigned reservation no-show plus later walk-in lifecycle, but assigned-table no-show release and time selection need follow-up.
+
+### R6-FLOW-018 - Timetable shift -> staff profile clock-in -> POS table lifecycle -> clock-out/attendance audit
+
+- Priority: P1
+- Roles acted through browser: manager, staff, cashier, kitchen
+- Status: PARTIAL PASS - ATTENDANCE BLOCKED BY CAMERA AVAILABILITY
+- Score: 7.2 / 10
+- Artifacts:
+  - Staff profile tested: `Jason Tan — Waiter`
+  - Shift shown: `Tue 21, 9:00 AM - 5:00 PM`
+  - POS table: `T01`
+  - POS order: `#107`
+  - Final total: `SGD 2.50`
+- Browser workflow executed:
+  1. Manager opened Timetable from the staff sidebar.
+  2. Timetable displayed monthly calendar, employee roster, schedule actions, Add shift, leave/MC ledger, coverage warning, planned hours, and Excel export.
+  3. Manager verified Jason Tan had visible scheduled shifts, including the active Tue 21 shift.
+  4. Staff opened My shift.
+  5. Staff used the profile dropdown and selected `Jason Tan — Waiter`.
+  6. My shift updated to Jason's waiter profile with role, contact, hourly rate, current status, and selected scheduled shift.
+  7. Staff clicked `Take photo and clock in`.
+  8. Live proof panel opened, but browser environment showed `Requested device not found` while starting camera.
+  9. Because clock-in could not complete without a camera device, clock-out and completed attendance record could not be verified in this run.
+  10. Cashier still completed the linked service operation: opened POS, selected T01, added Coffee, and sent order `#107`.
+  11. Kitchen & beverages received #107, moved it to ready/hand-off, and staff marked it `Served / Delivered`.
+  12. Cashier terminal-paid `SGD 2.50`.
+  13. POS confirmed T01 reset to available after close.
+  14. Staff returned to My shift; no open attendance session existed because clock-in was blocked.
+- What passed:
+  - Timetable has a credible world-class structure: roster, schedule buttons, coverage warnings, leave/MC ledger, monthly calendar, and exports.
+  - My shift now supports the requested staff profile selection before clock-in.
+  - Selecting Jason's profile correctly exposed the active scheduled shift and `Take photo and clock in` action.
+  - POS/KDS/payment/close lifecycle remained operational while validating the attendance flow.
+  - End state was clean: T01 available and KDS had zero active tickets.
+- Issues found:
+  - Clock-in cannot complete in a browser/device without camera access; the UI stops at `Requested device not found`.
+  - No visible manager fallback/manual clock-in approval route appeared from My shift when camera is unavailable.
+  - After navigating away and back, My shift defaulted to the Owner profile again, so the selected staff profile is not sticky.
+  - Since clock-in was blocked, clock-out and completed attendance/payroll audit could not be fully verified.
+- Improvements needed:
+  - Add a clear fallback state for no-camera devices: `Camera unavailable - ask manager for manual clock-in approval`.
+  - Expose a manager-authorized manual attendance correction path from Reports/Timetable or My shift.
+  - Make the selected staff profile sticky for the session, or remember the last selected profile on shared devices.
+  - Add browser regression coverage for camera unavailable, permission denied, successful camera, clock-out, and report audit states.
+- Launch decision: launch-capable for scheduling visibility and staff profile selection, but attendance is not launch-ready until no-camera/permission-denied fallback and clock-out audit are verified.
+
+### R6-FLOW-019 - End-of-day Orders + Reports audit -> export -> no backlog/open bills verification
+
+- Priority: P1
+- Roles acted through browser: cashier, manager
+- Status: PASS WITH END-DAY USABILITY POLISH
+- Score: 8.8 / 10
+- Artifacts:
+  - Latest verified paid order: `#107`
+  - Reports range shown: `2026-06-21 - 2026-07-21`
+  - Report collected total shown: `SGD 1,708.50`
+  - Report order count shown: `82`
+  - Launch close checklist values: `0 active`, `0 unpaid / open bills`, `0 kitchen tickets not settled`, `0 staff still clocked in`
+- Browser workflow executed:
+  1. Cashier opened Orders from the staff sidebar.
+  2. Orders loaded paid history and showed latest paid order `#107` for T01 with Coffee and `SGD 2.50`.
+  3. Cashier verified recent QA orders #106 through #99 were visible in history with table, items, total, status, and timestamp.
+  4. Cashier inspected Orders controls and status tabs: Active Orders, Not Paid Yet, Paid - awaiting close, and Order History.
+  5. Manager opened Reports from the staff sidebar.
+  6. Reports displayed sales summary, date range, quick ranges, CSV/Excel export actions, attendance audit, and report tabs.
+  7. Manager reviewed the Launch Close Flow checklist.
+  8. Checklist showed zero active/ready-to-clear tables, zero unpaid/open bills, zero unsettled kitchen tickets, and zero open staff sessions.
+  9. Manager reviewed sales by payment method, reservations, queue flow, product/category/table/waiter breakdowns, and attendance/payroll sections.
+  10. Manager clicked `Export CSV`; the Reports page remained stable and did not crash or navigate away.
+  11. End state remained clean with no active KDS backlog or open bills reported.
+- What passed:
+  - End-day report is much stronger than earlier passes: the Launch Close Flow checklist is exactly the kind of manager-facing safety net needed before launch.
+  - Reports expose payment method totals, reservations, queue metrics, product/category/table sales, waiter revenue, and attendance/payroll.
+  - Export CSV and Export Excel controls are visible from the main report surface.
+  - Orders history shows the latest completed bill immediately after payment/close.
+  - Reports and Orders agree that there are no unpaid/open bills after cleanup.
+- Issues found:
+  - Orders page does not expose a clear search input for order number, table, customer, or payment method.
+  - Payment method is visible in Reports but not directly in the Orders history table, so cashier cash-up still requires cross-checking two pages.
+  - Historical `Cash` remains in Reports payment-method totals, even though new customer QR payment choices should be HitPay/terminal only; this may be historical data, but it should be labelled or filtered clearly for launch.
+  - Export click stability was verified, but actual downloaded file contents were not inspected in this browser run.
+- Improvements needed:
+  - Add Orders search/filter by order number, table, date/time, status, and payment method.
+  - Add payment method and paid timestamp to Orders history rows.
+  - Add a one-click `Today cash-up` view that combines latest paid orders, payment totals, open bills, KDS backlog, and export actions.
+  - Label legacy/historical payment methods clearly so staff do not think Cash is still a current customer QR option.
+  - Add a lightweight post-export toast such as `CSV downloaded`.
+- Launch decision: launch-capable for manager close-flow visibility, with search/filter/payment-method UX polish needed before a 10/10 cashier handover.
+
+### R6-FLOW-020 - Busy service pressure: reservation table + queue table + staff POS table + direct QR table -> KDS -> payment -> close -> audit
+
+- Priority: P0
+- Roles acted through browser: customer, host, waiter, kitchen, cashier, manager
+- Status: PARTIAL PASS - CLEAN FINAL STATE, BUT STAFF POS LEG FAILED
+- Score: 7.1 / 10
+- Artifacts:
+  - Reservation: `#64`
+  - Reservation guest: `R6 Flow 020 Reservation 811653`
+  - Reservation assigned table attempt: `T02`, then seated at `T04`
+  - Queue ticket: `Q0030`
+  - Queue guest: `R6 Flow 020 Queue 634854`
+  - Queue table: `T07`
+  - Direct QR table: `T08`
+  - QR orders completed: `#108` T04 Enchiladas `SGD 20.00`, `#109` T07 Coffee `SGD 2.50`, `#110` T08 Coca Cola `SGD 3.00`
+  - Staff POS-only table attempted: `T01`
+  - Final report checkpoint: `85 orders`, `SGD 1,734.00 collected`
+- Browser workflow executed:
+  1. Customer created public reservation `#64` for 2 guests at `20:00`.
+  2. Host assigned the reservation to T02, but arrival handoff warned `Currently occupied — service may need to turn this table first`.
+  3. Host chose the safer available T04 handoff and seated the reservation there.
+  4. POS opened T04 with reservation guest context and QR active.
+  5. Customer opened T04 QR and placed order `#108` for Enchiladas.
+  6. Customer joined public waitlist and received ticket `Q0030`.
+  7. Host opened Queue, found `R6 Flow 020 Queue 634854`, and seated the walk-in at recommended exact-fit T07.
+  8. POS opened T07 with queue handoff context and QR active.
+  9. Customer opened T07 QR and placed order `#109` for Coffee.
+  10. Cashier attempted a staff POS-only order on T01 while T04/T07 were already active.
+  11. T01 drawer opened and product buttons were visible, but clicking product text/button/visible DOM product button did not add anything to cart; cart stayed at `0 items`, `SGD 0.00`, and Send order never appeared.
+  12. Cashier abandoned T01 without creating a bill, leaving T01 clean.
+  13. Cashier opened available T08, copied QR link, and customer placed direct QR order `#110` for Coca Cola.
+  14. Kitchen & beverages showed three active tickets: 1 kitchen ticket and 2 beverage tickets.
+  15. Kitchen moved #108, #109, and #110 from pending to preparing, then ready, then served/delivered.
+  16. KDS returned to zero active tickets.
+  17. Customer opened T04 Pay Now; payment modal correctly offered `Pay with HitPay` and `Pay with Card at Table` only, with no Cash option.
+  18. Customer chose HitPay and reached sandbox checkout for `Order #108 at Ajisen Ramen - T04`.
+  19. Test-card completion was attempted twice in the HitPay/Stripe-framed checkout, but checkout remained on the HitPay page and did not redirect/complete.
+  20. Cashier recovered T04 safely using terminal payment and closed T04.
+  21. Cashier terminal-paid and closed T07.
+  22. Cashier terminal-paid T08; the helper stopped before close, so cashier clicked visible `Close table` manually.
+  23. Final POS board showed `OPEN BILLS 0`, T04/T07/T08 reset available, and T01 still clean.
+  24. Final KDS audit showed zero active tickets.
+  25. Final Reservations audit showed `#64` as `FINISHED`.
+  26. Final Queue audit showed `0 waiting`, `0 notified`, `0 seated`.
+  27. Final Reports Launch Close Flow showed `0 active`, `0 unpaid / open bills`, `0 kitchen tickets not settled`, and `0 staff still clocked in`.
+- What passed:
+  - Reservation creation, seating recovery, QR ordering, KDS, terminal recovery, close, and FINISHED reservation audit completed.
+  - Queue join, host seating, QR ordering, KDS, payment, close, and queue cleanup completed.
+  - Direct QR from an available table completed after staff opened/copied the QR.
+  - KDS handled three concurrent tickets cleanly with correct kitchen/beverage counts.
+  - Final cross-page audit was clean: POS open bills zero, KDS zero, Queue zero active, reservation finished, Reports close checklist all zero.
+  - Customer payment modal correctly removed Cash and offered HitPay/terminal only.
+- Issues found:
+  - T02 looked available on POS but reservation arrival handoff warned it was currently occupied/needed turn. This cross-surface table availability mismatch needs investigation.
+  - Staff POS product add failed on T01 during a busy service state. Product buttons were visible in the DOM, but clicking Tacos text, product button, and visible DOM node did not update the cart.
+  - The open drawer/table grid interaction is still fragile; earlier click attempts hit the prior T07 drawer instead of T01 until `Back / switch table` was used.
+  - HitPay sandbox checkout was created correctly but embedded card completion did not advance after email/test-card input and Pay click.
+  - Terminal payment sometimes records payment but does not close automatically; visible manual close works, but the close completion path is inconsistent enough to break automation and confuse rushed cashiers.
+  - The direct QR table (T08) can be opened from an available table without seating guest metadata; functionally useful, but it may under-record guest/session source.
+- Improvements needed:
+  - Fix POS product-card click hit targets inside the table drawer, especially when multiple active/seated tables exist.
+  - Add regression coverage for table drawer open -> switch table -> add product -> send order under multiple active tables.
+  - Reconcile table availability logic between Reservations arrival handoff and POS grid.
+  - Add a single, dominant close-table state after terminal payment, and remove/disable competing `Start order` until close/reset.
+  - Add a clear fallback for HitPay sandbox card completion failures: return-to-POS recovery messaging, retry link, and staff-side payment-status refresh.
+  - Track direct QR sessions with a clear source label such as `Walk-in QR opened by staff` so reports do not lose context.
+- Launch decision: not launch-ready for busy-service pressure. The final cleanup is strong, but the staff POS product-add failure and table-state mismatch are too risky for peak service.
+
 ## Cross-case findings so far
 
 1. The core customer-QR table lifecycle is working: reservation, seating, QR order, KDS, payment, close, QR lockout.
@@ -751,7 +956,16 @@ Current checkpoint:
 17. POS supports pre-send cart correction, but there is no discoverable void/remove path for a submitted pending ticket before KDS starts.
 18. After-prep correction/manager override policy is not visible. POS/Orders need explicit safe handling for changes once kitchen has started.
 19. Paid-but-not-closed tables can still accept and send new POS items, creating a second order before table reset. This is launch-blocking session integrity risk.
+20. Reservation no-show is functional and confirmed by modal, but public booking time mismatch continues and assigned-table no-show release still needs direct verification.
+21. Timetable now has strong roster/calendar/leave/coverage foundations, and My shift has the requested staff profile picker.
+22. Attendance clock-in is blocked on devices without camera access and needs a manager-approved fallback path.
+23. Reports now has a strong Launch Close Flow checklist with table/order/kitchen/staff-session safety checks.
+24. Orders history needs practical cash-up filters/search and payment-method visibility.
+25. Busy-service cleanup is reliable once orders exist: KDS, terminal payment, table close, queue cleanup, reservation completion, and Reports checklist all reached clean final state.
+26. Staff POS product add can fail even when product buttons are visible, especially with drawer/table-grid pressure. This is now a repeated launch-risk defect.
+27. Reservation/POS table availability can disagree; one surface showed T02 available while arrival handoff warned it was occupied.
+28. HitPay checkout creation works, and Cash is removed from the customer payment modal, but embedded sandbox card completion still needs a more deterministic QA path.
 
 ## Pending workflows
 
-`R6-FLOW-017` through `R6-FLOW-050` remain pending in this results brief.
+`R6-FLOW-021` through `R6-FLOW-050` remain pending in this results brief.

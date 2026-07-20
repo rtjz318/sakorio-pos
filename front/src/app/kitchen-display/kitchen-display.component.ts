@@ -327,7 +327,7 @@ function getWorkflowSortWeight(
               class="backlog-clear-btn"
               [disabled]="!canCompleteVisibleBacklog() || backlogClearBusy()"
               (click)="completeVisibleBacklogTickets()">
-              {{ backlogClearBusy() ? 'Completing...' : visibleOrders().length > backlogBulkCompleteLimit ? 'Narrow backlog first' : 'Complete visible backlog' }}
+              {{ backlogClearButtonLabel() }}
             </button>
           </div>
         }
@@ -1520,6 +1520,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   showBacklog = signal(false);
   backlogClearBusy = signal(false);
   backlogClearMessage = signal('');
+  backlogClearConfirmArmed = signal(false);
   /** Timer thresholds (minutes) for card color. Defaults 5, 10, 15. */
   timerSettings = signal<{ yellow_minutes: number; orange_minutes: number; red_minutes: number }>({
     yellow_minutes: 5,
@@ -2340,13 +2341,17 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
     const ticketCount = orders.length;
     const itemCount = tasks.length;
-    const confirmed = window.confirm(
-      `Complete ${itemCount} visible backlog item${itemCount === 1 ? '' : 's'} across ${ticketCount} ticket${ticketCount === 1 ? '' : 's'}? This should only be used for old tickets that were already handled.`
-    );
-    if (!confirmed) return;
+    if (!this.backlogClearConfirmArmed()) {
+      this.backlogClearConfirmArmed.set(true);
+      this.backlogClearMessage.set(
+        `Review selected backlog: ${itemCount} item${itemCount === 1 ? '' : 's'} across ${ticketCount} ticket${ticketCount === 1 ? '' : 's'}. Click confirm only if these were already handled.`
+      );
+      return;
+    }
 
     this.backlogClearBusy.set(true);
     this.backlogClearMessage.set('');
+    this.backlogClearConfirmArmed.set(false);
     forkJoin(tasks).subscribe({
       next: () => {
         this.backlogClearBusy.set(false);
@@ -2359,5 +2364,12 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
         this.loadOrders({ background: true });
       },
     });
+  }
+
+  backlogClearButtonLabel(): string {
+    if (this.backlogClearBusy()) return 'Completing...';
+    if (this.visibleOrders().length > this.backlogBulkCompleteLimit) return 'Narrow backlog first';
+    if (this.backlogClearConfirmArmed()) return 'Confirm complete visible backlog';
+    return 'Complete visible backlog';
   }
 }

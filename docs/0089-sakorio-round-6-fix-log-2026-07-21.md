@@ -93,16 +93,19 @@ Source QA brief: `docs/0088-sakorio-round-6-full-flow-browser-results-2026-07-21
 - Problem found:
   - Marking Coffee sold out in Products hid Coffee from staff POS.
   - The active table QR menu still showed Coffee because the customer menu was reading a same-name `TenantProduct` row that was not reliably linked to the legacy `Product` row updated by the staff Products screen.
+  - A live retest then exposed a second edge: around Singapore early morning, browser-local "yesterday" could still equal the backend tenant/UTC date, so the legacy product stayed valid for QR filtering.
 - Change made:
   - Product availability sync now also updates same-tenant `TenantProduct` rows with a matching normalized name when `product_id` linkage is missing.
   - The public QR menu endpoint now suppresses tenant-product rows when a same-name legacy product is unavailable, closing the launch-data gap for older/imported products.
+  - The Products quick `Sold out today` action now writes UTC-yesterday instead of browser-local yesterday, making the quick sold-out state safely before the backend's current date.
 - Expected improvement:
   - Staff “Sold out today” decisions apply consistently to staff POS and customer QR ordering.
   - Imported menu rows no longer keep a sold-out item visible to customers just because the historical linkage is incomplete.
 - Verification:
   - Backend syntax check passed with `python -m py_compile app/main.py` inside the Docker backend container.
   - Live retest before the second backend filter confirmed the exact gap: staff POS hid Coffee, QR still showed Coffee.
-  - Live QR retest must be repeated after this follow-up backend commit is deployed.
+  - Production-static Angular build passed after the UTC-yesterday follow-up change.
+  - Live QR retest must be repeated after the Products timezone follow-up commit is deployed.
 
 ## Fix 6 - Reservation time selection safety
 

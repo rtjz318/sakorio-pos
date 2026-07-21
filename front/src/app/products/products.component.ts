@@ -1480,7 +1480,7 @@ export class ProductsComponent implements OnInit {
     }
 
     const soldOut = this.isSoldOutToday(product);
-    const availableUntil = soldOut ? null : this.localIsoDate(-1);
+    const availableUntil = soldOut ? null : this.utcIsoDate(-1);
     this.availabilityUpdating.set(product.id);
     this.error.set('');
     this.successMessage.set('');
@@ -1509,6 +1509,15 @@ export class ProductsComponent implements OnInit {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  private utcIsoDate(offsetDays = 0): string {
+    const date = new Date();
+    date.setUTCDate(date.getUTCDate() + offsetDays);
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   }
 

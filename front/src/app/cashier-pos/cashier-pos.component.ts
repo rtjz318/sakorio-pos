@@ -7621,6 +7621,16 @@ export class CashierPosComponent {
       return;
     }
 
+    const reservationCopy = table.seated_reservation
+      ? `\n\nLinked reservation #${table.seated_reservation.reservation_id} (${table.seated_reservation.customer_name}) will be finished automatically.`
+      : '';
+    const confirmed = window.confirm(
+      `Final confirmation: close ${table.name}?\n\nThis will reset the table for the next guest, end the current QR ordering session, and move this table's current bill into history.${reservationCopy}`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
     this.pendingTableId.set(table.id);
     this.error.set(null);
 
@@ -7629,7 +7639,10 @@ export class CashierPosComponent {
       if (this.cartTableId() === table.id) {
         this.clearCart();
       }
-      this.notice.set(`${table.name} is clear and ready for the next cashier bill.`);
+      const reservationFinishedCopy = table.seated_reservation
+        ? ` Linked reservation #${table.seated_reservation.reservation_id} was finished.`
+        : '';
+      this.notice.set(`${table.name} is clear and ready for the next cashier bill.${reservationFinishedCopy}`);
       if (this.selectedTableId() === table.id) {
         this.selectedTableId.set(null);
         this.selectedOrderId.set(null);

@@ -275,8 +275,21 @@
                   <input type="text" [(ngModel)]="formName" name="name" autocomplete="name" required />
                 </div>
                 <div class="form-group">
-                  <label>{{ 'RESERVATIONS.CUSTOMER_PHONE' | translate }}</label>
-                  <input type="tel" [(ngModel)]="formPhone" name="phone" autocomplete="tel" required />
+                  <label for="book-phone">{{ 'RESERVATIONS.CUSTOMER_PHONE' | translate }}</label>
+                  <input
+                    #bookPhoneInput
+                    id="book-phone"
+                    type="tel"
+                    [(ngModel)]="formPhone"
+                    name="phone"
+                    autocomplete="tel"
+                    inputmode="tel"
+                    placeholder="+65 9123 4567"
+                    aria-describedby="book-phone-hint"
+                    required />
+                  <small id="book-phone-hint" class="phone-format-hint">
+                    Use international format, for example +65 9123 4567. Singapore local numbers should include +65.
+                  </small>
                 </div>
                 <div class="form-group guest-details-wide">
                   <label for="book-email">{{ 'RESERVATIONS.CUSTOMER_EMAIL' | translate }}</label>

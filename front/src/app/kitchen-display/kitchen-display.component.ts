@@ -314,6 +314,15 @@ function getWorkflowSortWeight(
             Served tickets leave the live board; older unresolved tickets stay in backlog mode so current service stays clean.
           </p>
         </section>
+        @if (servedCompletionToast(); as toast) {
+          <section class="served-completion-toast" role="status" aria-live="polite">
+            <div>
+              <strong>{{ toast.title }}</strong>
+              <span>{{ toast.copy }}</span>
+            </div>
+            <small>{{ toast.secondsRemaining }}s</small>
+          </section>
+        }
         @if (!showBacklog() && staleTicketCount() > 0) {
           <div class="backlog-notice" role="status">
             <span><strong>{{ staleTicketCount() }}</strong> unresolved ticket{{ staleTicketCount() === 1 ? '' : 's' }} older than {{ currentShiftWindowLabel() }} hidden from the live shift. Open backlog mode, mark stale items delivered/cancelled, then return to current shift before service.</span>
@@ -797,6 +806,38 @@ function getWorkflowSortWeight(
       font-weight: 700;
       cursor: pointer;
       border-radius: 999px;
+    }
+    .served-completion-toast {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid color-mix(in srgb, var(--color-success) 34%, var(--color-border));
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--color-success) 12%, var(--color-surface)), var(--color-surface));
+      color: var(--color-text);
+      box-shadow: var(--shadow-sm);
+    }
+    .served-completion-toast div {
+      display: grid;
+      gap: 0.15rem;
+    }
+    .served-completion-toast span {
+      color: var(--color-text-muted);
+      font-weight: 650;
+    }
+    .served-completion-toast small {
+      flex: 0 0 auto;
+      min-width: 2.25rem;
+      min-height: 2.25rem;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--color-success) 18%, white);
+      color: #166534;
+      font-weight: 900;
     }
     .backlog-tools {
       display: flex;
@@ -1547,6 +1588,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   private queryParamSub: Subscription | null = null;
   private initialLoadDone = false;
   private pendingBackgroundRefresh = false;
+  private servedToastIntervalId: ReturnType<typeof setInterval> | null = null;
+  private servedToastTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   orders = signal<Order[]>([]);
   loading = signal(true);
@@ -1555,6 +1598,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   itemStatusDropdownOpen = signal<string | null>(null);
   ticketActionBusy = signal<string | null>(null);
   ticketActionMessage = signal('');
+  servedCompletionToast = signal<{ title: string; copy: string; secondsRemaining: number } | null>(null);
   /** Loaded prep stations for the combined kitchen and beverage production board. */
   kitchenStations = signal<KitchenStation[]>([]);
   /** KDS station filter across every production station. */
@@ -1923,6 +1967,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       clearInterval(this.tickIntervalId);
       this.tickIntervalId = null;
     }
+    this.clearServedCompletionToast();
     this.wsSub?.unsubscribe();
     this.queryParamSub?.unsubscribe();
     document.removeEventListener('click', this.closeItemStatusDropdown);
@@ -2329,6 +2374,33 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     return this.getTicketBulkActionItems(order, action).length;
   }
 
+  private showServedCompletionToast(order: Order, itemCount: number): void {
+    this.clearServedCompletionToast();
+    let secondsRemaining = 5;
+    this.servedCompletionToast.set({
+      title: `Ticket #${order.id} served`,
+      copy: `${itemCount} item${itemCount === 1 ? '' : 's'} delivered. The ticket leaves the live board now.`,
+      secondsRemaining,
+    });
+    this.servedToastIntervalId = setInterval(() => {
+      secondsRemaining = Math.max(0, secondsRemaining - 1);
+      this.servedCompletionToast.update((toast) => toast ? { ...toast, secondsRemaining } : null);
+    }, 1000);
+    this.servedToastTimeoutId = setTimeout(() => this.clearServedCompletionToast(), 5200);
+  }
+
+  private clearServedCompletionToast(): void {
+    if (this.servedToastIntervalId) {
+      clearInterval(this.servedToastIntervalId);
+      this.servedToastIntervalId = null;
+    }
+    if (this.servedToastTimeoutId) {
+      clearTimeout(this.servedToastTimeoutId);
+      this.servedToastTimeoutId = null;
+    }
+    this.servedCompletionToast.set(null);
+  }
+
   advanceTicketStatus(order: Order, action: TicketBulkAction): void {
     if (!this.canUpdateItemStatus() || this.ticketActionBusy()) return;
     const items = this.getTicketBulkActionItems(order, action);
@@ -2346,6 +2418,9 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       next: () => {
         this.ticketActionBusy.set(null);
         this.ticketActionMessage.set(`#${order.id} ${action.doneLabel} (${items.length} item${items.length === 1 ? '' : 's'}).`);
+        if (action.targetStatus === 'delivered') {
+          this.showServedCompletionToast(order, items.length);
+        }
         this.loadOrders({ background: true });
       },
       error: () => {

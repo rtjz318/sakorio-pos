@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { forkJoin } from 'rxjs';
 import {
   ApiService,
   CanvasTable,
@@ -411,6 +412,27 @@ const QUEUE_STALE_MINUTES = 12 * 60;
                 Current service view is hiding {{ hiddenStaleQueueCount() }} stale queue entr{{ hiddenStaleQueueCount() === 1 ? 'y' : 'ies' }} older than 12 hours. Turn on Show stale to review them.
               </p>
             }
+            @if (staleActiveQueueEntries().length > 0) {
+              <div class="stale-cleanup-panel">
+                <div>
+                  <strong>{{ staleActiveQueueEntries().length }} stale active entr{{ staleActiveQueueEntries().length === 1 ? 'y' : 'ies' }}</strong>
+                  <p>Archive old QA/test or abandoned queue rows before service so hosts see only live guests.</p>
+                  @if (bulkArchiveMessage()) {
+                    <small>{{ bulkArchiveMessage() }}</small>
+                  }
+                </div>
+                <div class="stale-cleanup-actions">
+                  <button type="button" class="btn btn-secondary" (click)="showStaleQueueEntries.set(true); syncSelectionWithVisibleBoard()">Review stale</button>
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    [disabled]="bulkArchiveBusy()"
+                    (click)="requestArchiveStaleQueueEntries()">
+                    {{ bulkArchiveBusy() ? 'Archiving...' : 'Archive stale' }}
+                  </button>
+                </div>
+              </div>
+            }
           </div>
 
           <div class="lane-grid">
@@ -771,6 +793,24 @@ const QUEUE_STALE_MINUTES = 12 * 60;
           </div>
         </section>
       }
+      @if (pendingStaleArchive()) {
+        <div class="queue-confirm-backdrop" (click)="cancelArchiveStaleQueueEntries()"></div>
+        <section class="queue-confirm-modal card" role="dialog" aria-modal="true" aria-label="Confirm stale queue archive">
+          <p class="eyebrow">Queue cleanup</p>
+          <h2>Archive {{ staleActiveQueueEntries().length }} stale queue entr{{ staleActiveQueueEntries().length === 1 ? 'y' : 'ies' }}?</h2>
+          <p>This marks stale waiting/notified/seated rows as expired. It does not delete history, and it keeps the live host board clean for today’s service.</p>
+          <div class="queue-confirm-actions">
+            <button type="button" class="btn btn-secondary" (click)="cancelArchiveStaleQueueEntries()">Review first</button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              (click)="confirmArchiveStaleQueueEntries()"
+              [disabled]="bulkArchiveBusy()">
+              {{ bulkArchiveBusy() ? 'Archiving...' : 'Archive stale entries' }}
+            </button>
+          </div>
+        </section>
+      }
     </section>
     </app-sidebar>
   `,
@@ -890,6 +930,33 @@ const QUEUE_STALE_MINUTES = 12 * 60;
       gap: 0.65rem;
       flex-wrap: wrap;
       margin-top: 0.35rem;
+    }
+
+    .stale-cleanup-panel {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.85rem;
+      margin-top: 0.75rem;
+      padding: 0.8rem 0.9rem;
+      border: 1px solid #fed7aa;
+      border-radius: 18px;
+      background: #fff7ed;
+      color: #9a3412;
+    }
+
+    .stale-cleanup-panel p,
+    .stale-cleanup-panel small {
+      margin: 0.15rem 0 0;
+      color: #b45309;
+      line-height: 1.35;
+    }
+
+    .stale-cleanup-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      justify-content: flex-end;
     }
 
     .summary-grid {
@@ -1740,6 +1807,9 @@ export class QueueComponent implements OnInit {
   queueLinkCopied = signal(false);
   publicQueueUrl = signal('');
   pendingQueueStatus = signal<PendingQueueStatusChange | null>(null);
+  pendingStaleArchive = signal(false);
+  bulkArchiveBusy = signal(false);
+  bulkArchiveMessage = signal('');
 
   queueSearch = '';
   queueSourceFilter:
@@ -1821,6 +1891,10 @@ export class QueueComponent implements OnInit {
 
   hiddenStaleQueueCount = computed(() =>
     this.queue().filter((entry) => this.isStaleQueueEntry(entry)).length,
+  );
+
+  staleActiveQueueEntries = computed(() =>
+    this.queue().filter((entry) => this.isStaleQueueEntry(entry)),
   );
 
   actionNowCount = computed(
@@ -2362,6 +2436,51 @@ export class QueueComponent implements OnInit {
     const pending = this.pendingQueueStatus();
     if (!pending) return;
     this.markStatus(pending.entry, pending.status, pending.reason);
+  }
+
+  requestArchiveStaleQueueEntries(): void {
+    if (this.staleActiveQueueEntries().length === 0) {
+      this.bulkArchiveMessage.set('No stale active queue entries to archive.');
+      return;
+    }
+    this.pendingStaleArchive.set(true);
+  }
+
+  cancelArchiveStaleQueueEntries(): void {
+    this.pendingStaleArchive.set(false);
+  }
+
+  confirmArchiveStaleQueueEntries(): void {
+    const entries = this.staleActiveQueueEntries();
+    if (entries.length === 0 || this.bulkArchiveBusy()) {
+      this.pendingStaleArchive.set(false);
+      return;
+    }
+    this.error.set(null);
+    this.bulkArchiveBusy.set(true);
+    this.bulkArchiveMessage.set('');
+    forkJoin(
+      entries.map((entry) =>
+        this.api.updateGuestQueueStatus(entry.id, {
+          status: 'expired',
+          reason: 'Archived by host stale queue cleanup',
+        }),
+      ),
+    ).subscribe({
+      next: (updatedEntries) => {
+        this.bulkArchiveBusy.set(false);
+        this.pendingStaleArchive.set(false);
+        updatedEntries.forEach((entry) => this.mergeEntry(entry));
+        this.bulkArchiveMessage.set(`Archived ${updatedEntries.length} stale queue entr${updatedEntries.length === 1 ? 'y' : 'ies'}.`);
+        this.showStaleQueueEntries.set(false);
+        this.reloadQueue();
+      },
+      error: () => {
+        this.bulkArchiveBusy.set(false);
+        this.pendingStaleArchive.set(false);
+        this.error.set('Could not archive every stale queue entry. Refresh and review the board before service.');
+      },
+    });
   }
 
   markStatus(entry: GuestQueueEntry, status: GuestQueueStatus, reason?: string): void {

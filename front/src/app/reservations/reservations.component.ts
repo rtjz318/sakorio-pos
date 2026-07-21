@@ -78,7 +78,13 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
           <button type="button" class="date-step" (click)="moveDate(1)" aria-label="Next day">&#8250;</button>
           <button type="button" class="today-button" (click)="goToToday()">Today</button>
         </div>
-        <input type="search" [(ngModel)]="filterPhone" (ngModelChange)="load()" placeholder="Search phone" class="filter-input guest-search" />
+        <input
+          type="search"
+          [(ngModel)]="filterPhone"
+          (ngModelChange)="onReservationSearchChange()"
+          placeholder="Search name, phone, #ID, table"
+          class="filter-input guest-search"
+          aria-label="Search reservations by name, phone, reservation number, or table" />
         <select [(ngModel)]="filterStatus" (ngModelChange)="load()" class="filter-select">
           <option value="">{{ 'RESERVATIONS.ALL_STATUSES' | translate }}</option>
           <option value="booked">{{ 'RESERVATIONS.STATUS_BOOKED' | translate }}</option>
@@ -130,7 +136,7 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
               <span class="eyebrow">Service timeline</span>
               <h2>{{ serviceDateLabel() }}</h2>
             </div>
-            <span class="board-count">{{ reservations().length }} reservations</span>
+            <span class="board-count">{{ sortedReservations().length }} of {{ reservations().length }} reservations</span>
           </div>
           <div class="reservation-list">
           @for (r of sortedReservations(); track r.id) {
@@ -141,6 +147,7 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
               [class.status-finished]="r.status === 'finished'"
               [class.status-cancelled]="r.status === 'cancelled'"
               [class.status-no_show]="r.status === 'no_show'"
+              [class.reservation-card--highlight]="isHighlightedReservation(r)"
             >
               <div class="arrival-time">
                 <strong>{{ displayTime(r.reservation_time) }}</strong>
@@ -150,6 +157,9 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
                 <div class="card-header">
                   <span class="res-name">{{ r.customer_name }}</span>
                   <span class="status-badge" [class]="r.status">{{ getStatusLabel(r.status) | translate }}</span>
+                  @if (isHighlightedReservation(r)) {
+                    <span class="new-booking-badge">New / selected</span>
+                  }
                   @if (isSlotOverbooked(r)) {
                     <span class="overbooked-badge">{{ 'RESERVATIONS.OVERBOOKED' | translate }}</span>
                   }
@@ -445,6 +455,7 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
                       class="table-option"
                       [class.current-assignment]="reservationToSeat()?.table_id === t.id"
                       [disabled]="reservationTableSubmittingId() !== null"
+                      [attr.aria-label]="reservationTableOptionActionLabel(t)"
                       (click)="applyReservationTable(t.id!)">
                       <span>
                         <strong>{{ t.name }}</strong>
@@ -459,7 +470,7 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
                         } @else if (reservationTableSubmittingId() === t.id) {
                           Saving…
                         } @else {
-                          {{ reservationTableMode() === 'seat' ? 'Seat here' : 'Assign' }}
+                          {{ reservationTableOptionActionLabel(t) }}
                         }
                       </span>
                     </button>
@@ -538,6 +549,7 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
     .reservation-card { display: grid; grid-template-columns: 90px minmax(0, 1fr) auto; gap: 1rem; align-items: center; padding: 1.05rem 1.35rem; border-bottom: 1px solid var(--reservation-line); background: #fff; transition: background .18s ease, box-shadow .18s ease; }
     .reservation-card:last-child { border-bottom: 0; }
     .reservation-card:hover { position: relative; z-index: 1; background: #fdfcfb; box-shadow: inset 4px 0 0 #e8aa98; }
+    .reservation-card--highlight { position: relative; z-index: 1; background: #fff7ed; box-shadow: inset 5px 0 0 #f97316, 0 12px 30px rgba(249, 115, 22, 0.12); }
     .reservation-card.status-finished, .reservation-card.status-cancelled, .reservation-card.status-no_show { background: #fafafa; opacity: .78; }
     .arrival-time { display: grid; align-content: center; gap: .2rem; min-height: 68px; padding-right: 1rem; border-right: 1px solid var(--reservation-line); }
     .arrival-time strong { color: var(--reservation-ink); font-size: 1.25rem; letter-spacing: -.02em; }
@@ -550,6 +562,7 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
     .status-badge.finished { background: #f3f4f6; color: #4b5563; }
     .status-badge.cancelled { background: #fee2e2; color: #b91c1c; }
     .status-badge.no_show { background: #ffedd5; color: #c2410c; }
+    .new-booking-badge { font-size: 0.7rem; font-weight: 850; letter-spacing: .04em; padding: .28rem .58rem; border-radius: 999px; background: #fff7ed; color: #c2410c; text-transform: uppercase; border: 1px solid #fed7aa; }
     .reservation-facts, .contact-row { display: flex; flex-wrap: wrap; gap: .45rem .85rem; align-items: center; }
     .reservation-facts span { color: #57615e; font-size: .85rem; }
     .reservation-facts span + span::before { content: ''; display: inline-block; width: 4px; height: 4px; margin: 0 .6rem .15rem 0; border-radius: 50%; background: #c1c8c5; }
@@ -692,6 +705,8 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   reservationToCancel = signal<Reservation | null>(null);
   reservationToNoShow = signal<Reservation | null>(null);
   sendingReminderId = signal<number | null>(null);
+  highlightedReservationId = signal<number | null>(null);
+  private reservationSearchRevision = signal(0);
   overbookingReport = signal<OverbookingReport | null>(null);
   slotCapacity = signal<{ seats_left: number; tables_left: number } | null>(null);
   upcomingNoTableCount = signal<number | null>(null);
@@ -735,7 +750,12 @@ export class ReservationsComponent implements OnInit, OnDestroy {
     return '';
   }
 
-  sortedReservations = computed(() => [...this.reservations()].sort((a, b) => {
+  sortedReservations = computed(() => this.filteredReservations().sort((a, b) => {
+    const highlightedId = this.highlightedReservationId();
+    if (highlightedId != null) {
+      if (a.id === highlightedId && b.id !== highlightedId) return -1;
+      if (b.id === highlightedId && a.id !== highlightedId) return 1;
+    }
     const statusRank: Record<ReservationStatus, number> = {
       booked: 0,
       seated: 1,
@@ -747,6 +767,44 @@ export class ReservationsComponent implements OnInit, OnDestroy {
     if (statusDelta !== 0) return statusDelta;
     return `${a.reservation_date}T${a.reservation_time}`.localeCompare(`${b.reservation_date}T${b.reservation_time}`);
   }));
+
+  private filteredReservations(): Reservation[] {
+    this.reservationSearchRevision();
+    const term = this.filterPhone.trim().toLowerCase();
+    if (!term) return [...this.reservations()];
+    const normalizedTerm = this.normalizePhone(term);
+    return this.reservations().filter((r) => {
+      const fields = [
+        r.customer_name,
+        r.customer_phone,
+        r.customer_email,
+        r.client_notes,
+        r.owner_notes,
+        r.customer_notes,
+        r.table_name,
+        r.id != null ? `#${r.id}` : '',
+        r.id != null ? String(r.id) : '',
+        r.table_id != null ? this.getTableName(r.table_id) : '',
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return fields.includes(term) || (!!normalizedTerm && this.normalizePhone(r.customer_phone).includes(normalizedTerm));
+    });
+  }
+
+  isHighlightedReservation(r: Reservation): boolean {
+    this.reservationSearchRevision();
+    const highlightedId = this.highlightedReservationId();
+    if (highlightedId != null && r.id === highlightedId) return true;
+    const term = this.filterPhone.trim();
+    if (!term) return false;
+    return this.filteredReservations().some((match) => match.id === r.id);
+  }
+
+  onReservationSearchChange(): void {
+    this.reservationSearchRevision.update((value) => value + 1);
+  }
 
   activeReservationCount = computed(() => this.reservations().filter((r) => r.status === 'booked' || r.status === 'seated').length);
   expectedGuestCount = computed(() => this.reservations()
@@ -850,7 +908,6 @@ export class ReservationsComponent implements OnInit, OnDestroy {
     this.api.getReservations({
       date: this.filterDate || undefined,
       status: this.filterStatus || undefined,
-      phone: this.filterPhone || undefined,
     }).subscribe({
       next: (list) => { this.reservations.set(list); this.loading.set(false); },
       error: () => this.loading.set(false),
@@ -1160,12 +1217,22 @@ export class ReservationsComponent implements OnInit, OnDestroy {
         preferred_floor_id: preferredFloorId ?? null,
       };
       this.api.updateReservation(this.editingReservation()!.id, update).subscribe({
-        next: () => { this.closeForm(); this.load(); this.loadTables(); },
+        next: (saved) => {
+          this.highlightReservation(saved);
+          this.closeForm();
+          this.load();
+          this.loadTables();
+        },
         error: (e) => this.formError.set(this.apiErr.fromHttpError(e, 'RESERVATIONS.ERROR_FAILED_UPDATE')),
       });
     } else {
       this.api.createReservation(payload).subscribe({
-        next: () => { this.closeForm(); this.load(); this.loadTables(); },
+        next: (created) => {
+          this.highlightReservation(created, true);
+          this.closeForm();
+          this.load();
+          this.loadTables();
+        },
         error: (e) => this.formError.set(this.apiErr.fromHttpError(e, 'RESERVATIONS.ERROR_FAILED_CREATE')),
       });
     }
@@ -1234,6 +1301,17 @@ export class ReservationsComponent implements OnInit, OnDestroy {
     return 'Available';
   }
 
+  reservationTableOptionActionLabel(table: CanvasTable): string {
+    const name = table.name || `Table ${table.id}`;
+    if (this.reservationToSeat()?.table_id === table.id && this.reservationTableMode() === 'assign') {
+      return `Assigned ${name}`;
+    }
+    if (this.reservationTableSubmittingId() === table.id) {
+      return `Saving ${name}`;
+    }
+    return this.reservationTableMode() === 'seat' ? `Seat at ${name}` : `Assign ${name}`;
+  }
+
   tableAssignmentRiskLabel(table: CanvasTable): string {
     if (table.active_order_id || table.operational_status === 'open_order') {
       return 'Has an open bill — choose only if this will be free before arrival.';
@@ -1287,6 +1365,7 @@ export class ReservationsComponent implements OnInit, OnDestroy {
     request.subscribe({
       next: () => {
         const mode = this.reservationTableMode();
+        this.highlightReservation(r);
         this.closeSeatModal();
         this.load();
         this.loadTables();
@@ -1335,6 +1414,16 @@ export class ReservationsComponent implements OnInit, OnDestroy {
         reservationNotes: note || null,
       },
     });
+  }
+
+  private highlightReservation(reservation: Pick<Reservation, 'id' | 'customer_name' | 'customer_phone' | 'reservation_date'>, searchAfterCreate = false): void {
+    if (reservation.reservation_date) {
+      this.filterDate = reservation.reservation_date.slice(0, 10);
+    }
+    this.highlightedReservationId.set(reservation.id);
+    if (searchAfterCreate) {
+      this.filterPhone = reservation.customer_name || reservation.customer_phone || `#${reservation.id}`;
+    }
   }
 
   openReservationCustomerMenu(reservation: Reservation) {
@@ -1533,6 +1622,11 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   }
 
   finish(r: Reservation) {
+    const tableCopy = r.table_id ? ` Table ${this.getTableDisplay(r)} should already be paid/closed in POS.` : '';
+    const confirmed = window.confirm(
+      `Finish reservation #${r.id} for ${r.customer_name}?\n\nThis removes the guest from the active reservation service view and records the visit as finished.${tableCopy}`,
+    );
+    if (!confirmed) return;
     this.api.finishReservation(r.id).subscribe({
       next: () => { this.load(); this.loadTables(); },
       error: (e) => alert(this.apiErr.fromHttpError(e, 'RESERVATIONS.ERROR_FAILED')),

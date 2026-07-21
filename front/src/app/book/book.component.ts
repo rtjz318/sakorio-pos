@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, inject, signal, computed, OnInit, ViewChild } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl, SafeStyle } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -26,6 +26,7 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
 })
 export class BookComponent implements OnInit {
   @ViewChild(ReservationWeekSlotGridComponent) private weekSlotGrid?: ReservationWeekSlotGridComponent;
+  @ViewChild('bookPhoneInput') private bookPhoneInput?: ElementRef<HTMLInputElement>;
 
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -262,8 +263,9 @@ export class BookComponent implements OnInit {
       this.error.set(this.translate.instant('BOOK.ERROR_INVALID_LINK'));
       return;
     }
-    if (!contactPhoneValid(this.formPhone)) {
-      this.error.set(this.translate.instant('BOOK.INVALID_PHONE'));
+    if (!this.publicReservationPhoneValid()) {
+      this.setPhoneValidationError();
+      this.focusPhoneInput();
       return;
     }
     if (!this.formPartySize || this.formPartySize < 1) {
@@ -326,9 +328,35 @@ export class BookComponent implements OnInit {
         this.submitting.set(false);
       },
       error: (e) => {
-        this.error.set(this.apiErr.fromHttpError(e, 'BOOK.ERROR_FAILED'));
+        const message = this.apiErr.fromHttpError(e, 'BOOK.ERROR_FAILED');
+        if (/phone/i.test(message)) {
+          this.setPhoneValidationError(message);
+          this.focusPhoneInput();
+        } else {
+          this.error.set(message);
+        }
         this.submitting.set(false);
       },
     });
+  }
+
+  private publicReservationPhoneValid(): boolean {
+    const phone = this.formPhone.trim();
+    return phone.startsWith('+') && contactPhoneValid(phone);
+  }
+
+  private setPhoneValidationError(message?: string): void {
+    const base = (message || this.translate.instant('BOOK.INVALID_PHONE')).trim();
+    const example = 'Example: +65 9123 4567.';
+    this.error.set(base.includes(example) ? base : `${base} ${example}`);
+  }
+
+  private focusPhoneInput(): void {
+    const input = this.bookPhoneInput?.nativeElement;
+    if (!input || typeof window === 'undefined') return;
+    window.setTimeout(() => {
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      input.focus({ preventScroll: true });
+    }, 0);
   }
 }

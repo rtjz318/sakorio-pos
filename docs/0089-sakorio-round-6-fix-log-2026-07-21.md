@@ -41,3 +41,24 @@ Source QA brief: `docs/0088-sakorio-round-6-full-flow-browser-results-2026-07-21
   - Angular frontend hot-reload rebuilt successfully in Docker after the change.
   - Docker frontend log error scan returned no `error`, `failed`, `TS*`, or `NG*` matches.
   - Live-domain browser verification should be rerun after deployment.
+
+## Fix 3 - POS first-item cart binding from reservation/queue handoff
+
+- QA source: `R6-FLOW-004`, `R6-FLOW-006`, `R6-FLOW-020`, cross-case finding 6.
+- Problem found: waiter-assisted POS ordering could fail in the handoff state where a reservation/queue table was active for QR ordering but had no existing ticket yet. The product grid could be open, but first-item cart binding depended too narrowly on `selectedTable()`.
+- Change made:
+  - Added a robust POS cart target resolver that checks:
+    1. existing cart-bound table,
+    2. selected table,
+    3. route `tableId` fallback from the active POS URL.
+  - Product action labels and disabled state now use that same resolver.
+  - First item added from the POS grid now rehydrates `selectedTableId` from the resolved target before binding the cart.
+  - Checkout/effective table resolution also uses the robust target resolver.
+- Expected improvement:
+  - A waiter opening POS from reservation or queue handoff can add the first item even before any customer QR order exists.
+  - Reduces silent “tap product but nothing happens” risk during first-ticket creation.
+  - Keeps existing cart table locking, so staff still cannot accidentally mix carts across tables.
+- Verification:
+  - Angular frontend hot-reload initially caught the half-written helper reference, then rebuilt successfully after the helper was added.
+  - Final short-window Docker frontend error scan returned no `error`, `failed`, `TS*`, or `NG*` matches.
+  - Live-domain browser verification should be rerun after deployment.

@@ -6501,10 +6501,11 @@ export class CashierPosComponent {
   }
 
   productActionLabel(product: PosSellableProduct): string {
-    if (!this.selectedTable() && !this.cartBoundTable() && !this.hasReadyTableForNewCart()) {
+    const targetTable = this.cartTargetTable();
+    if (!targetTable && !this.hasReadyTableForNewCart()) {
       return 'No table ready';
     }
-    if (!this.selectedTable() && !this.cartBoundTable()) {
+    if (!targetTable) {
       return 'Select table';
     }
     if (this.hasPayableLiveBill()) {
@@ -7116,11 +7117,15 @@ export class CashierPosComponent {
     product: PosSellableProduct,
     customizationAnswers?: Record<string, string | number | string[]>,
   ): void {
-    let table = this.selectedTable();
+    const table = this.cartTargetTable();
     if (!table?.id) {
       this.error.set('Select a table from the floor before adding menu items.');
       this.notice.set(null);
       return;
+    }
+
+    if (this.selectedTableId() !== table.id) {
+      this.selectedTableId.set(table.id);
     }
 
     const cartTableId = this.cartTableId();
@@ -7275,11 +7280,7 @@ export class CashierPosComponent {
       return false;
     }
 
-    if (this.cartBoundTable()) {
-      return true;
-    }
-
-    return !!this.selectedTable();
+    return !!this.cartTargetTable();
   }
 
   hasReadyTableForNewCart(): boolean {
@@ -7293,7 +7294,26 @@ export class CashierPosComponent {
   }
 
   effectiveCheckoutTable(): CanvasTable | null {
-    return this.cartBoundTable() || this.selectedTable();
+    return this.cartTargetTable();
+  }
+
+  private cartTargetTable(): CanvasTable | null {
+    const boundTable = this.cartBoundTable();
+    if (boundTable) {
+      return boundTable;
+    }
+
+    const selectedTable = this.selectedTable();
+    if (selectedTable) {
+      return selectedTable;
+    }
+
+    const routeTableId = Number(this.route.snapshot.queryParamMap.get('tableId'));
+    if (!Number.isFinite(routeTableId) || routeTableId <= 0) {
+      return null;
+    }
+
+    return this.tables().find((table) => table.id === routeTableId) ?? null;
   }
 
   effectiveCheckoutTableHasLiveBill(): boolean {

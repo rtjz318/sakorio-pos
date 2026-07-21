@@ -93,11 +93,32 @@ Viewport limitation:
 
 ## Post-deploy verification required
 
-After the Step 4 commit is deployed, re-test only these focused live paths:
+After the Step 4 commit (`6c163303`) deployed, these focused live paths were re-tested:
 
 1. Reservation `Open QR/menu` shows inline `Txx QR ready` link.
-2. KDS `Ready for pass` visually moves the ticket without manual refresh.
-3. Terminal payment immediately changes the table to Paid/Close table without manual reload.
-4. POS payment buttons expose clearer unique accessible labels.
-5. Run real iPad/Safari smoke pass because the in-app browser viewport override did not apply.
+   - Result: Passed.
+   - Evidence: reservation `#73` seated on T07 showed `QR ready`, `Open customer ordering page`, and "Use this link if the browser blocks a new tab."
 
+2. KDS `Ready for pass` visually moves the ticket without manual refresh.
+   - Result: Passed.
+   - Evidence: order `#141` moved from `In prep 0` to `Ready pass 1` immediately after clicking `Ready for pass`; no reload was needed.
+
+3. KDS served toast still appears after optimistic lane update.
+   - Result: Passed.
+   - Evidence: `Ticket #141 served`, `1 item delivered`, and countdown copy appeared.
+
+4. Terminal payment immediately changes the table to Paid/Close table without manual reload.
+   - Result: Passed.
+   - Evidence: after charging terminal for order `#141`, T07 immediately showed `Last bill #141`, `Paid`, and `Close table`; `OPEN BILLS` showed `0`.
+
+5. POS payment buttons expose clearer unique accessible labels.
+   - Result: Passed.
+   - Evidence: `Open payment panel for T07` resolved to exactly one live button before payment.
+
+6. QA cleanup.
+   - Result: Passed.
+   - Evidence: closing T07 reset the table to `Available`; linked reservation `#73` moved to `FINISHED`.
+
+7. Real iPad/Safari smoke pass.
+   - Result: Still required.
+   - Reason: the in-app browser viewport override did not apply; measured viewport remained around `1280x720` after requesting `820x1180`.

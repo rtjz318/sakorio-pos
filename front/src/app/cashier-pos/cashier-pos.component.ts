@@ -4371,13 +4371,6 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       margin: 0.65rem 0;
     }
 
-    .settlement-policy-note--warning {
-      background: color-mix(in srgb, #f59e0b 14%, var(--color-surface));
-      border: 1px solid color-mix(in srgb, #f59e0b 34%, transparent);
-      color: color-mix(in srgb, var(--color-text) 86%, #92400e);
-      font-weight: 700;
-    }
-
     .inline-hint-copy {
       display: flex;
       flex-direction: column;

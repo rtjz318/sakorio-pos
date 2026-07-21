@@ -241,10 +241,11 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
                                   </span>
                                   <div class="item-actions">
                                     @if (!item.removed_by_customer && item.status !== 'cancelled') {
-                                      <button class="btn-remove-item" (click)="removeItemStaff(order.id, item.id!, item.status ?? 'pending')" [title]="'ORDERS.REMOVE_ITEM' | translate">
+                                      <button class="btn-remove-item btn-void-item" (click)="removeItemStaff(order.id, item.id!, item.status ?? 'pending')" [title]="'ORDERS.REMOVE_ITEM' | translate">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                           <path d="M18 6L6 18M6 6l12 12"/>
                                         </svg>
+                                        <span>{{ 'ORDERS.REMOVE_ITEM' | translate }}</span>
                                       </button>
                                     }
                                     @if (item.status && !item.removed_by_customer) {
@@ -322,11 +323,10 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
                                 <button type="button" class="btn btn-primary-action" (click)="openPosForOrder(order)">
                                   {{ order.status === 'completed' && !isOrderPaid(order) ? 'Collect payment' : 'Open bill' }}
                                 </button>
-                              } @else {
-                                <button type="button" class="btn btn-primary-action" (click)="openOrderEdit(order)">
-                                  Edit ticket
-                                </button>
                               }
+                              <button type="button" class="btn btn-secondary-action" (click)="openOrderEdit(order)">
+                                Edit ticket
+                              </button>
                               <div class="status-control">
                                 <button
                                   class="status-badge-btn"
@@ -522,10 +522,11 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
                               </span>
                               <div class="item-actions">
                                 @if (!item.removed_by_customer && item.status !== 'cancelled') {
-                                  <button class="btn-remove-item" (click)="removeItemStaff(order.id, item.id!, item.status ?? 'pending')" [title]="'ORDERS.REMOVE_ITEM' | translate">
+                                  <button class="btn-remove-item btn-void-item" (click)="removeItemStaff(order.id, item.id!, item.status ?? 'pending')" [title]="'ORDERS.REMOVE_ITEM' | translate">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                       <path d="M18 6L6 18M6 6l12 12"/>
                                     </svg>
+                                    <span>{{ 'ORDERS.REMOVE_ITEM' | translate }}</span>
                                   </button>
                                 }
                                 @if (item.status && !item.removed_by_customer) {
@@ -603,11 +604,10 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
                             <button type="button" class="btn btn-primary-action" (click)="openPosForOrder(order)">
                               {{ order.status === 'completed' && !isOrderPaid(order) ? 'Collect payment' : 'Open bill' }}
                             </button>
-                          } @else {
-                            <button type="button" class="btn btn-primary-action" (click)="openOrderEdit(order)">
-                              Edit ticket
-                            </button>
                           }
+                          <button type="button" class="btn btn-secondary-action" (click)="openOrderEdit(order)">
+                            Edit ticket
+                          </button>
                           <div class="status-control">
                             <button
                               class="status-badge-btn"
@@ -879,8 +879,9 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
                           <button type="button" class="btn btn-sm btn-secondary" (click)="toggleModifierEdit(item)">
                             {{ modifierEditItemId === item.id ? ('COMMON.CANCEL' | translate) : ('ORDERS.MODIFIERS' | translate) }}
                           </button>
-                          <button type="button" class="btn btn-sm btn-remove-item" (click)="removeEditItem(order.id, item.id!, item.status ?? 'pending')" [title]="'ORDERS.REMOVE_ITEM' | translate">
+                          <button type="button" class="btn btn-sm btn-remove-item btn-void-item" (click)="removeEditItem(order.id, item.id!, item.status ?? 'pending')" [title]="'ORDERS.REMOVE_ITEM' | translate">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            <span>{{ 'ORDERS.REMOVE_ITEM' | translate }}</span>
                           </button>
                         </div>
                         @if (modifierEditItemId === item.id) {
@@ -1556,6 +1557,7 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
     .item-actions {
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 0.45rem;
     }
     .item-qty { 
@@ -1681,8 +1683,28 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
     .item-status-badge.status-cancelled { background: var(--color-bg); color: var(--color-text-muted); }
     .item-actions {
       display: flex;
+      flex-wrap: wrap;
+      align-items: center;
       gap: var(--space-2);
       margin-top: var(--space-1);
+    }
+    .btn-remove-item.btn-void-item {
+      gap: var(--space-1);
+      border: 1px solid color-mix(in srgb, var(--color-error) 24%, var(--color-border));
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--color-error) 7%, var(--color-surface));
+      color: var(--color-error);
+      font-size: 0.74rem;
+      font-weight: 700;
+      line-height: 1;
+      min-height: 36px;
+      min-width: auto;
+      padding: 0.45rem 0.65rem;
+      opacity: 1;
+      white-space: nowrap;
+    }
+    .btn-remove-item.btn-void-item:hover {
+      background: color-mix(in srgb, var(--color-error) 13%, var(--color-surface));
     }
     .btn-xs {
       padding: 4px 8px;
@@ -1800,6 +1822,23 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
       transform: translateY(-1px);
       box-shadow: var(--shadow-sm);
       background: color-mix(in srgb, var(--color-primary-light) 68%, white);
+    }
+    .btn-secondary-action {
+      min-height: 38px;
+      padding: 0.5rem 0.95rem;
+      border-radius: 999px;
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
+      color: var(--color-text);
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+    .btn-secondary-action:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+      background: var(--color-bg);
     }
     .btn-icon-only {
       width: 38px;
@@ -2043,12 +2082,12 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
     }
     .payment-tip-preview { margin-top: var(--space-2); margin-bottom: 0; }
 
-    .modal-order-edit { max-width: 520px; }
+    .modal-order-edit { max-width: min(720px, calc(100vw - 2rem)); }
     .modal-order-edit .modal-body { max-height: 70vh; overflow-y: auto; }
     .edit-order-items { margin-bottom: var(--space-4); }
     .edit-order-label { font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; margin-bottom: var(--space-2); }
     .edit-order-row {
-      display: flex; align-items: center; gap: var(--space-2);
+      display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
       padding: var(--space-2) 0;
     }
     .modal-order-edit .edit-order-row { border-bottom: none; }
@@ -2057,6 +2096,13 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
     .edit-order-row .edit-item-status { width: 120px; }
     .edit-order-row .btn-remove-item { flex-shrink: 0; padding: var(--space-2); color: var(--color-text-muted); border: none; background: none; cursor: pointer; border-radius: 6px; }
     .edit-order-row .btn-remove-item:hover { color: var(--color-error, #dc2626); background: rgba(0,0,0,0.05); }
+    .edit-order-row .btn-remove-item.btn-void-item {
+      border: 1px solid color-mix(in srgb, var(--color-error) 24%, var(--color-border));
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--color-error) 7%, var(--color-surface));
+      color: var(--color-error);
+      padding: 0.45rem 0.65rem;
+    }
     .add-items-section .add-items-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
     .add-items-section .add-items-row .form-select { flex: 1; min-width: 160px; }
     .add-items-section .add-items-row .quantity-input { width: 56px; }

@@ -4903,14 +4903,23 @@ def update_product(
             product.kitchen_station_id = int(val)
 
     session.add(product)
-    # Sync availability dates to linked TenantProduct(s) so customer menu stays consistent
+    # Sync availability dates to TenantProduct(s) so customer QR/POS menu stays consistent.
+    #
+    # Most tenant products are linked through TenantProduct.product_id. Some older/imported rows
+    # were created without that linkage but share the same tenant-scoped product name; include
+    # those as a fallback so an operations "sold out today" action does not hide the item from
+    # staff POS while leaving it visible on the customer QR menu.
     if "available_from" in pu or "available_until" in pu:
-        linked = session.exec(
+        tenant_products_for_product = session.exec(
             select(models.TenantProduct).where(
-                models.TenantProduct.product_id == product.id,
                 models.TenantProduct.tenant_id == current_user.tenant_id,
             )
         ).all()
+        product_name_key = product.name.strip().casefold()
+        linked = [
+            tp for tp in tenant_products_for_product
+            if tp.product_id == product.id or tp.name.strip().casefold() == product_name_key
+        ]
         for tp in linked:
             if "available_from" in pu:
                 tp.available_from = pu["available_from"]

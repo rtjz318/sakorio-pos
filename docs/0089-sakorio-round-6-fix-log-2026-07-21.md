@@ -62,3 +62,27 @@ Source QA brief: `docs/0088-sakorio-round-6-full-flow-browser-results-2026-07-21
   - Angular frontend hot-reload initially caught the half-written helper reference, then rebuilt successfully after the helper was added.
   - Final short-window Docker frontend error scan returned no `error`, `failed`, `TS*`, or `NG*` matches.
   - Live-domain browser verification should be rerun after deployment.
+
+## Fix 4 - Same-day sold-out / restore availability workflow
+
+- QA source: `R6-FLOW-040`, cross-case finding 44.
+- Problem found:
+  - There was no fast operational control for a manager to mark an item sold out during service.
+  - Product availability dates existed, but POS did not consistently apply them to cashier-visible sellable items.
+  - Backend product update ignored explicit `available_until: null`, so a future restore action could not reliably clear a sold-out date.
+- Change made:
+  - Added a Products table `Availability` column with status pill and quick `Sold out today` / `Restore` action.
+  - `Sold out today` sets `available_until` to yesterday, using the existing availability-window logic to hide the product immediately.
+  - `Restore` clears `available_until`.
+  - Fixed backend product and tenant-product update handling so explicit null availability fields are applied instead of ignored.
+  - Kept Product-to-TenantProduct availability sync intact, including clear/null restores.
+  - Added POS cashier filtering for `available_from` / `available_until`, so sold-out items disappear from staff POS as well as QR/customer menu.
+- Expected improvement:
+  - Manager can remove a sold-out item from live QR and POS ordering without deleting the product.
+  - Restoring a product is reversible and uses the existing product edit API.
+  - Reduces launch risk for real service when kitchen/beverage items run out mid-shift.
+- Verification:
+  - Backend syntax check passed with `python -m py_compile app/main.py` inside the Docker backend container.
+  - Angular frontend hot-reload rebuilt successfully after the Products/POS changes.
+  - Final short-window Docker frontend error scan returned no `error`, `failed`, `TS*`, or `NG*` matches.
+  - Live-domain browser verification should be rerun after deployment.

@@ -5550,6 +5550,7 @@ export class CashierPosComponent {
     );
     const tenantItems = this.tenantProducts()
       .filter((product) => product.is_active !== false && (product.price_cents || 0) > 0)
+      .filter((product) => this.isProductAvailableToday(product))
       .map<PosSellableProduct>((product) => {
         const linkedLegacy =
           typeof product.product_id === 'number' ? legacyById.get(product.product_id) ?? null : null;
@@ -5583,6 +5584,7 @@ export class CashierPosComponent {
 
     const legacyItems = this.legacyProducts()
       .filter((product) => (product.price_cents || 0) > 0)
+      .filter((product) => this.isProductAvailableToday(product))
       .filter((product) => !tenantLinkedLegacyIds.has(product.id!))
       .map<PosSellableProduct>((product) => ({
         id: product.id!,
@@ -7291,6 +7293,32 @@ export class CashierPosComponent {
     const normalized = category.trim().toLowerCase();
     return this.activeProducts().filter((product) => (product.category || '').trim().toLowerCase() === normalized)
       .length;
+  }
+
+  private isProductAvailableToday(product: {
+    available_from?: string | null;
+    available_until?: string | null;
+  }): boolean {
+    const today = this.localIsoDate();
+    const availableFrom = (product.available_from || '').trim();
+    const availableUntil = (product.available_until || '').trim();
+
+    if (availableFrom && availableFrom > today) {
+      return false;
+    }
+    if (availableUntil && availableUntil < today) {
+      return false;
+    }
+    return true;
+  }
+
+  private localIsoDate(offsetDays = 0): string {
+    const date = new Date();
+    date.setDate(date.getDate() + offsetDays);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   effectiveCheckoutTable(): CanvasTable | null {

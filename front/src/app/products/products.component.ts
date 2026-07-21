@@ -463,6 +463,7 @@ import { ProductBulkImportComponent } from './product-bulk-import.component';
                        <th>{{ 'PRODUCTS.SUBCATEGORY_HEADER' | translate }}</th>
                        <th>{{ 'PRODUCTS.PRICE_HEADER' | translate }}</th>
                        <th>{{ 'PRODUCTS.COST_HEADER' | translate }}</th>
+                       <th>Availability</th>
                        <th></th>
                      </tr>
                    </thead>
@@ -534,6 +535,22 @@ import { ProductBulkImportComponent } from './product-bulk-import.component';
                         </td>
                         <td class="price">{{ formatPrice(product.price_cents) }}</td>
                         <td class="price">{{ product.cost_cents != null ? formatPrice(product.cost_cents) : '—' }}</td>
+                        <td>
+                          <div class="availability-cell">
+                            <span class="availability-pill" [class.availability-pill--sold-out]="isSoldOutToday(product)">
+                              {{ availabilityLabel(product) }}
+                            </span>
+                            @if (canEditProducts()) {
+                              <button
+                                type="button"
+                                class="btn btn-sm availability-toggle"
+                                (click)="toggleSoldOutToday(product)"
+                                [disabled]="availabilityUpdating() === product.id">
+                                {{ availabilityUpdating() === product.id ? 'Updating...' : isSoldOutToday(product) ? 'Restore' : 'Sold out today' }}
+                              </button>
+                            }
+                          </div>
+                        </td>
                         <td class="actions">
                           <div class="actions-inner">
                           <button class="icon-btn" (click)="startEdit(product)" [attr.title]="'PRODUCTS.EDIT_TOOLTIP' | translate">
@@ -621,6 +638,7 @@ export class ProductsComponent implements OnInit {
   filteredProducts = signal<Product[]>([]);
   loading = signal(true);
   saving = signal(false);
+  availabilityUpdating = signal<number | null>(null);
   deleting = signal<number | null>(null);
   deletingAll = signal(false);
   showAddForm = signal(false);
@@ -1431,6 +1449,67 @@ export class ProductsComponent implements OnInit {
 
   getImageUrl(product: Product): string | null {
     return this.api.getProductImageUrl(product);
+  }
+
+  isSoldOutToday(product: Product): boolean {
+    const availableUntil = (product.available_until || '').trim();
+    return !!availableUntil && availableUntil < this.localIsoDate();
+  }
+
+  availabilityLabel(product: Product): string {
+    if (this.isSoldOutToday(product)) {
+      return 'Sold out';
+    }
+
+    const today = this.localIsoDate();
+    const availableFrom = (product.available_from || '').trim();
+    const availableUntil = (product.available_until || '').trim();
+
+    if (availableFrom && availableFrom > today) {
+      return `Starts ${availableFrom}`;
+    }
+    if (availableUntil) {
+      return `Available until ${availableUntil}`;
+    }
+    return 'Available';
+  }
+
+  toggleSoldOutToday(product: Product): void {
+    if (!product.id || !this.canEditProducts()) {
+      return;
+    }
+
+    const soldOut = this.isSoldOutToday(product);
+    const availableUntil = soldOut ? null : this.localIsoDate(-1);
+    this.availabilityUpdating.set(product.id);
+    this.error.set('');
+    this.successMessage.set('');
+
+    this.api.updateProduct(product.id, { available_until: availableUntil }).subscribe({
+      next: (updated) => {
+        this.products.update(list => list.map(p => p.id === updated.id ? updated : p));
+        this.applyFilters();
+        this.successMessage.set(
+          soldOut
+            ? `${updated.name} restored to the menu.`
+            : `${updated.name} marked sold out for today.`,
+        );
+        this.availabilityUpdating.set(null);
+      },
+      error: (err) => {
+        this.error.set(err.error?.detail || 'Failed to update item availability');
+        this.availabilityUpdating.set(null);
+      },
+    });
+  }
+
+  private localIsoDate(offsetDays = 0): string {
+    const date = new Date();
+    date.setDate(date.getDate() + offsetDays);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   handleImageError(event: Event) {

@@ -4886,12 +4886,11 @@ def update_product(
             if not tax or tax.tenant_id != current_user.tenant_id:
                 raise HTTPException(status_code=400, detail="Invalid tax")
         product.tax_id = product_update.tax_id or None
-    if product_update.available_from is not None:
-        product.available_from = product_update.available_from
-    if product_update.available_until is not None:
-        product.available_until = product_update.available_until
-
     pu = product_update.model_dump(exclude_unset=True)
+    if "available_from" in pu:
+        product.available_from = pu["available_from"]
+    if "available_until" in pu:
+        product.available_until = pu["available_until"]
     if "kitchen_station_id" in pu:
         val = pu["kitchen_station_id"]
         if val is None:
@@ -4905,7 +4904,7 @@ def update_product(
 
     session.add(product)
     # Sync availability dates to linked TenantProduct(s) so customer menu stays consistent
-    if product_update.available_from is not None or product_update.available_until is not None:
+    if "available_from" in pu or "available_until" in pu:
         linked = session.exec(
             select(models.TenantProduct).where(
                 models.TenantProduct.product_id == product.id,
@@ -4913,10 +4912,10 @@ def update_product(
             )
         ).all()
         for tp in linked:
-            if product_update.available_from is not None:
-                tp.available_from = product_update.available_from
-            if product_update.available_until is not None:
-                tp.available_until = product_update.available_until
+            if "available_from" in pu:
+                tp.available_from = pu["available_from"]
+            if "available_until" in pu:
+                tp.available_until = pu["available_until"]
             session.add(tp)
     session.commit()
     session.refresh(product)
@@ -6585,10 +6584,10 @@ def update_tenant_product(
             if not tax or tax.tenant_id != current_user.tenant_id:
                 raise HTTPException(status_code=400, detail="Invalid tax")
         tenant_product.tax_id = product_update.tax_id or None
-    if product_update.available_from is not None:
-        tenant_product.available_from = product_update.available_from
-    if product_update.available_until is not None:
-        tenant_product.available_until = product_update.available_until
+    if "available_from" in partial:
+        tenant_product.available_from = partial["available_from"]
+    if "available_until" in partial:
+        tenant_product.available_until = partial["available_until"]
 
     session.add(tenant_product)
     session.commit()

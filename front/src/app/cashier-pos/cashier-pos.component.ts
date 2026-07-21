@@ -1102,6 +1102,9 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                     History <span>{{ posHistoryOrders().length }}</span>
                   </button>
                 </nav>
+                <p class="settlement-policy-note settlement-policy-note--drawer">
+                  Launch guardrail: keep one active bill per table session. Split payments, table merges, refunds and paid-bill corrections need manager/accounting handling before the table is closed.
+                </p>
 
                 @if (posDrawerView() === 'menu') {
                   <div class="pos-service-workspace">

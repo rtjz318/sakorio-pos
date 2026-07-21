@@ -130,7 +130,7 @@ Source QA brief: `docs/0088-sakorio-round-6-full-flow-browser-results-2026-07-21
   - Some real-world flows are operationally important but not fully enabled as accounting-grade modules yet: split bills, partial payments, paid-bill reopen, refunds/voids after settlement, and table merge settlement policy.
   - Kitchen/bar tickets were functionally improved, but the action sequence could still rely too much on staff inference during rush.
 - Change made:
-  - POS checkout now clearly states the launch policy: one table session settles as one bill; split/partial/refund/reopen workflows require manager/accounting handling outside the POS checkout screen.
+  - POS table drawer and checkout now clearly state the launch policy: one table session settles as one bill; split/partial/refund/reopen workflows require manager/accounting handling outside the POS checkout screen.
   - Orders paid-awaiting-close and History screens now show paid-bill policy callouts so staff know those screens are for closing/printing/read-only records, not hidden post-settlement edits.
   - KDS now shows a visible service-flow guide: New tickets -> In prep -> Ready pass -> Served/delivered, including the live-board/backlog behavior.
 - Expected improvement:

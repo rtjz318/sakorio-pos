@@ -1050,19 +1050,40 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
 
                       <label class="quick-move-field">
                         <span>Move visit to ready table</span>
-                        <select [ngModel]="quickMoveTargetTableId()" (ngModelChange)="quickMoveTargetTableId.set($event)">
+                        <select [ngModel]="quickMoveTargetTableId()" (ngModelChange)="onQuickMoveTargetChange($event)">
+                          <option [ngValue]="null">Choose destination table...</option>
                           @for (target of quickMoveTargetTables(); track target.id) {
                             <option [ngValue]="target.id">{{ target.name }} · {{ target.seat_count || 0 }} seats · {{ getFloorName(target.floor_id) }}</option>
                           }
                         </select>
                       </label>
 
+                      @if (quickMoveTargetTable(); as destinationTable) {
+                        <div class="quick-move-confirm-card">
+                          <span>Confirm table move</span>
+                          <strong>{{ serviceTable.name }} -> {{ destinationTable.name }}</strong>
+                          <small>
+                            Moves {{ quickCurrentSessionOrders().length || 0 }} current ticket{{ quickCurrentSessionOrders().length === 1 ? '' : 's' }}
+                            @if (serviceTable.active_order_id) { · bill #{{ serviceTable.active_order_id }} }
+                            · QR/customer session follows {{ destinationTable.name }}
+                          </small>
+                          <label class="quick-move-confirm-check">
+                            <input type="checkbox" [ngModel]="quickMoveConfirmed()" (ngModelChange)="quickMoveConfirmed.set($event)">
+                            <span>I checked the guests are moving to {{ destinationTable.name }}.</span>
+                          </label>
+                        </div>
+                      } @else {
+                        <div class="quick-move-warning">
+                          Pick the destination table manually. Sakorio will not auto-select a table for a live move.
+                        </div>
+                      }
+
                       <label class="quick-move-field">
                         <span>Reason / note</span>
                         <textarea rows="3" [ngModel]="quickMoveReason()" (ngModelChange)="quickMoveReason.set($event)" placeholder="Example: guest requested window table"></textarea>
                       </label>
 
-                      <button type="button" class="quick-submit" (click)="moveQuickBill()" [disabled]="quickMovingBill() || !quickMoveTargetTableId()">
+                      <button type="button" class="quick-submit" (click)="moveQuickBill()" [disabled]="quickMovingBill() || !quickMoveTargetTableId() || !quickMoveConfirmed()">
                         {{ quickMovingBill() ? 'Moving table…' : 'Move table now' }}
                       </button>
                       <p class="quick-move-help">This keeps the same customer session, seated reservation, queue entry, and current orders, then clears {{ serviceTable.name }} and opens the destination table.</p>
@@ -2232,6 +2253,45 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     .quick-move-summary small,
     .quick-move-help { color: #65716a; line-height: 1.45; }
     .quick-move-field { display: grid; gap: 0.45rem; }
+    .quick-move-confirm-card,
+    .quick-move-warning {
+      display: grid;
+      gap: 0.45rem;
+      padding: 0.95rem;
+      border-radius: 14px;
+      border: 1px solid #ead8b2;
+      background: #fff9ec;
+      color: #54432a;
+    }
+    .quick-move-confirm-card {
+      border-color: #b7dfcd;
+      background: #edf9f3;
+      color: #173f31;
+    }
+    .quick-move-confirm-card > span,
+    .quick-move-warning {
+      font-size: 0.78rem;
+      font-weight: 850;
+      letter-spacing: 0.04em;
+    }
+    .quick-move-confirm-card strong { font-size: 1.2rem; color: #12382c; }
+    .quick-move-confirm-card small { color: #486256; line-height: 1.45; }
+    .quick-move-confirm-check {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      margin-top: 0.25rem;
+      padding: 0.75rem;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.75);
+      font-weight: 750;
+    }
+    .quick-move-confirm-check input {
+      width: 1.2rem;
+      height: 1.2rem;
+      margin-top: 0.1rem;
+      accent-color: #193c32;
+    }
     .quick-move-field select,
     .quick-move-field textarea {
       width: 100%;
@@ -2355,6 +2415,7 @@ export class TablesComponent implements OnInit {
   quickOrderSubmitting = signal(false);
   quickMovingBill = signal(false);
   quickMoveTargetTableId = signal<number | null>(null);
+  quickMoveConfirmed = signal(false);
   quickMoveReason = signal('');
   quickOrderSearch = signal('');
   quickOrderCategory = signal('All items');
@@ -2414,6 +2475,11 @@ export class TablesComponent implements OnInit {
         if (floorCompare !== 0) return floorCompare;
         return (a.name || '').localeCompare(b.name || '');
       });
+  });
+  quickMoveTargetTable = computed(() => {
+    const targetId = this.quickMoveTargetTableId();
+    if (!targetId) return null;
+    return this.quickMoveTargetTables().find((table) => table.id === targetId) ?? null;
   });
 
   // Confirmation Modal State
@@ -2678,7 +2744,8 @@ export class TablesComponent implements OnInit {
     this.quickOrderCategory.set('All items');
     this.quickOrderCart.set([]);
     this.quickMoveReason.set('');
-    this.quickMoveTargetTableId.set(this.quickMoveTargetTables()[0]?.id ?? null);
+    this.quickMoveTargetTableId.set(null);
+    this.quickMoveConfirmed.set(false);
     this.quickOrderError.set('');
     this.quickOrderSuccess.set('');
     this.loadQuickTableData(table.id);
@@ -2689,10 +2756,18 @@ export class TablesComponent implements OnInit {
     this.quickOrderTable.set(null);
     this.quickOrderCart.set([]);
     this.quickMoveTargetTableId.set(null);
+    this.quickMoveConfirmed.set(false);
     this.quickMoveReason.set('');
     this.quickOrderError.set('');
     this.quickOrderSuccess.set('');
     this.cancelQuickCustomization();
+  }
+
+  onQuickMoveTargetChange(targetId: number | null): void {
+    this.quickMoveTargetTableId.set(targetId);
+    this.quickMoveConfirmed.set(false);
+    this.quickOrderError.set('');
+    this.quickOrderSuccess.set('');
   }
 
   private loadQuickTableData(tableId: number): void {
@@ -2940,6 +3015,10 @@ export class TablesComponent implements OnInit {
     const sourceId = source.id;
     const targetId = this.quickMoveTargetTableId();
     if (!targetId || this.quickMovingBill()) return;
+    if (!this.quickMoveConfirmed()) {
+      this.quickOrderError.set('Confirm the destination table before moving this visit.');
+      return;
+    }
 
     const target = this.tables().find((table) => table.id === targetId);
     if (!target) {
@@ -2979,7 +3058,8 @@ export class TablesComponent implements OnInit {
         }));
         this.quickOrderTable.set(movedTarget);
         this.quickMoveReason.set('');
-        this.quickMoveTargetTableId.set(this.quickMoveTargetTables()[0]?.id ?? null);
+        this.quickMoveTargetTableId.set(null);
+        this.quickMoveConfirmed.set(false);
         this.quickMovingBill.set(false);
         this.quickOrderSuccess.set(`Table visit moved from ${response.from_table_name} to ${response.to_table_name}.`);
         this.quickOrderView.set('orders');

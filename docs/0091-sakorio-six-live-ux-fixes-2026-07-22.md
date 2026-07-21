@@ -60,6 +60,7 @@ This document records the fix batch requested after the focused browser QA pass.
 5. Final close/finish confirmation
    - POS `Close table` now opens an in-app final confirmation dialog instead of a native browser prompt.
    - The dialog confirms final reset, QR session end, bill history movement, and linked reservation finish.
+   - After staff sends a table order, the POS drawer now routes to `Bill / Pay` instead of staying on `Orders`, reducing one redundant cashier step.
    - Close success notice now states when a linked reservation was finished.
    - Reservation `Finish after close` now asks for confirmation before moving the booking out of active service.
 
@@ -98,7 +99,13 @@ This document records the fix batch requested after the focused browser QA pass.
    - Live page before modal upgrade: `https://staff.sakorio.com/pos?qa=final-t07-state&tableId=7&orderId=138`
    - Result: live browser confirmed T07 had paid QA bill #138 and a visible `Close table` action. Native confirmation was hard to operate in automated browser QA, which validated the need for an in-app POS confirmation.
    - Follow-up fix: `Close table` now opens a visible in-app dialog with `Keep table open` and `Yes, close table`.
-   - Status: Code fixed locally; requires redeploy/browser verification on the new commit.
+   - Status: Code fixed locally; requires redeploy/browser verification on the newest commit.
+
+7. POS send-order handoff
+   - Live page: `https://staff.sakorio.com/pos?qa=verify-close-modal-a2b89082&tableId=7&orderId=138`
+   - Result: T07 reset correctly from the previous QA bill. A fresh Coffee order #139 was created, but after `Send order` the drawer stayed on `Orders`; attempting to reach `Bill / Pay` was not smooth enough for cashier flow.
+   - Follow-up fix: after `Send order`, the drawer now moves directly to `Bill / Pay` with copy prompting the cashier to review the bill, add another round, or collect payment.
+   - Status: Code fixed locally; requires redeploy/browser verification on the newest commit.
 
 ## Verification checklist for the redeployed modal commit
 
@@ -108,4 +115,3 @@ This document records the fix batch requested after the focused browser QA pass.
 4. Confirm the in-app dialog shows final reset, QR session end, bill history movement, and reservation finish copy when applicable.
 5. Click `Keep table open` once and confirm the table remains paid/closable.
 6. Reopen the dialog, click `Yes, close table`, and confirm the table resets to available.
-

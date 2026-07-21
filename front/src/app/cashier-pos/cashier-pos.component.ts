@@ -7592,8 +7592,8 @@ export class CashierPosComponent {
 
       this.selectedOrderId.set(orderId);
       this.clearCart();
-      this.posDrawerView.set('orders');
-      this.notice.set(`Order #${orderId} sent for ${table.name}. The bill remains open for add-ons or payment later.`);
+      this.posDrawerView.set('checkout');
+      this.notice.set(`Order #${orderId} sent for ${table.name}. Review the bill, add another round, or collect payment.`);
       this.loadData();
     } catch (err) {
       this.error.set(this.getErrorMessage(err, 'Unable to send the order to the kitchen.'));

@@ -1078,7 +1078,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                       <button
                         type="button"
                         class="btn btn-primary btn-sm"
-                        aria-label="Pay bill for selected table"
+                        [attr.aria-label]="'Open payment panel for ' + serviceTable.name"
                         (click)="setPosDrawerView('checkout')">
                         Pay bill
                       </button>
@@ -1182,7 +1182,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                             <button
                               type="button"
                               class="btn btn-primary btn-sm"
-                              aria-label="Pay bill for live order"
+                              [attr.aria-label]="'Pay live bill #' + liveBill.id + ' for ' + serviceTable.name"
                               (click)="setPosDrawerView('checkout')">
                               Pay bill
                             </button>
@@ -1243,7 +1243,12 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                               {{ processingCheckout() ? 'Sending...' : 'Send order' }}
                             </button>
                           }
-                          <button type="button" class="pos-service-submit" (click)="setPosDrawerView('checkout')" [disabled]="!hasCheckoutWork()">
+                          <button
+                            type="button"
+                            class="pos-service-submit"
+                            [attr.aria-label]="'Review bill and pay ' + checkoutSummaryTableCopy()"
+                            (click)="setPosDrawerView('checkout')"
+                            [disabled]="!hasCheckoutWork()">
                             Pay bill
                           </button>
                         </div>
@@ -7479,6 +7484,7 @@ export class CashierPosComponent {
 
       if (mode === 'cash' || mode === 'card_terminal') {
         await firstValueFrom(this.api.markOrderPaid(orderId, mode));
+        this.applyPaidOrderLocally(orderId, tableId, mode);
         this.lastCheckoutOutcome.set({
           mode,
           tableName: table.name,
@@ -7600,6 +7606,33 @@ export class CashierPosComponent {
     } finally {
       this.processingCheckout.set(false);
     }
+  }
+
+  private applyPaidOrderLocally(orderId: number, tableId: number, mode: PosCheckoutMode): void {
+    const paidAt = new Date().toISOString();
+    this.orders.update((orders) =>
+      orders.map((order) =>
+        order.id === orderId
+          ? {
+              ...order,
+              status: 'paid',
+              paid_at: paidAt,
+              payment_method: mode,
+            }
+          : order,
+      ),
+    );
+    this.tables.update((tables) =>
+      tables.map((table) =>
+        table.id === tableId
+          ? {
+              ...table,
+              payment_status: 'paid',
+              active_order_id: orderId,
+            }
+          : table,
+      ),
+    );
   }
 
   async toggleTableState(table: CanvasTable): Promise<void> {

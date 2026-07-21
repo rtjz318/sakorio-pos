@@ -248,6 +248,15 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
                     </button>
                   }
                   <button class="btn btn-ghost btn-sm" (click)="finish(r)">Finish after close</button>
+                  @if (reservationQrHandoff()?.reservationId === r.id) {
+                    <div class="reservation-qr-handoff" role="status">
+                      <strong>{{ reservationQrHandoff()?.tableName }} QR ready</strong>
+                      <a [href]="reservationQrHandoff()?.url || '#'" target="_blank" rel="noopener noreferrer">
+                        Open customer ordering page
+                      </a>
+                      <small>Use this link if the browser blocks a new tab.</small>
+                    </div>
+                  }
                 }
               </div>
             </article>
@@ -579,6 +588,9 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
     .queue-handoff-copy { font-size: 0.82rem; color: #64748b; }
     .card-actions { position: relative; display: flex; justify-content: flex-end; gap: .5rem; align-items: center; flex-wrap: wrap; }
     .primary-reservation-action { min-width: 108px; }
+    .reservation-qr-handoff { flex-basis: 100%; display: flex; justify-content: flex-end; align-items: center; gap: .55rem; flex-wrap: wrap; padding: .6rem .7rem; border-radius: 12px; background: #eef7ff; color: #0f4f76; }
+    .reservation-qr-handoff a { color: #0f4f76; font-weight: 800; }
+    .reservation-qr-handoff small { color: #54748a; }
     .reservation-secondary-actions { display: flex; justify-content: flex-end; gap: .45rem; align-items: center; flex-wrap: wrap; max-width: 440px; }
     .reservation-secondary-actions .btn { min-height: 2.25rem; padding-inline: .65rem; }
     .reservation-secondary-actions .danger { color: #b42318; border-color: #fecaca; background: #fff7f7; }
@@ -702,6 +714,7 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   reservationTableError = signal<string | null>(null);
   reservationTableSubmittingId = signal<number | null>(null);
   reservationMenuOpeningId = signal<number | null>(null);
+  reservationQrHandoff = signal<{ reservationId: number; tableName: string; url: string } | null>(null);
   reservationToCancel = signal<Reservation | null>(null);
   reservationToNoShow = signal<Reservation | null>(null);
   sendingReminderId = signal<number | null>(null);
@@ -1464,6 +1477,11 @@ export class ReservationsComponent implements OnInit, OnDestroy {
     const customerUrl = this.customerMenuUrlForReservationTable(tableId);
     if (customerUrl) {
       this.reservationMenuOpeningId.set(null);
+      this.reservationQrHandoff.set({
+        reservationId: reservation.id,
+        tableName: this.getTableName(tableId),
+        url: customerUrl,
+      });
       window.open(customerUrl, '_blank', 'noopener,noreferrer');
       return;
     }
@@ -1471,6 +1489,11 @@ export class ReservationsComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.reservationMenuOpeningId.set(null);
         const url = `${getCustomerPublicOrigin()}/menu/${res.table_token}?staff_access=${encodeURIComponent(res.token)}`;
+        this.reservationQrHandoff.set({
+          reservationId: reservation.id,
+          tableName: this.getTableName(tableId),
+          url,
+        });
         window.open(url, '_blank', 'noopener,noreferrer');
       },
       error: (err) => {

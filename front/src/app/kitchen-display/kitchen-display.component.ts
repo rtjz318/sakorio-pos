@@ -2401,6 +2401,21 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.servedCompletionToast.set(null);
   }
 
+  private applyTicketStatusLocally(orderId: number, itemIds: number[], status: string): void {
+    const idSet = new Set(itemIds);
+    this.orders.update((orders) =>
+      orders.map((order) => {
+        if (order.id !== orderId) return order;
+        return {
+          ...order,
+          items: (order.items ?? []).map((item) =>
+            item.id != null && idSet.has(item.id) ? { ...item, status } : item,
+          ),
+        };
+      }),
+    );
+  }
+
   advanceTicketStatus(order: Order, action: TicketBulkAction): void {
     if (!this.canUpdateItemStatus() || this.ticketActionBusy()) return;
     const items = this.getTicketBulkActionItems(order, action);
@@ -2417,6 +2432,11 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     forkJoin(items.map((item) => this.api.updateOrderItemStatus(order.id, item.id!, action.targetStatus))).subscribe({
       next: () => {
         this.ticketActionBusy.set(null);
+        this.applyTicketStatusLocally(
+          order.id,
+          items.map((item) => item.id!).filter((id): id is number => id != null),
+          action.targetStatus,
+        );
         this.ticketActionMessage.set(`#${order.id} ${action.doneLabel} (${items.length} item${items.length === 1 ? '' : 's'}).`);
         if (action.targetStatus === 'delivered') {
           this.showServedCompletionToast(order, items.length);

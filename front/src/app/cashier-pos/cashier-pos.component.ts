@@ -1461,6 +1461,41 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
             </div>
           }
         }
+
+        @if (pendingClearTable(); as tableToClear) {
+          <div class="modal-backdrop" (click)="cancelClearTable()"></div>
+          <section
+            class="modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pos-clear-table-title"
+          >
+            <p class="pos-service-eyebrow">Final confirmation</p>
+            <h2 id="pos-clear-table-title">Close {{ tableToClear.name }}?</h2>
+            <p>
+              This resets the table for the next guest, ends the current QR ordering session,
+              and moves this table's current bill into History.
+            </p>
+            @if (tableToClear.seated_reservation) {
+              <div class="inline-hint inline-hint--warning">
+                Linked reservation #{{ tableToClear.seated_reservation.reservation_id }}
+                ({{ tableToClear.seated_reservation.customer_name }}) will be finished automatically.
+              </div>
+            }
+            <div class="inline-hint inline-hint--info">
+              <span>After close</span>
+              <strong>{{ tableToClear.name }} becomes available</strong>
+            </div>
+            <div class="action-row action-row--checkout-compact">
+              <button type="button" class="btn btn-secondary" (click)="cancelClearTable()" [disabled]="pendingTableId() === tableToClear.id">
+                Keep table open
+              </button>
+              <button type="button" class="btn btn-primary" (click)="confirmClearTable()" [disabled]="pendingTableId() === tableToClear.id">
+                {{ pendingTableId() === tableToClear.id ? 'Closing...' : 'Yes, close table' }}
+              </button>
+            </div>
+          </section>
+        }
       </div>
 
       @if (productQuestionDialogProduct(); as product) {
@@ -5479,6 +5514,7 @@ export class CashierPosComponent {
   qrLinkCopiedTableId = signal<number | null>(null);
   qrHandoffTableId = signal<number | null>(null);
   qrHandoffUrl = signal<string | null>(null);
+  pendingClearTable = signal<CanvasTable | null>(null);
 
   /**
    * The POS now uses the table-service drawer as the single ordering/payment workflow.
@@ -6216,6 +6252,12 @@ export class CashierPosComponent {
     if (key === 'escape' && this.productQuestionDialogProduct()) {
       event.preventDefault();
       this.closeProductQuestionDialog();
+      return;
+    }
+
+    if (key === 'escape' && this.pendingClearTable()) {
+      event.preventDefault();
+      this.cancelClearTable();
       return;
     }
 
@@ -7621,38 +7663,53 @@ export class CashierPosComponent {
       return;
     }
 
-    const reservationCopy = table.seated_reservation
-      ? `\n\nLinked reservation #${table.seated_reservation.reservation_id} (${table.seated_reservation.customer_name}) will be finished automatically.`
-      : '';
-    const confirmed = window.confirm(
-      `Final confirmation: close ${table.name}?\n\nThis will reset the table for the next guest, end the current QR ordering session, and move this table's current bill into history.${reservationCopy}`,
-    );
-    if (!confirmed) {
+    this.pendingClearTable.set(table);
+  }
+
+  cancelClearTable(): void {
+    if (this.pendingTableId() != null) {
+      return;
+    }
+    this.pendingClearTable.set(null);
+  }
+
+  async confirmClearTable(): Promise<void> {
+    const tableToClear = this.pendingClearTable();
+    if (!tableToClear?.id) {
       return;
     }
 
-    this.pendingTableId.set(table.id);
+    const tableId = tableToClear.id;
+    const table = this.tables().find((candidate) => candidate.id === tableId) ?? tableToClear;
+    if (!this.canClearTable(table)) {
+      this.pendingClearTable.set(null);
+      this.error.set(`${table.name} still has an unpaid bill. Collect payment before clearing the table.`);
+      return;
+    }
+
+    this.pendingTableId.set(tableId);
     this.error.set(null);
 
     try {
-      await firstValueFrom(this.api.closeTable(table.id));
-      if (this.cartTableId() === table.id) {
+      await firstValueFrom(this.api.closeTable(tableId));
+      if (this.cartTableId() === tableId) {
         this.clearCart();
       }
       const reservationFinishedCopy = table.seated_reservation
         ? ` Linked reservation #${table.seated_reservation.reservation_id} was finished.`
         : '';
       this.notice.set(`${table.name} is clear and ready for the next cashier bill.${reservationFinishedCopy}`);
-      if (this.selectedTableId() === table.id) {
+      if (this.selectedTableId() === tableId) {
         this.selectedTableId.set(null);
         this.selectedOrderId.set(null);
       }
-      this.queueReadyTableAfterReload(table.id, 'catalog', false);
+      this.queueReadyTableAfterReload(tableId, 'catalog', false);
       this.loadData();
     } catch (err) {
       this.error.set(this.getErrorMessage(err, 'Unable to close the table.'));
     } finally {
       this.pendingTableId.set(null);
+      this.pendingClearTable.set(null);
     }
   }
 

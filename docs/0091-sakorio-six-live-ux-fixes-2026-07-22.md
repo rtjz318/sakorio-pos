@@ -1,4 +1,4 @@
-# Sakorio POS six live UX fixes — 2026-07-22
+# Sakorio POS six live UX fixes - 2026-07-22
 
 This document records the fix batch requested after the focused browser QA pass. The baseline observations were taken from the live deployed Sakorio domains before coding.
 
@@ -11,7 +11,7 @@ This document records the fix batch requested after the focused browser QA pass.
 
 2. Queue stale QA/test entry cleanup/archive
    - Live page: `https://staff.sakorio.com/queue?qa=baseline-queue-cleanup`
-   - Observed: the queue hid 3 stale entries and showed “Show stale”, but had no cleanup/archive action.
+   - Observed: the queue hid 3 stale entries and showed "Show stale", but had no cleanup/archive action.
    - Risk: hosts can see the stale problem but cannot resolve it from the board before service.
 
 3. Reservation host page search/highlight
@@ -22,12 +22,13 @@ This document records the fix batch requested after the focused browser QA pass.
 4. Table assignment labels
    - Live page: `https://staff.sakorio.com/reservations?qa=baseline-assign-labels`
    - Observed: assignment entry point was generic; table picker action labels were not deterministic enough for automation/accessibility.
-   - Risk: repeated “Assign” buttons are harder for staff, QA automation, and screen readers.
+   - Risk: repeated "Assign" buttons are harder for staff, QA automation, and screen readers.
 
 5. Close table / reservation finish confirmation
    - Live page: `https://staff.sakorio.com/pos?qa=baseline-close-confirm`
    - Observed: final close/reset/reservation-finish consequences were not clearly stated on the deployed POS view.
    - Risk: cashier may close a table without understanding QR reset, history movement, and linked reservation finish.
+   - Follow-up finding: a native `window.confirm` was stronger than the old flow, but it was awkward in browser/iPad QA and not ideal for a touch-first POS. This was upgraded to an in-app confirmation dialog.
 
 6. KDS Served completion feedback
    - Live page: `https://staff.sakorio.com/kitchen?qa=baseline-served-toast`
@@ -38,13 +39,13 @@ This document records the fix batch requested after the focused browser QA pass.
 
 1. Public reservation phone UX
    - Added `+65 9123 4567` placeholder.
-   - Added inline helper text: “Use international format… Singapore local numbers should include +65.”
+   - Added inline helper text: "Use international format... Singapore local numbers should include +65."
    - On invalid phone submit, the form now scrolls/focuses the phone input.
 
 2. Queue stale cleanup/archive
    - Added a stale cleanup panel when stale active queue rows exist.
-   - Added “Review stale” action.
-   - Added confirmed “Archive stale entries” action that marks stale active rows as `expired`.
+   - Added "Review stale" action.
+   - Added confirmed "Archive stale entries" action that marks stale active rows as `expired`.
    - No deletion is performed.
 
 3. Reservation search/highlight
@@ -57,7 +58,8 @@ This document records the fix batch requested after the focused browser QA pass.
    - The same label is exposed through `aria-label`.
 
 5. Final close/finish confirmation
-   - POS `Close table` now confirms final reset, QR session end, bill history movement, and linked reservation finish.
+   - POS `Close table` now opens an in-app final confirmation dialog instead of a native browser prompt.
+   - The dialog confirms final reset, QR session end, bill history movement, and linked reservation finish.
    - Close success notice now states when a linked reservation was finished.
    - Reservation `Finish after close` now asks for confirmation before moving the booking out of active service.
 
@@ -65,11 +67,45 @@ This document records the fix batch requested after the focused browser QA pass.
    - Served / Delivered bulk action now shows a completion toast with item count.
    - Toast includes a 5-second countdown and states that the ticket leaves the live board.
 
-## Post-deploy browser verification checklist
+## Live browser verification results
 
-1. Public booking: open `/book/1`, confirm phone placeholder/helper, trigger invalid phone and confirm focus.
-2. Queue: open `/queue`, confirm stale cleanup panel appears when stale active rows exist; open confirmation modal from “Archive stale”.
-3. Reservations: create or locate a QA booking, search by name and `#ID`, confirm highlighted result.
-4. Reservations assignment: open a 2-pax assignable booking and confirm table buttons say `Assign Txx` or `Seat at Txx`.
-5. POS: after a paid QA bill, click `Close table`, confirm final browser dialog copy, then cancel once and accept once.
-6. KDS: advance a QA ticket to Served / Delivered and confirm completion toast/countdown appears before the ticket leaves the board.
+1. Public booking phone validation
+   - Live page: `https://order.sakorio.com/book/1?qa=verify-phone-final-7f36e73`
+   - Result: placeholder/helper text appeared. Submitting `80000000` kept the guest on the booking page, showed the `+65 9123 4567` example, and focused `#book-phone`.
+   - Status: Passed.
+
+2. Queue stale cleanup
+   - Live page: `https://staff.sakorio.com/queue?qa=verify-final-queue-7f36e73`
+   - Result: stale cleanup panel appeared with `Review stale` and `Archive stale`; archive confirmation explained rows are expired, not deleted.
+   - Status: Passed.
+
+3. Reservation search/highlight
+   - Live page: `https://staff.sakorio.com/reservations?qa=verify-final-res-7f36e73`
+   - Result: searching `#70` reduced the list to `1 of 3 reservations`; the selected card showed `NEW / SELECTED`.
+   - Status: Passed.
+
+4. Assignment labels
+   - Live page: `https://staff.sakorio.com/reservations?qa=verify-final-res-7f36e73`
+   - Result: table assignment actions exposed clear labels such as `Assign T07`, `Assign T09`, and `Assign T04`.
+   - Status: Passed.
+
+5. KDS Served completion
+   - Live page: `https://staff.sakorio.com/kitchen?qa=verify-final-kds-order138`
+   - Result: QA order #138 was advanced Start -> Ready -> Served; toast showed `Ticket #138 served`, item count, and `5s` countdown.
+   - Status: Passed.
+
+6. POS close table confirmation
+   - Live page before modal upgrade: `https://staff.sakorio.com/pos?qa=final-t07-state&tableId=7&orderId=138`
+   - Result: live browser confirmed T07 had paid QA bill #138 and a visible `Close table` action. Native confirmation was hard to operate in automated browser QA, which validated the need for an in-app POS confirmation.
+   - Follow-up fix: `Close table` now opens a visible in-app dialog with `Keep table open` and `Yes, close table`.
+   - Status: Code fixed locally; requires redeploy/browser verification on the new commit.
+
+## Verification checklist for the redeployed modal commit
+
+1. Open `https://staff.sakorio.com/pos?qa=verify-close-modal`.
+2. Select a paid/closable table.
+3. Click `Close table`.
+4. Confirm the in-app dialog shows final reset, QR session end, bill history movement, and reservation finish copy when applicable.
+5. Click `Keep table open` once and confirm the table remains paid/closable.
+6. Reopen the dialog, click `Yes, close table`, and confirm the table resets to available.
+

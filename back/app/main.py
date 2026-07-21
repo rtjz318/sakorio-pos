@@ -11868,7 +11868,24 @@ def get_menu(
         if available_until is not None and available_until < today:
             return False
         return True
-    tenant_products = [tp for tp in tenant_products if _is_available(tp.available_from, tp.available_until)]
+
+    def _availability_name_key(name: str | None) -> str:
+        return (name or "").strip().casefold()
+
+    # Launch data can contain both a legacy Product and a customer-facing TenantProduct
+    # for the same menu item. Products availability is managed in the staff Products
+    # screen, so a same-name legacy Product marked unavailable must also suppress the
+    # TenantProduct row on QR menus even when the older row is not linked by product_id.
+    unavailable_legacy_names = {
+        _availability_name_key(product.name)
+        for product in legacy_products
+        if product.name and not _is_available(product.available_from, product.available_until)
+    }
+    tenant_products = [
+        tp for tp in tenant_products
+        if _is_available(tp.available_from, tp.available_until)
+        and _availability_name_key(tp.name) not in unavailable_legacy_names
+    ]
     legacy_products = [p for p in legacy_products if _is_available(p.available_from, p.available_until)]
 
     # Load product questions for all effective product IDs (for customization e.g. doneness, spice level)

@@ -304,6 +304,16 @@ function getWorkflowSortWeight(
             </div>
           </section>
         }
+        <section class="kitchen-workflow-guide" aria-label="Kitchen workflow guide">
+          <div>
+            <span>Service flow</span>
+            <strong>New tickets → In prep → Ready pass → Served / delivered</strong>
+          </div>
+          <p>
+            Use the big ticket button to advance all active items together, or open an item status for exceptions.
+            Served tickets leave the live board; older unresolved tickets stay in backlog mode so current service stays clean.
+          </p>
+        </section>
         @if (!showBacklog() && staleTicketCount() > 0) {
           <div class="backlog-notice" role="status">
             <span><strong>{{ staleTicketCount() }}</strong> unresolved ticket{{ staleTicketCount() === 1 ? '' : 's' }} older than {{ currentShiftWindowLabel() }} hidden from the live shift. Open backlog mode, mark stale items delivered/cancelled, then return to current shift before service.</span>
@@ -732,6 +742,40 @@ function getWorkflowSortWeight(
     .rush-card--pending { border-top: 4px solid var(--color-warning); }
     .rush-card--preparing { border-top: 4px solid #3B82F6; }
     .rush-card--ready { border-top: 4px solid var(--color-success); }
+    .kitchen-workflow-guide {
+      display: grid;
+      grid-template-columns: minmax(16rem, 0.95fr) minmax(0, 1.65fr);
+      gap: var(--space-3);
+      align-items: center;
+      margin-bottom: var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid color-mix(in srgb, var(--color-primary) 20%, var(--color-border));
+      border-radius: var(--radius-lg);
+      background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface));
+      box-shadow: var(--shadow-sm);
+    }
+    .kitchen-workflow-guide div {
+      display: grid;
+      gap: 0.18rem;
+    }
+    .kitchen-workflow-guide span {
+      color: var(--color-text-muted);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .kitchen-workflow-guide strong {
+      color: var(--color-text);
+      font-size: 0.98rem;
+    }
+    .kitchen-workflow-guide p {
+      margin: 0;
+      color: var(--color-text-muted);
+      font-size: 0.86rem;
+      font-weight: 650;
+      line-height: 1.4;
+    }
     .backlog-notice {
       display: flex;
       align-items: center;
@@ -1411,6 +1455,9 @@ function getWorkflowSortWeight(
     @media (max-width: 980px) {
       .kitchen-rush-summary {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .kitchen-workflow-guide {
+        grid-template-columns: 1fr;
       }
       .lane-board {
         grid-template-columns: repeat(2, minmax(280px, 1fr));

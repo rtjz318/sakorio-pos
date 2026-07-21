@@ -793,6 +793,9 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                 <p class="settlement-policy-note">
                   Customer QR checkout shows HitPay or card-at-table only. Cash is staff-only for counter settlement and manager reconciliation.
                 </p>
+                <p class="settlement-policy-note settlement-policy-note--warning">
+                  Launch guardrail: one table session settles as one bill. Split bills, partial payments, refunds and reopened paid bills must be handled by a manager outside this screen until the accounting module is enabled.
+                </p>
                 <div class="settlement-summary-row settlement-summary-row--active settlement-summary-row--cta">
                   <div class="settlement-summary-copy settlement-summary-copy--primary">
                     <p class="eyebrow">Selected method</p>
@@ -1369,6 +1372,9 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                       </div>
                       <p class="settlement-policy-note settlement-policy-note--drawer">
                         Customer QR checkout shows HitPay or card-at-table only. Cash is staff-only for counter settlement and manager reconciliation.
+                      </p>
+                      <p class="settlement-policy-note settlement-policy-note--drawer settlement-policy-note--warning">
+                        Launch guardrail: keep one active bill per table. For split payments, table merges or paid-bill corrections, collect the manager decision before closing the table.
                       </p>
                       <div class="pos-service-paybar">
                         <div>
@@ -4363,6 +4369,13 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 
     .settlement-policy-note--drawer {
       margin: 0.65rem 0;
+    }
+
+    .settlement-policy-note--warning {
+      background: color-mix(in srgb, #f59e0b 14%, var(--color-surface));
+      border: 1px solid color-mix(in srgb, #f59e0b 34%, transparent);
+      color: color-mix(in srgb, var(--color-text) 86%, #92400e);
+      font-weight: 700;
     }
 
     .inline-hint-copy {

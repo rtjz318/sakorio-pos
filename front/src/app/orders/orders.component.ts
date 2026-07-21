@@ -728,6 +728,10 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
                               <span class="group-pill">{{ formatOrderTime(group.latestCreatedAt) }}</span>
                             }
                           </div>
+                          <div class="table-order-latest table-order-latest--warning" role="status">
+                            <span>Paid bill policy</span>
+                            <strong>Close the table or print the invoice here. Refunds, voids, split payments and reopened paid bills require manager/accounting handling outside this launch screen.</strong>
+                          </div>
                           @if (group.orders[0]; as latestOrder) {
                             <div class="table-order-latest" role="status">
                               <span>Settlement recorded</span>
@@ -817,6 +821,10 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
                 <div class="section-header history-header">
                   <h2>{{ 'ORDERS.ORDER_HISTORY' | translate }}</h2>
                   <span class="badge secondary">{{ completedOrders().length }}</span>
+                </div>
+                <div class="table-order-latest table-order-latest--warning history-policy-note" role="status">
+                  <span>Closed-session history</span>
+                  <strong>History is read-only for launch operations. Use invoice print/export for records; manager corrections, refunds and reopen flows must be recorded through the accounting process.</strong>
                 </div>
                 <div class="grid-container" (click)="onGridClick($event)">
                   <ag-grid-angular
@@ -1391,6 +1399,21 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .table-order-latest--warning {
+      max-width: min(100%, 56rem);
+      border-color: color-mix(in srgb, #f59e0b 34%, var(--color-border));
+      background: color-mix(in srgb, #f59e0b 14%, white);
+    }
+
+    .table-order-latest--warning strong {
+      white-space: normal;
+      color: color-mix(in srgb, var(--color-text) 86%, #92400e);
+    }
+
+    .history-policy-note {
+      margin: 0 0 var(--space-3);
     }
 
     .group-pill {

@@ -178,7 +178,8 @@ export class ReservationWeekSlotGridComponent {
           this.calendarYear.set(y);
           this.calendarMonth.set(mo);
           this.selectedDate.set(res.date);
-          // Let day-slots load + ensureTimeFitsDay pick the first bookable slot (avoids rounding API time down).
+          // Do not silently pick the first bookable slot. Requiring an explicit time choice
+          // prevents fast booking flows from submitting an unintended earliest slot.
           this.selectedTime.set('');
         },
         error: () => {},
@@ -240,15 +241,6 @@ export class ReservationWeekSlotGridComponent {
     return times.includes(timeStr) && res.cells[timeStr] === 'available';
   }
 
-  /** First selectable time for the day (same rules as `dayTimes()` + `available` cells). */
-  private firstBookableTimeForDay(res: ReservationBookDaySlotsResponse, dateStr: string): string {
-    if (res.date !== dateStr) return '';
-    for (const slot of this.dayTimesForSelectedDate(res, dateStr)) {
-      if (res.cells[slot] === 'available') return slot;
-    }
-    return '';
-  }
-
   private ensureTimeFitsDay(): void {
     const res = this.bookDaySlots();
     if (!res) return;
@@ -256,7 +248,7 @@ export class ReservationWeekSlotGridComponent {
     if (!dateStr) return;
     const t = this.selectedTime().trim();
     if (t && this.selectedTimeValidForDay(res, dateStr, t)) return;
-    this.selectedTime.set(this.firstBookableTimeForDay(res, dateStr));
+    this.selectedTime.set('');
   }
 
   isTodaySelected(): boolean {

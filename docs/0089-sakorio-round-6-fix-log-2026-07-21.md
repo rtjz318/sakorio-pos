@@ -86,3 +86,55 @@ Source QA brief: `docs/0088-sakorio-round-6-full-flow-browser-results-2026-07-21
   - Angular frontend hot-reload rebuilt successfully after the Products/POS changes.
   - Final short-window Docker frontend error scan returned no `error`, `failed`, `TS*`, or `NG*` matches.
   - Live-domain browser verification should be rerun after deployment.
+
+## Fix 5 - QR menu sold-out parity for older/imported menu rows
+
+- QA source: Priority order 3 live browser retest on `staff.sakorio.com` and `order.sakorio.com`.
+- Problem found:
+  - Marking Coffee sold out in Products hid Coffee from staff POS.
+  - The active table QR menu still showed Coffee because the customer menu was reading a same-name `TenantProduct` row that was not reliably linked to the legacy `Product` row updated by the staff Products screen.
+- Change made:
+  - Product availability sync now also updates same-tenant `TenantProduct` rows with a matching normalized name when `product_id` linkage is missing.
+  - The public QR menu endpoint now suppresses tenant-product rows when a same-name legacy product is unavailable, closing the launch-data gap for older/imported products.
+- Expected improvement:
+  - Staff “Sold out today” decisions apply consistently to staff POS and customer QR ordering.
+  - Imported menu rows no longer keep a sold-out item visible to customers just because the historical linkage is incomplete.
+- Verification:
+  - Backend syntax check passed with `python -m py_compile app/main.py` inside the Docker backend container.
+  - Live retest before the second backend filter confirmed the exact gap: staff POS hid Coffee, QR still showed Coffee.
+  - Live QR retest must be repeated after this follow-up backend commit is deployed.
+
+## Fix 6 - Reservation time selection safety
+
+- QA source: end-to-end reservation seating cases where the intended booking time and seated session time could diverge.
+- Problem found:
+  - The reservation week slot grid could silently auto-select the first bookable slot after calendar/day data loaded.
+  - Fast booking flows risked submitting an unintended earliest slot instead of the customer’s intended time.
+- Change made:
+  - Removed automatic first-slot selection.
+  - When a selected time is invalid for the chosen day, the time is cleared and the user must explicitly choose a valid slot.
+- Expected improvement:
+  - Public and staff reservation flows become safer and more predictable.
+  - Prevents “customer booked 7pm but system seated/recorded an earlier slot” confusion during host handoff.
+- Verification:
+  - Angular frontend hot-reload rebuilt successfully in Docker after the change.
+  - Live-domain browser verification should be rerun after deployment.
+
+## Fix 7 - Launch guardrails for payments, paid orders, split/merge policy and KDS workflow
+
+- QA source: Priority QA 1-4 follow-up from the 80-case regression scoring.
+- Problem found:
+  - Some real-world flows are operationally important but not fully enabled as accounting-grade modules yet: split bills, partial payments, paid-bill reopen, refunds/voids after settlement, and table merge settlement policy.
+  - Kitchen/bar tickets were functionally improved, but the action sequence could still rely too much on staff inference during rush.
+- Change made:
+  - POS checkout now clearly states the launch policy: one table session settles as one bill; split/partial/refund/reopen workflows require manager/accounting handling outside the POS checkout screen.
+  - Orders paid-awaiting-close and History screens now show paid-bill policy callouts so staff know those screens are for closing/printing/read-only records, not hidden post-settlement edits.
+  - KDS now shows a visible service-flow guide: New tickets -> In prep -> Ready pass -> Served/delivered, including the live-board/backlog behavior.
+- Expected improvement:
+  - Staff no longer hunt for unsupported controls during service.
+  - Launch behavior is explicit and safer until the future accounting/refund/split-bill modules are built.
+  - Kitchen/beverage operators have clearer steady-state workflow guidance.
+- Verification:
+  - Backend syntax check passed with `python -m py_compile app/main.py` inside the Docker backend container.
+  - Angular frontend hot-reload rebuilt successfully after the POS, Orders and KDS changes.
+  - Final Docker frontend error scan returned no `error`, `failed`, `TS*`, `NG*`, or bundle-failure matches.

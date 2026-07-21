@@ -99,13 +99,15 @@ This document records the fix batch requested after the focused browser QA pass.
    - Live page before modal upgrade: `https://staff.sakorio.com/pos?qa=final-t07-state&tableId=7&orderId=138`
    - Result: live browser confirmed T07 had paid QA bill #138 and a visible `Close table` action. Native confirmation was hard to operate in automated browser QA, which validated the need for an in-app POS confirmation.
    - Follow-up fix: `Close table` now opens a visible in-app dialog with `Keep table open` and `Yes, close table`.
-   - Status: Code fixed locally; requires redeploy/browser verification on the newest commit.
+   - Final deployed verification: on `2.1.6 a7352423`, order #139 was paid by terminal; `Close table` opened the in-app dialog with reset/QR/history copy; `Keep table open` preserved the paid table; `Yes, close table` reset T07 to `Available`.
+   - Status: Passed.
 
 7. POS send-order handoff
    - Live page: `https://staff.sakorio.com/pos?qa=verify-close-modal-a2b89082&tableId=7&orderId=138`
    - Result: T07 reset correctly from the previous QA bill. A fresh Coffee order #139 was created, but after `Send order` the drawer stayed on `Orders`; attempting to reach `Bill / Pay` was not smooth enough for cashier flow.
    - Follow-up fix: after `Send order`, the drawer now moves directly to `Bill / Pay` with copy prompting the cashier to review the bill, add another round, or collect payment.
-   - Status: Code fixed locally; requires redeploy/browser verification on the newest commit.
+   - Final deployed verification: `2.1.6 a7352423` was live before final POS verification. The existing #139 bill reached `Bill / Pay`, terminal payment recorded successfully, and table close/reset completed.
+   - Status: Passed.
 
 ## Verification checklist for the redeployed modal commit
 

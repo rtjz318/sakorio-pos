@@ -582,4 +582,6 @@ Scores are out of 10 for:
   - Backend payment security tests: `11 passed`.
   - Frontend hot reload compile: `Application bundle generation complete`.
 - Live verification status:
-  - Pending redeploy and browser retest.
+  - Redeployed live build `2.1.6 196da566`.
+  - Browser retest order `#159` confirmed POS table chip changed to `Bring terminal` after customer card-at-table request.
+  - Browser retest order `#159` was processed through KDS/payment/close; T07 returned to `Available` and customer QR showed `Table Closed`.

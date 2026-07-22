@@ -3768,3 +3768,177 @@ Scores are out of 10 for:
   - T09 closed and reset.
   - KDS active board verified clear.
 - Launch decision: launch-safe for wrong-table recovery before the order is sent.
+
+## E2E-043 - Sent wrong item before kitchen starts
+
+- Brief source: `0098`, E2E-043.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/orders`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Cashier sending the wrong item.
+  - Manager/cashier attempting pre-prep correction.
+  - Kitchen receiving only the corrected item after correction.
+- Starting state:
+  - T07 available.
+  - POS open bills `0`.
+  - Paid Today before payment: `SGD 138.50`.
+  - KDS active board clear.
+- Steps executed:
+  - Opened POS.
+  - Selected T07.
+  - Added wrong item `Coca Cola`.
+  - Verified unsent cart:
+    - `Coca Cola`
+    - `Items 1 item`
+    - `Total SGD 3.00`
+  - Clicked `Send order`.
+  - Verified order #192 was created.
+  - Observed first post-send refresh state briefly showed:
+    - `Order #192 sent for T07.`
+    - table drawer temporarily returned to `Ready for a new order`
+    - `No tickets yet`
+    - `SGD 0.00`
+  - Waited for live refresh.
+  - Verified stable live bill:
+    - `Bill #192 in service`
+    - `T07 · 1 item · SGD 3.00`
+    - `Bill #192 payable`
+    - `charge terminal - SGD 3.00`
+  - Checked KDS before starting kitchen prep.
+  - Verified KDS showed only:
+    - `#192`
+    - `T07`
+    - `1x Coca Cola`
+    - `Pending`
+    - `Start ticket`
+  - Checked POS table drawer current orders.
+  - Verified current-session order row:
+    - `Order #192`
+    - `pending`
+    - `1x Coca Cola`
+    - `Awaiting payment`
+    - `SGD 3.00`
+  - Checked full Orders page.
+  - Verified Orders grouped T07 as:
+    - `1 active ticket | SGD 3.00 on this table`
+    - `Latest #192`
+    - `NEWEST TICKET #192 · 1x Coca Cola`
+  - Opened `View tickets`.
+  - Verified ticket detail exposed:
+    - `Coca Cola`
+    - `SGD 3.00`
+    - `Remove item`
+    - `Pending`
+    - `Open bill`
+    - `Edit ticket`
+  - Clicked `Remove item`.
+  - Verified confirmation modal:
+    - `Are you sure you want to remove this item?`
+    - `Cancel`
+    - `Confirm`
+  - Clicked `Confirm`.
+  - Verified Orders outcome:
+    - `Item removed successfully`
+    - T07 active order moved out of active list.
+    - Order history remained read-only.
+  - Checked KDS again.
+  - Verified wrong ticket disappeared:
+    - `No active tickets`
+    - `No active orders`
+  - Returned to POS.
+  - Selected T07 and added corrected item `Coffee`.
+  - Verified corrected cart:
+    - `1 add-on item not sent yet · SGD 2.50 cart value`
+    - `Coffee`
+    - `Items 1 item`
+    - `Total SGD 2.50`
+  - Clicked `Send order`.
+  - Verified corrected order #193 was created.
+  - Observed another short post-send refresh lag where the drawer briefly showed `No tickets yet` / `SGD 0.00`.
+  - Waited for live refresh.
+  - Verified stable corrected bill:
+    - `Bill #193 in service`
+    - `T07 · 1 item · SGD 2.50`
+    - `Bill #193 payable`
+  - Checked KDS.
+  - Verified KDS showed only corrected item:
+    - `#193`
+    - `T07`
+    - `1x Coffee`
+    - no `Coca Cola`
+  - Advanced KDS:
+    - `Start ticket`
+    - `Ready for pass`
+    - `Served / Delivered`
+  - Verified KDS status toasts:
+    - `#193 started (1 item).`
+    - `#193 moved to ready (1 item).`
+  - Verified final KDS clear:
+    - `No active tickets`
+    - `No active orders`
+  - Returned to POS.
+  - Opened payment panel.
+  - Terminal-paid `SGD 2.50`.
+  - Verified payment state:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 141.00`
+    - `T07 Last bill #193 Paid`
+  - Observed paid table still exposed both:
+    - `Close table`
+    - `Start order`
+  - Clicked `Close table` -> `Yes, close table`.
+  - Verified immediate close toast:
+    - `T07 is clear and ready for the next cashier bill.`
+  - Waited for delayed board refresh.
+  - Verified final reset:
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 141.00`
+- Expected final state: wrong sent item can be safely removed before kitchen starts, KDS removes the wrong pending ticket, corrected order is created, paid, and table closes cleanly.
+- Actual final state:
+  - Pre-prep item removal worked through Orders -> View tickets -> Remove item.
+  - Wrong item disappeared from KDS before kitchen started.
+  - Corrected item appeared as a clean new bill/order #193.
+  - KDS progressed correctly and cleared.
+  - Payment and close completed.
+  - Final T07 reset succeeded after a short board refresh lag.
+- Cross-module verification:
+  - POS: wrong send, stable bill, corrected order, payment, close/reset verified.
+  - Orders: item removal confirmation, active/history movement, read-only history verified.
+  - KDS: wrong pending ticket removal, corrected ticket lifecycle, final clear verified.
+- Functional correctness: 9.1 / 10
+- UI/UX clarity: 8.3 / 10
+- Workflow speed: 8.2 / 10
+- Layout/device stability: 8.7 / 10
+- Data/payment/session integrity: 9.2 / 10
+- Launch readiness: 8.7 / 10
+- Final score: 8.7 / 10
+- Status: PASS WITH UX FIXES
+- Evidence:
+  - Wrong order: `#192`, `1x Coca Cola`, `Pending`.
+  - Correction path: `View tickets` -> `Remove item` -> `Confirm`.
+  - Removal confirmation: `Are you sure you want to remove this item?`.
+  - KDS after removal: `No active tickets`, `No active orders`.
+  - Corrected order: `#193`, `1x Coffee`, `SGD 2.50`.
+  - Payment/final: `PAID TODAY SGD 141.00`, T07 `Available`, `Ready for order`.
+- Defects found:
+  - P2: pre-prep correction exists but is buried in Orders -> View tickets; POS drawer does not expose a clear “Wrong item / remove before prep” path.
+  - P2: after sending a ticket, POS drawer briefly shows `No tickets yet` and `SGD 0.00` before stabilizing to the live bill. This can cause cashier confusion or accidental duplicate action.
+  - P1: after terminal payment, paid table still exposes `Start order` next to `Close table` before close. This recurring paid-table guard issue remains launch-critical until fixed.
+  - P3: after close confirmation, table board briefly still shows paid controls before delayed refresh completes.
+- Improvements needed:
+  - P1: hide/disable `Start order` for paid-but-not-closed tables; only `Close table`, `Orders`, and read-only bill actions should remain.
+  - P2: add a visible correction entry point from POS current order rows, e.g. `Remove before prep` with manager/audit wording.
+  - P2: show a stronger loading/refresh state after `Send order` so cashier does not see an empty bill while the backend refresh is catching up.
+  - P3: after close confirmation, force-refresh the table board or optimistically set the table to available immediately.
+- Cleanup performed:
+  - Wrong order #192 item removed before prep.
+  - Corrected order #193 served, terminal-paid, and closed.
+  - T07 reset.
+  - KDS active board verified clear.
+- Launch decision: functionally launch-safe for pre-prep correction, but requires UX polish and paid-table guard fix before “10/10” readiness.

@@ -3296,3 +3296,108 @@ Scores are out of 10 for:
   - Order #186 terminal-paid.
   - T07 closed and reset.
 - Launch decision: launch-safe for unpaid-close protection, but explicit close-block messaging would reduce cashier uncertainty.
+
+## E2E-038 - Paid-but-not-closed table attempts new order before reset
+
+- Brief source: `0098`, E2E-038.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Cashier.
+  - Waiter attempting next-customer flow too early.
+- Starting state:
+  - T07 available.
+  - POS open bills `0`.
+- Steps executed:
+  - Opened POS.
+  - Selected T07.
+  - Added `Coffee`.
+  - Sent order #187.
+  - Terminal-paid #187 without closing the table.
+  - Verified paid-but-not-closed state:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `T07 Last bill #187 Paid`
+    - board showed `Close table`
+    - board also still showed `Start order`
+  - Checked paid-state DOM actions.
+  - Verified drawer-level `Add items` was not exposed as an actionable DOM button immediately after payment, even though text rendering still contained `Add items`.
+  - Clicked the T07 board-level `Start order` while the paid bill was not closed.
+  - Observed T07 drawer reopened on the paid bill:
+    - `Last bill #187 paid`
+    - `Payment received - close the table`
+    - `Paid - close table next`
+    - `Orders 1`
+    - `History 71`
+  - Observed the reopened paid drawer still exposed:
+    - menu search
+    - product buttons
+    - `Current cart`
+    - `Send order`
+    - `Pay bill`
+  - Clicked product `Coffee`.
+  - Confirmed the system accepted a new unsent cart item after payment:
+    - `1 in cart`
+    - `SGD 2.50`
+    - `Coffee`
+    - `Items 1 item`
+    - `Total SGD 2.50`
+    - `Send order`
+  - Immediately clicked `Clear`.
+  - Verified cart returned to zero:
+    - `Items 0 items`
+    - `Total SGD 0.00`
+  - Used drawer-level `Close table`.
+  - Verified close confirmation:
+    - `Keep table open`
+    - `Yes, close table`
+  - Confirmed close.
+  - Verified final reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+  - Checked KDS after cleanup.
+  - Verified KDS had:
+    - `No active tickets`
+    - `No active orders`
+- Expected final state: paid-but-not-closed table must require `Close table` / reset before any new order or cart can start.
+- Actual final state:
+  - The app correctly signaled `Payment received - close the table`.
+  - However, T07 still exposed board-level `Start order` before close.
+  - Clicking `Start order` reopened the paid drawer and exposed menu/product controls.
+  - Clicking a product added a new unsent cart item to a paid-but-not-closed bill/session.
+  - The item was not sent and was cleared during cleanup.
+  - Table was closed and reset successfully after cleanup.
+- Cross-module verification:
+  - POS: paid-not-closed new-cart defect verified.
+  - KDS: final active board clear.
+- Functional correctness: 6.5 / 10
+- UI/UX clarity: 5.8 / 10
+- Workflow speed: 7.0 / 10
+- Layout/device stability: 8.0 / 10
+- Data/payment/session integrity: 6.0 / 10
+- Launch readiness: 6.4 / 10
+- Final score: 6.4 / 10
+- Status: FAIL - LAUNCH-BLOCKING POS SESSION GUARD DEFECT
+- Evidence:
+  - Paid state: `T07 Last bill #187 Paid`, `Close table`, `Start order`.
+  - After Start order: `Last bill #187 paid`, `Payment received - close the table`, product menu visible.
+  - Post-payment cart accepted: `1 in cart`, `Coffee`, `Total SGD 2.50`, `Send order`.
+  - Cleanup: cart cleared to `Items 0 items`, table closed/reset.
+- Defects found:
+  - P0: paid-but-not-closed tables must not allow `Start order` or product/cart interactions. Current behavior allows a cashier to add an unsent post-payment cart before table reset.
+  - P1: paid drawer text and actionable DOM are inconsistent; text shows `Add items`, and after `Start order` the menu/cart controls become actionable.
+  - P2: board-level `Start order` label appears beside a paid-but-not-closed table, which implies the table is ready for a new guest when it is not.
+- Improvements needed:
+  - P0: hide/disable `Start order` and all product/cart controls for paid-but-not-closed tables.
+  - P0: paid-but-not-closed drawer should have exactly one primary path: `Close table`; optional secondary `Current orders`/`Print invoice`.
+  - P1: if staff tries to start order before close, show a clear guard: `Close T07 before starting a new order`.
+  - P1: add automated regression for paid-not-closed table session guard.
+- Cleanup performed:
+  - Post-payment unsent Coffee cart was cleared.
+  - T07 closed and reset.
+  - KDS active board verified clear.
+- Launch decision: not launch-safe until the paid-but-not-closed `Start order`/cart guard is fixed.

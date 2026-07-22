@@ -325,3 +325,120 @@ Scores are out of 10 for:
   - QR session closed.
 - Remaining improvement:
   - Add table-specific accessible labels for the empty release buttons, e.g. `Release T07` and `Confirm release T07`, for cleaner automation and accessibility.
+
+### SKR-FINAL-E2E-006 - 4-pax reservation capacity safety, correct table, QR order, payment, close
+
+- Priority: P0
+- Roles simulated: customer, host, waiter, kitchen, cashier
+- Starting state: T07 and multiple 4-seat tables available; T06/T10 occupied by existing non-QA data.
+- Test data:
+  - Reservation `#81`, customer `Final QA SKR-FINAL-E2E-006 001844`, party size 4.
+  - Correct table selected: `T04` with 4 seats.
+  - Order `#153`: `Enchiladas` + `Coca Cola`, total `SGD 23.00`.
+- Browser steps executed:
+  - Created 4-pax public reservation.
+  - Staff Reservations showed primary action `Seat at table`.
+  - Seating modal offered only `T04 · 4 seats · Available`; smaller 2-seat tables were not offered as selectable options.
+  - Seated T04 and opened customer QR.
+  - Customer QR initially rendered an empty body once; reload recovered the menu.
+  - Customer entered name `E2E006 Party4` and ordered `Enchiladas` + `Coca Cola`.
+  - KDS processed order `#153` through `Start ticket`, `Ready for pass`, `Served / Delivered`.
+  - POS terminal-paid and closed T04.
+  - Reservation `#81` finished automatically.
+  - QR reload showed `Table Closed`.
+- Expected final state: capacity mismatch prevented before seating; correct table owns session; order paid; table reset.
+- Actual final state: matched expected after QR reload recovered.
+- Cross-module verification:
+  - Reservations: `#81 FINISHED`.
+  - POS: `T04 is clear and ready... Linked reservation #81 was finished`; `Paid today` increased to `SGD 176.50`.
+  - KDS: no active ticket after served.
+  - QR: closed after table close.
+- Functional correctness: 9.4 / 10
+- UI/UX clarity: 9.1 / 10
+- Workflow speed: 8.8 / 10
+- Layout/device stability: 9.0 / 10
+- Data/payment/session integrity: 9.5 / 10
+- Launch readiness: 9.3 / 10
+- Final score: 9.3 / 10
+- Status: PASS
+- Evidence:
+  - Seating modal displayed only `Seat at T04` for a 4-pax party.
+  - T04 order `#153` completed end to end.
+- Defects found: none blocking.
+- Improvements needed:
+  - QR/customer menu had one transient blank-body load after T04 handoff; reload recovered. Treat as P2/P3 reliability polish if it repeats.
+  - The capacity UI currently prevents mismatch by filtering small tables out. This is safe, but the modal could explain “smaller tables hidden because party size is 4” for host confidence.
+- Cleanup performed:
+  - T04 terminal-paid and closed.
+  - Reservation `#81` finished.
+  - QR session closed.
+- Launch decision: launch-safe.
+
+### SKR-FINAL-E2E-007 - Direct POS walk-in, staff order, add-on round, KDS, payment, close
+
+- Priority: P0
+- Roles simulated: walk-in customer, waiter, kitchen, cashier
+- Starting state: T07 available; T06/T10 seated with unrelated existing non-QA data.
+- Test data:
+  - Table: `T07`
+  - Staff POS bill/order: `#154`
+  - First round: `Tacos de Carne Asada` + `Coca Cola`
+  - Add-on round: `Coffee`
+  - Final bill total: `SGD 17.50`
+- Browser steps executed:
+  - Opened live POS at `staff.sakorio.com/pos`.
+  - Selected available T07 directly from the table board.
+  - Confirmed POS drawer opened in-place without navigation away from the table grid.
+  - Added `Tacos de Carne Asada` and `Coca Cola` from the staff-side POS menu.
+  - Sent first round to kitchen; POS created `Order #154`.
+  - Processed `#154` through KDS `Start ticket` -> `Ready for pass` -> `Served / Delivered`.
+  - Returned to T07 POS drawer and added a second staff-side round with `Coffee`.
+  - Sent add-on round to the same bill after a short rate-limit recovery.
+  - Processed the order through KDS again.
+  - Terminal-paid `SGD 17.50`.
+  - Used visible `Close table` button and final confirmation.
+  - Reloaded POS and confirmed T07 returned to `Available`.
+- Expected final state: pure POS service flow can start from an empty table, support a second staff round, keep one bill, reach KDS, settle terminal payment, and reset the table.
+- Actual final state:
+  - T07 returned to `Available`.
+  - Open bills returned to `0`.
+  - Paid today increased to `SGD 194.00`.
+  - Bill `#154` no longer appeared as a live/open bill.
+- Cross-module verification:
+  - POS: `T07 Available`, no `Bill #154 live`, no `Open bill`.
+  - KDS: ticket `#154` could be advanced through the kitchen states.
+  - Payment: terminal payment recorded for T07.
+- Functional correctness: 8.8 / 10
+- UI/UX clarity: 8.7 / 10
+- Workflow speed: 8.2 / 10
+- Layout/device stability: 9.0 / 10
+- Data/payment/session integrity: 9.0 / 10
+- Launch readiness: 8.7 / 10
+- Final score: 8.7 / 10
+- Status: PASS with polish fixes required
+- Evidence:
+  - First staff round notice: `Order #154 sent for T07. Review the bill, add another round, or collect payment.`
+  - Add-on success notice after retry: `Add-on round sent to bill #154 for T07. Current orders stay active until the table is closed.`
+  - Payment notice: `Terminal payment recorded for T07. Close the table when guests leave.`
+  - Final POS reload: `T07 Available`.
+- Defects / improvements found:
+  - P1/P2: second staff-side add-on briefly failed with raw API message `Http failure response for https://api.sakorio.com/menu/.../order: 429`. It recovered after cooldown, but staff POS add-on should not expose raw API errors or share an overly aggressive public QR order rate limit during real service.
+  - P2: add-on cart header said `3 items not sent yet` while only `1 in cart`; bill total was correct, but the copy should describe `1 add-on item not sent yet` or similar.
+  - P3: close confirmation detail rendered `After closeT07 becomes available` without a space.
+  - P3: POS table/action buttons still lack table-specific accessible labels in several places.
+- Cleanup performed:
+  - T07 terminal-paid and closed.
+  - Table reset verified.
+- Launch decision: launch-safe for the happy path, but staff add-on rate-limit/copy polish should be fixed before final launch confidence.
+
+#### Fix implemented from SKR-FINAL-E2E-007 findings
+
+- Code change:
+  - POS staff-side add-on rounds now use the authenticated `POST /orders/staff` flow instead of the public QR `POST /menu/{table_token}/order` flow.
+  - This keeps public QR guest ordering protected by public rate limits while reducing false `429` exposure in the staff POS service lane.
+  - POS add-on support copy now counts only unsent cart items, e.g. `1 add-on item not sent yet`, instead of mixing full bill item count with unsent cart count.
+  - Close/release confirmation detail now uses the correct label, `After close` or `After release`, before the table availability statement.
+- Local verification:
+  - Frontend hot reload compile: `Application bundle generation complete`.
+- Live verification status:
+  - Pending redeploy and browser retest.

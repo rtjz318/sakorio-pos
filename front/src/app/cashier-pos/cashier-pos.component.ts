@@ -1516,7 +1516,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
               </div>
             }
             <div class="inline-hint inline-hint--info">
-              <span>After close</span>
+              <span>{{ canClearTable(tableToClear) ? 'After close' : 'After release' }}</span>
               <strong>{{ tableToClear.name }} becomes available</strong>
             </div>
             <div class="action-row action-row--checkout-compact">
@@ -5974,7 +5974,9 @@ export class CashierPosComponent {
       return 'No bill has been sent yet. Release the table if this seating was a mistake.';
     }
     if (this.cartItemCount() > 0) {
-      return `${this.checkoutSummaryItemsCopy()} not sent yet · ${this.checkoutSummaryTotalCopy()} cart value`;
+      const cartCount = this.cartItemCount();
+      const cartCopy = cartCount === 1 ? '1 add-on item' : `${cartCount} add-on items`;
+      return `${cartCopy} not sent yet · ${this.checkoutSummaryTotalCopy()} cart value`;
     }
     if (this.hasCheckoutWork()) {
       return `${this.checkoutSummaryTableCopy()} · ${this.checkoutSummaryItemsCopy()} · ${this.checkoutSummaryTotalCopy()}`;
@@ -7518,22 +7520,12 @@ export class CashierPosComponent {
           notes: handoffPrefill?.note?.trim() || undefined,
         };
 
-        const orderResponse = liveBill
-          ? await (async () => {
-              access = access ?? await this.ensureStaffAccess(tableId);
-              return firstValueFrom(
-                this.api.submitOrder(access.table_token, {
-                  ...payload,
-                  staff_access: access.token,
-                }),
-              );
-            })()
-          : await firstValueFrom(
-              this.api.createStaffOrder({
-                table_id: tableId,
-                ...payload,
-              }),
-            );
+        const orderResponse = await firstValueFrom(
+          this.api.createStaffOrder({
+            table_id: tableId,
+            ...payload,
+          }),
+        );
         const createdOrderId = Number(orderResponse?.order_id);
         if (!Number.isFinite(createdOrderId) || createdOrderId <= 0) {
           throw new Error('The backend did not return a valid order id.');
@@ -7638,22 +7630,12 @@ export class CashierPosComponent {
         notes: handoffPrefill?.note?.trim() || undefined,
       };
 
-      const orderResponse = liveBill
-        ? await (async () => {
-            const access = await this.ensureStaffAccess(tableId);
-            return firstValueFrom(
-              this.api.submitOrder(access.table_token, {
-                ...payload,
-                staff_access: access.token,
-              }),
-            );
-          })()
-        : await firstValueFrom(
-            this.api.createStaffOrder({
-              table_id: tableId,
-              ...payload,
-            }),
-          );
+      const orderResponse = await firstValueFrom(
+        this.api.createStaffOrder({
+          table_id: tableId,
+          ...payload,
+        }),
+      );
       const orderId = Number(orderResponse?.order_id);
       if (!Number.isFinite(orderId) || orderId <= 0) {
         throw new Error('The backend did not return a valid order id.');

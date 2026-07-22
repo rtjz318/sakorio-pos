@@ -1611,3 +1611,77 @@ Scores are out of 10 for:
   - T07 terminal-paid and closed.
   - Staff-created queue entry cleared from active board.
 - Launch decision: launch-safe and strong for staff-created walk-in queue lifecycle.
+
+### SKR-FINAL-E2E-023 - Public waitlist leave/rejoin lifecycle
+
+- Priority: P0
+- Roles simulated: customer, host
+- Starting state: live browser QA after Phase C E2E-022; staff queue had previously shown zero active waiting guests and 3 stale hidden rows.
+- Test data:
+  - First customer attempt: `Final QA E2E-023 495818`
+  - First phone: `88495818`
+  - Second customer attempt: `Final QA E2E-023B 534754`
+  - Second phone: `91234754`
+  - Party size: `2`
+  - Notes: `E2E-023 leave and rejoin queue test`
+- Browser steps executed:
+  - Opened the live public waitlist page at `https://order.sakorio.com/waitlist/1`.
+  - Verified the page loaded the public queue form with:
+    - `Join the queue`
+    - `0 parties ahead`
+    - required `Name`, `Mobile number`, `Party size`, and `Notes for the host` fields.
+  - Filled customer name, mobile number, selected `2 guests`, and entered host notes.
+  - Clicked `Join queue`.
+  - Observed the live page stayed on the form and displayed:
+    - `We could not join the queue. Please check your details or speak to the host.`
+  - Retried the same workflow with a fresh realistic Singapore-style mobile number starting with `9`.
+  - Observed the same public failure message.
+  - Attempted to verify the host queue board after the failed public entries.
+  - Staff session had expired and redirected to `https://staff.sakorio.com/login`.
+  - Retried live staff login through the browser using the known staff login form controls:
+    - `input[name="username"]`
+    - `input[name="password"]`
+    - `button[type="submit"]`
+  - Observed the live login page returned:
+    - `Sign-in failed. Check your details and try again.`
+  - Checked all live in-app browser tabs; no authenticated staff tab remained.
+- Expected final state:
+  - Customer joins public waitlist.
+  - Public page shows queue number and position.
+  - Customer leaves queue.
+  - Host board no longer shows the left entry.
+  - Same customer rejoins once.
+  - Host seats the active rejoined entry only.
+  - Customer QR order, KDS, payment, and close-table flow complete.
+- Actual final state:
+  - Public waitlist join failed before a queue record could be created.
+  - No leave/rejoin lifecycle could be completed.
+  - Staff-side verification was blocked by live login rejection after session expiry.
+- Cross-module verification:
+  - Public waitlist: failed at join submission.
+  - Staff Queue: blocked by login rejection after session expiry.
+  - POS/KDS/payment/close: not reached for this use case.
+- Functional correctness: 3.0 / 10
+- UI/UX clarity: 5.0 / 10
+- Workflow speed: 2.0 / 10
+- Layout/device stability: 8.0 / 10
+- Data/payment/session integrity: 2.0 / 10
+- Launch readiness: 2.5 / 10
+- Final score: 3.5 / 10
+- Status: BLOCKED / FAIL
+- Evidence:
+  - Public waitlist first attempt showed the generic failure copy after submitting all required fields.
+  - Public waitlist second attempt with phone `91234754` showed the same generic failure copy.
+  - Staff login page showed `Sign-in failed. Check your details and try again.`
+  - Live authenticated staff tab was not available after checking the open browser tabs.
+- Defects found:
+  - P0: public waitlist submission is currently failing on the live site with generic error copy even when all required fields are completed.
+  - P0: live staff login rejected the known staff credentials after session expiry, blocking browser-only host/POS/KDS verification.
+  - P1: public waitlist failure copy is too generic for launch QA; it should show whether the issue is validation, duplicate/active queue state, tenant configuration, or server error.
+- Improvements needed:
+  - Add visible, specific public waitlist error states for validation vs duplicate vs server/API failure.
+  - Add focus-on-error behavior to the field or panel that requires user action.
+  - Confirm staff authentication availability before continuing the remaining Phase C browser-only workflows.
+- Cleanup performed:
+  - No queue row was created by the public attempts, so no customer/table cleanup was possible from this case.
+- Launch decision: not launch-safe for public waitlist leave/rejoin until the live public queue join and staff-login blocker are resolved.

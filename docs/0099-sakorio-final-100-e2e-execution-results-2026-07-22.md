@@ -794,3 +794,84 @@ Scores are out of 10 for:
   - Reservation `#83` finished.
   - Customer QR closed.
 - Launch decision: launch-safe.
+
+### SKR-FINAL-E2E-013 - Reservation created, host changes table assignment before arrival, seat/order/pay/close
+
+- Priority: P1
+- Roles simulated: customer, host, kitchen, cashier
+- Starting state: live build `2.1.6 196da566`; T07/T09/T04 available for seating.
+- Test data:
+  - Reservation `#84`
+  - Customer: `Final QA SKR-FINAL-E2E-013 355209`
+  - Phone: `+6588355209`
+  - Public booking time: `2026-07-22 20:15`
+  - Party size: `2`
+  - Table selected at arrival handoff: `T09`
+  - QR order: `#163`
+  - Items: `Tacos de Carne Asada`
+  - Final bill total: `SGD 12.00`
+- Browser steps executed:
+  - Opened public booking page at `order.sakorio.com/book/1`.
+  - Created same-day reservation `#84`.
+  - Opened staff Reservations and searched for `#84`.
+  - Clicked `Edit` to look for a true pre-arrival table assignment/change control.
+  - Verified the edit modal exposed reservation details, party size, seating preference, date/time, customer fields, and staff notes.
+  - Did not find a true table pre-assignment field or “reserve Txx before seating” control.
+  - Closed the edit modal.
+  - Clicked `Seat at table`.
+  - Verified the arrival handoff modal offered `Seat at T07`, `Seat at T09`, and `Seat at T04`.
+  - Chose `Seat at T09` to simulate host table selection at arrival.
+  - Verified POS opened T09 with reservation handoff notice, guest name, party size, QR active state, and visible QR link.
+  - Opened T09 customer QR.
+  - QR tab initially rendered blank after navigation; reloaded once and the menu recovered.
+  - Customer entered name `E2E013 Guest`.
+  - Customer added `Tacos de Carne Asada` and placed order `#163`.
+  - Verified customer QR did not show Cash.
+  - KDS showed `#163 · T09`, customer name, and item.
+  - Advanced `#163` through `Start ticket` -> `Ready for pass` -> `Served / Delivered`.
+  - Verified KDS returned to `No active orders`.
+  - Opened POS for T09 and verified `Bill #163 ready to pay`.
+  - Took Terminal payment for `SGD 12.00`.
+  - Verified Paid Today increased to `SGD 298.50`.
+  - Clicked `Close table`.
+  - Verified final confirmation warned that linked reservation `#84` would finish automatically and that T09 would become available.
+  - Confirmed close.
+  - Reloaded customer QR and Reservations for final verification.
+- Expected final state: host can change or pre-assign table before arrival, then seat the reservation and complete the normal QR/KDS/payment/close flow.
+- Actual final state:
+  - Current live system does not expose a true pre-arrival table pre-assignment/change control in the reservation edit modal.
+  - Arrival handoff table selection works well and allowed T09 to be selected.
+  - Reservation `#84` became `FINISHED`.
+  - T09 returned to closed/available QR state after table close.
+  - Customer QR showed `Table Closed`.
+  - KDS had no active ticket for `#163`.
+- Cross-module verification:
+  - Reservations: `#84 FINISHED`, search worked.
+  - Host handoff: seating choices had clear accessible labels.
+  - POS: `Bill #163 ready to pay`, terminal payment recorded, linked reservation finish copy shown.
+  - KDS: order appeared and cleared after served.
+  - QR: order placed, no Cash shown, closed after table close.
+- Functional correctness: 8.5 / 10
+- UI/UX clarity: 8.4 / 10
+- Workflow speed: 8.7 / 10
+- Layout/device stability: 8.6 / 10
+- Data/payment/session integrity: 9.4 / 10
+- Launch readiness: 8.7 / 10
+- Final score: 8.7 / 10
+- Status: PASS with P2 workflow gap
+- Evidence:
+  - Edit modal fields: party size, seating preference, date/time, customer name, phone, email, reservation notes, staff notes.
+  - Missing control: no table pre-assignment field found before seating.
+  - Handoff labels: `Seat at T07`, `Seat at T09`, `Seat at T04`.
+  - POS handoff notice: `T09 opened from reservation handoff for Final QA SKR-FINAL-E2E-013 355209.`
+  - QR order: `Order # 163`, `Status: Pending`, `SGD 12.00`.
+  - Close confirmation: `Linked reservation #84 ... will be finished automatically.`
+- Defects / improvements found:
+  - P2: Reservations needs a true pre-arrival table assignment/reservation hold control. The current wording says `Assign before arrival`, but the available action is effectively `Seat at table`, which immediately opens the table/QR session instead of reserving a table for an upcoming arrival.
+  - P3: Customer QR rendered blank after the first navigation and recovered after reload. This was not repeated in the same case, but QR first-load reliability should be watched in tablet/mobile regression.
+  - P3: the finished reservation search highlight still shows `NEW / SELECTED`, same as E2E-011 and E2E-012.
+- Cleanup performed:
+  - T09 terminal-paid and closed.
+  - Reservation `#84` finished.
+  - Customer QR closed.
+- Launch decision: launch-safe for normal arrival seating, but not launch-perfect for pre-arrival table assignment workflow.

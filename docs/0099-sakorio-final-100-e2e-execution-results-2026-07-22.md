@@ -291,6 +291,9 @@ Scores are out of 10 for:
   - The endpoint blocks release if any current-session order has active items.
   - The endpoint clears `order_pin`, `is_active`, `active_order_id`, finishes seated reservations, completes seated queue entries, publishes reservation/queue updates, and sends the `table_closed` order update for customer QR sessions.
   - POS now calls `releaseEmptyTable(tableId)` only for the empty-table release branch; paid close still uses `/tables/{id}/close`.
+- Root cause confirmed during live retest:
+  - The final confirmation modal existed in the DOM, but was visually hidden behind the POS table-service drawer because its z-index was lower than the drawer.
+  - Raised POS modal/backdrop z-index above the drawer so `Yes, release table` is visible and tappable in the browser.
 - Regression added:
   - `back/tests/test_close_table_finishes_seated_reservation.py::test_release_empty_table_finishes_seated_reservation_and_closes_qr_session`
 - Local verification:
@@ -298,4 +301,5 @@ Scores are out of 10 for:
   - Frontend hot reload compile: `Application bundle generation complete`.
   - Local HAProxy smoke: HTTP `200`.
 - Live verification status:
-  - Pending deployment, then E2E-005 must be re-run in browser and rescored.
+  - First live deploy confirmed backend/frontend hash `bcb9e22d`, then exposed the modal layering root cause.
+  - Pending second deployment for modal z-index fix, then E2E-005 must be re-run in browser and rescored.

@@ -5109,7 +5109,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       inset: 0;
       background: rgba(15, 23, 42, 0.35);
       backdrop-filter: blur(4px);
-      z-index: 40;
+      z-index: 300;
     }
 
     .modal-card {
@@ -5125,7 +5125,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       background: var(--color-surface);
       border: 1px solid var(--color-border);
       box-shadow: var(--shadow-lg);
-      z-index: 41;
+      z-index: 301;
       display: flex;
       flex-direction: column;
       gap: 1rem;

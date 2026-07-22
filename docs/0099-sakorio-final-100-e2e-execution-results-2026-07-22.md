@@ -3104,3 +3104,109 @@ Scores are out of 10 for:
   - Order #184 terminal-paid.
   - T07 closed and reset.
 - Launch decision: launch-safe for mode switching and same-bill add-ons, but the repeated UX issues should be grouped into a POS polish fix.
+
+## E2E-036 - Paid table close, table reset, Orders history, and QR closure check
+
+- Brief source: `0098`, E2E-036.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+  - `https://staff.sakorio.com/staff/orders`
+  - captured T07 QR link from POS.
+- Roles simulated:
+  - Cashier.
+  - Beverage/KDS staff.
+  - Customer QR observer, limited by browser tab behavior.
+- Starting state:
+  - T07 available.
+  - POS open bills `0`.
+  - KDS active board clear.
+- Steps executed:
+  - Opened POS.
+  - Selected T07.
+  - Captured live T07 QR link:
+    - `https://order.sakorio.com/menu/3b89cb81-33d4-402d-acc6-0be4a45d9b68?qr_access=...`
+  - Tried opening QR through the POS `Open` button.
+  - Observed browser did not create a readable new QR tab; it reused/listed existing QR tabs and one stale QR tab returned blank text.
+  - Added `Coffee`.
+  - Clicked `Send order`.
+  - Verified:
+    - `Order #185 sent for T07`
+    - `OPEN BILLS 1`
+    - `T07 Open order`
+    - `Bill #185 live`
+    - `T07 · 1 item · SGD 2.50`
+    - `Bill #185 payable`
+    - `Orders 1`
+    - `charge terminal - SGD 2.50`
+  - Opened KDS.
+  - Verified #185 appeared and advanced it through production.
+  - Returned to POS.
+  - Clicked `charge terminal - SGD 2.50`.
+  - Verified:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 120.50`
+    - `T07 Last bill #185 Paid`
+  - Observed post-payment drawer transition recurred:
+    - close continued from board-level `Close table`.
+  - Clicked board-level `Close table`.
+  - Verified `Yes, close table`.
+  - Confirmed close.
+  - Verified final POS reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 120.50`
+  - Opened Orders route in the live browser.
+  - Verified Orders History showed #185:
+    - `#185`
+    - `T07`
+    - `1x Coffee`
+    - `SGD 2.50`
+    - `Paid`
+    - `7/23/2026, 00:52:51`
+  - Attempted QR post-close verification by opening the captured QR URL again.
+  - Browser tab helper opened `about:blank` for the QR attempt, so the QR closed-page assertion could not be completed in this run.
+- Expected final state: paid close resets table, QR is closed, and Orders history records the paid order.
+- Actual final state:
+  - Paid close reset worked.
+  - Orders history updated and showed #185 as paid.
+  - KDS cleanup worked.
+  - QR post-close behavior was not conclusively verified because the browser QR tab opened blank in this run.
+  - POS provided the live QR link before close, but the live browser could not render a fresh post-close QR page for this case.
+- Cross-module verification:
+  - POS: paid close/reset verified.
+  - KDS: production clear verified.
+  - Orders: #185 paid history verified.
+  - QR: attempted but inconclusive due browser tab behavior.
+- Functional correctness: 8.6 / 10
+- UI/UX clarity: 8.2 / 10
+- Workflow speed: 8.3 / 10
+- Layout/device stability: 8.5 / 10
+- Data/payment/session integrity: 9.0 / 10
+- Launch readiness: 8.5 / 10
+- Final score: 8.5 / 10
+- Status: PARTIAL PASS - QR POST-CLOSE RECHECK NEEDED
+- Evidence:
+  - POS order: `Order #185 sent for T07`.
+  - POS payment: `Terminal payment recorded for T07`.
+  - POS reset: `T07 is clear and ready for the next cashier bill`, T07 `Available`.
+  - Orders row: `#185 T07 - 1x Coffee SGD 2.50 Paid 7/23/2026, 00:52:51`.
+  - QR link captured from POS before close.
+- Defects found:
+  - P2: post-payment drawer continuity issue recurred; close continues from board-level action.
+  - P2: in this live browser run, opening a fresh QR verification tab after close produced `about:blank`, preventing direct QR closed-state verification.
+  - P3: Orders page still exposes `Edit order` and `Delete order` icon buttons in read-only history; if these are not safe/audited manager actions, they should be hidden or permission-gated.
+- Improvements needed:
+  - P1: rerun QR post-close verification with a reliably claimable QR browser tab in the next QR-focused cases.
+  - P2: keep paid drawer open until close or show a clear handoff to board-level close.
+  - P2: make customer QR `Open` behavior deterministic and visible in the browser; if popup blocked/reused, show a status.
+  - P3: Orders history actions need clearer labels/permissions (`Print invoice` is safe; edit/delete need manager/audit guard).
+- Cleanup performed:
+  - Order #185 served in KDS.
+  - Order #185 terminal-paid.
+  - T07 closed and reset.
+- Launch decision: table close and Orders history are launch-safe; QR post-close must be rechecked in dedicated QR cases before final launch sign-off.

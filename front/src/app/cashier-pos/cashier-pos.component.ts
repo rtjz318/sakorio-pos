@@ -1032,14 +1032,13 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                   </div>
                 }
 
-                @if (qrHandoffTableId() === serviceTable.id) {
-                  @if (qrHandoffUrl(); as handoffUrl) {
+                @if (displayedCustomerQrUrl(serviceTable); as handoffUrl) {
                     <section class="inline-hint inline-hint--info inline-hint--stack" aria-label="Customer QR handoff">
                       <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
                         <qrcode [qrdata]="handoffUrl" [width]="132" [errorCorrectionLevel]="'M'" cssClass="qr-code"></qrcode>
                         <div class="inline-hint-copy" style="flex:1 1 18rem">
                           <strong>{{ serviceTable.name }} QR is ready</strong>
-                          <p>Show this QR or send the link below. The table session is open so guests can order from the current visit.</p>
+                          <p>Show this QR or send the link below. This visible link stays available even if the browser blocks popups or clipboard copy.</p>
                           <a [href]="handoffUrl" target="_blank" rel="noopener noreferrer" style="overflow-wrap:anywhere">{{ handoffUrl }}</a>
                         </div>
                       </div>
@@ -1048,10 +1047,8 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                         <button type="button" class="btn btn-secondary btn-sm" (click)="copyCustomerMenuUrl(serviceTable, handoffUrl)">
                           {{ qrLinkCopiedTableId() === serviceTable.id ? 'Copied' : 'Copy link' }}
                         </button>
-                        <button type="button" class="btn btn-ghost btn-sm" (click)="hideCustomerQrHandoff()">Hide</button>
                       </div>
                     </section>
-                  }
                 }
 
                 <section class="pos-service-loop" aria-label="Selected table service loop">
@@ -1073,6 +1070,14 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                     @if (canClearTable(serviceTable)) {
                       <button type="button" class="btn btn-primary btn-sm" (click)="clearTable(serviceTable)" [disabled]="pendingTableId() === serviceTable.id">
                         {{ pendingTableId() === serviceTable.id ? 'Closing...' : 'Close table' }}
+                      </button>
+                    } @else if (canReleaseEmptyTable(serviceTable)) {
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-sm"
+                        (click)="releaseEmptyTable(serviceTable)"
+                        [disabled]="pendingTableId() === serviceTable.id">
+                        {{ pendingTableId() === serviceTable.id ? 'Releasing...' : 'Release table' }}
                       </button>
                     } @else if (hasCheckoutWork()) {
                       <button
@@ -1476,11 +1481,18 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
             aria-labelledby="pos-clear-table-title"
           >
             <p class="pos-service-eyebrow">Final confirmation</p>
-            <h2 id="pos-clear-table-title">Close {{ tableToClear.name }}?</h2>
-            <p>
-              This resets the table for the next guest, ends the current QR ordering session,
-              and moves this table's current bill into History.
-            </p>
+            <h2 id="pos-clear-table-title">{{ canClearTable(tableToClear) ? 'Close' : 'Release' }} {{ tableToClear.name }}?</h2>
+            @if (canClearTable(tableToClear)) {
+              <p>
+                This resets the table for the next guest, ends the current QR ordering session,
+                and moves this table's current bill into History.
+              </p>
+            } @else {
+              <p>
+                This releases the empty table, ends the current QR ordering session, and returns it to Available.
+                Use this when a queue or reservation guest was seated by mistake before any bill was sent.
+              </p>
+            }
             @if (tableToClear.seated_reservation) {
               <div class="inline-hint inline-hint--warning">
                 Linked reservation #{{ tableToClear.seated_reservation.reservation_id }}
@@ -1496,7 +1508,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                 Keep table open
               </button>
               <button type="button" class="btn btn-primary" (click)="confirmClearTable()" [disabled]="pendingTableId() === tableToClear.id">
-                {{ pendingTableId() === tableToClear.id ? 'Closing...' : 'Yes, close table' }}
+                {{ pendingTableId() === tableToClear.id ? 'Working...' : (canClearTable(tableToClear) ? 'Yes, close table' : 'Yes, release table') }}
               </button>
             </div>
           </section>
@@ -5926,6 +5938,9 @@ export class CashierPosComponent {
     if (this.canClearTable(table)) {
       return 'Payment received - close the table';
     }
+    if (this.canReleaseEmptyTable(table)) {
+      return 'Start order or release this empty table';
+    }
     if (this.cartItemCount() > 0) {
       return 'Send this round to kitchen';
     }
@@ -5941,6 +5956,9 @@ export class CashierPosComponent {
   posLoopSupportCopy(table: CanvasTable): string {
     if (this.canClearTable(table)) {
       return `${table.name} is settled. Clear it to move this visit into History.`;
+    }
+    if (this.canReleaseEmptyTable(table)) {
+      return 'No bill has been sent yet. Release the table if this seating was a mistake.';
     }
     if (this.cartItemCount() > 0) {
       return `${this.checkoutSummaryItemsCopy()} not sent yet · ${this.checkoutSummaryTotalCopy()} cart value`;
@@ -6983,6 +7001,14 @@ export class CashierPosComponent {
       : baseUrl;
   }
 
+  displayedCustomerQrUrl(table: CanvasTable | null | undefined): string | null {
+    if (!table?.id) return null;
+    if (this.qrHandoffTableId() === table.id && this.qrHandoffUrl()) {
+      return this.qrHandoffUrl();
+    }
+    return table.is_active ? this.customerMenuUrl(table) : null;
+  }
+
   async openCustomerMenu(table: CanvasTable): Promise<void> {
     const url = this.customerMenuUrl(table);
     if (!url || typeof window === 'undefined') return;
@@ -7674,6 +7700,18 @@ export class CashierPosComponent {
     return paymentState === 'paid' || !!(currentOrder && this.isPaid(currentOrder));
   }
 
+  canReleaseEmptyTable(table: CanvasTable | null | undefined): boolean {
+    if (!table?.id || !table.is_active || table.active_order_id) {
+      return false;
+    }
+
+    if (this.cartTableId() === table.id && this.cartLines().length > 0) {
+      return false;
+    }
+
+    return this.posCurrentSessionOrders().length === 0;
+  }
+
   isReadyForCashier(table: CanvasTable | null | undefined): boolean {
     if (!table?.id || table.is_active === false) {
       return false;
@@ -7691,8 +7729,20 @@ export class CashierPosComponent {
     if (!table.id) {
       return;
     }
-    if (!this.canClearTable(table)) {
+    if (!this.canClearTable(table) && !this.canReleaseEmptyTable(table)) {
       this.error.set(`${table.name} still has an unpaid bill. Collect payment before clearing the table.`);
+      return;
+    }
+
+    this.pendingClearTable.set(table);
+  }
+
+  async releaseEmptyTable(table: CanvasTable): Promise<void> {
+    if (!table.id) {
+      return;
+    }
+    if (!this.canReleaseEmptyTable(table)) {
+      this.error.set(`${table.name} cannot be released while it has a cart or bill. Finish or clear the work first.`);
       return;
     }
 
@@ -7714,12 +7764,13 @@ export class CashierPosComponent {
 
     const tableId = tableToClear.id;
     const table = this.tables().find((candidate) => candidate.id === tableId) ?? tableToClear;
-    if (!this.canClearTable(table)) {
+    if (!this.canClearTable(table) && !this.canReleaseEmptyTable(table)) {
       this.pendingClearTable.set(null);
       this.error.set(`${table.name} still has an unpaid bill. Collect payment before clearing the table.`);
       return;
     }
 
+    const releasingEmptyTable = this.canReleaseEmptyTable(table);
     this.pendingTableId.set(tableId);
     this.error.set(null);
 
@@ -7731,7 +7782,11 @@ export class CashierPosComponent {
       const reservationFinishedCopy = table.seated_reservation
         ? ` Linked reservation #${table.seated_reservation.reservation_id} was finished.`
         : '';
-      this.notice.set(`${table.name} is clear and ready for the next cashier bill.${reservationFinishedCopy}`);
+      this.notice.set(
+        releasingEmptyTable
+          ? `${table.name} was released and is available again.${reservationFinishedCopy}`
+          : `${table.name} is clear and ready for the next cashier bill.${reservationFinishedCopy}`,
+      );
       if (this.selectedTableId() === tableId) {
         this.selectedTableId.set(null);
         this.selectedOrderId.set(null);

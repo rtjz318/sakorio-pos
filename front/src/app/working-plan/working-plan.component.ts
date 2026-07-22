@@ -56,6 +56,11 @@ function getMonthRange(month: Date): { from: string; to: string } {
   };
 }
 
+function toLocalDateKey(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
 
 /** Staff role keys used in opening hours (personnel required per day). */
@@ -511,6 +516,35 @@ function isValidView(v: string | null): v is ViewMode {
             <div class="empty-state"><p>{{ 'COMMON.LOADING' | translate }}</p></div>
           } @else {
           <p class="calendar-legend">{{ 'WORKING_PLAN.CALENDAR_LEGEND' | translate }}</p>
+          @if (selectedCalendarDay(); as selectedDay) {
+            <section class="calendar-selected-day-panel" aria-label="Selected timetable day">
+              <div>
+                <p class="eyebrow">Selected day</p>
+                <h3>{{ selectedDay.label }}</h3>
+                <p>{{ selectedDay.shifts.length }} shift{{ selectedDay.shifts.length === 1 ? '' : 's' }} planned</p>
+              </div>
+              @if (canWriteSchedule()) {
+                <button type="button" class="btn btn-primary btn-sm" (click)="openCreateForDate(selectedDay.date)">
+                  Add shift on this day
+                </button>
+              }
+              @if (selectedDay.shifts.length) {
+                <div class="calendar-selected-shifts">
+                  @for (shift of selectedDay.shifts; track shift.id) {
+                    <button
+                      type="button"
+                      class="calendar-selected-shift"
+                      (click)="openEdit(shift)"
+                      [style.--wp-shift-h]="shiftHue(shift.user_id)"
+                    >
+                      <strong>{{ shift.user_name || 'Staff' }}</strong>
+                      <span>{{ shift.start_time }}–{{ shift.end_time }} · {{ getRoleLabel(shift.user_role) }}</span>
+                    </button>
+                  }
+                </div>
+              }
+            </section>
+          }
           <div class="calendar-grid" data-testid="working-plan-calendar-grid">
             <div class="calendar-row calendar-header">
               @for (wd of weekdayLabels(); track wd) {
@@ -526,7 +560,9 @@ function isValidView(v: string | null): v is ViewMode {
                     [class.calendar-cell-closed]="cell.isClosed"
                     [class.calendar-day-matches]="cell.hasIssue"
                     [class.calendar-day-ok]="cell.showOk"
+                    [class.calendar-cell-selected]="selectedCalendarDate() === cell.dateStr"
                     [class.calendar-cell-drop-target]="draggedRosterUserId != null && !!cell.day && canWriteSchedule()"
+                    (click)="selectCalendarDate(cell.dateStr)"
                     (dragover)="onTimetableDragOver($event)"
                     (drop)="onRosterDropOnDate($event, cell.dateStr!)"
                   >
@@ -537,7 +573,7 @@ function isValidView(v: string | null): v is ViewMode {
                           <button
                             type="button"
                             class="calendar-add-shift"
-                            (click)="openCreateForDate(cell.dateStr!)"
+                            (click)="openCreateForDate(cell.dateStr!); $event.stopPropagation()"
                             [attr.aria-label]="'Add shift on ' + cell.dateStr"
                           >
                             + Add
@@ -560,7 +596,7 @@ function isValidView(v: string | null): v is ViewMode {
                                   <button
                                     type="button"
                                     class="calendar-shift-line calendar-shift-line--btn"
-                                    (click)="openEdit(line.shift)"
+                                    (click)="openEdit(line.shift); $event.stopPropagation()"
                                     [attr.aria-label]="calendarShiftEditAria(line.shift)"
                                     [attr.title]="line.text"
                                   >
@@ -1198,12 +1234,45 @@ function isValidView(v: string | null): v is ViewMode {
     .view-toggle .btn.active { background: var(--border-color, #eee); font-weight: 500; }
     .calendar-section { margin-bottom: 1.5rem; }
     .calendar-legend { font-size: 0.875rem; color: var(--text-muted, #666); margin: 0 0 0.5rem 0; }
+    .calendar-selected-day-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.75rem;
+      align-items: start;
+      margin: 0.75rem 0;
+      padding: 0.85rem;
+      border: 1px solid color-mix(in srgb, var(--primary-color, #0f766e) 22%, var(--border-color, #ddd));
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--primary-color, #0f766e) 7%, var(--card-bg, #fff));
+    }
+    .calendar-selected-day-panel h3,
+    .calendar-selected-day-panel p { margin: 0.1rem 0; }
+    .calendar-selected-shifts {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+      gap: 0.45rem;
+    }
+    .calendar-selected-shift {
+      display: grid;
+      gap: 0.12rem;
+      min-height: 3rem;
+      padding: 0.55rem 0.65rem;
+      border: 1px solid hsla(var(--wp-shift-h), 48%, 36%, 0.28);
+      border-left: 4px solid hsl(var(--wp-shift-h), 48%, 36%);
+      border-radius: 10px;
+      background: var(--card-bg, #fff);
+      text-align: left;
+      cursor: pointer;
+    }
+    .calendar-selected-shift span { color: var(--text-muted, #666); font-size: 0.82rem; }
     .calendar-grid { display: flex; flex-direction: column; gap: 2px; width: 100%; max-width: 100rem; }
     .calendar-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
     .calendar-cell {
       min-height: 7.75rem; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
       border: 1px solid var(--border-color, #eee); border-radius: 6px;
       font-size: 0.875rem; min-width: 0; padding: 0.3rem 0.35rem; gap: 0.15rem;
+      cursor: pointer;
     }
     .calendar-cell-drop-target {
       outline: 2px dashed rgba(15, 118, 110, 0.45);
@@ -1218,6 +1287,11 @@ function isValidView(v: string | null): v is ViewMode {
     .calendar-cell-closed:not(.calendar-day-matches) { background: var(--bg-muted, #ececec); color: var(--text-muted, #666); }
     .calendar-day-matches { background: rgba(220, 38, 38, 0.25); border-color: var(--danger, #dc2626); }
     .calendar-day-ok { background: rgba(22, 163, 74, 0.2); border-color: var(--color-success, #16a34a); }
+    .calendar-cell-selected {
+      outline: 3px solid color-mix(in srgb, var(--primary-color, #0f766e) 56%, transparent);
+      outline-offset: -3px;
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color, #0f766e) 12%, transparent);
+    }
     .calendar-day-head { display: flex; align-items: center; justify-content: space-between; gap: 0.35rem; flex-shrink: 0; }
     .calendar-day-num { font-weight: 600; flex-shrink: 0; }
     .calendar-add-shift {
@@ -1318,6 +1392,46 @@ function isValidView(v: string | null): v is ViewMode {
       color: var(--text-muted, #666);
       font-style: italic;
     }
+    @media (max-width: 1180px) {
+      .calendar-selected-day-panel {
+        grid-template-columns: 1fr;
+      }
+
+      .calendar-selected-day-panel .btn {
+        min-height: 2.75rem;
+      }
+
+      .calendar-cell {
+        min-height: 8.7rem;
+        padding: 0.45rem;
+      }
+
+      .calendar-add-shift {
+        min-height: 2rem;
+        padding-inline: 0.55rem;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .calendar-row {
+        gap: 4px;
+      }
+
+      .calendar-cell {
+        min-height: 7.5rem;
+      }
+
+      .calendar-cell:not(.calendar-cell-selected) .calendar-add-shift {
+        font-size: 0;
+        width: 2rem;
+        padding-inline: 0;
+      }
+
+      .calendar-cell:not(.calendar-cell-selected) .calendar-add-shift::before {
+        content: '+';
+        font-size: 0.9rem;
+      }
+    }
     .compliance-banner {
       margin-bottom: 1rem;
       padding: 0.75rem 1rem;
@@ -1368,6 +1482,7 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
   weekStart = signal<Date>(new Date());
   /** First day of the month for calendar view. */
   calendarMonth = signal<Date>(new Date());
+  selectedCalendarDate = signal<string | null>(toLocalDateKey(new Date()));
   shifts = signal<Shift[]>([]);
   /** Planned vs clocked rows for current date range (subset with activity). */
   plannedVsActualRows = signal<PlannedVsActualRow[]>([]);
@@ -1695,6 +1810,19 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
     const rows: { weekIndex: number; days: Cell[] }[] = [];
     for (let r = 0; r < cells.length; r += 7) rows.push({ weekIndex: r / 7, days: cells.slice(r, r + 7) });
     return rows;
+  });
+
+  selectedCalendarDay = computed(() => {
+    const date = this.selectedCalendarDate();
+    if (!date) return null;
+    const shifts = this.shifts()
+      .filter((shift) => shift.date === date)
+      .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+    return {
+      date,
+      label: this.formatCalendarDayLabel(date),
+      shifts,
+    };
   });
 
   ngOnInit(): void {
@@ -2371,6 +2499,7 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
     this.viewMode.set(mode);
     if (mode === 'calendar') {
       this.calendarMonth.set(new Date(this.weekStart().getFullYear(), this.weekStart().getMonth(), 1));
+      this.selectedCalendarDate.set(toLocalDateKey(this.weekStart()));
     }
     this.router.navigate(['/working-plan', mode]);
     this.load();
@@ -2380,6 +2509,7 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
     const d = new Date(this.calendarMonth());
     d.setMonth(d.getMonth() - 1);
     this.calendarMonth.set(d);
+    this.selectedCalendarDate.set(toLocalDateKey(d));
     this.load();
   }
 
@@ -2387,6 +2517,7 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
     const d = new Date(this.calendarMonth());
     d.setMonth(d.getMonth() + 1);
     this.calendarMonth.set(d);
+    this.selectedCalendarDate.set(toLocalDateKey(d));
     this.load();
   }
 
@@ -2408,6 +2539,7 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
     const now = new Date();
     this.weekStart.set(now);
     this.calendarMonth.set(new Date(now.getFullYear(), now.getMonth(), 1));
+    this.selectedCalendarDate.set(toLocalDateKey(now));
     this.load();
   }
 
@@ -2534,6 +2666,17 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
     this.openCreate();
     this.formDate = date;
     this.onFormDateChange(date);
+  }
+
+  selectCalendarDate(date: string | null | undefined): void {
+    if (!date) return;
+    this.selectedCalendarDate.set(date);
+  }
+
+  private formatCalendarDayLabel(date: string): string {
+    const d = new Date(`${date}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return date;
+    return `${d.getDate()} ${this.monthShort(d.getMonth())} ${d.getFullYear()}`;
   }
 
   openCreateForUser(userId: number): void {

@@ -663,7 +663,12 @@ const QUEUE_STALE_MINUTES = 12 * 60;
 
                 <div class="table-list">
                   @for (choice of matchingTableChoices(); track choice.table.id) {
-                    <button type="button" class="table-choice" (click)="seatEntry(entry, choice.table)">
+                    <button
+                      type="button"
+                      class="table-choice"
+                      (click)="seatEntry(entry, choice.table)"
+                      [attr.aria-label]="queueSeatChoiceAria(entry, choice)"
+                      [attr.title]="queueSeatChoiceAria(entry, choice)">
                       <div class="table-choice-top">
                         <strong>{{ choice.table.name }}</strong>
                         @if (choice.suggested) {
@@ -693,7 +698,7 @@ const QUEUE_STALE_MINUTES = 12 * 60;
                         </div>
                       </div>
                       <div class="table-choice-action">
-                        <span>Seat guest here</span>
+                        <span>Seat at {{ choice.table.name }}</span>
                         <span aria-hidden="true">→</span>
                       </div>
                     </button>
@@ -1611,6 +1616,7 @@ const QUEUE_STALE_MINUTES = 12 * 60;
       gap: 0.25rem;
       text-align: left;
       cursor: pointer;
+      min-height: 5.75rem;
     }
 
     .table-choice:hover {
@@ -1666,6 +1672,7 @@ const QUEUE_STALE_MINUTES = 12 * 60;
       color: #c2410c;
       font-size: 0.84rem;
       font-weight: 800;
+      min-height: 2.25rem;
     }
 
     @media (max-width: 1440px) {
@@ -2396,6 +2403,10 @@ export class QueueComponent implements OnInit {
       return 'Also an exact fit if the recommended table changes first.';
     }
     return 'Solid backup if the preferred seat changes before you commit.';
+  }
+
+  queueSeatChoiceAria(entry: GuestQueueEntry, choice: QueueTableChoice): string {
+    return `Seat ${entry.customer_name} at ${choice.table.name}`;
   }
 
   canNotify(entry: GuestQueueEntry): boolean {

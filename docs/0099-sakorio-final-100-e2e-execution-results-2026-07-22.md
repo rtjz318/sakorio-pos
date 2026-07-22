@@ -1340,3 +1340,103 @@ Scores are out of 10 for:
   - Reservation `#91` cancelled.
   - Customer QR closed.
 - Launch decision: launch-safe, with a recommended queue/reservation pressure indicator improvement.
+
+### SKR-FINAL-E2E-020 - Public booking invalid phone validation, correction, booking, seat/order/pay/close
+
+- Priority: P1
+- Roles simulated: customer, host, beverage, cashier
+- Starting state: live build `2.1.6 196da566`; public booking available for `2026-07-23`.
+- Test data:
+  - Invalid phone attempted: `123`
+  - Corrected reservation `#92`
+  - Customer: `Final QA SKR-FINAL-E2E-020 269351`
+  - Corrected phone: `+6588269351`
+  - Booking time: `2026-07-23 19:45`
+  - Assigned/seated table: `T07`
+  - QR order: `#171`
+  - QR guest: `E2E020 Corrected Guest`
+  - Items: `Coffee`
+  - Final bill total: `SGD 2.50`
+- Browser steps executed:
+  - Opened public booking page.
+  - Selected `2026-07-23 19:45`.
+  - Filled customer name, email, notes, and invalid phone `123`.
+  - Submitted the booking form.
+  - Verified validation appeared without losing form context.
+  - Verified focus returned to the phone field.
+  - Verified phone placeholder/example was visible: `+65 9123 4567`.
+  - Verified validation error text: `Enter a valid phone number (including country code if needed). Example: +65 9123 4567.`
+  - Corrected phone to `+65 8826 9351`.
+  - Submitted again and created reservation `#92`.
+  - Opened staff Reservations for `2026-07-23`.
+  - Searched `#92`.
+  - Assigned T07.
+  - Seated/opened T07.
+  - Opened POS for T07 to retrieve the visible QR link.
+  - Opened T07 customer QR.
+  - Customer entered name `E2E020 Corrected Guest`.
+  - Customer added `Coffee` and placed order `#171`.
+  - Verified customer QR did not show Cash.
+  - KDS showed `#171 · T07`, guest name, and item routed as `BEVERAGE / BEVERAGES`.
+  - Advanced `#171` through `Start ticket` -> `Ready for pass` -> `Served / Delivered`.
+  - Verified KDS live board cleared; #171 remained only briefly in the served toast/countdown.
+  - Took Terminal payment for `SGD 2.50`.
+  - Verified Paid Today increased to `SGD 396.00`.
+  - Closed T07.
+  - Verified close confirmation warned linked reservation `#92` would finish automatically.
+  - Reloaded customer QR and Reservations for final verification.
+- Expected final state: invalid phone is clearly explained and focused; corrected phone preserves form context; booking then completes normal seat/order/pay/close lifecycle.
+- Actual final state:
+  - Phone validation worked with focus, example copy, and no form data loss.
+  - Reservation `#92` became `FINISHED`.
+  - T07 QR showed `Table Closed`.
+  - KDS had no active ticket after served.
+- Cross-module verification:
+  - Public booking: invalid phone blocked submission and focused the phone field.
+  - Reservations: #92 created, assigned, seated, and finished.
+  - POS: T07 bill #171 paid and closed.
+  - KDS: #171 beverage ticket appeared and cleared.
+  - QR: no Cash shown; closed after table close.
+- Functional correctness: 9.7 / 10
+- UI/UX clarity: 9.6 / 10
+- Workflow speed: 9.0 / 10
+- Layout/device stability: 9.2 / 10
+- Data/payment/session integrity: 9.7 / 10
+- Launch readiness: 9.6 / 10
+- Final score: 9.6 / 10
+- Status: PASS
+- Evidence:
+  - Validation focus: active field `phone`.
+  - Placeholder: `+65 9123 4567`.
+  - Error: `Enter a valid phone number (including country code if needed). Example: +65 9123 4567.`
+  - Corrected booking: `Reservation number: #92`, phone `+6588269351`.
+  - QR order: `Order # 171`, `SGD 2.50`, no Cash.
+  - KDS route: `Coffee`, `BEVERAGE`, `BEVERAGES`.
+  - Close confirmation: `Linked reservation #92 ... will be finished automatically.`
+  - Final QR state: `Table Closed`.
+- Defects / improvements found:
+  - P3: reservation `Open POS` button timed out once in browser automation, but direct staff POS route loaded the correct live table/session. Watch whether this is a real click-latency issue or automation-only timing.
+  - P3: finished reservation search highlight still shows `NEW / SELECTED`.
+- Cleanup performed:
+  - T07 terminal-paid and closed.
+  - Reservation `#92` finished.
+  - Customer QR closed.
+- Launch decision: launch-safe and strong for booking validation.
+
+## Phase B checkpoint summary
+
+- Phase B executed cases: `SKR-FINAL-E2E-011` through `SKR-FINAL-E2E-020`.
+- Strong passes:
+  - Same-day reservation search/handoff.
+  - Party-size edit before seating.
+  - Future reservation table assignment.
+  - Parallel assigned reservations.
+  - Early-arrival seating.
+  - Cancellation before seating.
+  - Public phone validation.
+- Main improvement backlog from Phase B:
+  - P1: add safe table move/reseat for seated reservations before order.
+  - P1: add guarded table transfer for active bills or explicitly block with manager guidance.
+  - P2: queue board should surface near-term unassigned reservation pressure alongside table recommendation.
+  - P3: finished/cancelled reservation search highlight should not show `NEW / SELECTED`.
+- Phase B launch decision: launch-safe for normal reservation operations, but table move/transfer workflows need product work before calling the whole reservation/table-service experience “world class.”

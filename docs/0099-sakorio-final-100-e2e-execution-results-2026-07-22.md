@@ -1255,3 +1255,88 @@ Scores are out of 10 for:
   - Reservation `#90` finished.
   - Customer QR closed.
 - Launch decision: launch-safe and clear for early-arrival seating.
+
+### SKR-FINAL-E2E-019 - Queue exists while reservation is pending, host chooses queue, service/pay/close
+
+- Priority: P1
+- Roles simulated: customer, host, kitchen, cashier
+- Starting state: live build `2.1.6 196da566`; public waitlist available; reservation date constrained by live public availability.
+- Test data:
+  - Public queue entry: `Q0040`
+  - Queue customer: `Final QA SKR-FINAL-E2E-019 Queue 951276`, phone `+6588951276`, party size `2`
+  - Reservation `#91`: `Final QA SKR-FINAL-E2E-019 956669`, phone `+6588956669`, booking time `2026-07-23 19:30`
+  - Selected service path: queue guest seated first
+  - Table: `T07`
+  - QR order: `#170`
+  - QR guest: `E2E019 Queue Guest`
+  - Items: `Tacos de Carne Asada`
+  - Final bill total: `SGD 12.00`
+- Browser steps executed:
+  - Opened public waitlist at `order.sakorio.com/waitlist/1`.
+  - Customer joined queue as `Final QA SKR-FINAL-E2E-019 Queue 951276`.
+  - Verified public queue status page showed `Q0040`, position `1`, party `2 guests`, and quoted wait `Host confirming`.
+  - Opened public booking page and created reservation `#91`.
+  - Opened staff Queue.
+  - Verified live board showed one active web waitlist entry with phone, notes, party size, and ready table count.
+  - Verified host controls included `Notify guest`, `Cancel`, and table seating recommendations.
+  - Verified queue table recommendations:
+    - `T07 Best fit`
+    - `T09 Exact-fit backup`
+    - `T04 Larger backup`
+  - Opened staff Reservations for `2026-07-23` and searched `#91`.
+  - Verified #91 appeared as a pending reservation requiring assignment.
+  - Chose to seat the queue guest first at T07 from the queue board.
+  - POS opened T07 with queue handoff notice and visible QR link.
+  - Opened T07 customer QR.
+  - Customer entered name `E2E019 Queue Guest`.
+  - Customer added `Tacos de Carne Asada` and placed order `#170`.
+  - Verified customer QR did not show Cash.
+  - KDS showed `#170 · T07`, guest name, and item.
+  - Advanced `#170` through `Start ticket` -> `Ready for pass` -> `Served / Delivered`.
+  - First terminal-payment attempt briefly showed `Failed to fetch`; bill remained payable and unpaid.
+  - Retried the same visible terminal action once.
+  - Verified terminal payment recorded, Paid Today increased to `SGD 393.50`, and T07 became closeable.
+  - Closed T07.
+  - Verified T07 customer QR showed `Table Closed`.
+  - Reopened Queue and verified the queue entry was no longer active/visible.
+  - Reopened Reservations and cancelled unused synthetic reservation `#91` for cleanup.
+- Expected final state: host has enough information to decide queue vs late reservation; selected party completes service; queue clears; unserved synthetic reservation is cleaned safely.
+- Actual final state:
+  - Queue guest completed QR -> KDS -> terminal payment -> close.
+  - Queue board returned to zero waiting/notified/seated active entries.
+  - T07 QR showed `Table Closed`.
+  - Reservation `#91` was cancelled during cleanup.
+  - Terminal retry recovered safely after a transient `Failed to fetch`.
+- Cross-module verification:
+  - Waitlist: public queue position page and host queue board matched.
+  - Queue: entry disappeared from active board after table close.
+  - Reservations: #91 remained independent and was cancelled.
+  - POS: #170 paid and closed on T07.
+  - KDS: #170 appeared and cleared after served.
+  - QR: no Cash shown; closed after table close.
+- Functional correctness: 9.0 / 10
+- UI/UX clarity: 8.8 / 10
+- Workflow speed: 8.6 / 10
+- Layout/device stability: 9.1 / 10
+- Data/payment/session integrity: 9.2 / 10
+- Launch readiness: 9.0 / 10
+- Final score: 9.0 / 10
+- Status: PASS with decision-support notes
+- Evidence:
+  - Public queue: `Q0040`, `Position 1`, `2 guests`.
+  - Queue recommendation: `T07 Best fit`, `No upcoming reservation pressure on this table`.
+  - Reservation #91: `BOOKED`, `Assign a likely table before arrival`.
+  - POS handoff: `T07 opened from queue handoff for Final QA SKR-FINAL-E2E-019 Queue 951276.`
+  - QR order: `Order # 170`, `SGD 12.00`.
+  - Queue final counters: `WAITING GUESTS 0`, `NOTIFIED 0`, `SEATED 0`.
+  - Cleanup reservation: `#91 CANCELLED`.
+- Defects / improvements found:
+  - P2: queue table recommendation says `No upcoming reservation pressure on this table` when a competing reservation exists but is still unassigned. This is technically true for the specific table, but host decision support would be stronger if the queue board surfaced near-term unassigned reservation pressure separately.
+  - P3: first terminal attempt returned `Failed to fetch` but remained safely unpaid and retry succeeded. Keep monitoring transient payment API reliability.
+  - P3: cancelled reservation search highlight still shows `NEW / SELECTED`.
+- Cleanup performed:
+  - T07 terminal-paid and closed.
+  - Queue entry `Q0040` cleared from active board.
+  - Reservation `#91` cancelled.
+  - Customer QR closed.
+- Launch decision: launch-safe, with a recommended queue/reservation pressure indicator improvement.

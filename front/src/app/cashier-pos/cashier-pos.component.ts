@@ -2002,9 +2002,6 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
     }
 
     .pos-service-toolbar {
-      position: sticky;
-      top: 0;
-      z-index: 2;
       display: grid;
       gap: 0.65rem;
       padding-bottom: 0.75rem;

@@ -950,3 +950,81 @@ Scores are out of 10 for:
   - T07 terminal-paid and closed.
   - Customer QR closed.
 - Launch decision: launch-safe.
+
+### SKR-FINAL-E2E-015 - Seated reservation requests table move before ordering, then service/pay/close
+
+- Priority: P1
+- Roles simulated: customer, host, waiter, kitchen, cashier
+- Starting state: live build `2.1.6 196da566`; T07/T09/T04 available.
+- Test data:
+  - Reservation `#86`
+  - Customer: `Final QA SKR-FINAL-E2E-015 874915`
+  - Phone: `+6588874915`
+  - Public booking time: `2026-07-22 20:45`
+  - Initial seated table: `T07`
+  - QR order: `#165`
+  - QR guest: `E2E015 Guest`
+  - Items: `Pozole`
+  - Final bill total: `SGD 18.00`
+- Browser steps executed:
+  - Opened public booking page at `order.sakorio.com/book/1`.
+  - Created same-day reservation `#86`.
+  - Opened staff Reservations and searched for `#86`.
+  - Clicked `Seat at table`.
+  - Verified seating options `Seat at T07`, `Seat at T09`, and `Seat at T04`.
+  - Seated #86 at T07.
+  - POS opened T07 with reservation handoff notice, QR active state, and visible QR link.
+  - Before ordering, inspected the POS drawer for a direct `Move table`, `Transfer`, or `Change table` action.
+  - Verified no direct move/reseat action was available.
+  - Clicked `Release table` to test the closest available correction path.
+  - Verified release confirmation warned: linked reservation `#86` would be finished automatically.
+  - Chose `Keep table open` because this behavior is unsafe for a real “move before ordering” flow.
+  - Continued service on T07 to avoid leaving a live seating session open.
+  - Opened T07 customer QR.
+  - Customer entered name `E2E015 Guest`.
+  - Customer added `Pozole` and placed order `#165`.
+  - Verified customer QR did not show Cash.
+  - KDS showed `#165 · T07`, customer name, and item.
+  - Advanced `#165` through `Start ticket` -> `Ready for pass` -> `Served / Delivered`.
+  - Verified KDS returned to `No active orders`.
+  - Opened POS for T07 and took Terminal payment for `SGD 18.00`.
+  - Verified Paid Today increased to `SGD 331.50`.
+  - Clicked `Close table`.
+  - Verified close confirmation warned linked reservation `#86` would finish automatically.
+  - Confirmed close and reloaded QR/Reservations for final verification.
+- Expected final state: staff can move/reseat a seated reservation before any order is sent, preserving the reservation session and QR identity, then complete service normally.
+- Actual final state:
+  - No direct move/reseat action was available after seating.
+  - The available `Release table` correction path would finish the linked reservation, which is not a safe table-move workflow.
+  - Normal service flow on the original T07 table completed successfully.
+  - Reservation `#86` became `FINISHED` only at final close.
+  - T07 QR showed `Table Closed` after close.
+- Cross-module verification:
+  - Reservations: #86 created, seated, and finished at close.
+  - POS: T07 showed `Release table` before ordering, then bill #165 ready/paid/closeable.
+  - KDS: #165 appeared and cleared after served.
+  - QR: order placed, no Cash shown, closed after table close.
+- Functional correctness: 8.2 / 10
+- UI/UX clarity: 8.0 / 10
+- Workflow speed: 8.4 / 10
+- Layout/device stability: 9.0 / 10
+- Data/payment/session integrity: 8.8 / 10
+- Launch readiness: 8.3 / 10
+- Final score: 8.3 / 10
+- Status: PASS with P1 workflow gap
+- Evidence:
+  - Seating labels: `Seat at T07`, `Seat at T09`, `Seat at T04`.
+  - T07 pre-order state: `Guests seated, awaiting first order`, `Release table`.
+  - Release warning: `Linked reservation #86 ... will be finished automatically.`
+  - QR order: `Order # 165`, `Status: Pending`, `SGD 18.00`.
+  - Close confirmation: `Linked reservation #86 ... will be finished automatically.`
+  - Final QR state: `Table Closed`.
+- Defects / improvements found:
+  - P1: add a true `Move table` / `Reseat` action for seated reservations with no bill yet. It should let staff choose a new available table, transfer the reservation/session/QR cleanly, release the old table, and keep the reservation status as seated rather than finished.
+  - P2: current `Release table` copy is clear, but operationally dangerous as a workaround for table moves because it finishes the linked reservation.
+  - P3: finished reservation search highlight still shows `NEW / SELECTED`.
+- Cleanup performed:
+  - T07 terminal-paid and closed.
+  - Reservation `#86` finished.
+  - Customer QR closed.
+- Launch decision: launch-safe for ordinary service, but not launch-ready for “guest changes table before ordering” without a dedicated move/reseat action.

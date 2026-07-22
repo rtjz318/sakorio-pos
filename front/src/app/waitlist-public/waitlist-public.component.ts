@@ -31,6 +31,7 @@ export class WaitlistPublicComponent implements OnInit {
   cancelling = signal(false);
   error = signal<string | null>(null);
   copied = signal(false);
+  private activeStatusToken: string | null = null;
 
   form: PublicQueueCreate = {
     customer_name: '',
@@ -74,6 +75,7 @@ export class WaitlistPublicComponent implements OnInit {
     this.api.joinPublicQueue(this.tenantId, payload).subscribe({
       next: (status) => {
         localStorage.setItem(this.storageKey(), status.token);
+        this.activeStatusToken = status.token;
         this.status.set(status);
         this.submitting.set(false);
         this.watchStatus(status.token);
@@ -102,6 +104,7 @@ export class WaitlistPublicComponent implements OnInit {
   }
 
   startAgain(): void {
+    this.activeStatusToken = null;
     localStorage.removeItem(this.storageKey());
     this.status.set(null);
     this.error.set(null);
@@ -169,6 +172,7 @@ export class WaitlistPublicComponent implements OnInit {
   }
 
   private watchStatus(token: string): void {
+    this.activeStatusToken = token;
     interval(12_000)
       .pipe(
         startWith(0),
@@ -176,8 +180,15 @@ export class WaitlistPublicComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: (status) => this.status.set(status),
+        next: (status) => {
+          if (this.activeStatusToken !== token) return;
+          this.status.set(status);
+          if (!['waiting', 'notified', 'seated'].includes(status.status)) {
+            localStorage.removeItem(this.storageKey());
+          }
+        },
         error: () => {
+          if (this.activeStatusToken !== token) return;
           localStorage.removeItem(this.storageKey());
           this.status.set(null);
           this.error.set('We could not find that queue entry. You can join the queue again below.');

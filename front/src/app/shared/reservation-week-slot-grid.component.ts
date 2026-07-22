@@ -151,6 +151,9 @@ export class ReservationWeekSlotGridComponent {
       }
       return;
     }
+    if (sel && this.shouldAttemptDaySlotLoad(sel, states[sel])) {
+      return;
+    }
     const first = this.firstAvailableDateInMonth(states);
     if (first) {
       this.selectedDate.set(first);
@@ -199,7 +202,7 @@ export class ReservationWeekSlotGridComponent {
 
   private loadDaySlots(dateStr: string): void {
     const states = this.monthStates();
-    if (states[dateStr] !== 'available') {
+    if (!this.shouldAttemptDaySlotLoad(dateStr, states[dateStr])) {
       this.bookDaySlots.set(null);
       this.daySlotsLoading.set(false);
       return;
@@ -228,6 +231,24 @@ export class ReservationWeekSlotGridComponent {
           this.daySlotsLoading.set(false);
         },
       });
+  }
+
+  /**
+   * Month availability is an optimization for the calendar colour, not the final source of truth.
+   * In production QA the public month endpoint can briefly aggregate a day as out_of_hours while
+   * the exact day endpoint still has valid upcoming slots. Let the selected day ask the exact
+   * endpoint unless it is definitely past, closed, full, or outside the booking window.
+   */
+  private shouldAttemptDaySlotLoad(
+    dateStr: string,
+    state: ReservationBookWeekSlotState | undefined,
+  ): boolean {
+    if (!dateStr) return false;
+    if (state === 'available') return true;
+    if (state === 'past' || state === 'closed_day' || state === 'full' || state === 'out_of_range') {
+      return false;
+    }
+    return dateStr >= this.tenantTodayDateStr() && dateStr <= this.maxBookDateStr();
   }
 
   /** True when the current time is listed for the day and still bookable (not past / full). */
@@ -273,7 +294,7 @@ export class ReservationWeekSlotGridComponent {
         st === 'out_of_range' ||
         st === undefined,
       'dm-closed-day': st === 'closed_day',
-      'dm-selected': selected && st === 'available',
+      'dm-selected': selected,
     };
   }
 

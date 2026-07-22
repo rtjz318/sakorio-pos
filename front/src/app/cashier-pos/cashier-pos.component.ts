@@ -1190,13 +1190,23 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                           <div class="pos-service-live-bill">
                             <strong>Bill #{{ liveBill.id }}</strong>
                             <span>{{ liveBill.items.length }} items · {{ formatPrice(liveBill.total_cents || 0) }}</span>
-                            <button
-                              type="button"
-                              class="btn btn-primary btn-sm"
-                              [attr.aria-label]="'Pay live bill #' + liveBill.id + ' for ' + serviceTable.name"
-                              (click)="setPosDrawerView('checkout')">
-                              Pay bill
-                            </button>
+                            <div class="pos-service-live-bill-actions">
+                              <button
+                                type="button"
+                                class="btn btn-secondary btn-sm"
+                                [attr.aria-label]="'Add another round to bill #' + liveBill.id + ' for ' + serviceTable.name"
+                                (click)="setPosDrawerView('menu')">
+                                Add another round
+                              </button>
+                              <button
+                                type="button"
+                                class="btn btn-primary btn-sm"
+                                [attr.aria-label]="'Pay live bill #' + liveBill.id + ' for ' + serviceTable.name"
+                                (click)="setPosDrawerView('checkout')">
+                                Pay bill
+                              </button>
+                            </div>
+                            <small class="pos-service-live-bill-hint">Tap menu items on the left, then send the add-on round to the same bill.</small>
                           </div>
                           <div class="pos-service-cart-lines pos-service-cart-lines--readonly">
                             @for (item of liveBill.items; track $index) {
@@ -1251,7 +1261,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                               class="pos-service-submit pos-service-submit--secondary"
                               (click)="sendOrderToKitchen()"
                               [disabled]="!canSendOrderToKitchen()">
-                              {{ processingCheckout() ? 'Sending...' : 'Send order' }}
+                              {{ processingCheckout() ? 'Sending...' : sendOrderButtonLabel() }}
                             </button>
                           }
                           <button
@@ -6702,6 +6712,13 @@ export class CashierPosComponent {
     return `Collect ${this.checkoutSummaryTotalCopy()} and close the bill.`;
   }
 
+  sendOrderButtonLabel(): string {
+    if (this.hasPayableLiveBill()) {
+      return 'Send add-on round';
+    }
+    return 'Send order';
+  }
+
   checkoutOutcomeTitle(): string {
     const outcome = this.lastCheckoutOutcome();
     if (!outcome) {
@@ -7261,8 +7278,13 @@ export class CashierPosComponent {
           customizationSummary: customizationAnswers ? this.formatCustomizationSummary(customizationAnswers) : null,
         });
       }
-      return next;
-    });
+        return next;
+      });
+
+    const liveBill = this.payableLiveBillOrder();
+    if (liveBill) {
+      this.notice.set(`Added ${product.name} to the add-on round for bill #${liveBill.id}. Send the round when ready.`);
+    }
   }
 
   incrementLine(lineKey: string): void {
@@ -7643,7 +7665,11 @@ export class CashierPosComponent {
       this.selectedOrderId.set(orderId);
       this.clearCart();
       this.posDrawerView.set('checkout');
-      this.notice.set(`Order #${orderId} sent for ${table.name}. Review the bill, add another round, or collect payment.`);
+      this.notice.set(
+        liveBill
+          ? `Add-on round sent to bill #${orderId} for ${table.name}. Current orders stay active until the table is closed.`
+          : `Order #${orderId} sent for ${table.name}. Review the bill, add another round, or collect payment.`,
+      );
       this.loadData();
     } catch (err) {
       this.error.set(this.getErrorMessage(err, 'Unable to send the order to the kitchen.'));

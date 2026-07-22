@@ -2730,3 +2730,124 @@ Scores are out of 10 for:
   - Order #181 terminal-paid.
   - T07 closed and reset.
 - Launch decision: launch-safe for large POS cart, mixed KDS routing, and terminal close flow.
+
+## E2E-033 - POS pre-submit correction: wrong item removed before send
+
+- Brief source: `0098`, E2E-033.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Waiter/cashier.
+  - Beverage/KDS staff.
+- Starting state:
+  - T07 available.
+  - POS open bills `0`.
+  - KDS active board clear.
+- Steps executed:
+  - Opened POS.
+  - Selected T07.
+  - Added the wrong item `Coca Cola`.
+  - Verified wrong-cart state:
+    - `1 add-on item not sent yet`
+    - `SGD 3.00 cart value`
+    - `Coca Cola`
+    - `Total SGD 3.00`
+  - Clicked `Clear`.
+  - Verified cart returned to:
+    - `No tickets yet`
+    - `Ready for items`
+    - `Bill / Pay SGD 0.00`
+    - `Items 0 items`
+    - `Total SGD 0.00`
+    - Coca Cola quantity returned to `+`.
+  - Added the correct item `Coffee`.
+  - Verified corrected-cart state:
+    - `1 add-on item not sent yet`
+    - `SGD 2.50 cart value`
+    - `Coffee`
+    - `Items 1 item`
+    - `Total SGD 2.50`
+  - Clicked `Send order`.
+  - Verified toast:
+    - `Order #182 sent for T07`
+  - Observed recurring delayed-refresh inconsistency:
+    - immediate state temporarily showed `OPEN BILLS 0`, `Orders 0`, and no payable bill.
+  - Waited/refreshed the POS board.
+  - Verified live-bill state corrected to:
+    - `OPEN BILLS 1`
+    - `T07 Open order`
+    - `Bill #182 live`
+    - `Bill #182 payable`
+    - `T07 · 1 item · SGD 2.50`
+    - `Orders 1`
+    - `charge terminal - SGD 2.50`
+  - Opened KDS.
+  - Verified #182 appeared.
+  - Advanced #182 through:
+    - `Start ticket #182`
+    - `Ready for pass #182`
+    - `Served / Delivered #182`
+  - Verified KDS cleanup:
+    - `Ticket #182 served`
+    - `1 item delivered`
+    - `No active orders`
+  - Returned to POS.
+  - Clicked `charge terminal - SGD 2.50`.
+  - Verified:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 92.00`
+    - `T07 Last bill #182 Paid`
+  - Observed the drawer closed after payment, leaving only the board-level `Close table` action visible.
+  - Clicked board-level `Close table`.
+  - Verified close confirmation:
+    - `Keep table open`
+    - `Yes, close table`
+  - Confirmed close.
+  - Verified final reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+- Expected final state: staff can correct the cart before submission; only the corrected item reaches KDS/bill; table closes cleanly.
+- Actual final state:
+  - Wrong item was removed cleanly before send.
+  - Only the corrected Coffee order reached KDS and billing.
+  - Order #182 was served, terminal-paid, and closed.
+  - Table reset to available.
+  - Delayed POS refresh after `Send order` recurred.
+  - After terminal payment, the active drawer was no longer visible and close had to be completed from the board-level action.
+- Cross-module verification:
+  - POS: wrong item clear, corrected item send, payment, close verified.
+  - KDS: only corrected Coffee order #182 verified and cleared.
+- Functional correctness: 9.1 / 10
+- UI/UX clarity: 8.3 / 10
+- Workflow speed: 8.2 / 10
+- Layout/device stability: 8.6 / 10
+- Data/payment/session integrity: 9.4 / 10
+- Launch readiness: 8.7 / 10
+- Final score: 8.7 / 10
+- Status: PASS WITH UX FIXES
+- Evidence:
+  - Wrong cart: `Coca Cola`, `SGD 3.00`.
+  - Cleared cart: `Items 0 items`, `Total SGD 0.00`.
+  - Correct cart: `Coffee`, `SGD 2.50`.
+  - Sent toast: `Order #182 sent for T07`.
+  - Live bill after refresh: `Bill #182 payable`, `SGD 2.50`.
+  - KDS: `Ticket #182 served`, `1 item delivered`.
+  - Payment: `Terminal payment recorded for T07`.
+  - Final reset: T07 `Available`, `Ready for order`.
+- Defects found:
+  - P2: send-order delayed-refresh/stale drawer state recurred after #182.
+  - P3: after payment, the drawer disappeared/was no longer active, so closing had to continue from the board-level `Close table` action. The board action works, but the shift in context may surprise a cashier.
+- Improvements needed:
+  - P2: make `Send order` update live bill and counters atomically in the current drawer.
+  - P3: after payment, keep the paid table drawer open with an obvious `Close table` primary button until the table is closed, or show a clear transition message pointing to the board action.
+  - P3: consider a lightweight undo/clear confirmation if the cart contains many items; single-item `Clear` is fast and safe.
+- Cleanup performed:
+  - Order #182 served in KDS.
+  - Order #182 terminal-paid.
+  - T07 closed and reset.
+- Launch decision: correction-before-send is launch-safe; delayed refresh and post-payment drawer continuity should be polished before final launch.

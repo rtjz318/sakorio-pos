@@ -1863,3 +1863,95 @@ Scores are out of 10 for:
   - Queue entry `Q0046` cancelled.
   - Active queue counters returned to zero.
 - Launch decision: launch-safe for capacity protection; polish copy before final front-door launch.
+
+### SKR-FINAL-E2E-025 - Duplicate public queue entry guard, then service completion
+
+- Priority: P0
+- Roles simulated: customer, host, beverage station, cashier
+- Starting state: live browser authenticated; Queue active counters zero after E2E-024 cleanup.
+- Test data:
+  - Customer: `Final QA E2E-025 204791`
+  - Phone: `91254791`
+  - First queue entry: `Q0047`
+  - Duplicate attempt result: `Q0047`
+  - Seated table: `T07`
+  - QR order: `#175`
+  - Item: `Coca Cola`
+  - Final bill total: `SGD 3.00`
+- Browser steps executed:
+  - Opened public waitlist and cleared the previous local waitlist status from the browser tab.
+  - Joined queue as `Final QA E2E-025 204791`.
+  - Verified public status page showed `Q0047`, position `1`, party `2 guests`.
+  - Cleared the local waitlist status and attempted to join again with the same name and phone.
+  - Verified the duplicate attempt returned the same active queue entry `Q0047` instead of creating a new queue number.
+  - Opened staff Queue.
+  - Verified host board showed one active waiting guest.
+  - Verified the active guest could be seated using `Seat Final QA E2E-025 204791 at T07`.
+  - Opened customer QR from the T07 handoff.
+  - Entered customer name when prompted.
+  - Added `Coca Cola`.
+  - Placed order.
+  - Verified customer QR showed:
+    - `Order # 175`
+    - `Status: Pending`
+    - `SGD 3.00`
+    - no `Cash` payment option.
+  - Opened KDS.
+  - Verified `#175 · T07` appeared under beverage routing:
+    - `Coca Cola`
+    - `BEVERAGE`
+    - `BEVERAGES`
+  - Advanced the ticket:
+    - `Start ticket #175`
+    - `Ready for pass #175`
+    - `Served / Delivered #175`
+  - Verified KDS showed `No active tickets`, `Ticket #175 served`, and `No active orders`.
+  - Opened POS for T07.
+  - Opened payment panel.
+  - Selected `Terminal`.
+  - Confirmed `charge terminal - SGD 3.00`.
+  - Verified terminal payment recorded.
+  - Closed table with `Close table` -> `Yes, close table`.
+  - Verified POS showed:
+    - `T07 is clear and ready for the next cashier bill.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 3.00`
+  - Reopened customer QR and verified `Table Closed`.
+  - Reopened Queue and verified active counters returned to zero and the QA guest no longer appeared.
+- Expected final state: duplicate public join returns the existing active queue entry, host seats one active record, and the service/payment/close flow completes once.
+- Actual final state:
+  - Duplicate guard worked: both attempts resolved to `Q0047`.
+  - Only one active host queue entry existed.
+  - The single active entry completed service through QR, beverage KDS, terminal payment, and table close.
+- Cross-module verification:
+  - Public waitlist: duplicate same-phone attempt returned the existing queue entry.
+  - Staff Queue: one active queue record only; final counters zero.
+  - POS: table handoff, bill #175, terminal payment, and close verified.
+  - KDS: beverage routing appeared and cleared.
+- Functional correctness: 9.6 / 10
+- UI/UX clarity: 9.1 / 10
+- Workflow speed: 8.9 / 10
+- Layout/device stability: 9.1 / 10
+- Data/payment/session integrity: 9.7 / 10
+- Launch readiness: 9.4 / 10
+- Final score: 9.4 / 10
+- Status: PASS
+- Evidence:
+  - First public queue number: `Q0047`.
+  - Duplicate public attempt result: `Q0047`.
+  - Accessible seating label: `Seat Final QA E2E-025 204791 at T07`.
+  - QR order: `Order #175`, `Coca Cola`, `SGD 3.00`, no Cash.
+  - KDS route: `BEVERAGE / BEVERAGES`.
+  - Payment nodes verified in live UI: `Terminal`, `charge terminal - SGD 3.00`.
+  - Final QR: `Table Closed`.
+  - Queue final: `WAITING GUESTS 0`, QA name absent from active board.
+- Defects found:
+  - None blocking.
+- Improvements needed:
+  - P2: public duplicate guard returns the existing entry cleanly, but the customer-facing copy does not explicitly say `You are already in the queue`; add that explanation to reduce confusion.
+  - P3: host board duplicates the selected guest name in the card and details panel, which is expected, but QA counting needs to distinguish one record from repeated display locations.
+- Cleanup performed:
+  - Order #175 terminal-paid.
+  - T07 closed and reset.
+  - Active queue counters returned to zero.
+- Launch decision: launch-safe for duplicate public queue protection.

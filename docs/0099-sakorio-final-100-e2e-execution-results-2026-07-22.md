@@ -1793,3 +1793,73 @@ Scores are out of 10 for:
   - T07 closed and reset.
   - Queue active counters returned to zero.
 - Launch decision: launch-safe after recovery; keep the original E2E-023 failure above as evidence of transient live availability/auth instability.
+
+### SKR-FINAL-E2E-024 - Oversized waitlist party capacity guard
+
+- Priority: P0
+- Roles simulated: customer, host
+- Starting state: live browser authenticated; Queue active counters zero; T07 reset after E2E-023R.
+- Test data:
+  - Customer: `Final QA E2E-024 045698`
+  - Phone: `91245698`
+  - Queue entry: `Q0046`
+  - Party size: `12`
+  - Notes: `E2E-024 oversized party table-fit warning test`
+- Browser steps executed:
+  - Opened public waitlist.
+  - Joined queue as a 12-guest party.
+  - Verified public status page showed:
+    - `Q0046`
+    - `Position 1`
+    - `Party 12 guests`
+    - `Leave queue`
+  - Opened staff Queue.
+  - Verified host board showed the oversized web waitlist entry:
+    - `Final QA E2E-024 045698`
+    - `12 pax`
+    - `WEB WAITLIST`
+    - `READY TABLES 0`
+  - Verified the selected guest panel showed `Choose a table` with `0 ready`.
+  - Verified no accessible seat button was rendered for `T01`-`T10`.
+  - Verified host still had safe non-seating actions:
+    - `Notify guest`
+    - `Cancel`
+    - `No-show`
+    - `Create reservation`
+  - Cancelled the QA queue entry using `Cancel` -> `Cancel queue entry`.
+  - Verified active Queue counters returned to:
+    - `WAITING GUESTS 0`
+    - `NOTIFIED 0`
+    - `SEATED 0`
+- Expected final state: oversized party can join waitlist but cannot be seated into an undersized table; host must notify, cancel/no-show, convert to reservation, or wait for suitable capacity.
+- Actual final state:
+  - Public waitlist accepted the party, which is valid because queueing does not guarantee immediate seating.
+  - Staff host board correctly blocked unsafe seating by showing `READY TABLES 0` and rendering no seat actions.
+  - QA entry was cancelled and cleared from active counters.
+- Cross-module verification:
+  - Public waitlist: oversized queue entry created and visible.
+  - Staff Queue: capacity guard and no-seat state verified.
+  - POS/KDS/payment: intentionally not reached because no safe table was available for the 12-pax party.
+- Functional correctness: 9.4 / 10
+- UI/UX clarity: 8.7 / 10
+- Workflow speed: 9.0 / 10
+- Layout/device stability: 9.1 / 10
+- Data/payment/session integrity: 9.5 / 10
+- Launch readiness: 9.1 / 10
+- Final score: 9.1 / 10
+- Status: PASS
+- Evidence:
+  - Public status: `Q0046`, `Party 12 guests`.
+  - Host board: `12 pax`, `READY TABLES 0`.
+  - No seat button appeared for the oversized queue entry.
+  - Cleanup: active counters returned to zero after cancel.
+- Defects found:
+  - None blocking.
+- Improvements needed:
+  - P2: host copy says `Tap to notify or seat` even when `READY TABLES 0`; for oversized parties this should change to `No table fits yet — notify, convert, or cancel`.
+  - P2: selected guest panel heading says `Choose a table` even when no tables can fit; use a stronger no-capacity empty state.
+  - P3: public waitlist accepts 12-pax entries but does not set customer expectations that larger parties may require host confirmation or manual arrangement.
+- Cleanup performed:
+  - Queue entry `Q0046` cancelled.
+  - Active queue counters returned to zero.
+- Launch decision: launch-safe for capacity protection; polish copy before final front-door launch.

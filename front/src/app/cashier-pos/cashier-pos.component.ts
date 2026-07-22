@@ -1516,8 +1516,10 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
               </div>
             }
             <div class="inline-hint inline-hint--info">
-              <span>{{ canClearTable(tableToClear) ? 'After close' : 'After release' }}</span>
-              <strong>{{ tableToClear.name }} becomes available</strong>
+              <span>
+                {{ canClearTable(tableToClear) ? 'After close' : 'After release' }},
+                <strong>{{ tableToClear.name }}</strong> becomes available.
+              </span>
             </div>
             <div class="action-row action-row--checkout-compact">
               <button type="button" class="btn btn-secondary" (click)="cancelClearTable()" [disabled]="pendingTableId() === tableToClear.id">

@@ -441,4 +441,9 @@ Scores are out of 10 for:
 - Local verification:
   - Frontend hot reload compile: `Application bundle generation complete`.
 - Live verification status:
-  - Pending redeploy and browser retest.
+  - Redeployed live build `2.1.6 8c300cc1`.
+  - Browser retest bill `#155` confirmed POS add-on copy changed to `1 add-on item not sent yet · SGD 17.50 cart value`.
+  - Browser retest bill `#155` confirmed add-on round sent successfully with no raw `429`.
+  - Browser retest bill `#155` was processed through KDS/payment/close; T07 returned to `Available`.
+  - Follow-up spacing issue still appeared in live confirmation as `After closeT07`; patched confirmation detail into a single sentence: `After close, T07 becomes available.`
+  - Final spacing live retest pending next redeploy.

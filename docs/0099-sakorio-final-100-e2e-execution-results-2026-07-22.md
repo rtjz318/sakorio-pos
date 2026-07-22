@@ -2220,3 +2220,114 @@ Scores are out of 10 for:
   - No live queue entry was created.
   - No service table/order state was changed.
 - Launch decision: service-safe because stale rows remain hidden, but not fully launch-polished until archive cleanup actually clears stale QA/test rows.
+
+### SKR-FINAL-E2E-029 - Queue guest preferences influence seating recommendation, service completes
+
+- Priority: P1
+- Roles simulated: host, customer, beverage station, cashier
+- Starting state: live browser authenticated; Queue active counters zero after E2E-028.
+- Test data:
+  - Customer: `Final QA E2E-029 432876`
+  - Phone: `+6591292876`
+  - Party size: `2`
+  - Quoted wait: `8 min`
+  - Preferred floor: `Main`
+  - Preferred seats: `2`
+  - Seated table: `T07`
+  - QR order: `#177`
+  - Item: `Coffee`
+  - Final bill total: `SGD 2.50`
+- Browser steps executed:
+  - Opened staff Queue.
+  - Filled `New walk-in` form:
+    - guest name
+    - phone
+    - party size `2`
+    - quoted wait `8`
+    - preferred floor `Main`
+    - preferred seats `2`
+    - notes: `E2E-029 prefers Main floor and exact 2-seat table`
+  - Submitted `Add to queue`.
+  - Verified selected guest panel showed:
+    - `Start with Main if a clear table is ready`
+    - `QUOTE 8 min`
+    - `SOURCE Host stand`
+    - `Main`
+    - `2 seats preferred`
+  - Verified recommendation panel showed:
+    - `RECOMMENDED TABLE T07`
+    - `Exact fit`
+    - `Preferred floor matched`
+    - `T07 Best fit`
+    - `T09 Exact-fit backup`
+    - `T04 Larger backup`
+  - Seated the guest at T07.
+  - Opened QR from T07.
+  - First QR tab rendered blank; opened the same QR in a fresh browser tab and continued successfully.
+  - Entered guest name when prompted.
+  - Added `Coffee`.
+  - Placed order.
+  - Verified QR showed:
+    - `Order #177`
+    - `Status: Pending`
+    - `SGD 2.50`
+    - no `Cash` option.
+  - Opened KDS.
+  - Verified beverage route:
+    - `#177 · T07`
+    - `Coffee`
+    - `BEVERAGE`
+    - `BEVERAGES`
+  - Advanced ticket:
+    - `Start ticket #177`
+    - `Ready for pass #177`
+    - `Served / Delivered #177`
+  - Verified KDS cleared to `No active tickets` / `No active orders`.
+  - Opened POS for T07.
+  - Opened payment panel.
+  - Selected `Terminal`.
+  - Confirmed `charge terminal - SGD 2.50`.
+  - Closed the table with `Close table` -> `Yes, close table`.
+  - Verified POS showed:
+    - `T07 is clear and ready for the next cashier bill.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 8.00`
+  - Reopened QR and verified `Table Closed`.
+  - Reopened Queue and verified active counters returned to zero and the QA guest was absent.
+- Expected final state: preferred floor/seats are visible to host and influence table recommendations; service/payment/close completes cleanly.
+- Actual final state:
+  - Preferences were visible and correctly reflected in recommendation copy.
+  - Host recommendation selected exact-fit T07 on preferred floor.
+  - QR/KDS/payment/close lifecycle completed.
+  - Queue active board returned to zero.
+- Cross-module verification:
+  - Staff Queue: preferences and recommendation details verified.
+  - POS: queue handoff, payment, and close verified.
+  - Public QR: order placed and closed after table close.
+  - KDS: beverage routing verified and cleared.
+- Functional correctness: 9.4 / 10
+- UI/UX clarity: 9.2 / 10
+- Workflow speed: 8.7 / 10
+- Layout/device stability: 8.8 / 10
+- Data/payment/session integrity: 9.6 / 10
+- Launch readiness: 9.3 / 10
+- Final score: 9.3 / 10
+- Status: PASS WITH WATCH
+- Evidence:
+  - Preference copy: `Main`, `2 seats preferred`.
+  - Recommendation copy: `Exact fit`, `Preferred floor matched`, `T07 Best fit`.
+  - QR order: `Order #177`, `Coffee`, `SGD 2.50`, no Cash.
+  - KDS route: `BEVERAGE / BEVERAGES`.
+  - Payment/close: `T07 is clear and ready for the next cashier bill.`
+  - Final Queue: `WAITING GUESTS 0`, QA guest absent.
+- Defects found:
+  - None blocking.
+- Improvements needed:
+  - P3: one public QR tab rendered blank during the first open, but the same QR worked in a fresh tab. Track for possible browser/session rendering flake.
+  - P3: preference text is strong in the selected panel; consider also putting `Main · 2 seats preferred` directly on the queue card to reduce host clicks.
+  - P3: terminal payment still requires a second explicit charge confirmation; keep improving payment-helper copy.
+- Cleanup performed:
+  - Order #177 terminal-paid.
+  - T07 closed and reset.
+  - Active queue counters returned to zero.
+- Launch decision: launch-safe for preferred floor/seats recommendation flow.

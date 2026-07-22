@@ -66,9 +66,6 @@ from . import inventory_models
 from .translation_service import TranslationService
 from .messages import get_message
 from .api_errors import api_error_payload
-
-# Minimum advance booking for public (unauthenticated) reservations
-RESERVATION_PUBLIC_MIN_LEAD_MINUTES = 10
 from .permissions import Permission, require_permission, require_role, has_permission, can_manage_all_schedules
 from . import email_service as email_svc
 from .reservation_email_template import MAX_BODY_LEN, MAX_SUBJECT_LEN
@@ -115,6 +112,10 @@ from .rate_limits import (
     rate_limit_redis_url,
     register_rate_limit_exception_handler,
 )
+
+# Minimum advance booking for public (unauthenticated) reservations
+RESERVATION_PUBLIC_MIN_LEAD_MINUTES = 10
+QUEUE_STALE_MINUTES = 12 * 60
 
 # Configure logging
 logging.basicConfig(
@@ -990,6 +991,29 @@ def get_public_tenant(
     return JSONResponse(content=body)
 
 
+def _queue_entry_requested_at_utc(entry: models.GuestQueueEntry) -> datetime | None:
+    requested_at = entry.requested_at
+    if requested_at is None:
+        return None
+    if requested_at.tzinfo is None:
+        return requested_at.replace(tzinfo=timezone.utc)
+    return requested_at.astimezone(timezone.utc)
+
+
+def _is_stale_queue_entry(entry: models.GuestQueueEntry) -> bool:
+    if entry.status not in {
+        models.GuestQueueStatus.waiting,
+        models.GuestQueueStatus.notified,
+        models.GuestQueueStatus.seated,
+    }:
+        return False
+    requested_at = _queue_entry_requested_at_utc(entry)
+    if requested_at is None:
+        return False
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(minutes=QUEUE_STALE_MINUTES)
+    return requested_at <= stale_cutoff
+
+
 @app.get("/public/tenants/{tenant_id}/queue")
 @public_menu_ip_limit()
 def get_public_queue_info(
@@ -1009,6 +1033,7 @@ def get_public_queue_info(
             models.GuestQueueEntry.status.in_(active_statuses),
         )
     ).all()
+    active_rows = [row for row in active_rows if not _is_stale_queue_entry(row)]
     floors = session.exec(
         select(models.Floor)
         .where(models.Floor.tenant_id == tenant_id, models.Floor.is_active.is_(True))
@@ -10934,17 +10959,18 @@ def guest_queue_summary(
     rows = session.exec(
         select(models.GuestQueueEntry).where(models.GuestQueueEntry.tenant_id == current_user.tenant_id)
     ).all()
+    live_rows = [row for row in rows if not _is_stale_queue_entry(row)]
     counts = {status.value: 0 for status in models.GuestQueueStatus}
     waiting_guests = 0
     notified_guests = 0
-    for row in rows:
+    for row in live_rows:
         counts[row.status.value] = counts.get(row.status.value, 0) + 1
         if row.status == models.GuestQueueStatus.waiting:
             waiting_guests += row.party_size
         elif row.status == models.GuestQueueStatus.notified:
             notified_guests += row.party_size
     return {
-        "total_entries": len(rows),
+        "total_entries": len(live_rows),
         "waiting_guests": waiting_guests,
         "notified_guests": notified_guests,
         "counts": counts,

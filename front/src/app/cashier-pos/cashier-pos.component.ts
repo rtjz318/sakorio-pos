@@ -1049,8 +1049,8 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                         </div>
                       </div>
                       <div class="action-row">
-                        <button type="button" class="btn btn-primary btn-sm" (click)="openCustomerMenuUrl(handoffUrl, serviceTable)">Open</button>
-                        <button type="button" class="btn btn-secondary btn-sm" (click)="copyCustomerMenuUrl(serviceTable, handoffUrl)">
+                        <button type="button" class="btn btn-primary btn-sm" (click)="openCustomerMenu(serviceTable)">Open</button>
+                        <button type="button" class="btn btn-secondary btn-sm" (click)="copyCustomerMenuLink(serviceTable)">
                           {{ qrLinkCopiedTableId() === serviceTable.id ? 'Copied' : 'Copy link' }}
                         </button>
                       </div>

@@ -11,6 +11,7 @@ Changed:
 - The QR/link panel also appears before activation, with copy telling staff to tap Open or Copy to activate before guests order.
 - The visible QR/link is no longer dependent on popup success or clipboard success.
 - After activation, the selected table is updated locally so Release Table and the active QR state appear immediately while fresh data reloads.
+- The inline QR panel `Open` and `Copy link` actions now use the activation-safe flow instead of bypassing table activation.
 - Removed the misleading `Hide` action because the requirement is that staff can always recover the current QR link on iPad/constrained browsers.
 
 Expected QA result:

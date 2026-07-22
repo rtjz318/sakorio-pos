@@ -2331,3 +2331,145 @@ Scores are out of 10 for:
   - T07 closed and reset.
   - Active queue counters returned to zero.
 - Launch decision: launch-safe for preferred floor/seats recommendation flow.
+
+### SKR-FINAL-E2E-030 - Queue guest converted to reservation, assigned, seated, served, paid, closed
+
+- Priority: P1
+- Roles simulated: host, customer, beverage station, cashier
+- Starting state: live browser authenticated; Queue active counters zero after E2E-029.
+- Test data:
+  - Queue guest: `Final QA E2E-030 709822`
+  - Phone: `+6591309822`
+  - Email: `ralf.roeber@sakario.sg`
+  - Converted reservation: `#93`
+  - Reservation date/time: `2026-07-23 19:30`
+  - Assigned table: `T07`
+  - QR order: `#178`
+  - Item: `Coffee`
+  - Final bill total: `SGD 2.50`
+- Browser steps executed:
+  - Opened staff Queue.
+  - Created a host-stand queue entry with:
+    - name
+    - phone
+    - party size `2`
+    - quoted wait `20`
+    - notes: `E2E-030 convert queue guest to reservation`
+  - Verified selected queue guest panel showed:
+    - `Final QA E2E-030 709822`
+    - `2 pax`
+    - `QUOTE 20 min`
+    - `SOURCE Host stand`
+  - Filled convert-to-reservation fields:
+    - date `2026-07-23`
+    - time `19:30`
+    - email `ralf.roeber@sakario.sg`
+    - service type `dine_in`
+    - note `E2E-030 converted from queue; seat/order/pay/close after conversion`
+  - Clicked `Create reservation`.
+  - Verified Queue showed:
+    - `converted to reservation`
+    - `Reservation #93`
+    - `1 reservation-linked`
+    - active waiting counters returned to zero.
+  - Opened Reservations.
+  - Verified Reservation #93 appeared with:
+    - guest name
+    - `BOOKED`
+    - `2 guests`
+    - `7:30 PM`
+    - phone
+    - real test email
+    - conversion note
+    - `Converted`
+    - `Queue linked to this reservation`
+  - Filtered Reservations by the guest name.
+  - Clicked `Assign table`.
+  - Verified Floor Planning panel showed accessible assignment options:
+    - `Assign T07`
+    - `Assign T09`
+    - `Assign T04`
+    - warnings on occupied tables.
+  - Assigned T07.
+  - Verified reservation row changed to:
+    - `T07`
+    - `Table is planned`
+    - `Seat now / open POS`
+    - `Seat + customer QR`
+  - Clicked `Seat now / open POS`.
+  - Verified Arrival Handoff opened and warned:
+    - `Table T07 has an upcoming reservation at 19:30 ... Seat here anyway?`
+  - Confirmed `Seat at T07`.
+  - Opened T07 POS/QR.
+  - Opened customer QR in a fresh tab.
+  - Entered customer name when prompted.
+  - Added `Coffee`.
+  - Placed order.
+  - Verified QR showed:
+    - `Order #178`
+    - no `Cash` option.
+  - Opened KDS.
+  - Verified beverage route for `Coffee`.
+  - Advanced ticket through:
+    - `Start ticket #178`
+    - `Ready for pass #178`
+    - `Served / Delivered #178`
+  - Opened POS for T07.
+  - Opened payment panel.
+  - Selected `Terminal`.
+  - Confirmed `charge terminal - SGD 2.50`.
+  - Closed table with `Close table` -> `Yes, close table`.
+  - Verified POS showed:
+    - `T07 is clear and ready for the next cashier bill. Linked reservation #93 was finished.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 10.50`
+  - Reopened QR and verified `Table Closed`.
+  - Reopened Reservations and filtered by the guest.
+  - Verified Reservation #93 showed `FINISHED`.
+  - Reopened Queue and verified:
+    - `WAITING GUESTS 0`
+    - QA guest absent from active queue board.
+- Expected final state: queue guest converts to reservation with context preserved, reservation appears, table assignment/seating works, and service completion finishes the linked reservation.
+- Actual final state:
+  - Queue-to-reservation conversion worked.
+  - Reservation #93 preserved guest phone/email/service/note/queue link.
+  - Table assignment and arrival handoff worked with clear T07 labels.
+  - QR/KDS/payment/close completed.
+  - Linked reservation was marked `FINISHED` after table close.
+  - Queue active board returned to zero.
+- Cross-module verification:
+  - Staff Queue: converted queue row linked to Reservation #93.
+  - Reservations: booking appeared, assigned T07, seated, and finished.
+  - POS: linked reservation table service, terminal payment, close verified.
+  - Public QR: order placed and closed after table close.
+  - KDS: beverage route verified and cleared.
+- Functional correctness: 9.5 / 10
+- UI/UX clarity: 9.3 / 10
+- Workflow speed: 8.8 / 10
+- Layout/device stability: 9.0 / 10
+- Data/payment/session integrity: 9.7 / 10
+- Launch readiness: 9.4 / 10
+- Final score: 9.4 / 10
+- Status: PASS
+- Evidence:
+  - Queue converted state: `converted to reservation`, `Reservation #93`.
+  - Reservation row: `#93`, `Final QA E2E-030 709822`, `BOOKED`, `Converted`, `Queue linked to this reservation`.
+  - Assign labels: `Assign T07`, `Assign T09`, `Assign T04`.
+  - Arrival handoff: `Seat at T07`.
+  - QR order: `Order #178`, no Cash.
+  - Final POS: `Linked reservation #93 was finished.`
+  - Final Reservations: `#93 ... FINISHED`.
+  - Final Queue: `WAITING GUESTS 0`, QA guest absent.
+- Defects found:
+  - None blocking.
+- Improvements needed:
+  - P3: default convert date was stale before manual correction; initialize conversion date to the current service date.
+  - P3: filtering full guest name worked visually but DOM action discovery was easier after the row became the only visible reservation; keep visible row action labels stable for automation/accessibility.
+  - P3: arrival handoff warning is correct, but because it is the same reservation, copy could say `This is the planned reservation table` instead of sounding like a conflict.
+  - P3: terminal payment still needs clearer two-step copy.
+- Cleanup performed:
+  - Order #178 terminal-paid.
+  - T07 closed and reset.
+  - Reservation #93 finished.
+  - Queue active counters returned to zero.
+- Launch decision: launch-safe for queue-to-reservation conversion and linked service completion.

@@ -3499,3 +3499,84 @@ Scores are out of 10 for:
   - T07 closed and reset.
   - KDS active board verified clear.
 - Launch decision: Orders paid-awaiting-close overview is useful, but action labels/handoff should be polished and E2E-038 guard must be fixed.
+
+## E2E-040 - Rapid double terminal payment click
+
+- Brief source: `0098`, E2E-040.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Cashier rapidly/double-clicking terminal payment.
+- Starting state:
+  - T07 available.
+  - POS open bills `0`.
+  - Paid Today before payment: `SGD 128.00`.
+- Steps executed:
+  - Opened POS.
+  - Selected T07.
+  - Added `Coffee`.
+  - Sent order #189.
+  - Verified live bill:
+    - `Bill #189 live`
+    - `Bill #189 payable`
+    - `T07 · 1 item · SGD 2.50`
+    - `charge terminal - SGD 2.50`
+  - Clicked the terminal charge button twice back-to-back with no intentional wait.
+  - Observed first click succeeded.
+  - Observed second click failed at browser/action layer because the DOM node was already stale/missing:
+    - `DOM node 724 is stale or missing`
+  - Verified POS payment state:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 130.50`
+    - `T07 Last bill #189 Paid`
+  - Confirmed Paid Today increased by SGD 2.50 only once:
+    - before `SGD 128.00`
+    - after `SGD 130.50`
+  - Clicked `Close table`.
+  - Verified `Yes, close table`.
+  - Confirmed close.
+  - Verified final reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+  - Checked KDS.
+  - Verified:
+    - `No active tickets`
+    - `No active orders`
+- Expected final state: duplicate terminal click does not double-charge or duplicate payment; table remains paid once and closeable.
+- Actual final state:
+  - Duplicate payment was prevented by immediate UI state change / stale-node removal.
+  - Paid Today increased exactly once.
+  - Table closed and reset.
+  - KDS stayed clear.
+- Cross-module verification:
+  - POS: duplicate click, single payment, close/reset verified.
+  - KDS: active board clear.
+- Functional correctness: 9.4 / 10
+- UI/UX clarity: 8.7 / 10
+- Workflow speed: 9.1 / 10
+- Layout/device stability: 8.8 / 10
+- Data/payment/session integrity: 9.5 / 10
+- Launch readiness: 9.1 / 10
+- Final score: 9.1 / 10
+- Status: PASS
+- Evidence:
+  - Charge button before click: `charge terminal - SGD 2.50`.
+  - Second click result: `DOM node 724 is stale or missing`.
+  - Paid Today: `SGD 128.00` -> `SGD 130.50`.
+  - Payment state: `Terminal payment recorded for T07`.
+  - Final reset: T07 `Available`, `Ready for order`.
+- Defects found:
+  - None blocking for duplicate payment.
+- Improvements needed:
+  - P3: show a visible `Processing terminal payment...` disabled button state for a fraction of a second so staff understand the second tap was ignored intentionally.
+  - P3: keep paid-close drawer continuity consistent after successful payment.
+- Cleanup performed:
+  - Order #189 terminal-paid once.
+  - T07 closed and reset.
+  - KDS active board verified clear.
+- Launch decision: launch-safe for duplicate terminal-click protection.

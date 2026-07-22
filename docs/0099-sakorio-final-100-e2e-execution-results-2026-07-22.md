@@ -3401,3 +3401,101 @@ Scores are out of 10 for:
   - T07 closed and reset.
   - KDS active board verified clear.
 - Launch decision: not launch-safe until the paid-but-not-closed `Start order`/cart guard is fixed.
+
+## E2E-039 - Orders paid-awaiting-close overview and close handoff
+
+- Brief source: `0098`, E2E-039.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/staff/orders`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Cashier using Orders overview after payment.
+- Starting state:
+  - T07 available.
+  - POS open bills `0`.
+- Steps executed:
+  - Opened POS.
+  - Selected T07.
+  - Added `Coffee`.
+  - Sent order #188.
+  - Terminal-paid #188 without closing table.
+  - Verified paid-awaiting-close state in POS:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `T07 Last bill #188 Paid`
+    - `Close table`
+  - Opened Orders.
+  - Verified Orders paid-awaiting-close panel:
+    - `Paid - awaiting close`
+    - count `1`
+    - `T07`
+    - `1 paid ticket awaiting table close`
+    - `SGD 2.50 settled`
+    - `Latest #188`
+    - `Close table when guests leave`
+    - `SETTLEMENT RECORDED`
+    - `#188 · 1x Coffee`
+    - `Paid by card terminal`
+    - actions `Close table in POS` and `Close table`
+  - Clicked Orders direct `Close table`.
+  - Observed it routed back to POS paid table drawer rather than directly closing.
+  - Verified POS returned to:
+    - `Last bill #188 paid`
+    - `Payment received - close the table`
+    - `Paid - close table next`
+    - `Close table`
+  - Clicked POS drawer `Close table`.
+  - Verified close confirmation:
+    - `Keep table open`
+    - `Yes, close table`
+  - Confirmed close.
+  - Observed brief stale refresh state where the success message appeared but the paid drawer/card still showed.
+  - Waited/refreshed.
+  - Verified final reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+  - Checked KDS.
+  - Verified:
+    - `No active tickets`
+    - `No active orders`
+- Expected final state: Orders should clearly show paid-awaiting-close state and either close the table directly or take cashier to a clear close action.
+- Actual final state:
+  - Orders paid-awaiting-close panel was clear and useful.
+  - It showed the correct paid ticket #188 and amount.
+  - Direct `Close table` in Orders did not close directly; it routed to POS paid drawer.
+  - POS drawer close completed successfully.
+  - Brief post-close stale display recurred until refresh.
+- Cross-module verification:
+  - POS: paid-awaiting-close and final reset verified.
+  - Orders: awaiting-close panel verified.
+  - KDS: final active board clear.
+- Functional correctness: 8.8 / 10
+- UI/UX clarity: 8.2 / 10
+- Workflow speed: 8.0 / 10
+- Layout/device stability: 8.6 / 10
+- Data/payment/session integrity: 9.2 / 10
+- Launch readiness: 8.6 / 10
+- Final score: 8.6 / 10
+- Status: PASS WITH UX FIXES
+- Evidence:
+  - Orders panel: `Paid - awaiting close`, `T07`, `Latest #188`, `SGD 2.50 settled`.
+  - POS close handoff: `Payment received - close the table`, `Yes, close table`.
+  - Final reset: T07 `Available`, `Ready for order`.
+  - KDS final: `No active tickets`, `No active orders`.
+- Defects found:
+  - P2: Orders `Close table` label implies direct close, but actual result is a POS handoff.
+  - P2: paid-but-not-closed POS still exposes risky `Start order`/product controls as found in E2E-038.
+  - P3: after close, board/drawer can remain stale until refresh.
+- Improvements needed:
+  - P2: rename Orders action to `Open POS to close` if it routes to POS, or make it perform the close confirmation directly in Orders.
+  - P2: include a direct close confirmation in Orders for paid-awaiting-close tables, with table number and latest bill ID.
+  - P3: after close success, immediately remove the paid drawer and refresh the table card.
+- Cleanup performed:
+  - Order #188 terminal-paid.
+  - T07 closed and reset.
+  - KDS active board verified clear.
+- Launch decision: Orders paid-awaiting-close overview is useful, but action labels/handoff should be polished and E2E-038 guard must be fixed.

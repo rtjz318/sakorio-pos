@@ -645,3 +645,152 @@ Scores are out of 10 for:
   - T08 HitPay-paid and closed.
   - Customer QR closed.
 - Launch decision: launch-safe for HitPay sandbox success path.
+
+## Phase B - Reservation variants and host pressure
+
+### SKR-FINAL-E2E-011 - Same-day public booking, staff search/highlight, seat, QR order, payment, close
+
+- Priority: P0
+- Roles simulated: customer, host, kitchen, cashier
+- Starting state: staff session had expired and was re-authenticated in the live browser; live build `2.1.6 196da566`.
+- Test data:
+  - Reservation `#82`
+  - Customer: `Final QA SKR-FINAL-E2E-011 739918`
+  - Phone: `+6588839918`
+  - Public booking time: `2026-07-22 19:30`
+  - Table: `T07`
+  - QR order: `#161`
+  - Items: `Tacos de Carne Asada` + `Coca Cola`
+  - Final bill total: `SGD 15.00`
+- Browser steps executed:
+  - Opened public booking page at `order.sakorio.com/book/1`.
+  - Created same-day reservation `#82`.
+  - Opened staff Reservations.
+  - Used search field with `739918`.
+  - Verified the board filtered to `1 of 14 reservations`.
+  - Verified target reservation card showed `NEW / SELECTED` and was visually highlighted.
+  - Opened `Seat at table`.
+  - Seating modal offered `Seat at T07`, `Seat at T09`, and `Seat at T04`, all with clear accessible labels.
+  - Seated #82 at T07.
+  - POS handoff opened T07 with guest name, QR active, and visible QR link.
+  - Opened T07 customer QR.
+  - Customer entered name `E2E011 Guest`.
+  - Customer ordered `Tacos de Carne Asada` + `Coca Cola`; order `#161`.
+  - Verified customer QR did not show Cash.
+  - KDS processed `#161` through `Start ticket` -> `Ready for pass` -> `Served / Delivered`.
+  - POS terminal-paid `SGD 15.00`.
+  - Closed T07 with final confirmation.
+  - Verified close confirmation warned that linked reservation `#82` would finish automatically.
+  - Reloaded POS, customer QR, and Reservations for final verification.
+- Expected final state: searchable reservation handoff works end to end; reservation finishes; table resets; QR closes.
+- Actual final state:
+  - Reservation `#82` became `FINISHED`.
+  - T07 returned to `Available`.
+  - Bill `#161` no longer appeared live/open.
+  - Customer QR showed `Table Closed`.
+  - Paid today showed `SGD 271.50`.
+- Cross-module verification:
+  - Reservations: `#82 FINISHED`.
+  - POS: `T07 Available`; linked reservation finish copy shown before close.
+  - KDS: no active tickets after #161 served.
+  - QR: `Table Closed`.
+- Functional correctness: 9.5 / 10
+- UI/UX clarity: 9.2 / 10
+- Workflow speed: 8.9 / 10
+- Layout/device stability: 9.2 / 10
+- Data/payment/session integrity: 9.6 / 10
+- Launch readiness: 9.4 / 10
+- Final score: 9.4 / 10
+- Status: PASS
+- Evidence:
+  - Search result: `1 of 14 reservations`, `NEW / SELECTED`, card class `reservation-card--highlight`.
+  - Seating labels: `Seat at T07`, `Seat at T09`, `Seat at T04`.
+  - POS handoff notice: `T07 opened from reservation handoff for Final QA SKR-FINAL-E2E-011 739918.`
+  - Close confirmation: `Linked reservation #82 ... will be finished automatically.`
+  - Final reservation status: `#82 FINISHED`.
+- Defects / improvements found:
+  - P3: the search result keeps `NEW / SELECTED` even after the reservation is finished when searching #82. This is understandable as a search highlight, but the label could change to only `SELECTED` after completion.
+  - P3: after staff session expiry, Render free-tier wake page briefly appears before login. Operationally fine, but launch/staging QA should expect free-tier cold starts unless upgraded.
+- Cleanup performed:
+  - T07 terminal-paid and closed.
+  - Reservation `#82` finished.
+  - Customer QR closed.
+- Launch decision: launch-safe.
+
+### SKR-FINAL-E2E-012 - Public booking, host edits party size, recommendation changes, seat/order/pay/close
+
+- Priority: P0
+- Roles simulated: customer, host, kitchen, cashier
+- Starting state: live build `2.1.6 196da566`; staff already authenticated in the live browser after E2E-011.
+- Test data:
+  - Reservation `#83`
+  - Customer: `Final QA SKR-FINAL-E2E-012 996601`
+  - Phone: `+6588996601`
+  - Public booking time: `2026-07-22 19:45`
+  - Initial party size: `2`
+  - Edited party size: `4`
+  - Table: `T04`
+  - QR order: `#162`
+  - Items: `Chile Relleno`
+  - Final bill total: `SGD 15.00`
+- Browser steps executed:
+  - Opened public booking page at `order.sakorio.com/book/1`.
+  - Created same-day reservation `#83` for 2 guests.
+  - Opened staff Reservations and searched for `#83`.
+  - Clicked `Edit` on the reservation.
+  - Changed `Party size` from `2` to `4`.
+  - Saved the edit and verified the reservation card updated to `4 guests`.
+  - Clicked `Seat at table`.
+  - Verified the seating modal adapted to the new party size and only offered `T04 4 seats · Available` with accessible label `Seat at T04`.
+  - Seated #83 at T04.
+  - Verified POS opened T04 with reservation handoff notice, guest name, party size, QR active state, and visible QR link.
+  - Opened T04 customer QR.
+  - Customer entered name `E2E012 Guest`.
+  - Customer added `Chile Relleno` and placed order `#162`.
+  - Verified customer QR payment area did not show Cash.
+  - Opened KDS and verified `#162 · T04` appeared in New tickets.
+  - Advanced `#162` through `Start ticket` -> `Ready for pass` -> `Served / Delivered`.
+  - Verified KDS returned to `No active orders`.
+  - Opened POS for T04 and verified `Bill #162 ready to pay`.
+  - Took Terminal payment for `SGD 15.00`.
+  - Verified Paid Today increased to `SGD 286.50`.
+  - Clicked `Close table`.
+  - Verified final confirmation warned that linked reservation `#83` would finish automatically and that T04 would become available.
+  - Confirmed table close.
+  - Reloaded POS, customer QR, and Reservations for final verification.
+- Expected final state: editing party size before seating changes table recommendation; 4-person reservation is seated at a suitable 4-seat table; order flows through KDS/payment; reservation finishes and table resets.
+- Actual final state:
+  - Reservation `#83` became `FINISHED`.
+  - T04 returned to available service state after close.
+  - Bill `#162` no longer appeared live/open.
+  - Customer QR showed `Table Closed`.
+  - KDS had no active tickets for `#162`.
+- Cross-module verification:
+  - Reservations: `#83 FINISHED`, `4 guests`.
+  - Seating modal: only `Seat at T04` was offered for the edited 4-guest reservation.
+  - POS: `Bill #162 ready to pay`, then terminal payment recorded and close confirmation shown.
+  - KDS: `#162 · T04` appeared and left the active board after served.
+  - QR: `Table Closed` after table close.
+- Functional correctness: 9.6 / 10
+- UI/UX clarity: 9.3 / 10
+- Workflow speed: 9.0 / 10
+- Layout/device stability: 9.2 / 10
+- Data/payment/session integrity: 9.6 / 10
+- Launch readiness: 9.5 / 10
+- Final score: 9.5 / 10
+- Status: PASS
+- Evidence:
+  - Reservation card after edit: `#83 ... 4 guests`.
+  - Seating modal label: `Seat at T04`.
+  - POS handoff URL: `/pos?tableId=4&reservationId=83...`.
+  - QR order: `Order # 162`, `Status: Pending`, `SGD 15.00`.
+  - Close confirmation: `Linked reservation #83 ... will be finished automatically.`
+  - Final customer QR state: `Table Closed`.
+- Defects / improvements found:
+  - P3: the search highlight label still reads `NEW / SELECTED` even after the reservation is finished. This matches E2E-011 and should be polished to reduce visual noise after completed reservations.
+  - P3: the QR add attempt for a second item can still be easy to miss if the add tap lands on a duplicate/featured card area. Not blocking, but iPad/mobile QA should keep watching cart feedback and quantity acknowledgement.
+- Cleanup performed:
+  - T04 terminal-paid and closed.
+  - Reservation `#83` finished.
+  - Customer QR closed.
+- Launch decision: launch-safe.

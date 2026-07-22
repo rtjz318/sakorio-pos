@@ -449,3 +449,137 @@ Scores are out of 10 for:
   - Redeployed live build `2.1.6 d8981b31`.
   - Browser retest bill `#156` confirmed final close copy: `After close, T07 becomes available.`
   - Browser retest bill `#156` was processed through KDS/payment/close; T07 returned to `Available`.
+
+### SKR-FINAL-E2E-008 - Direct table, customer QR first round, staff verbal add-on, combined bill, payment, close
+
+- Priority: P0
+- Roles simulated: customer, waiter, kitchen, cashier
+- Starting state: T08 available; live build `2.1.6 d8981b31`.
+- Test data:
+  - Table: `T08`
+  - Customer QR guest: `E2E008 QR Guest`
+  - Shared bill/order: `#157`
+  - QR first round: `Tacos de Carne Asada` + `Coca Cola`
+  - Staff add-on round: `Coffee`
+  - Final bill total: `SGD 17.50`
+- Browser steps executed:
+  - Opened POS and selected available T08.
+  - Read the visible T08 QR link from the POS drawer.
+  - Opened the visible QR link directly first; customer side showed `Table Closed`.
+  - Returned to staff POS and clicked the explicit `Open` action for T08.
+  - Reopened the customer QR link; QR became active and showed menu/order entry.
+  - Customer entered name `E2E008 QR Guest`.
+  - Customer added `Tacos de Carne Asada` and `Coca Cola`.
+  - Customer placed order `#157`.
+  - Verified customer QR did not show Cash as a payment option.
+  - Staff POS reopened T08 and showed `Bill #157 live`.
+  - Staff added verbal add-on `Coffee`.
+  - POS showed corrected add-on copy: `1 add-on item not sent yet · SGD 17.50 cart value`.
+  - Staff sent add-on round with no `429` error.
+  - POS showed one combined bill: `T08 · 3 items · SGD 17.50`.
+  - KDS processed `#157` through kitchen states.
+  - Cashier terminal-paid `SGD 17.50`.
+  - POS close confirmation showed corrected copy: `After close, T08 becomes available.`
+  - Cashier closed T08.
+  - Reloaded customer QR and POS for final verification.
+- Expected final state: QR and staff POS order entry coexist on one bill; cashier sees one combined bill; payment/close resets the table and closes the QR session.
+- Actual final state:
+  - T08 returned to `Available`.
+  - Bill `#157` no longer appeared as live/open.
+  - Customer QR showed `Table Closed`.
+  - Paid today showed `SGD 231.50`.
+- Cross-module verification:
+  - QR: `Order #157`, customer name shown, no Cash option, closed after table close.
+  - POS: `Bill #157 live` before payment; `T08 Available` after close.
+  - KDS: `#157` could be advanced through kitchen states.
+  - Payment: terminal payment recorded and close confirmation visible.
+- Functional correctness: 9.2 / 10
+- UI/UX clarity: 8.7 / 10
+- Workflow speed: 8.8 / 10
+- Layout/device stability: 9.1 / 10
+- Data/payment/session integrity: 9.4 / 10
+- Launch readiness: 9.1 / 10
+- Final score: 9.1 / 10
+- Status: PASS with minor QR handoff wording polish
+- Evidence:
+  - Staff add-on success: `Add-on round sent to bill #157 for T08. Current orders stay active until the table is closed.`
+  - Combined bill: `T08 · 3 items · SGD 17.50`.
+  - Close confirmation: `After close, T08 becomes available.`
+  - Customer QR final state: `Table Closed`.
+- Defects / improvements found:
+  - P2: the visible QR URL in the staff drawer can be opened/copied manually before activation and will show `Table Closed`; the explicit `Open` action correctly activates the table. The drawer copy should make the activation dependency clearer, or the visible/copy link should activate the table before staff hands it to guests.
+  - P3: the POS QR URL text can concatenate nearby button text when extracted from page text (`...qr_access=...Open`), so visual spacing/copy affordance could be clearer for manual selection.
+- Cleanup performed:
+  - T08 terminal-paid and closed.
+  - Customer QR closed.
+- Launch decision: launch-safe for the intended `Open customer QR` workflow; QR handoff copy should be polished before final sign-off.
+
+### SKR-FINAL-E2E-009 - Customer QR order, card-at-table request, cashier terminal settlement, close
+
+- Priority: P0
+- Roles simulated: customer, kitchen, cashier
+- Starting state: T09 available; live build `2.1.6 d8981b31`.
+- Test data:
+  - Table: `T09`
+  - Customer QR guest: `E2E009 Terminal Guest`
+  - Shared bill/order: `#158`
+  - QR order: `Enchiladas`
+  - Final bill total: `SGD 20.00`
+- Browser steps executed:
+  - Opened POS and selected available T09.
+  - Clicked the explicit staff `Open` action to activate customer QR.
+  - Opened customer QR for T09.
+  - Customer entered name `E2E009 Terminal Guest`.
+  - Customer added `Enchiladas` and placed order `#158`.
+  - Customer tapped `Pay Now`.
+  - Verified customer payment panel showed `Pay with HitPay` and `Pay with Card at Table`; no Cash option.
+  - Customer selected `Pay with Card at Table`.
+  - Customer tapped `Request Payment`.
+  - Customer QR showed `Payment requested! A waiter will come to your table to process the payment.`
+  - Staff opened T09 in POS and found `Bill #158 live`.
+  - KDS processed `#158`.
+  - Cashier opened `Pay bill`, verified `Amount due SGD 20.00`, terminal-paid, and closed T09.
+  - Reloaded customer QR and POS for final verification.
+- Expected final state: customer can request terminal/card-at-table payment without Cash; cashier can find the table/bill, terminal settle, close, and end QR session.
+- Actual final state:
+  - T09 returned to `Available`.
+  - Bill `#158` no longer appeared as live/open.
+  - Customer QR showed `Table Closed`.
+  - Paid today showed `SGD 251.50`.
+- Cross-module verification:
+  - QR: customer saw no Cash; request confirmation appeared; QR closed after table close.
+  - POS: T09 card showed `Bill #158 live`; Pay bill showed `Amount due SGD 20.00`; close confirmation copy was correct.
+  - KDS: `#158` could be processed through kitchen states.
+- Functional correctness: 9.0 / 10
+- UI/UX clarity: 8.3 / 10
+- Workflow speed: 8.6 / 10
+- Layout/device stability: 9.1 / 10
+- Data/payment/session integrity: 9.3 / 10
+- Launch readiness: 8.9 / 10
+- Final score: 8.9 / 10
+- Status: PASS with payment-request visibility polish
+- Evidence:
+  - Customer QR payment choices: `Pay with HitPay`, `Pay with Card at Table`; no Cash.
+  - Customer request confirmation: `Payment requested! A waiter will come to your table to process the payment.`
+  - POS amount due: `SGD 20.00`.
+  - Close confirmation: `After close, T09 becomes available.`
+  - Customer QR final state: `Table Closed`.
+- Defects / improvements found:
+  - P2: staff POS does not prominently surface the customer’s card-at-table payment request; the table card changed to a generic `Pending` chip, which is ambiguous during service. Use clearer copy such as `Payment requested`, `Bring terminal`, or a high-contrast payment-request badge in POS/KDS/orders.
+  - P3: QR cart add for `Coffee` was attempted after `Enchiladas` but only `Enchiladas` landed in the cart during this pass; no blocking issue because order/payment flow remained valid, but repeated customer add taps should be watched in iPad/mobile regression.
+- Cleanup performed:
+  - T09 terminal-paid and closed.
+  - Customer QR closed.
+- Launch decision: launch-safe for terminal settlement, but payment-request visibility should be improved before final sign-off.
+
+#### Fix implemented from SKR-FINAL-E2E-009 findings
+
+- Code change:
+  - Customer card-at-table payment requests now persist the normalized requested method (`terminal`) on the order when `bill_requested_at` is set.
+  - POS table payment chip now renders `Bring terminal` for pending terminal requests instead of the vague `Pending`.
+  - Other pending payment requests fall back to `Payment requested`.
+- Local verification:
+  - Backend payment security tests: `11 passed`.
+  - Frontend hot reload compile: `Application bundle generation complete`.
+- Live verification status:
+  - Pending redeploy and browser retest.

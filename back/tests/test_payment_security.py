@@ -326,7 +326,7 @@ class TestPaymentSecurity(PgClientTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["payment_method"], "terminal")
         order = self.session.get(models.Order, order_id)
-        self.assertIsNone(order.payment_method)
+        self.assertEqual(order.payment_method, "terminal")
         self.assertIsNotNone(order.bill_requested_at)
 
 

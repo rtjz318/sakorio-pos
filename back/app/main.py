@@ -13219,6 +13219,7 @@ def request_payment(
             status_code=400,
             detail="Customer payment requests only support terminal. Use HitPay online checkout for online payment.",
         )
+    order.payment_method = normalized_payment_method
 
     # Append customer message to notes if provided
     if payment_request.message:

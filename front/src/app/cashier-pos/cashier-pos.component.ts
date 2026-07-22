@@ -8307,7 +8307,10 @@ export class CashierPosComponent {
       case 'paid':
         return 'Paid';
       case 'pending':
-        return 'Pending';
+        if (this.orderPaymentMethodNormalized(currentOrder) === 'terminal') {
+          return 'Bring terminal';
+        }
+        return 'Payment requested';
       default:
         if (table.active_order_id && currentOrder && this.isPaid(currentOrder)) {
           return 'Paid';
@@ -8356,15 +8359,15 @@ export class CashierPosComponent {
   }
 
   paymentLabel(order: Order): string {
-    const raw = String(order.payment_method || '').trim().toLowerCase();
+    const normalizedMethod = this.orderPaymentMethodNormalized(order);
     const normalized =
-      raw === 'cash'
+      normalizedMethod === 'cash'
         ? 'Cash'
-        : raw === 'card_terminal' || raw === 'terminal'
+        : normalizedMethod === 'terminal'
           ? 'Terminal'
-          : raw === 'hitpay'
+          : normalizedMethod === 'hitpay'
             ? 'HitPay'
-            : raw === 'card' || raw === 'card_or_wallet'
+            : normalizedMethod === 'card'
               ? 'Card'
               : order.payment_method || null;
 
@@ -8372,6 +8375,20 @@ export class CashierPosComponent {
       return normalized || 'Paid';
     }
     return normalized || 'Awaiting payment';
+  }
+
+  private orderPaymentMethodNormalized(order: Order | null | undefined): string | null {
+    const raw = String(order?.payment_method || '').trim().toLowerCase();
+    if (!raw) {
+      return null;
+    }
+    if (raw === 'card_terminal' || raw === 'terminal') {
+      return 'terminal';
+    }
+    if (raw === 'card' || raw === 'card_or_wallet') {
+      return 'card';
+    }
+    return raw;
   }
 
   formatDate(value?: string | null): string {

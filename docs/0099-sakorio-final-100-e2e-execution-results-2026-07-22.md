@@ -1028,3 +1028,76 @@ Scores are out of 10 for:
   - Reservation `#86` finished.
   - Customer QR closed.
 - Launch decision: launch-safe for ordinary service, but not launch-ready for “guest changes table before ordering” without a dedicated move/reseat action.
+
+### SKR-FINAL-E2E-016 - Seated reservation orders first round, then requests table move, later order/pay/close
+
+- Priority: P1
+- Roles simulated: customer, waiter, kitchen, cashier
+- Starting state: live build `2.1.6 196da566`; T09 available.
+- Test data:
+  - Reservation `#87`
+  - Customer: `Final QA SKR-FINAL-E2E-016 089989`
+  - Phone: `+6588089989`
+  - Public booking time: `2026-07-22 21:00`
+  - Seated table: `T09`
+  - QR order: `#166`
+  - QR guest: `E2E016 Guest`
+  - Items: `Enchiladas`
+  - Final bill total: `SGD 20.00`
+- Browser steps executed:
+  - Opened public booking page at `order.sakorio.com/book/1`.
+  - Created same-day reservation `#87`.
+  - Opened staff Reservations and searched for `#87`.
+  - Clicked `Seat at table`.
+  - Verified seating options `Seat at T07`, `Seat at T09`, and `Seat at T04`.
+  - Seated #87 at T09.
+  - POS opened T09 with reservation handoff notice and visible QR link.
+  - Opened T09 customer QR.
+  - Customer entered name `E2E016 Guest`.
+  - Customer added `Enchiladas` and placed order `#166`.
+  - Verified customer QR did not show Cash.
+  - Opened POS for T09 while #166 was active.
+  - Inspected available controls for `Move`, `Transfer`, `Change table`, or similar active-bill table reassignment.
+  - Verified no mid-session move/transfer control was available; only `Back / switch table` and payment controls were visible.
+  - KDS showed `#166 · T09`, customer name, and item.
+  - Advanced `#166` through `Start ticket` -> `Ready for pass` -> `Served / Delivered`.
+  - Verified KDS returned to `No active orders`.
+  - Took Terminal payment for `SGD 20.00`.
+  - Verified Paid Today increased to `SGD 351.50`.
+  - Closed T09.
+  - Verified close confirmation warned linked reservation `#87` would finish automatically.
+  - Confirmed close and reloaded QR/Reservations for final verification.
+- Expected final state: after first order, staff can move or safely block movement with clear guidance; if move is allowed, the bill/session transfers to the new table; service then completes.
+- Actual final state:
+  - No active-bill table move/transfer action was available.
+  - The normal service path on T09 completed successfully.
+  - Reservation `#87` became `FINISHED` at close.
+  - T09 QR showed `Table Closed` after close.
+- Cross-module verification:
+  - Reservations: #87 created, seated, and finished at close.
+  - POS: active bill #166 showed payable, but no move/transfer control.
+  - KDS: #166 appeared and cleared after served.
+  - QR: order placed, no Cash shown, closed after table close.
+- Functional correctness: 8.0 / 10
+- UI/UX clarity: 7.9 / 10
+- Workflow speed: 8.5 / 10
+- Layout/device stability: 9.0 / 10
+- Data/payment/session integrity: 8.9 / 10
+- Launch readiness: 8.2 / 10
+- Final score: 8.2 / 10
+- Status: PASS with P1 workflow gap
+- Evidence:
+  - Active-bill POS state: `Bill #166 in service`, `Bill #166 payable`.
+  - Visible controls during active bill: `Back / switch table`, `Pay bill`; no `Move`, `Transfer`, or `Change table`.
+  - QR order: `Order # 166`, `Status: Pending`, `SGD 20.00`.
+  - Close confirmation: `Linked reservation #87 ... will be finished automatically.`
+  - Final QR state: `Table Closed`.
+- Defects / improvements found:
+  - P1: add a guarded table-transfer workflow for active bills. If movement is allowed, transfer the open order, QR session, reservation link, and KDS table label together; if not allowed, show clear manager-facing guidance instead of leaving staff to guess.
+  - P2: `Back / switch table` changes the POS view, but does not communicate whether the current bill can be moved. Rename or supplement it so waiters do not mistake it for an operational transfer.
+  - P3: finished reservation search highlight still shows `NEW / SELECTED`.
+- Cleanup performed:
+  - T09 terminal-paid and closed.
+  - Reservation `#87` finished.
+  - Customer QR closed.
+- Launch decision: launch-safe for fixed-table service, but not launch-ready for mid-session table-transfer operations.

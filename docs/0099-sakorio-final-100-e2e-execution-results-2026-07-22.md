@@ -3580,3 +3580,90 @@ Scores are out of 10 for:
   - T07 closed and reset.
   - KDS active board verified clear.
 - Launch decision: launch-safe for duplicate terminal-click protection.
+
+## E2E-041 - Checkout is reversible before payment
+
+- Brief source: `0098`, E2E-041.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Cashier beginning checkout, returning to add items, then paying final bill.
+- Starting state:
+  - T07 available.
+  - POS open bills `0`.
+  - Paid Today before payment: `SGD 130.50`.
+- Steps executed:
+  - Opened POS.
+  - Selected T07.
+  - Added `Coffee`.
+  - Clicked `Pay bill` before sending/payment.
+  - Verified checkout panel:
+    - `Ready for payment`
+    - `Amount due SGD 2.50`
+    - `1 item · T07`
+    - `Send this round before payment`
+    - `Send order to kitchen`
+    - `Cash (staff)`
+    - `Terminal`
+    - `Send & charge terminal - SGD 2.50`
+  - Clicked `Add items` from checkout.
+  - Verified the cart remained intact and returned to menu mode.
+  - Added `Coca Cola`.
+  - Verified final pre-submit cart:
+    - `2 add-on items not sent yet`
+    - `New ticket not sent`
+    - `2 in cart`
+    - `Bill / Pay SGD 5.50`
+    - `Coffee`
+    - `Coca Cola`
+    - `Items 2 items`
+    - `Total SGD 5.50`
+  - Clicked `Send order`.
+  - Verified order #190 was created.
+  - Terminal-paid `SGD 5.50`.
+  - Closed table through `Close table` -> `Yes, close table`.
+  - Verified final reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 136.00`
+  - Opened KDS.
+  - Verified KDS showed:
+    - `No active tickets`
+    - `No active orders`
+- Expected final state: checkout can be entered, backed out of, item added, final total paid, and table reset.
+- Actual final state:
+  - Checkout-before-payment was reversible.
+  - Cart state was preserved.
+  - Added item updated final total correctly.
+  - Payment and close completed.
+  - KDS did not retain an active ticket after payment/close.
+- Cross-module verification:
+  - POS: reversible checkout, cart update, payment, close/reset verified.
+  - KDS: active board clear.
+- Functional correctness: 9.4 / 10
+- UI/UX clarity: 8.9 / 10
+- Workflow speed: 9.0 / 10
+- Layout/device stability: 8.8 / 10
+- Data/payment/session integrity: 9.4 / 10
+- Launch readiness: 9.1 / 10
+- Final score: 9.1 / 10
+- Status: PASS
+- Evidence:
+  - Checkout panel: `Send this round before payment`, `Send order to kitchen`, `Send & charge terminal - SGD 2.50`.
+  - Reversed cart: `Coffee`, `Coca Cola`, `Total SGD 5.50`.
+  - Payment/final: `PAID TODAY SGD 136.00`, T07 `Available`.
+  - KDS: `No active tickets`, `No active orders`.
+- Defects found:
+  - None blocking.
+- Improvements needed:
+  - P3: checkout wording is strong, but `Pay bill` can still feel like a final action even before sending; consider label `Review / Pay` for unsent carts.
+  - P3: if staff uses `Send & charge terminal`, show a clear one-step explanation that it both sends to kitchen and records payment.
+- Cleanup performed:
+  - Order #190 terminal-paid.
+  - T07 closed and reset.
+  - KDS active board verified clear.
+- Launch decision: launch-safe for reversible checkout before payment.

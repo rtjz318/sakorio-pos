@@ -1181,3 +1181,77 @@ Scores are out of 10 for:
   - Reservation `#89` finished.
   - Both customer QR sessions closed.
 - Launch decision: launch-safe and strong for parallel assigned-reservation service.
+
+### SKR-FINAL-E2E-018 - Reservation arrives early, host seats with clear rule, service/pay/close
+
+- Priority: P1
+- Roles simulated: customer, host, beverage, cashier
+- Starting state: live build `2.1.6 196da566`; no remaining same-day public slots, so a future reservation was used to test early-arrival behavior.
+- Test data:
+  - Reservation `#90`
+  - Customer: `Final QA SKR-FINAL-E2E-018 704478`
+  - Phone: `+6588704478`
+  - Public booking time: `2026-07-23 19:15`
+  - Assigned/seated table: `T07`
+  - QR order: `#169`
+  - QR guest: `E2E018 Early Guest`
+  - Items: `Coca Cola`
+  - Final bill total: `SGD 3.00`
+- Browser steps executed:
+  - Opened public booking page and created reservation `#90`.
+  - Opened staff Reservations for `2026-07-23`.
+  - Searched for `#90`.
+  - Verified unassigned future booking copy: `Assign a likely table before arrival to keep service smooth.`
+  - Clicked `Assign table`.
+  - Assigned T07.
+  - Verified assigned booking copy: `Table is planned. Use Seat now / open POS when the guest arrives, even if they arrive early.`
+  - Clicked `Seat now / open POS`.
+  - Verified the arrival handoff modal warned: `Table T07 has an upcoming reservation at 19:15 ... Seat here anyway?`
+  - Confirmed `Seat at T07`.
+  - POS opened T07 with reservation handoff notice, guest name, QR active state, and visible QR link.
+  - Opened T07 customer QR.
+  - Customer entered name `E2E018 Early Guest`.
+  - Customer added `Coca Cola` and placed order `#169`.
+  - Verified customer QR did not show Cash.
+  - KDS showed `#169 · T07`, guest name, and item routed as `BEVERAGE / BEVERAGES`.
+  - Advanced `#169` through `Start ticket` -> `Ready for pass` -> `Served / Delivered`.
+  - Verified KDS live board cleared; `#169` only remained briefly in the served toast/countdown.
+  - Took Terminal payment for `SGD 3.00`.
+  - Verified Paid Today increased to `SGD 381.50`.
+  - Closed T07.
+  - Verified close confirmation warned linked reservation `#90` would finish automatically.
+  - Reloaded customer QR and Reservations for final verification.
+- Expected final state: early-arrival handling is understandable; either seating is allowed with clear confirmation or blocked with a clear rule; if seated, service/payment/close completes and reservation finishes.
+- Actual final state:
+  - Early seating was allowed with explicit copy and a second confirmation.
+  - Reservation `#90` became `FINISHED`.
+  - T07 QR showed `Table Closed`.
+  - KDS had no active ticket after served.
+- Cross-module verification:
+  - Reservations: assignment, early seat prompt, seated state, finished state.
+  - POS: T07 opened from reservation handoff and bill #169 was paid/closed.
+  - KDS: beverage order routed correctly.
+  - QR: no Cash, closed after table close.
+- Functional correctness: 9.5 / 10
+- UI/UX clarity: 9.5 / 10
+- Workflow speed: 9.0 / 10
+- Layout/device stability: 9.2 / 10
+- Data/payment/session integrity: 9.6 / 10
+- Launch readiness: 9.5 / 10
+- Final score: 9.5 / 10
+- Status: PASS
+- Evidence:
+  - Assigned booking copy: `Use Seat now / open POS when the guest arrives, even if they arrive early.`
+  - Confirmation warning: `Table T07 has an upcoming reservation at 19:15 ... Seat here anyway?`
+  - POS handoff notice: `T07 opened from reservation handoff for Final QA SKR-FINAL-E2E-018 704478.`
+  - KDS route: `#169 · T07`, `Coca Cola`, `BEVERAGE`, `BEVERAGES`.
+  - Close confirmation: `Linked reservation #90 ... will be finished automatically.`
+  - Final QR state: `Table Closed`.
+- Defects / improvements found:
+  - P3: finished reservation search highlight still shows `NEW / SELECTED`.
+  - P4: the public booking QA note text inherited the helper phrase `parallel reservation seating test`; not a product issue, but future QA data names should match the specific case for cleaner audit trails.
+- Cleanup performed:
+  - T07 terminal-paid and closed.
+  - Reservation `#90` finished.
+  - Customer QR closed.
+- Launch decision: launch-safe and clear for early-arrival seating.

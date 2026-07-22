@@ -1038,7 +1038,13 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                         <qrcode [qrdata]="handoffUrl" [width]="132" [errorCorrectionLevel]="'M'" cssClass="qr-code"></qrcode>
                         <div class="inline-hint-copy" style="flex:1 1 18rem">
                           <strong>{{ serviceTable.name }} QR is ready</strong>
-                          <p>Show this QR or send the link below. This visible link stays available even if the browser blocks popups or clipboard copy.</p>
+                          <p>
+                            @if (serviceTable.is_active) {
+                              Show this QR or send the link below. This visible link stays available even if the browser blocks popups or clipboard copy.
+                            } @else {
+                              This is the table QR link. Tap Open or Copy to activate the table before guests order.
+                            }
+                          </p>
                           <a [href]="handoffUrl" target="_blank" rel="noopener noreferrer" style="overflow-wrap:anywhere">{{ handoffUrl }}</a>
                         </div>
                       </div>
@@ -7006,7 +7012,7 @@ export class CashierPosComponent {
     if (this.qrHandoffTableId() === table.id && this.qrHandoffUrl()) {
       return this.qrHandoffUrl();
     }
-    return table.is_active ? this.customerMenuUrl(table) : null;
+    return this.customerMenuUrl(table);
   }
 
   async openCustomerMenu(table: CanvasTable): Promise<void> {
@@ -7015,6 +7021,7 @@ export class CashierPosComponent {
     this.error.set(null);
     try {
       await this.ensureTableReady(table);
+      this.markTableLocallyActive(table);
       this.showCustomerQrHandoff(table, url);
       const opened = window.open(url, '_blank', 'noopener,noreferrer');
       this.notice.set(
@@ -7036,6 +7043,7 @@ export class CashierPosComponent {
     this.error.set(null);
     try {
       await this.ensureTableReady(table);
+      this.markTableLocallyActive(table);
       await this.copyCustomerMenuUrl(table, url);
       this.loadData();
     } catch (err) {
@@ -7082,6 +7090,16 @@ export class CashierPosComponent {
   private showCustomerQrHandoff(table: CanvasTable, url: string): void {
     this.qrHandoffTableId.set(table.id ?? null);
     this.qrHandoffUrl.set(url);
+  }
+
+  private markTableLocallyActive(table: CanvasTable): void {
+    if (!table.id) return;
+    table.is_active = true;
+    this.tables.update((tables) =>
+      tables.map((candidate) =>
+        candidate.id === table.id ? { ...candidate, is_active: true } : candidate,
+      ),
+    );
   }
 
   queueOrderActionLabel(order: Order): string {

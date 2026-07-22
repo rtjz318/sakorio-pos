@@ -3667,3 +3667,104 @@ Scores are out of 10 for:
   - T07 closed and reset.
   - KDS active board verified clear.
 - Launch decision: launch-safe for reversible checkout before payment.
+
+## E2E-042 - Wrong table recovery before send
+
+- Brief source: `0098`, E2E-042.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Cashier selecting the wrong table, clearing the unsent cart, switching to the correct table, then completing the order.
+- Starting state:
+  - T07 available.
+  - T09 available.
+  - POS open bills `0`.
+  - Paid Today before payment: `SGD 136.00`.
+- Steps executed:
+  - Opened POS.
+  - Selected the wrong table T07.
+  - Added `Coca Cola`.
+  - Verified wrong-table unsent cart:
+    - `1 add-on item not sent yet · SGD 3.00 cart value`
+    - `1 in cart`
+    - `Bill / Pay SGD 3.00`
+    - `Coca Cola`
+    - `Items 1 item`
+    - `Total SGD 3.00`
+  - Clicked `Clear`.
+  - Verified T07 cart cleared:
+    - `Start this table order`
+    - `No tickets yet`
+    - `Ready for items`
+    - `Bill / Pay SGD 0.00`
+    - `Items 0 items`
+    - `Total SGD 0.00`
+    - `Coca Cola` returned to normal `+` state.
+  - Clicked `Back / switch table`.
+  - Selected the correct table T09.
+  - Added `Coffee`.
+  - Verified correct-table cart:
+    - `POS TABLE SERVICE T09`
+    - `1 add-on item not sent yet · SGD 2.50 cart value`
+    - `New ticket not sent`
+    - `1 in cart`
+    - `Bill / Pay SGD 2.50`
+    - `Coffee`
+    - `Items 1 item`
+    - `Total SGD 2.50`
+  - Verified no T07/Coca Cola cart bleed into T09.
+  - Clicked `Send order`.
+  - Verified final bill became #191.
+  - Terminal-paid `SGD 2.50`.
+  - Verified paid state:
+    - `Terminal payment recorded for T09. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `T09 2 seats Ready Last bill #191 Paid Close table Start order Orders (21)`
+  - Closed T09 from the table board using `Close table` -> `Yes, close table`.
+  - Verified final reset:
+    - `T09 is clear and ready for the next cashier bill.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 138.50`
+    - T09 available / ready for order.
+  - Opened KDS.
+  - Verified:
+    - `No active tickets`
+    - `No active orders`
+- Expected final state: wrong unsent cart can be cleared, table can be switched safely, correct table can complete order/payment/close without cross-table item bleed.
+- Actual final state:
+  - Wrong table recovery before kitchen send worked.
+  - Clear removed the unsent item.
+  - Back/switch table preserved isolation.
+  - Correct table order/payment/close completed.
+  - KDS remained clean after close.
+- Cross-module verification:
+  - POS: wrong-table clear, table switch, correct-table send/payment/close verified.
+  - KDS: active board clear.
+- Functional correctness: 9.3 / 10
+- UI/UX clarity: 8.7 / 10
+- Workflow speed: 8.9 / 10
+- Layout/device stability: 8.8 / 10
+- Data/payment/session integrity: 9.4 / 10
+- Launch readiness: 9.0 / 10
+- Final score: 9.0 / 10
+- Status: PASS WITH UX FIXES
+- Evidence:
+  - Wrong T07 cart: `Coca Cola`, `Total SGD 3.00`.
+  - Cleared T07 cart: `Items 0 items`, `Total SGD 0.00`.
+  - Correct T09 cart: `Coffee`, `Total SGD 2.50`.
+  - Payment/final: `PAID TODAY SGD 138.50`, T09 reset.
+  - KDS: `No active tickets`, `No active orders`.
+- Defects found:
+  - None blocking for wrong-table recovery before send.
+- Improvements needed:
+  - P3: add a small confirmation when clearing a multi-item cart so staff do not accidentally wipe a large unsent round.
+  - P3: after payment, the close action sometimes feels more reliable from the table board than from the paid drawer; keep paid drawer close continuity consistent.
+  - P3: table board loading can briefly race live checks; keep skeleton/loading state clear before availability buttons appear.
+- Cleanup performed:
+  - Wrong T07 unsent cart cleared.
+  - Order #191 terminal-paid.
+  - T09 closed and reset.
+  - KDS active board verified clear.
+- Launch decision: launch-safe for wrong-table recovery before the order is sent.

@@ -7816,7 +7816,9 @@ export class CashierPosComponent {
     this.error.set(null);
 
     try {
-      await firstValueFrom(this.api.closeTable(tableId));
+      await firstValueFrom(
+        releasingEmptyTable ? this.api.releaseEmptyTable(tableId) : this.api.closeTable(tableId),
+      );
       if (this.cartTableId() === tableId) {
         this.clearCart();
       }

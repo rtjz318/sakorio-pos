@@ -2387,6 +2387,10 @@ export class ApiService {
     return this.http.post<TableCloseResponse>(`${this.apiUrl}/tables/${tableId}/close`, {});
   }
 
+  releaseEmptyTable(tableId: number): Observable<TableCloseResponse> {
+    return this.http.post<TableCloseResponse>(`${this.apiUrl}/tables/${tableId}/release-empty`, {});
+  }
+
   moveTableBill(
     sourceTableId: number,
     targetTableId: number,

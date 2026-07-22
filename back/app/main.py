@@ -11488,6 +11488,142 @@ def close_table(
     })
 
 
+@app.post("/tables/{table_id}/release-empty")
+@limiter.limit(
+    f"{getattr(settings, 'rate_limit_admin_per_minute', 30)}/minute",
+    key_func=_rate_limit_key_user,
+)
+def release_empty_table(
+    request: Request,
+    table_id: int,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.TABLE_ACTIVATE))],
+    session: Session = Depends(get_session),
+) -> dict:
+    """
+    Release an active seated table that never sent a bill.
+
+    This path is intentionally stricter than paid table close. If any current-session
+    order has active items, staff must settle the bill through the normal close flow.
+    """
+    table = session.exec(
+        select(models.Table).where(
+            models.Table.id == table_id,
+            models.Table.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+
+    current_session_orders = session.exec(
+        select(models.Order).where(
+            models.Order.tenant_id == current_user.tenant_id,
+            models.Order.table_id == table.id,
+            models.Order.deleted_at.is_(None),
+        )
+    ).all()
+    active_order_ids: list[int] = []
+
+    for order in current_session_orders:
+        if not _is_order_in_current_table_session(order, table):
+            continue
+
+        all_items = session.exec(
+            select(models.OrderItem).where(models.OrderItem.order_id == order.id)
+        ).all()
+        active_count = sum(1 for it in all_items if _order_item_is_active(it))
+        if active_count > 0:
+            if order.id is not None:
+                active_order_ids.append(order.id)
+            continue
+
+        if order.id == table.active_order_id:
+            for item in all_items:
+                session.delete(item)
+            session.delete(order)
+
+    if active_order_ids:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "table_has_active_orders",
+                "message": "This table already has sent items. Collect payment before closing it.",
+                "params": {"count": len(active_order_ids)},
+                "order_ids": active_order_ids,
+            },
+        )
+
+    table.order_pin = None
+    table.is_active = False
+    table.active_order_id = None
+
+    seated_at_table = session.exec(
+        select(models.Reservation).where(
+            models.Reservation.tenant_id == current_user.tenant_id,
+            models.Reservation.table_id == table_id,
+            models.Reservation.status == models.ReservationStatus.seated,
+        )
+    ).all()
+    finished_reservation_ids: list[int] = []
+    for res in seated_at_table:
+        _mark_reservation_finished(res)
+        session.add(res)
+        if res.id is not None:
+            finished_reservation_ids.append(res.id)
+
+    seated_queue_entries = session.exec(
+        select(models.GuestQueueEntry).where(
+            models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+            models.GuestQueueEntry.seated_table_id == table_id,
+            models.GuestQueueEntry.status == models.GuestQueueStatus.seated,
+        )
+    ).all()
+    completed_queue_entry_ids: list[int] = []
+    queue_completed_at = datetime.now(timezone.utc)
+    for queue_entry in seated_queue_entries:
+        queue_entry.status = models.GuestQueueStatus.completed
+        queue_entry.completed_at = queue_completed_at
+        queue_entry.updated_at = queue_completed_at
+        session.add(queue_entry)
+        if queue_entry.id is not None:
+            completed_queue_entry_ids.append(queue_entry.id)
+
+    session.commit()
+    session.refresh(table)
+
+    for rid in finished_reservation_ids:
+        r = session.get(models.Reservation, rid)
+        if r:
+            out = _reservation_to_dict(r, session, include_client_tech=True)
+            publish_reservation_update(
+                current_user.tenant_id, {"type": "reservation_finished", "reservation": out}
+            )
+
+    for queue_entry_id in completed_queue_entry_ids:
+        queue_entry = session.get(models.GuestQueueEntry, queue_entry_id)
+        if queue_entry:
+            publish_queue_update(
+                current_user.tenant_id,
+                {"type": "queue_completed", "queue_entry": _queue_entry_to_dict(queue_entry, session)},
+            )
+
+    publish_order_update(
+        tenant_id=current_user.tenant_id,
+        order_data={"type": "table_closed", "table_id": table_id},
+        table_id=table_id,
+    )
+
+    return JSONResponse(content={
+        "id": table.id,
+        "name": table.name,
+        "is_active": False,
+        "active_order_id": None,
+        "completed_queue_entries": len(completed_queue_entry_ids),
+        "finished_reservations": len(finished_reservation_ids),
+        "message": "Empty table released successfully",
+    })
+
+
 @app.post("/tables/{table_id}/move-bill")
 @limiter.limit(
     f"{getattr(settings, 'rate_limit_admin_per_minute', 30)}/minute",

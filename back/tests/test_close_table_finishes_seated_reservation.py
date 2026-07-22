@@ -123,6 +123,42 @@ class TestCloseTableFinishesSeatedReservation(PgClientTestCase):
         self.assertEqual(row["status"], "available")
         self.assertEqual(row["operational_status"], "available")
 
+    def test_release_empty_table_finishes_seated_reservation_and_closes_qr_session(self) -> None:
+        h = _bearer_headers(self.owner)
+
+        r_release = self.client.post(f"/tables/{self.table_id}/release-empty", headers=h)
+        self.assertEqual(r_release.status_code, 200, r_release.text)
+        self.assertEqual(r_release.json()["message"], "Empty table released successfully")
+
+        self.session.expire_all()
+        table = self.session.get(models.Table, self.table_id)
+        self.assertIsNotNone(table)
+        assert table is not None
+        self.assertFalse(table.is_active)
+        self.assertIsNone(table.active_order_id)
+        self.assertIsNone(table.order_pin)
+
+        res_row = self.session.get(models.Reservation, self.reservation_id)
+        self.assertIsNotNone(res_row)
+        assert res_row is not None
+        self.assertEqual(res_row.status, models.ReservationStatus.finished)
+        self.assertIsNone(res_row.table_id)
+        self.assertIsNone(res_row.seated_at)
+
+        queue_row = self.session.get(models.GuestQueueEntry, self.queue_entry_id)
+        self.assertIsNotNone(queue_row)
+        assert queue_row is not None
+        self.assertEqual(queue_row.status, models.GuestQueueStatus.completed)
+        self.assertIsNotNone(queue_row.completed_at)
+
+        r_status = self.client.get("/tables/with-status", headers=h)
+        self.assertEqual(r_status.status_code, 200, r_status.text)
+        rows = r_status.json()
+        row = next(x for x in rows if x["id"] == self.table_id)
+        self.assertFalse(row["is_active"])
+        self.assertEqual(row["status"], "available")
+        self.assertEqual(row["operational_status"], "available")
+
 
 if __name__ == "__main__":
     unittest.main()

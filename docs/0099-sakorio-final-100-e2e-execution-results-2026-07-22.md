@@ -4108,3 +4108,110 @@ Scores are out of 10 for:
   - T07 reset.
   - KDS active board verified clear.
 - Launch decision: not yet “10/10” for after-prep correction; launch requires manager/audit guardrails and KDS cancellation visibility.
+
+## E2E-045 - Paid bill correction, refund, and reporting check
+
+- Brief source: `0098`, E2E-045.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/orders`
+  - `https://staff.sakorio.com/reports`
+  - `https://staff.sakorio.com/customers`
+- Roles simulated:
+  - Manager checking whether a paid/closed bill can be reopened, refunded, deleted, edited, or corrected.
+  - Manager checking reports and invoice/customer surfaces after payment.
+- Starting state:
+  - Fresh reference order #195 had just been served, terminal-paid, and table-closed.
+  - POS Paid Today from the prior case: `SGD 143.50`.
+  - T07 reset and available.
+- Steps executed:
+  - Opened Orders.
+  - Switched to `Order History`.
+  - Verified closed-session history message:
+    - `CLOSED-SESSION HISTORY`
+    - `History is read-only for launch operations. Use invoice print/export for records; manager corrections, refunds and reopen flows must be recorded through the accounting process.`
+  - Verified order #195 appeared in history:
+    - `#195`
+    - `T07`
+    - `1x Coffee`
+    - `SGD 2.50`
+    - `Paid`
+    - `7/23/2026, 03:22:32`
+  - Inspected visible history controls.
+  - Verified no paid-history action controls were visible for:
+    - refund
+    - reopen
+    - void
+    - delete
+    - edit
+    - correction
+  - Opened Reports.
+  - Verified report page has export/reporting controls:
+    - `Export CSV`
+    - `Export Excel`
+    - `Today`
+    - `Last 7 days`
+    - `This week`
+    - `This month`
+    - `Previous month`
+  - Verified the broader report range showed collected sales:
+    - `REPORT RANGE 2026-06-23 - 2026-07-23`
+    - `COLLECTED SGD 2,392.00`
+    - `166 orders in this range`
+    - payment method totals including `Terminal`
+  - Clicked `Today`.
+  - Verified Today report range:
+    - `REPORT RANGE 2026-07-23 - 2026-07-23`
+  - Observed Today report mismatch:
+    - `COLLECTED SGD 0.00`
+    - `0 payment methods`
+    - `0 orders in this range`
+    - `No sales in this period`
+  - Compared against same-session POS evidence:
+    - POS Paid Today after order #195: `SGD 143.50`
+    - Orders history shows paid orders dated `7/23/2026`
+  - Opened Customers (Invoice).
+  - Verified customer invoice surface had no bill-correction/refund/reopen controls:
+    - `Add customer`
+    - `Refresh`
+    - `Create first customer`
+    - no paid order correction actions.
+- Expected final state: paid bill correction/refund/reopen is safely unavailable or clearly routed to audited accounting; paid order appears in history and today's reports correctly.
+- Actual final state:
+  - Paid-history correction controls are safely unavailable in the browser UI.
+  - History gives clear read-only/accounting-process wording.
+  - Order #195 appears as paid in Order History.
+  - Reports broader range includes paid revenue.
+  - Reports `Today` range incorrectly shows `SGD 0.00` / `0 orders` despite POS Paid Today and same-day paid history.
+- Cross-module verification:
+  - Orders: paid/closed history read-only, #195 visible, no reopen/refund/edit/delete controls.
+  - Reports: export controls visible, broader range populated, Today range incorrect.
+  - Customers/Invoice: no paid correction controls exposed.
+- Functional correctness: 7.6 / 10
+- UI/UX clarity: 8.1 / 10
+- Workflow speed: 8.7 / 10
+- Layout/device stability: 8.8 / 10
+- Data/payment/session integrity: 7.2 / 10
+- Launch readiness: 7.4 / 10
+- Final score: 7.4 / 10
+- Status: PARTIAL PASS / REPORTING DEFECT
+- Evidence:
+  - History read-only copy: `manager corrections, refunds and reopen flows must be recorded through the accounting process`.
+  - Paid reference order: `#195`, `T07`, `1x Coffee`, `SGD 2.50`, `Paid`, `7/23/2026, 03:22:32`.
+  - POS Paid Today from completed workflow: `SGD 143.50`.
+  - Reports Today: `COLLECTED SGD 0.00`, `0 orders in this range`, `No sales in this period`.
+  - Broader reports range: `COLLECTED SGD 2,392.00`, `166 orders in this range`.
+- Defects found:
+  - P0/P1: Reports `Today` range does not reflect same-day paid orders even though POS Paid Today and Orders history do. This risks failed cash-up/end-day reconciliation.
+  - P2: paid bill correction/refund/reopen is safely unavailable, but the accounting workflow is only described in copy; there is no structured manager correction/audit module yet.
+  - P3: Customers (Invoice) appears empty and disconnected from paid-order invoice generation, so invoice workflows need separate validation.
+- Improvements needed:
+  - P1: fix Today report date filtering/timezone logic so it matches POS Paid Today and paid Orders history.
+  - P1: add a manager correction/audit workflow or explicit “Create accounting adjustment” path for paid bill corrections.
+  - P2: add a reconciliation panel comparing POS Paid Today, Reports Today, and payment-method totals.
+  - P2: add invoice generation/export from paid order history or connect paid orders to Customers (Invoice).
+- Cleanup performed:
+  - No data-mutating correction/refund/reopen action was available or attempted.
+  - No active order was created for this case.
+  - Prior T07 cleanup remained intact.
+- Launch decision: paid-history lockout is safe, but same-day reporting mismatch must be fixed before launch cash-up readiness.

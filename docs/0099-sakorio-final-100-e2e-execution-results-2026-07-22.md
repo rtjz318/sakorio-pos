@@ -2056,3 +2056,93 @@ Scores are out of 10 for:
   - T07 closed and reset.
   - Active queue counters returned to zero.
 - Launch decision: launch-safe for queue notify -> seat -> service lifecycle.
+
+### SKR-FINAL-E2E-027 - Queue guest seated, no order, guest leaves, release empty table
+
+- Priority: P1
+- Roles simulated: customer, host, cashier/waiter
+- Starting state: live browser authenticated; Queue active counters zero after E2E-026 cleanup.
+- Test data:
+  - Customer: `Final QA E2E-027 896036`
+  - Phone: `91276036`
+  - Queue entry: `Q0049`
+  - Seated table: `T07`
+  - Order/bill: none created intentionally.
+- Browser steps executed:
+  - Opened public waitlist.
+  - Joined queue as `Final QA E2E-027 896036`.
+  - Verified public status page showed:
+    - `Q0049`
+    - `Position 1`
+    - `Party 2 guests`
+  - Opened staff Queue.
+  - Verified the active queue entry appeared with:
+    - `WEB WAITLIST`
+    - `2 pax`
+    - `READY TABLES 3`
+  - Used the accessible seating control:
+    - `Seat Final QA E2E-027 896036 at T07`
+  - Verified POS opened T07 from queue handoff.
+  - Verified no order/bill existed:
+    - `Ready for a new order`
+    - `No bill has been sent yet.`
+    - `Orders 0`
+    - `SGD 0.00`
+  - Verified staff had a visible no-order recovery action:
+    - `Release table`
+  - Clicked `Release table`.
+  - Confirmed with:
+    - `Yes, release table`
+  - Verified POS showed:
+    - `T07 was released and is available again.`
+  - Reopened the T07 customer QR and verified it blocked ordering:
+    - `Table Closed`
+    - `This table is not currently accepting orders.`
+  - Reloaded POS after the release settle period.
+  - Verified T07 returned to:
+    - `Available`
+    - `Ready for order`
+  - Reopened Queue and verified:
+    - `WAITING GUESTS 0`
+    - `NOTIFIED 0`
+    - `SEATED 0`
+    - QA guest absent from active board.
+- Expected final state: an empty seated queue handoff can be released safely without creating an order, leaving no active queue/session/bill.
+- Actual final state:
+  - Release action worked after the explicit confirmation.
+  - QR closed and no longer accepted orders.
+  - T07 returned to Available after a reload/settle check.
+  - Queue active counters returned to zero.
+- Cross-module verification:
+  - Public waitlist: queue entry created and then QR closed after release.
+  - Staff Queue: seated handoff removed from active counters after release.
+  - POS/Tables: empty T07 session released without creating a bill.
+  - KDS/payment: intentionally not reached because no order was placed.
+- Functional correctness: 9.1 / 10
+- UI/UX clarity: 8.4 / 10
+- Workflow speed: 8.6 / 10
+- Layout/device stability: 8.8 / 10
+- Data/payment/session integrity: 9.4 / 10
+- Launch readiness: 8.9 / 10
+- Final score: 8.9 / 10
+- Status: PASS WITH UX WATCH
+- Evidence:
+  - Queue entry: `Q0049`.
+  - Accessible seating label: `Seat Final QA E2E-027 896036 at T07`.
+  - Empty service state: `No bill has been sent yet. Release the table if this seating was a mistake.`
+  - Release flow: `Release table` -> `Yes, release table`.
+  - POS toast: `T07 was released and is available again.`
+  - Final POS: `T07 2 seats Available Ready for order`.
+  - Final QR: `Table Closed`.
+  - Final Queue: `WAITING GUESTS 0`, `SEATED 0`, QA guest absent.
+- Defects found:
+  - None blocking.
+- Improvements needed:
+  - P2: `Release table` is available, but it is easy to miss below the service loop and menu/cart area; make it more prominent when no order exists.
+  - P2: after release, the table card briefly still appeared occupied until refresh/settle; consider immediate table-board refresh or optimistic update.
+  - P3: confirmation copy is good, but the modal should mention that the QR will be closed immediately.
+- Cleanup performed:
+  - T07 empty session released.
+  - Queue active counters returned to zero.
+  - Customer QR closed.
+- Launch decision: launch-safe for empty seated table release; polish discoverability before peak-service launch.

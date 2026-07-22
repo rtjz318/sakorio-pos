@@ -4215,3 +4215,152 @@ Scores are out of 10 for:
   - No active order was created for this case.
   - Prior T07 cleanup remained intact.
 - Launch decision: paid-history lockout is safe, but same-day reporting mismatch must be fixed before launch cash-up readiness.
+
+## E2E-046 - Active QR submit then immediate refresh
+
+- Brief source: `0098`, E2E-046.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Customer using table QR ordering.
+  - Cashier/host activating the table QR.
+  - Kitchen processing the QR order.
+  - Cashier settling and closing the bill.
+- Starting state:
+  - T07 available/closed from previous cleanup.
+  - POS Paid Today before payment: `SGD 143.50`.
+  - KDS active board clear.
+- Steps executed:
+  - Opened POS.
+  - Selected T07.
+  - Copied/opened visible QR link:
+    - `https://order.sakorio.com/menu/3b89cb81-33d4-402d-acc6-0be4a45d9b68?qr_access=...`
+  - Opened customer QR.
+  - Observed initial public QR safety gate:
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T07`
+  - Opened Tables.
+  - Observed cross-page state:
+    - Tables showed T07 as `SEATED · START ORDER`
+    - POS had shown T07 as available/ready.
+  - Opened T07 table service modal.
+  - Opened `Table QR`.
+  - Verified QR panel copy:
+    - `SELF-ORDER QR`
+    - `Guests scan this code to open the table menu, order, and check out online.`
+    - same public QR link
+    - `Print table QR`
+    - `Copy link`
+  - Reopened customer QR.
+  - Verified customer menu was now live:
+    - `Ajisen Ramen`
+    - `T07`
+    - `Current order`
+    - `No active order`
+    - menu categories/items visible
+  - Customer skipped optional name prompt.
+  - Customer added `Coffee`.
+  - Verified customer cart:
+    - `1 items`
+    - `SGD 2.50`
+    - `Coffee`
+    - `Total SGD 2.50`
+    - `Place order`
+  - Clicked `Place order`.
+  - Immediately reopened the same QR URL to simulate refresh after submit.
+  - Verified customer refresh result:
+    - `Your order status: Pending`
+    - `Order # 196`
+    - `Status: Pending`
+    - `SGD 2.50`
+    - `Coffee`
+    - `PENDING`
+    - `Cancel`
+    - `Pay Now`
+  - Noted the optional name prompt reappeared after refresh even though the active order was already visible.
+  - Opened staff POS.
+  - Verified staff table board:
+    - `OPEN BILLS 1`
+    - `T07 Bill #196 live`
+    - `Resume order`
+  - Opened KDS.
+  - Verified exactly one QR ticket:
+    - `#196`
+    - `T07`
+    - `1x Coffee`
+    - `Pending`
+    - `Start ticket`
+  - Advanced KDS:
+    - `Start ticket`
+    - `Ready for pass`
+    - `Served / Delivered`
+  - Verified served toast:
+    - `Ticket #196 served`
+    - `1 item delivered. The ticket leaves the live board now.`
+  - Terminal-paid order #196 in POS.
+  - Verified payment:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 146.00`
+    - `T07 Last bill #196 Paid`
+  - Again observed paid-but-not-closed state exposing both:
+    - `Close table`
+    - `Start order`
+  - Clicked `Close table` -> `Yes, close table`.
+  - Verified final reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 146.00`
+  - Verified final KDS:
+    - `No active tickets`
+    - `No active orders`
+- Expected final state: active QR order survives immediate customer refresh, staff/KDS see one order, payment and close complete without duplication or data loss.
+- Actual final state:
+  - Customer QR order survived refresh and showed the existing pending order.
+  - Staff POS and KDS saw exactly one bill/ticket #196.
+  - KDS served successfully.
+  - Terminal payment and table close succeeded.
+  - Initial QR access while table was closed was safely blocked.
+  - However, QR activation was unintuitive and cross-page table state was inconsistent.
+- Cross-module verification:
+  - Customer QR: closed-state block, active menu, cart, submit, refresh persistence verified.
+  - Staff POS: open bill, payment, close/reset verified.
+  - Tables: QR activation panel verified.
+  - KDS: one ticket lifecycle and final clear verified.
+- Functional correctness: 9.0 / 10
+- UI/UX clarity: 7.8 / 10
+- Workflow speed: 8.1 / 10
+- Layout/device stability: 8.7 / 10
+- Data/payment/session integrity: 9.1 / 10
+- Launch readiness: 8.4 / 10
+- Final score: 8.4 / 10
+- Status: PASS WITH QR ACTIVATION UX FIXES
+- Evidence:
+  - Initial blocked QR: `Table Closed`.
+  - Active QR after Tables activation: menu visible, `No active order`, `Place order`.
+  - Refresh result: `Order # 196`, `Status: Pending`, `Coffee`, `SGD 2.50`.
+  - Staff POS: `T07 Bill #196 live`.
+  - KDS: `#196`, `1x Coffee`.
+  - Final: `PAID TODAY SGD 146.00`, T07 `Available`, KDS clear.
+- Defects found:
+  - P1: POS and Tables disagreed on T07 session state before QR activation: POS showed available/ready, while Tables showed `SEATED · START ORDER`.
+  - P2: public QR activation is unclear. POS QR link can show `Table Closed` until staff opens/activates via Tables `Table QR`, even though POS displays QR controls.
+  - P2: optional customer name prompt reappeared after refreshing an already submitted order.
+  - P1: paid-but-not-closed table again exposed `Start order` after terminal payment.
+- Improvements needed:
+  - P1: unify table/session state between POS and Tables.
+  - P1: make QR activation explicit with a single staff action: `Open QR ordering for this table`, visible from both POS and Tables.
+  - P2: when customer has an active order, suppress optional name prompt on refresh or move it behind a non-blocking profile/edit action.
+  - P1: hide/disable ordering controls after payment until table close.
+- Cleanup performed:
+  - Customer order #196 served, terminal-paid, and closed.
+  - T07 reset.
+  - KDS active board verified clear.
+- Launch decision: QR refresh persistence is launch-safe, but QR activation/state clarity needs polish before front-of-house rollout.

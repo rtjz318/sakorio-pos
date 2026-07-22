@@ -1101,3 +1101,83 @@ Scores are out of 10 for:
   - Reservation `#87` finished.
   - Customer QR closed.
 - Launch decision: launch-safe for fixed-table service, but not launch-ready for mid-session table-transfer operations.
+
+### SKR-FINAL-E2E-017 - Two reservations arrive together, both QR order, KDS/pay/close separately
+
+- Priority: P1
+- Roles simulated: customer, host, kitchen, cashier
+- Starting state: live build `2.1.6 196da566`; live public booking had no remaining same-day slots, so the closest valid bookable date was used: `2026-07-23`.
+- Test data:
+  - Reservation `#88`: `Final QA SKR-FINAL-E2E-017A 298049`, phone `+6588298049`, assigned/seated table `T07`
+  - Reservation `#89`: `Final QA SKR-FINAL-E2E-017B 314265`, phone `+6588314265`, assigned/seated table `T09`
+  - Shared booking slot: `2026-07-23 19:00`
+  - T07 QR order: `#167`, guest `E2E017 T07 Guest`, item `Tacos de Carne Asada`, total `SGD 12.00`
+  - T09 QR order: `#168`, guest `E2E017 T09 Guest`, item `Chile Relleno`, total `SGD 15.00`
+- Browser steps executed:
+  - Opened public booking page twice and created reservations `#88` and `#89` for the same slot.
+  - Opened staff Reservations for `2026-07-23`.
+  - Verified both bookings appeared on the same timeline at `7:00 PM`.
+  - Used search to isolate `#88`.
+  - Clicked `Assign table`.
+  - Verified floor-planning modal showed available/occupied table state and accessible labels such as `Assign T07`, `Assign T09`, `Assign T04`.
+  - Assigned `#88` to `T07`.
+  - Used search to isolate `#89`.
+  - Assigned `#89` to `T09`.
+  - Verified both assigned reservations changed from generic assignment prompt to planned-table state with `Seat now / open POS`, `Change table`, and `Seat + customer QR`.
+  - Seated `#88` and `#89` independently using `Seat + customer QR`.
+  - Opened POS for T07 and T09 to retrieve their visible QR links.
+  - Opened each customer QR in a separate browser tab.
+  - Customer on T07 entered name `E2E017 T07 Guest`, ordered `Tacos de Carne Asada`, and created order `#167`.
+  - Customer on T09 entered name `E2E017 T09 Guest`, ordered `Chile Relleno`, and created order `#168`.
+  - Verified neither customer QR showed Cash.
+  - Opened KDS and verified both tickets appeared together but stayed correctly separated:
+    - `#167 · T07`
+    - `#168 · T09`
+  - Advanced both tickets through `Start ticket` -> `Ready for pass` -> `Served / Delivered`.
+  - Verified KDS live board cleared; #168 briefly remained only in the served toast/countdown.
+  - Opened POS for T07 and terminal-paid `SGD 12.00`.
+  - Closed T07 and verified linked reservation `#88` finish warning.
+  - Opened POS for T09 and terminal-paid `SGD 15.00`.
+  - Closed T09 and verified linked reservation `#89` finish warning.
+  - Reloaded both customer QR tabs.
+  - Reopened Reservations for `2026-07-23`, searched `SKR-FINAL-E2E-017`, and verified both reservations finished.
+- Expected final state: parallel reservation seating does not mix tables, QR sessions, KDS tickets, bills, payments, or reservation closure.
+- Actual final state:
+  - Reservation `#88` became `FINISHED`.
+  - Reservation `#89` became `FINISHED`.
+  - T07 and T09 returned to available service state after close.
+  - T07 QR showed `Table Closed`.
+  - T09 QR showed `Table Closed`.
+  - KDS live board had no active orders after both tickets were served.
+  - Paid Today increased to `SGD 378.50`.
+- Cross-module verification:
+  - Reservations: both bookings created, assigned, seated, and finished independently.
+  - Floor planning: pre-arrival `Assign table` worked and showed table availability/occupancy warnings.
+  - POS: T07 bill #167 and T09 bill #168 stayed separate.
+  - KDS: #167/T07 and #168/T09 were separate tickets.
+  - QR: both customer sessions were separate and closed after their own table close.
+- Functional correctness: 9.6 / 10
+- UI/UX clarity: 9.4 / 10
+- Workflow speed: 9.0 / 10
+- Layout/device stability: 9.2 / 10
+- Data/payment/session integrity: 9.7 / 10
+- Launch readiness: 9.5 / 10
+- Final score: 9.5 / 10
+- Status: PASS
+- Evidence:
+  - Floor-planning labels: `Assign T07`, `Assign T09`, `Assign T04`.
+  - Assigned reservation actions: `Seat now / open POS`, `Change table`, `Seat + customer QR`.
+  - KDS evidence: `#167 · T07`, `#168 · T09`.
+  - POS evidence: T07 bill `#167` payable `SGD 12.00`; T09 bill `#168` payable `SGD 15.00`.
+  - Close confirmations: linked reservation `#88` and linked reservation `#89` would finish automatically.
+  - Final QR states: `Table Closed` on both T07 and T09.
+- Defects / improvements found:
+  - P3: finished reservation search highlight still shows `NEW / SELECTED`, consistent with earlier Phase B cases.
+  - P4: E2E-013 should be interpreted more narrowly after this case: true pre-arrival assignment exists for future reservations, while arrival-window same-day reservations convert to immediate seat/handoff behavior.
+- Cleanup performed:
+  - T07 terminal-paid and closed.
+  - T09 terminal-paid and closed.
+  - Reservation `#88` finished.
+  - Reservation `#89` finished.
+  - Both customer QR sessions closed.
+- Launch decision: launch-safe and strong for parallel assigned-reservation service.

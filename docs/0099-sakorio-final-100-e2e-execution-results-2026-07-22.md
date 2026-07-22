@@ -446,4 +446,6 @@ Scores are out of 10 for:
   - Browser retest bill `#155` confirmed add-on round sent successfully with no raw `429`.
   - Browser retest bill `#155` was processed through KDS/payment/close; T07 returned to `Available`.
   - Follow-up spacing issue still appeared in live confirmation as `After closeT07`; patched confirmation detail into a single sentence: `After close, T07 becomes available.`
-  - Final spacing live retest pending next redeploy.
+  - Redeployed live build `2.1.6 d8981b31`.
+  - Browser retest bill `#156` confirmed final close copy: `After close, T07 becomes available.`
+  - Browser retest bill `#156` was processed through KDS/payment/close; T07 returned to `Available`.

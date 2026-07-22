@@ -1690,3 +1690,106 @@ Scores are out of 10 for:
 - Cleanup performed:
   - No queue row was created by the public attempts, so no customer/table cleanup was possible from this case.
 - Launch decision: not launch-safe for public waitlist leave/rejoin until the live public queue join and staff-login blocker are resolved.
+
+#### SKR-FINAL-E2E-023R - Recovery rerun after waitlist/auth restore
+
+- Priority: P0
+- Roles simulated: customer, host, kitchen, cashier
+- Starting state: live browser recovered; staff authenticated; Queue showed `WAITING GUESTS 0`, `NOTIFIED 0`, `SEATED 0`, `3 stale hidden`.
+- Test data:
+  - Customer: `Final QA E2E-023R 538592`
+  - Phone: `91238592`
+  - First queue entry: `Q0044`
+  - Rejoined active queue entry: `Q0045`
+  - Seated table: `T07`
+  - QR order: `#174`
+  - Item: `Tacos de Carne Asada`
+  - Final bill total: `SGD 12.00`
+- Browser steps executed:
+  - Opened live public waitlist page.
+  - Joined public queue as `Final QA E2E-023R 538592`.
+  - Verified first queue entry `Q0044`, position `1`, party `2 guests`, and visible `Leave queue`.
+  - Clicked `Leave queue`.
+  - Verified the public page showed the cancelled/no-longer-active state and allowed rejoin.
+  - Rejoined using the same customer name and phone.
+  - Verified active rejoin entry `Q0045`, position `1`, party `2 guests`.
+  - Opened staff Queue.
+  - Verified host board had only one active waiting guest for the rejoined customer.
+  - Selected recommendation `T07 Best fit` through the accessible action `Seat Final QA E2E-023R 538592 at T07`.
+  - Verified POS opened with queue handoff:
+    - `T07 opened from queue handoff for Final QA E2E-023R 538592.`
+  - Opened the customer QR URL for T07.
+  - Entered customer name when prompted.
+  - Added `Tacos de Carne Asada`.
+  - Placed order.
+  - Verified customer QR showed:
+    - `Order # 174`
+    - `Status: Pending`
+    - `SGD 12.00`
+    - no `Cash` payment option.
+  - Opened KDS.
+  - Verified ticket `#174 · T07`, guest name, `Tacos de Carne Asada`, `KITCHEN`, `MAIN COURSE`.
+  - Advanced KDS using live browser DOM controls:
+    - `Start ticket #174`
+    - `Ready for pass #174`
+    - `Served / Delivered #174`
+  - Verified KDS showed `No active tickets`, `Ticket #174 served`, and `No active orders`.
+  - Opened POS for T07.
+  - Opened payment panel.
+  - Selected `Terminal Use terminal Machine confirmed`.
+  - Confirmed `charge terminal - SGD 12.00`.
+  - Verified POS showed:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 435.00`
+    - `Last bill #174 Paid`
+  - Clicked `Close table`.
+  - Confirmed `Yes, close table`.
+  - Verified POS showed `T07 is clear and ready for the next cashier bill.`
+  - Reopened customer QR and verified:
+    - `Table Closed`
+    - `This table is not currently accepting orders.`
+  - Reopened Queue and verified:
+    - `WAITING GUESTS 0`
+    - `NOTIFIED 0`
+    - `SEATED 0`
+    - QA guest no longer appeared on active board.
+- Expected final state: customer can leave and rejoin once, host seats only the active rejoin, QR/KDS/payment/close completes, and table resets.
+- Actual final state:
+  - Leave/rejoin lifecycle worked after live service recovery.
+  - Only the rejoined queue entry was seated.
+  - T07 QR order routed to KDS, was served, terminal-paid, and closed.
+  - Queue active board returned to zero.
+- Cross-module verification:
+  - Public waitlist: join, leave, rejoin, and QR closed state verified.
+  - Staff Queue: active rejoin only; final counters zero.
+  - POS: queue handoff, bill #174 terminal payment, and table close verified.
+  - KDS: ticket #174 appeared, advanced, and cleared.
+- Functional correctness: 9.5 / 10
+- UI/UX clarity: 9.2 / 10
+- Workflow speed: 8.8 / 10
+- Layout/device stability: 9.1 / 10
+- Data/payment/session integrity: 9.6 / 10
+- Launch readiness: 9.3 / 10
+- Final score: 9.3 / 10
+- Status: PASS AFTER RECOVERY
+- Evidence:
+  - `Q0044` first join, then successful leave/cancel state.
+  - `Q0045` active rejoin.
+  - Accessible seating label: `Seat Final QA E2E-023R 538592 at T07`.
+  - QR order: `Order # 174`, `SGD 12.00`, no Cash.
+  - KDS: `Ticket #174 served`, `No active orders`.
+  - Payment: `Terminal payment recorded for T07`, `PAID TODAY SGD 435.00`.
+  - Close: `T07 is clear and ready for the next cashier bill.`
+  - QR final: `Table Closed`.
+- Defects found:
+  - P2: POS terminal payment is a two-step flow (`Terminal` then `charge terminal - amount`). It is safe, but the visible affordance should be clearer so cashiers understand the second confirmation is required.
+  - P3: KDS browser automation needed DOM-node clicking because the normal button click path timed out on the live ticket button. Human-visible UI was fine, but this suggests ticket buttons are dense/possibly expensive to interact with under automation.
+- Improvements needed:
+  - Add clearer payment helper copy: `Step 1: choose terminal. Step 2: confirm charge.`
+  - Consider making the terminal confirmation button visually primary after terminal method is selected.
+- Cleanup performed:
+  - Order #174 terminal-paid.
+  - T07 closed and reset.
+  - Queue active counters returned to zero.
+- Launch decision: launch-safe after recovery; keep the original E2E-023 failure above as evidence of transient live availability/auth instability.

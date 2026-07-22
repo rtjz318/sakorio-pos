@@ -1955,3 +1955,104 @@ Scores are out of 10 for:
   - T07 closed and reset.
   - Active queue counters returned to zero.
 - Launch decision: launch-safe for duplicate public queue protection.
+
+### SKR-FINAL-E2E-026 - Queue notify guest, customer returns, seat, order, pay, close
+
+- Priority: P0
+- Roles simulated: customer, host, beverage station, cashier
+- Starting state: live browser authenticated; Queue active counters zero after E2E-025 cleanup.
+- Test data:
+  - Customer: `Final QA E2E-026 498318`
+  - Phone: `91268318`
+  - Queue entry: `Q0048`
+  - Seated table: `T07`
+  - QR order: `#176`
+  - Item: `Coffee`
+  - Final bill total: `SGD 2.50`
+- Browser steps executed:
+  - Opened public waitlist.
+  - Joined queue as `Final QA E2E-026 498318`.
+  - Verified public status page showed:
+    - `Q0048`
+    - `Position 1`
+    - `Party 2 guests`
+    - `Leave queue`
+  - Opened staff Queue.
+  - Selected the active queue entry.
+  - Clicked `Notify guest`.
+  - Verified public status page changed to:
+    - `Your table is nearly ready`
+    - `Please return to the host stand now. We will hold your place briefly.`
+  - Verified host board entered notified state.
+  - Clicked the accessible seating action:
+    - `Seat Final QA E2E-026 498318 at T07`
+  - Verified POS opened T07 from queue handoff.
+  - Opened customer QR from T07.
+  - Entered customer name when prompted.
+  - Added `Coffee`.
+  - Placed order.
+  - Verified QR showed:
+    - `Order #176`
+    - `Status: Pending`
+    - `SGD 2.50`
+    - no `Cash` option.
+  - Opened KDS.
+  - Verified beverage ticket:
+    - `#176 · T07`
+    - `Coffee`
+    - `BEVERAGE`
+    - `BEVERAGES`
+  - Advanced ticket:
+    - `Start ticket #176`
+    - `Ready for pass #176`
+    - `Served / Delivered #176`
+  - Verified KDS cleared to `No active tickets` / `No active orders`.
+  - Opened POS for T07.
+  - Opened payment panel.
+  - Selected `Terminal`.
+  - Confirmed `charge terminal - SGD 2.50`.
+  - Closed the table with `Close table` -> `Yes, close table`.
+  - Verified POS showed:
+    - `T07 is clear and ready for the next cashier bill.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 5.50`
+  - Reopened customer QR and verified `Table Closed`.
+  - Reopened Queue and verified active counters returned to zero and the QA guest was absent.
+- Expected final state: notified customer sees clear return-to-host copy, host seats the notified party, QR/KDS/payment/close completes cleanly.
+- Actual final state:
+  - Notify flow worked on both host and public views.
+  - Customer QR order routed to beverage KDS and cleared.
+  - Terminal payment and table close completed.
+  - Queue active board returned to zero.
+- Cross-module verification:
+  - Public waitlist: waiting -> notified -> QR closed.
+  - Staff Queue: notify and seat flow verified; final counters zero.
+  - POS: queue handoff, payment, and close verified.
+  - KDS: beverage route for Coffee verified.
+- Functional correctness: 9.6 / 10
+- UI/UX clarity: 9.4 / 10
+- Workflow speed: 9.1 / 10
+- Layout/device stability: 9.2 / 10
+- Data/payment/session integrity: 9.7 / 10
+- Launch readiness: 9.5 / 10
+- Final score: 9.5 / 10
+- Status: PASS
+- Evidence:
+  - Public notified copy: `Your table is nearly ready`.
+  - Public return copy: `Please return to the host stand now.`
+  - Accessible seating label: `Seat Final QA E2E-026 498318 at T07`.
+  - QR order: `Order #176`, `Coffee`, `SGD 2.50`, no Cash.
+  - KDS route: `BEVERAGE / BEVERAGES`.
+  - Final POS: `T07 is clear and ready for the next cashier bill.`
+  - Final QR: `Table Closed`.
+  - Queue final: `WAITING GUESTS 0`, QA name absent.
+- Defects found:
+  - None blocking.
+- Improvements needed:
+  - P3: if SMS/WhatsApp notification is not wired yet, label the host action as an in-system status change or show `Manual notification required` so staff do not assume an external message was sent.
+  - P3: public notified state is good; add optional arrival instructions such as `Show this screen to the host` for busy front-door operations.
+- Cleanup performed:
+  - Order #176 terminal-paid.
+  - T07 closed and reset.
+  - Active queue counters returned to zero.
+- Launch decision: launch-safe for queue notify -> seat -> service lifecycle.

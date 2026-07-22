@@ -3210,3 +3210,89 @@ Scores are out of 10 for:
   - Order #185 terminal-paid.
   - T07 closed and reset.
 - Launch decision: table close and Orders history are launch-safe; QR post-close must be rechecked in dedicated QR cases before final launch sign-off.
+
+## E2E-037 - Unpaid bill close prevention, then terminal settlement and close
+
+- Brief source: `0098`, E2E-037.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Cashier.
+  - Beverage/KDS staff.
+- Starting state:
+  - T07 available.
+  - POS open bills `0`.
+- Steps executed:
+  - Opened POS.
+  - Selected T07.
+  - Added `Coffee`.
+  - Clicked `Send order`.
+  - Verified toast:
+    - `Order #186 sent for T07`
+  - Observed delayed-send refresh first:
+    - immediate state briefly showed `OPEN BILLS 0`, `Orders 0`, and no payable bill.
+  - Waited/refreshed.
+  - Verified live unpaid state:
+    - `OPEN BILLS 1`
+    - `T07 Open order`
+    - `Bill #186 live`
+    - `Bill #186 in service`
+    - `T07 · 1 item · SGD 2.50`
+    - `Bill #186 payable`
+    - `Orders 1`
+    - `charge terminal - SGD 2.50`
+  - Attempted to find a close-table action while unpaid.
+  - Verified no `Close table` action was visible while #186 was unpaid.
+  - Opened KDS.
+  - Advanced #186 through production.
+  - Returned to POS.
+  - Clicked `charge terminal - SGD 2.50`.
+  - Verified:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 123.00`
+    - `T07 Last bill #186 Paid`
+  - Clicked board-level `Close table`.
+  - Verified `Yes, close table`.
+  - Confirmed close.
+  - Verified final reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+- Expected final state: unpaid table cannot be closed silently; after terminal settlement, close works and table resets.
+- Actual final state:
+  - Unpaid close was prevented because no close action was available in unpaid live-bill state.
+  - After payment, board-level close worked.
+  - T07 reset to available.
+  - The block is safe but passive; there is no explicit message such as `Pay before closing`.
+- Cross-module verification:
+  - POS: unpaid close block, terminal settlement, close/reset verified.
+  - KDS: #186 served/cleared before final settlement.
+- Functional correctness: 9.2 / 10
+- UI/UX clarity: 8.4 / 10
+- Workflow speed: 8.5 / 10
+- Layout/device stability: 8.7 / 10
+- Data/payment/session integrity: 9.5 / 10
+- Launch readiness: 8.9 / 10
+- Final score: 8.9 / 10
+- Status: PASS WITH UX FIXES
+- Evidence:
+  - Unpaid state: `Bill #186 payable`, `SGD 2.50`, no `Close table`.
+  - Payment: `Terminal payment recorded for T07`.
+  - Final: `T07 is clear and ready for the next cashier bill`, T07 `Available`.
+- Defects found:
+  - P2: delayed-send refresh/stale state recurred after #186.
+  - P3: unpaid-close prevention is implicit via no button; safer UX would show a disabled `Close table` with explanation or a visible guardrail message.
+  - P3: post-payment drawer continuity issue recurred.
+- Improvements needed:
+  - P2: fix send-order immediate bill refresh.
+  - P3: show disabled close action or helper text: `Settle bill before closing table`.
+  - P3: keep paid close flow visually continuous.
+- Cleanup performed:
+  - Order #186 served in KDS.
+  - Order #186 terminal-paid.
+  - T07 closed and reset.
+- Launch decision: launch-safe for unpaid-close protection, but explicit close-block messaging would reduce cashier uncertainty.

@@ -3942,3 +3942,169 @@ Scores are out of 10 for:
   - T07 reset.
   - KDS active board verified clear.
 - Launch decision: functionally launch-safe for pre-prep correction, but requires UX polish and paid-table guard fix before “10/10” readiness.
+
+## E2E-044 - Sent wrong item after kitchen starts
+
+- Brief source: `0098`, E2E-044.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/orders`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Cashier sending the wrong item.
+  - Kitchen starting preparation.
+  - Cashier/manager attempting correction after prep starts.
+  - Kitchen/cashier completing corrected ticket, payment, and table close.
+- Starting state:
+  - T07 available.
+  - POS open bills `0`.
+  - Paid Today before payment: `SGD 141.00`.
+  - KDS active board clear.
+- Steps executed:
+  - Opened POS.
+  - Selected T07.
+  - Added wrong item `Coca Cola`.
+  - Verified unsent cart:
+    - `1 add-on item not sent yet · SGD 3.00 cart value`
+    - `Coca Cola`
+    - `Items 1 item`
+    - `Total SGD 3.00`
+  - Clicked `Send order`.
+  - Verified live bill #194:
+    - `Bill #194 in service`
+    - `T07 · 1 item · SGD 3.00`
+    - `Bill #194 payable`
+    - `charge terminal - SGD 3.00`
+  - Opened KDS.
+  - Verified new ticket:
+    - `#194`
+    - `T07`
+    - `1x Coca Cola`
+    - `Pending`
+    - `Start ticket`
+  - Clicked `Start ticket`.
+  - Verified KDS moved ticket into prep:
+    - `#194`
+    - `Preparing`
+    - `1x Coca Cola`
+    - `#194 started (1 item).`
+    - `Ready for pass`
+  - Opened Orders after kitchen start.
+  - Verified active summary:
+    - `1 active ticket | SGD 3.00 on this table`
+    - `Latest #194`
+    - `1 in kitchen`
+    - `NEWEST TICKET #194 · 1x Coca Cola`
+  - Clicked `View tickets`.
+  - Verified ticket detail while item was already preparing:
+    - `Coca Cola`
+    - `Remove item`
+    - `Preparing`
+    - `Open bill`
+    - `Edit ticket`
+  - Clicked `Remove item`.
+  - Observed only generic confirmation:
+    - `Are you sure you want to remove this item?`
+    - `Cancel`
+    - `Confirm`
+    - no manager/audit reason
+    - no kitchen-started warning
+  - Clicked `Confirm`.
+  - Verified removal outcome:
+    - `Item removed successfully`
+    - active order disappeared from Orders active list
+    - Orders returned to read-only history list
+  - Checked KDS.
+  - Verified the preparing wrong ticket was removed:
+    - `No active tickets`
+    - `No active orders`
+  - Returned to POS.
+  - Added corrected item `Coffee`.
+  - Clicked `Send order`.
+  - Verified corrected bill #195:
+    - `Bill #195 in service`
+    - `T07 · 1 item · SGD 2.50`
+    - `Bill #195 payable`
+  - Checked KDS.
+  - Verified corrected ticket:
+    - `#195`
+    - `T07`
+    - `1x Coffee`
+    - `Pending`
+  - Advanced KDS:
+    - `Start ticket`
+    - `Ready for pass`
+    - `Served / Delivered`
+  - Verified served toast:
+    - `Ticket #195 served`
+    - `1 item delivered. The ticket leaves the live board now.`
+  - Verified KDS final state:
+    - `No active tickets`
+    - `No active orders`
+  - Returned to POS.
+  - Opened payment panel.
+  - Terminal-paid `SGD 2.50`.
+  - Verified payment:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 143.50`
+    - `T07 Last bill #195 Paid`
+  - Observed paid state still exposed:
+    - `Close table`
+    - `Start order`
+    - drawer-level `Add items`
+  - Clicked `Close table` -> `Yes, close table`.
+  - Verified final reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 143.50`
+- Expected final state: after-prep correction is either blocked or handled as a stronger manager/audited action; bill and KDS remain consistent; final corrected bill can be settled and closed.
+- Actual final state:
+  - After-prep removal is allowed.
+  - Data integrity held: the preparing wrong ticket was removed from KDS and the active bill list.
+  - Corrected order #195 was created cleanly, served, paid, and closed.
+  - Final POS and KDS state was clean.
+  - However, the after-prep removal UX is too lightweight for real restaurant operations.
+- Cross-module verification:
+  - POS: wrong send, corrected order, terminal payment, close/reset verified.
+  - Orders: after-prep `Remove item` confirmation and active/history behavior verified.
+  - KDS: preparing-ticket removal, corrected-ticket lifecycle, final clear verified.
+- Functional correctness: 8.7 / 10
+- UI/UX clarity: 7.6 / 10
+- Workflow speed: 8.0 / 10
+- Layout/device stability: 8.6 / 10
+- Data/payment/session integrity: 8.8 / 10
+- Launch readiness: 8.1 / 10
+- Final score: 8.1 / 10
+- Status: PASS WITH REQUIRED GUARDRAIL FIXES
+- Evidence:
+  - Wrong order after prep: `#194`, `1x Coca Cola`, `Preparing`.
+  - Orders label: `1 in kitchen`.
+  - After-prep correction control: `Remove item`.
+  - Confirmation copy: `Are you sure you want to remove this item?`.
+  - KDS after removal: `No active tickets`, `No active orders`.
+  - Corrected order: `#195`, `1x Coffee`, `SGD 2.50`.
+  - Payment/final: `PAID TODAY SGD 143.50`, T07 `Available`, `Ready for order`.
+- Defects found:
+  - P1: after kitchen starts, item removal is still allowed with the same generic confirmation as a pending item. This needs explicit manager/audit language or a safe block.
+  - P1: after terminal payment, paid-but-not-closed table still exposes `Start order` and drawer-level `Add items`; this repeats the paid-table guard issue.
+  - P2: after removal of an in-prep item, there is no visible KDS-facing cancellation/audit trail on the live KDS board; the ticket simply disappears.
+  - P3: corrected-order flow still relies on moving between Orders, KDS, and POS; staff need a clearer single correction trail.
+- Improvements needed:
+  - P1: add role/manager confirmation and required reason for removing items already `Preparing` or beyond.
+  - P1: send/display a KDS cancellation notice when a preparing item is removed so kitchen staff do not continue making a removed item.
+  - P1: hide/disable all ordering controls once a bill is paid and before the table is closed.
+  - P2: separate button labels by state:
+    - pending: `Remove before prep`
+    - preparing/ready: `Request manager void`
+    - served: `Manager correction only`
+  - P2: expose correction history/audit in Orders detail and reports.
+- Cleanup performed:
+  - Wrong order #194 removed after prep.
+  - Corrected order #195 served, terminal-paid, and closed.
+  - T07 reset.
+  - KDS active board verified clear.
+- Launch decision: not yet “10/10” for after-prep correction; launch requires manager/audit guardrails and KDS cancellation visibility.

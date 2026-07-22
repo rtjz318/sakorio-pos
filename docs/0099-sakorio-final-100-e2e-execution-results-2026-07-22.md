@@ -2146,3 +2146,77 @@ Scores are out of 10 for:
   - Queue active counters returned to zero.
   - Customer QR closed.
 - Launch decision: launch-safe for empty seated table release; polish discoverability before peak-service launch.
+
+### SKR-FINAL-E2E-028 - Stale queue rows hidden, reviewable, archive action checked
+
+- Priority: P1
+- Roles simulated: host / manager
+- Starting state: live browser authenticated; Queue active counters zero after E2E-027 cleanup.
+- Test data:
+  - Existing stale QA rows shown by the live system:
+    - `QA R2 E2E112Small 226698`
+    - `QA R2 Duplicate 281230`
+    - `QA E2E112Small`
+  - No new queue/customer row was created for this case.
+- Browser steps executed:
+  - Opened staff Queue.
+  - Verified default service board state:
+    - `WAITING GUESTS 0`
+    - `NOTIFIED 0`
+    - `SEATED 0`
+    - `0 active`
+    - `0 visible`
+    - `3 loaded`
+    - `3 stale hidden`
+  - Verified stale rows were hidden from the active lanes:
+    - Waiting lane: `0 entries`
+    - Notified lane: `0 entries`
+    - Seated lane: `0 entries`
+  - Verified host-facing stale copy:
+    - `Current service view is hiding 3 stale queue entries older than 12 hours.`
+    - `Archive old QA/test or abandoned queue rows before service so hosts see only live guests.`
+  - Clicked `Review stale`.
+  - Verified the page exposed stale QA/test row names in the review state.
+  - Clicked `Archive stale`.
+  - Confirmed the archive action from the live browser.
+  - Reopened Queue to verify final state.
+- Expected final state:
+  - Stale rows hidden by default.
+  - Review stale exposes stale QA/test entries safely.
+  - Archive stale closes/removes stale active entries from service counts.
+  - Final board shows zero stale active entries or a reduced stale count.
+- Actual final state:
+  - Stale rows were correctly hidden from service lanes.
+  - Review stale was present and showed QA/test stale entries.
+  - Archive stale confirmation did not reduce the stale counters.
+  - Final board still showed:
+    - `3 loaded`
+    - `3 stale hidden`
+    - `3 stale active entries`
+- Cross-module verification:
+  - Staff Queue: stale filtering works; archive action did not persist/reduce stale state.
+  - POS/KDS/payment: not applicable.
+- Functional correctness: 6.8 / 10
+- UI/UX clarity: 8.4 / 10
+- Workflow speed: 8.7 / 10
+- Layout/device stability: 9.0 / 10
+- Data/payment/session integrity: 7.0 / 10
+- Launch readiness: 7.4 / 10
+- Final score: 7.4 / 10
+- Status: PARTIAL / DEFECT FOUND
+- Evidence:
+  - Initial board: `WAITING GUESTS 0`, `0 visible`, `3 loaded`, `3 stale hidden`.
+  - Review state surfaced QA/test stale rows.
+  - Archive confirmed in the live browser.
+  - Final board still showed `3 stale hidden` and `3 stale active entries`.
+- Defects found:
+  - P1: `Archive stale` confirmation does not appear to archive/remove stale active queue rows from the live board counters.
+- Improvements needed:
+  - P1: make `Archive stale` persistently change each stale active row to a closed status, then refresh summary/lanes immediately.
+  - P2: after archiving, show a success toast with the exact number of rows archived.
+  - P2: if archive is blocked by row state/permissions, show an explicit failure reason instead of leaving counts unchanged.
+  - P3: `Show stale` is visually presented near controls, but in this pass the discoverable review path was clearer through `Review stale`; keep one dominant stale-management path.
+- Cleanup performed:
+  - No live queue entry was created.
+  - No service table/order state was changed.
+- Launch decision: service-safe because stale rows remain hidden, but not fully launch-polished until archive cleanup actually clears stale QA/test rows.

@@ -2976,3 +2976,131 @@ Scores are out of 10 for:
   - Order #183 terminal-paid.
   - T07 closed and reset.
 - Launch decision: launch-safe for same-bill staff add-ons, with UX wording polish needed before final release.
+
+## E2E-035 - POS Current orders mode switch and return to Add items
+
+- Brief source: `0098`, E2E-035.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Waiter/cashier.
+  - Beverage/KDS staff.
+- Starting state:
+  - T07 available.
+  - POS open bills `0`.
+  - KDS active board clear.
+- Steps executed:
+  - Opened POS.
+  - Selected T07.
+  - Added first item `Coffee`.
+  - Clicked `Send order`.
+  - Verified toast:
+    - `Order #184 sent for T07`
+  - Observed recurring delayed-refresh state:
+    - immediate POS state temporarily showed `OPEN BILLS 0`, `Orders 0`, and no payable bill.
+  - Waited/refreshed.
+  - Verified #184 live-bill state:
+    - `OPEN BILLS 1`
+    - `T07 Open order`
+    - `Bill #184 live`
+    - `T07 · 1 item · SGD 2.50`
+    - `Bill #184 payable`
+    - `Orders 1`
+  - Clicked `Current orders`.
+  - Verified mode showed:
+    - `CURRENT SESSION`
+    - `T07 orders`
+    - `Full orders page`
+    - `Order #184`
+    - `pending`
+    - `1x Coffee`
+    - `Awaiting payment`
+    - `SGD 2.50`
+  - Clicked `Add items`.
+  - Verified return to menu/add mode preserved live-bill context:
+    - `Bill #184 in service`
+    - `Bill #184`
+    - `1 items · SGD 2.50`
+    - `Add another round`
+    - `1 x Coffee`
+  - Added add-on item `Coca Cola`.
+  - Verified add-on state:
+    - `Added Coca Cola to the add-on round for bill #184. Send the round when ready.`
+    - `1 add-on item not sent yet`
+    - `1 current ticket`
+    - `1 in cart`
+    - `Items 2 items`
+    - `Total SGD 5.50`
+    - `Send add-on round`
+  - Observed recurring add-on wording issue:
+    - copy said `1 add-on item not sent yet · SGD 5.50 cart value`, while the add-on subtotal is SGD 3.00 and SGD 5.50 is the combined bill total.
+  - Clicked `Send add-on round`.
+  - Verified:
+    - `Add-on round sent to bill #184 for T07`
+    - `T07 · 2 items · SGD 5.50`
+    - `Bill #184 payable`
+    - `charge terminal - SGD 5.50`
+  - Opened KDS.
+  - Verified #184 appeared and was advanced through production.
+  - Verified KDS final clear state:
+    - `No active tickets`
+    - `No active orders`
+  - Returned to POS.
+  - Clicked `charge terminal - SGD 5.50`.
+  - Verified:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 118.00`
+    - `T07 Last bill #184 Paid`
+  - Observed post-payment drawer transition recurred:
+    - close continued from board-level `Close table`.
+  - Clicked board-level `Close table`.
+  - Verified `Yes, close table`.
+  - Confirmed close.
+  - Verified final reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+- Expected final state: Current orders mode does not lose table/bill context; returning to Add items works; add-on stays on same bill; payment/close completes.
+- Actual final state:
+  - Current orders mode displayed current session/order clearly.
+  - Add items returned to the same live bill without losing context.
+  - Add-on stayed on bill #184.
+  - KDS cleared and POS payment/close completed.
+  - Delayed send refresh, add-on total wording, and post-payment drawer transition issues recurred.
+- Cross-module verification:
+  - POS: Current orders mode, Add items return, add-on, payment, close verified.
+  - KDS: no active tickets/orders after serving #184.
+- Functional correctness: 9.2 / 10
+- UI/UX clarity: 8.3 / 10
+- Workflow speed: 8.4 / 10
+- Layout/device stability: 8.7 / 10
+- Data/payment/session integrity: 9.4 / 10
+- Launch readiness: 8.8 / 10
+- Final score: 8.8 / 10
+- Status: PASS WITH UX FIXES
+- Evidence:
+  - Current orders: `CURRENT SESSION`, `Order #184`, `1x Coffee`, `Awaiting payment`, `SGD 2.50`.
+  - Add items return: `Bill #184`, `Add another round`, `1 x Coffee`.
+  - Add-on: `Add-on round sent to bill #184 for T07`.
+  - Final bill: `T07 · 2 items · SGD 5.50`.
+  - KDS final: `No active tickets`, `No active orders`.
+  - Payment: `Terminal payment recorded for T07`.
+  - Final reset: T07 `Available`, `Ready for order`.
+- Defects found:
+  - P2: send-order delayed-refresh/stale state recurred after #184.
+  - P2: add-on `cart value` copy uses combined bill total instead of add-on subtotal.
+  - P3: post-payment drawer continuity issue recurred; close continued from table board.
+- Improvements needed:
+  - P2: make Current orders/Add items transitions retain accurate immediate bill state after sends.
+  - P2: show separate `Add-on subtotal` and `Bill total`.
+  - P3: add a clearer visual state for `Current orders` vs `Add items` tabs, especially on iPad.
+  - P3: preserve the paid drawer until table close or clearly announce the board-level close handoff.
+- Cleanup performed:
+  - Order #184 served in KDS.
+  - Order #184 terminal-paid.
+  - T07 closed and reset.
+- Launch decision: launch-safe for mode switching and same-bill add-ons, but the repeated UX issues should be grouped into a POS polish fix.

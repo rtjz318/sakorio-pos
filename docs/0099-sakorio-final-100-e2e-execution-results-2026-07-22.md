@@ -2473,3 +2473,144 @@ Scores are out of 10 for:
   - Reservation #93 finished.
   - Queue active counters returned to zero.
 - Launch decision: launch-safe for queue-to-reservation conversion and linked service completion.
+
+## E2E-031 - POS table-first order, table switch, and cart isolation
+
+- Brief source: `0098`, E2E-031.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Cashier/waiter on POS.
+  - Beverage/KDS staff.
+- Starting state:
+  - T07 and T09 available after cleanup/board refresh.
+  - KDS active board clear.
+- Steps executed:
+  - Opened POS table board.
+  - Selected T07 from the table grid.
+  - Verified T07 drawer opened with:
+    - `Ready for a new order`
+    - `Bill / Pay SGD 0.00`
+    - `Orders 0`
+    - visible menu/catalog inside the drawer.
+  - Added `Coffee`.
+  - Verified cart state:
+    - `1 add-on item not sent yet`
+    - `Coffee`
+    - `SGD 2.50`
+    - `Items 1 item`
+    - `Total SGD 2.50`
+  - Clicked `Send order`.
+  - Verified toast:
+    - `Order #180 sent for T07. Review the bill, add another round, or collect payment.`
+  - Observed an immediate-refresh inconsistency:
+    - same drawer briefly showed `Bill / Pay SGD 0.00`
+    - `Orders 0`
+    - `OPEN BILLS 0`
+    - table board still showed T07 available until the board refreshed.
+  - Clicked `Back / switch table`.
+  - Selected T09.
+  - Verified cart isolation on T09:
+    - `T09 is clear and ready for a new order`
+    - `No tickets yet`
+    - `Bill / Pay SGD 0.00`
+    - `Orders 0`
+    - `Items 0 items`
+    - no Coffee carryover.
+  - Verified the delayed table-board refresh then showed:
+    - `T07`
+    - `Open order`
+    - `Bill #180 live`
+    - `Open bill`
+    - `Orders (65)`
+  - Attempted to switch back to T07 by clicking the T07 table card while T09 drawer was open.
+  - Attempted to use `Resume order` while T09 drawer was open.
+  - Observed both actions left the POS service drawer on T09.
+  - Closed the T09 drawer using `x`.
+  - Selected T07 again.
+  - Verified T07 drawer reopened correctly with:
+    - `Bill #180 in service`
+    - `Live order #180`
+    - `Bill #180 payable`
+    - `SGD 2.50`
+    - `Orders 1`
+    - `1 x Coffee`
+  - Opened KDS.
+  - Verified #180 appeared in Beverages:
+    - `#180 · T07`
+    - `1x Coffee`
+    - `BEVERAGE`
+  - Advanced #180 through:
+    - `Start ticket #180`
+    - `Ready for pass #180`
+    - `Served / Delivered #180`
+  - Verified KDS cleanup:
+    - `Ticket #180 served`
+    - `1 item delivered`
+    - `No active orders`
+  - Returned to POS T07.
+  - Opened `Pay bill`.
+  - Verified payment panel:
+    - amount due `SGD 2.50`
+    - staff-only `Cash (staff)` shown as internal counter settlement
+    - `Terminal` selected
+    - `charge terminal - SGD 2.50`
+  - Clicked `charge terminal - SGD 2.50`.
+  - Verified:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 16.00`
+    - T07 `Last bill #180 Paid`
+  - Clicked `Close table`.
+  - Verified close confirmation:
+    - `Keep table open`
+    - `Yes, close table`
+  - Confirmed close.
+  - Verified completion message:
+    - `T07 is clear and ready for the next cashier bill.`
+  - Refreshed POS board.
+  - Verified final reset:
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+- Expected final state: order stays attached only to T07, T09 starts empty, KDS routes the item, payment closes the bill, and table resets.
+- Actual final state:
+  - T07 Coffee order #180 was created, routed, served, terminal-paid, closed, and reset.
+  - T09 opened with an empty cart and no cart bleed from T07.
+  - KDS beverage route and served-removal behavior worked.
+  - Payment and final close worked.
+  - POS table switching has a drawer-state defect: when one table drawer is open, clicking another table card or `Resume order` for another table can leave the old drawer active until the cashier explicitly closes the drawer.
+  - POS board has a short delayed-refresh inconsistency after `Send order`; the toast says the order was sent but bill/order counters may briefly show zero until refresh catches up.
+- Cross-module verification:
+  - POS: table-first add/send/switch/pay/close verified.
+  - KDS: beverage ticket #180 verified and cleared.
+- Functional correctness: 8.4 / 10
+- UI/UX clarity: 7.8 / 10
+- Workflow speed: 7.6 / 10
+- Layout/device stability: 8.5 / 10
+- Data/payment/session integrity: 9.2 / 10
+- Launch readiness: 8.3 / 10
+- Final score: 8.3 / 10
+- Status: PASS WITH FIX REQUIRED
+- Evidence:
+  - T07 sent toast: `Order #180 sent for T07`.
+  - T09 isolation: `Items 0 items`, `Total SGD 0.00`, no Coffee carryover.
+  - T07 live bill after drawer reset: `Bill #180 payable`, `1 x Coffee`, `SGD 2.50`.
+  - KDS: `#180 · T07`, `Coffee`, `Ticket #180 served`.
+  - Payment: `Terminal payment recorded for T07`.
+  - Final: `T07 is clear and ready for the next cashier bill`, board shows T07 available after refresh.
+- Defects found:
+  - P1: POS drawer table switching is not reliable. If T09 drawer is open, clicking T07 or `Resume order` may keep T09 active. Cashiers can recover by closing the drawer first, but this is not launch-polished.
+  - P2: after `Send order`, POS has a brief stale state where the sent order toast appears but bill/order counters still show zero until refresh catches up.
+- Improvements needed:
+  - P1: table-card click and `Resume order` must always switch the active drawer to the selected table, closing/replacing the previous drawer state automatically.
+  - P2: after `Send order`, immediately update the selected table drawer to `Bill #... live`, `Orders 1`, and payable amount without needing board refresh.
+  - P3: when a table switch is blocked by unsent cart state, show an explicit confirmation instead of silently retaining the old drawer.
+- Cleanup performed:
+  - Order #180 served in KDS.
+  - Order #180 terminal-paid.
+  - T07 closed and reset to available.
+  - T09 left untouched with empty cart.
+- Launch decision: not blocking for data integrity, but the POS switching behavior is a priority polish item before launch because it directly affects cashier speed and confidence.

@@ -4364,3 +4364,178 @@ Scores are out of 10 for:
   - T07 reset.
   - KDS active board verified clear.
 - Launch decision: QR refresh persistence is launch-safe, but QR activation/state clarity needs polish before front-of-house rollout.
+
+## E2E-047 - Customer double-taps Place order
+
+- Brief source: `0098`, E2E-047.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/orders`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Customer double-tapping `Place order`.
+  - Cashier checking POS/Orders.
+  - Kitchen checking KDS.
+  - Cashier performing cleanup/payment/close.
+- Starting state:
+  - T07 available/closed.
+  - POS Paid Today before payment: `SGD 146.00`.
+  - KDS active board clear.
+- Steps executed:
+  - Opened Tables.
+  - Opened T07 table service modal.
+  - Opened `Table QR`.
+  - Customer QR initially showed `Table Closed`, as expected while the table was idle.
+  - Returned to T07 table modal.
+  - Clicked `Add items`.
+  - Used explicit activation button:
+    - `Open table for QR ordering`
+  - Verified staff confirmation:
+    - `T07 is open for QR ordering.`
+  - Reopened customer QR.
+  - Verified active customer menu:
+    - `Ajisen Ramen`
+    - `T07`
+    - `No active order`
+    - menu visible
+  - Customer skipped optional name prompt.
+  - Customer added `Coffee`.
+  - Verified customer cart:
+    - `1 items`
+    - `SGD 2.50`
+    - `Coffee`
+    - `Total SGD 2.50`
+    - `Place order`
+  - Performed a rapid double-click on `Place order`.
+  - Customer-facing result showed only one order:
+    - `Your order status: Pending`
+    - `Order # 198`
+    - `Status: Pending`
+    - `Coffee`
+    - `SGD 2.50`
+    - `Pay Now`
+  - Opened staff POS.
+  - Observed:
+    - `OPEN BILLS 2`
+    - `T07 Bill #198 live`
+    - `Orders (80)`
+  - Opened Orders.
+  - Observed duplicate active ticket state:
+    - `Active Orders 2`
+    - `2 active tickets | SGD 5.00 on this table`
+    - `Latest #198`
+    - `2 tickets`
+    - `SGD 5.00`
+    - `2 new`
+    - `#198 · 1x Coffee`
+  - Opened KDS.
+  - Verified two active tickets were created:
+    - `#197`
+    - `1x Coffee`
+    - `#198`
+    - `1x Coffee`
+    - both `Pending`
+  - Advanced KDS tickets.
+  - Verified both tickets could be served:
+    - `Ticket #197 served`
+    - `Ticket #198 served`
+  - Returned to POS to pay.
+  - Observed POS payable state only targeted #198:
+    - `Bill #198 ready`
+    - `2 current tickets`
+    - `Bill #198 payable`
+    - `Amount due SGD 2.50`
+    - `charge terminal - SGD 2.50`
+  - Terminal-paid #198.
+  - Verified Paid Today moved:
+    - before `SGD 146.00`
+    - after #198 payment `SGD 148.50`
+  - Attempted table close.
+  - Close correctly blocked:
+    - `Settle all current table tickets before closing the table.`
+  - Opened Orders again.
+  - Verified remaining duplicate #197 was unpaid/delivered:
+    - `1 ticket awaiting payment | SGD 2.50 still open | 1 ready to close`
+    - `Latest #197`
+    - `#197 · 1x Coffee`
+    - `Remove item`
+    - `Delivered`
+    - `Collect payment`
+  - Attempted direct POS route with `orderId=197`.
+  - Observed POS still routed to paid #198, not the unpaid #197, so cashier could not target #197 payment from POS.
+  - Attempted to remove #197.
+  - Verified delivered-item guardrail:
+    - `Reason is required when removing ready or delivered items`
+  - Reopened removal, entered reason:
+    - `QA cleanup: duplicate double-submit ticket #197`
+  - Confirmed removal.
+  - Verified Orders then showed only:
+    - `Paid - awaiting close`
+    - `#198`
+    - `SGD 2.50`
+    - `Paid by card terminal`
+    - `Item removed successfully`
+  - Returned to POS.
+  - Clicked `Close table` -> `Yes, close table`.
+  - Verified final reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 148.50`
+  - Verified final KDS:
+    - `No active tickets`
+    - `No active orders`
+- Expected final state: rapid customer double-tap should create exactly one intended order/quantity or clearly disable the second tap before a duplicate ticket reaches POS/KDS.
+- Actual final state:
+  - Customer saw only one order (#198).
+  - Staff/KDS received two orders (#197 and #198).
+  - KDS correctly exposed both duplicates, preventing hidden kitchen work.
+  - POS payment targeted only #198, leaving #197 unpaid/delivered.
+  - Table close correctly blocked until duplicate #197 was resolved.
+  - #197 could not be paid through the POS target route; it had to be removed from Orders with a reason.
+  - Final cleanup succeeded after removing #197 and closing paid #198.
+- Cross-module verification:
+  - Customer QR: double-click created one visible customer order but not one backend order.
+  - POS: duplicate caused bill targeting/payment mismatch.
+  - Orders: duplicate and unpaid delivered ticket were visible; delivered removal required a reason.
+  - KDS: both duplicate tickets appeared and were serviceable; final KDS cleared.
+- Functional correctness: 5.8 / 10
+- UI/UX clarity: 6.5 / 10
+- Workflow speed: 6.0 / 10
+- Layout/device stability: 8.6 / 10
+- Data/payment/session integrity: 4.8 / 10
+- Launch readiness: 5.2 / 10
+- Final score: 5.2 / 10
+- Status: FAIL - LAUNCH BLOCKER
+- Evidence:
+  - Customer saw: `Order # 198`, `Coffee`, `SGD 2.50`.
+  - Orders saw: `2 active tickets | SGD 5.00 on this table`.
+  - KDS saw: `#197` and `#198`, both `1x Coffee`.
+  - POS payable showed only: `Bill #198 payable`, `SGD 2.50`.
+  - Close block: `Settle all current table tickets before closing the table.`
+  - #197 cleanup guardrail: `Reason is required when removing ready or delivered items`.
+  - Final reset: `T07 is clear and ready for the next cashier bill.`
+- Defects found:
+  - P0: QR `Place order` double-click creates duplicate backend/KDS tickets.
+  - P0: customer sees only the later order #198 and is unaware that duplicate #197 exists.
+  - P0/P1: POS payment targets only one duplicate ticket even when Orders/KDS show two active tickets on the table.
+  - P1: direct POS route with `orderId=197` still opened the paid/latest #198 state, making unpaid duplicate #197 difficult to settle.
+  - P2: duplicate cleanup required manager-style removal with reason, which is good as a guardrail but too late; the duplicate should not be created.
+- Improvements needed:
+  - P0: add idempotency key/client submission lock for QR `Place order`.
+  - P0: disable `Place order` immediately on first tap and show `Submitting...`.
+  - P0: backend must reject duplicate submit for same client/cart/table within a short window.
+  - P1: POS payment should surface all unpaid current tickets for a table and allow selecting/settling each if duplicates exist.
+  - P1: customer current-order panel must show all current-session submitted orders if backend allows multiple tickets, not only the latest.
+  - P2: add duplicate detection/merge warning in Orders/KDS for same table, same item, same timestamp window.
+- Cleanup performed:
+  - Served #197 and #198 in KDS.
+  - Terminal-paid #198.
+  - Removed unpaid duplicate #197 with reason.
+  - Closed T07.
+  - KDS active board verified clear.
+- Launch decision: not launch-safe until QR order submission is idempotent and duplicate bill targeting is fixed.

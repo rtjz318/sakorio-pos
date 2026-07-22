@@ -302,4 +302,26 @@ Scores are out of 10 for:
   - Local HAProxy smoke: HTTP `200`.
 - Live verification status:
   - First live deploy confirmed backend/frontend hash `bcb9e22d`, then exposed the modal layering root cause.
-  - Pending second deployment for modal z-index fix, then E2E-005 must be re-run in browser and rescored.
+  - Second live deploy confirmed hash `ae26f818`.
+  - Re-ran the exact failed T07 empty session in browser.
+  - Confirmation modal was visible and tappable above the POS drawer.
+  - `Yes, release table` produced notice: `T07 was released and is available again. Linked reservation #80 was finished.`
+  - POS reload showed `T07 Available`.
+  - Customer QR reload showed `Table Closed`.
+
+#### SKR-FINAL-E2E-005 retest result after fix
+
+- Status: PASS after fix
+- Final score after fix: 9.2 / 10
+- Functional correctness: 9.4 / 10
+- UI/UX clarity: 9.3 / 10
+- Workflow speed: 9.0 / 10
+- Layout/device stability: 9.2 / 10
+- Data/payment/session integrity: 9.4 / 10
+- Launch readiness: 9.2 / 10
+- Cleanup performed:
+  - T07 released and available.
+  - Reservation `#80` finished.
+  - QR session closed.
+- Remaining improvement:
+  - Add table-specific accessible labels for the empty release buttons, e.g. `Release T07` and `Confirm release T07`, for cleaner automation and accessibility.

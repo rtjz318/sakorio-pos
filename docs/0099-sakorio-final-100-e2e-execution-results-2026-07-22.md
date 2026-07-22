@@ -875,3 +875,78 @@ Scores are out of 10 for:
   - Reservation `#84` finished.
   - Customer QR closed.
 - Launch decision: launch-safe for normal arrival seating, but not launch-perfect for pre-arrival table assignment workflow.
+
+### SKR-FINAL-E2E-014 - Reservation cancelled before seating, later walk-in uses table, order/pay/close
+
+- Priority: P1
+- Roles simulated: customer, host, walk-in guest, kitchen, cashier
+- Starting state: live build `2.1.6 196da566`; no open bills after E2E-013; T07 available.
+- Test data:
+  - Cancelled reservation `#85`
+  - Reservation customer: `Final QA SKR-FINAL-E2E-014 660596`
+  - Phone: `+6588660596`
+  - Public booking time: `2026-07-22 20:30`
+  - Walk-in table: `T07`
+  - Walk-in QR guest: `E2E014 Walk-in`
+  - Walk-in order: `#164`
+  - Items: `Mole Poblano`
+  - Final bill total: `SGD 15.00`
+- Browser steps executed:
+  - Opened public booking page at `order.sakorio.com/book/1`.
+  - Created same-day reservation `#85`.
+  - Opened staff Reservations and searched for `#85`.
+  - Verified #85 appeared as `BOOKED` with arrival handoff actions.
+  - Clicked reservation `Cancel`.
+  - Verified explicit confirmation copy: `Are you sure you want to cancel this reservation?`
+  - Confirmed `Yes, cancel reservation`.
+  - Verified #85 changed to `CANCELLED`.
+  - Verified active counters dropped to zero active/awaiting guests.
+  - Opened POS T07 as a walk-in table.
+  - Verified T07 showed `Ready for a new order`, `Available`, and a visible QR link.
+  - Activated/opened T07 QR.
+  - Customer entered name `E2E014 Walk-in`.
+  - Customer added `Mole Poblano` and placed order `#164`.
+  - Verified customer QR did not show Cash.
+  - KDS showed `#164 · T07`, customer name, and item.
+  - Advanced `#164` through `Start ticket` -> `Ready for pass` -> `Served / Delivered`.
+  - Verified KDS returned to `No active orders`.
+  - Opened POS for T07 and took Terminal payment for `SGD 15.00`.
+  - Verified Paid Today increased to `SGD 313.50`.
+  - Clicked `Close table`.
+  - Verified final close confirmation did not mention a linked reservation because this was a walk-in table session.
+  - Confirmed close and reloaded the customer QR.
+  - Rechecked reservation #85 after walk-in completion.
+- Expected final state: cancelled reservation does not reserve/block a table; walk-in order works normally; walk-in table closes without linked reservation finish warning; cancelled reservation remains cancelled.
+- Actual final state:
+  - Reservation `#85` remained `CANCELLED`.
+  - Walk-in order `#164` was served, paid, and closed.
+  - T07 QR showed `Table Closed` after close.
+  - Close confirmation only said `After close, T07 becomes available`, with no linked reservation text.
+- Cross-module verification:
+  - Reservations: `#85 CANCELLED`.
+  - POS: T07 available for walk-in; later showed bill #164 ready/paid/closeable.
+  - KDS: #164 appeared and cleared after served.
+  - QR: order placed, no Cash shown, closed after table close.
+- Functional correctness: 9.5 / 10
+- UI/UX clarity: 9.2 / 10
+- Workflow speed: 9.0 / 10
+- Layout/device stability: 9.2 / 10
+- Data/payment/session integrity: 9.6 / 10
+- Launch readiness: 9.4 / 10
+- Final score: 9.4 / 10
+- Status: PASS
+- Evidence:
+  - Cancel confirmation: `Are you sure you want to cancel this reservation?`
+  - Cancelled status: `#85 ... CANCELLED`.
+  - T07 initial state: `Ready for a new order`, `Available`, visible QR link.
+  - QR order: `Order # 164`, `Status: Pending`, `SGD 15.00`.
+  - Close confirmation: `After close, T07 becomes available.`
+  - Final customer QR state: `Table Closed`.
+- Defects / improvements found:
+  - P3: cancelled reservation search highlight still shows `NEW / SELECTED`, same label-noise issue seen in finished reservations.
+  - P3: after cancellation, the search results still show the cancelled record prominently. This is correct while actively searching, but the status chip should visually dominate over `NEW / SELECTED` so staff do not misread it during a busy shift.
+- Cleanup performed:
+  - Reservation `#85` cancelled.
+  - T07 terminal-paid and closed.
+  - Customer QR closed.
+- Launch decision: launch-safe.

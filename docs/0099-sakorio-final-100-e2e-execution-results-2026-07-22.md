@@ -1440,3 +1440,91 @@ Scores are out of 10 for:
   - P2: queue board should surface near-term unassigned reservation pressure alongside table recommendation.
   - P3: finished/cancelled reservation search highlight should not show `NEW / SELECTED`.
 - Phase B launch decision: launch-safe for normal reservation operations, but table move/transfer workflows need product work before calling the whole reservation/table-service experience “world class.”
+
+## Phase C - Queue and walk-in lifecycles
+
+### SKR-FINAL-E2E-021 - Public waitlist, host seats recommended table, QR/KDS/payment/close
+
+- Priority: P0
+- Roles simulated: customer, host, kitchen, cashier
+- Starting state: live build `2.1.6 196da566`; queue board active entries cleared; 3 stale queue rows hidden by default.
+- Test data:
+  - Queue entry: `Q0041`
+  - Customer: `Final QA SKR-FINAL-E2E-021 724942`
+  - Phone: `+6588724942`
+  - Party size: `2`
+  - Host-selected table: `T07`
+  - QR guest: `E2E021 Queue Guest`
+  - QR order: `#172`
+  - Items: `Tacos de Carne Asada`
+  - Final bill total: `SGD 12.00`
+- Browser steps executed:
+  - Opened public waitlist at `order.sakorio.com/waitlist/1`.
+  - The public waitlist page initially showed a completed prior session with `Visit completed` and `Join again`.
+  - Clicked `Join again`.
+  - Filled queue form with customer name, phone, 2 guests, and notes.
+  - Submitted `Join queue`.
+  - Verified public status page showed `Q0041`, `Position 1`, `Party 2 guests`, and `Quoted wait Host confirming`.
+  - Opened staff Queue.
+  - Verified active board showed one web waitlist entry with phone, notes, wait age, party size, and ready table count.
+  - Verified stale rows remained hidden by default with clear copy: `3 stale active entries`.
+  - Verified queue recommendation panel:
+    - `T07 Best fit`
+    - `T09 Exact-fit backup`
+    - `T04 Larger backup`
+  - Clicked `Seat Final QA SKR-FINAL-E2E-021 724942 at T07`.
+  - POS opened T07 with queue handoff notice and visible QR link.
+  - Opened T07 customer QR.
+  - Customer entered name `E2E021 Queue Guest`.
+  - Customer added `Tacos de Carne Asada` and placed order `#172`.
+  - Verified customer QR did not show Cash.
+  - KDS showed `#172 · T07`, guest name, and item routed as `KITCHEN / MAIN COURSE`.
+  - Advanced `#172` through `Start ticket` -> `Ready for pass` -> `Served / Delivered`.
+  - Verified KDS live board cleared; #172 remained only briefly in the served toast/countdown.
+  - Opened POS for T07.
+  - Verified `Bill #172 ready to pay`, payable `SGD 12.00`.
+  - Took Terminal payment.
+  - Verified Paid Today increased to `SGD 408.00`.
+  - Closed T07.
+  - Verified close confirmation did not include linked reservation text because this was queue-origin service.
+  - Reloaded customer QR.
+  - Reopened Queue and verified active queue counters returned to zero and the QA guest no longer appeared.
+- Expected final state: public queue entry flows into host board, recommended seating, QR order, KDS, payment, close; queue entry clears; old QR closes.
+- Actual final state:
+  - Queue entry `Q0041` cleared from active board.
+  - T07 returned to available service state after close.
+  - Customer QR showed `Table Closed`.
+  - KDS had no active ticket after served.
+  - No Cash appeared on customer QR.
+- Cross-module verification:
+  - Public waitlist: entry created and position shown.
+  - Staff Queue: entry visible, selected, recommended table shown, then cleared after service.
+  - POS: T07 opened from queue handoff; bill #172 paid and closed.
+  - KDS: #172 appeared and cleared after served.
+  - QR: no Cash; closed after table close.
+- Functional correctness: 9.6 / 10
+- UI/UX clarity: 9.4 / 10
+- Workflow speed: 9.1 / 10
+- Layout/device stability: 9.2 / 10
+- Data/payment/session integrity: 9.6 / 10
+- Launch readiness: 9.5 / 10
+- Final score: 9.5 / 10
+- Status: PASS
+- Evidence:
+  - Public waitlist: `Q0041`, `Position 1`, `2 guests`.
+  - Queue board: `WAITING GUESTS 1`, then final `WAITING GUESTS 0`.
+  - Recommendation: `T07 Best fit`, `Exact fit`, `Ready now`.
+  - POS handoff: `T07 opened from queue handoff for Final QA SKR-FINAL-E2E-021 724942.`
+  - KDS: `#172 · T07`, `Tacos de Carne Asada`, `KITCHEN`, `MAIN COURSE`.
+  - Payment: `Terminal payment recorded for T07`, Paid Today `SGD 408.00`.
+  - Final QR state: `Table Closed`.
+- Defects found:
+  - None blocking.
+- Improvements needed:
+  - P3: public waitlist remembering the previous completed visit is correct, but `Join again` should stay very prominent for repeat QA/customer devices; in this pass it was visible and worked.
+  - P3: stale queue rows remain present but hidden. The copy is good; continue testing archive flows in later Phase C cases.
+- Cleanup performed:
+  - T07 terminal-paid and closed.
+  - Queue entry `Q0041` cleared from active board.
+  - Customer QR closed.
+- Launch decision: launch-safe and strong for public waitlist-to-table lifecycle.

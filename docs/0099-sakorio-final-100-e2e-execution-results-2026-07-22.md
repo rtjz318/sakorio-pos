@@ -2851,3 +2851,128 @@ Scores are out of 10 for:
   - Order #182 terminal-paid.
   - T07 closed and reset.
 - Launch decision: correction-before-send is launch-safe; delayed refresh and post-payment drawer continuity should be polished before final launch.
+
+## E2E-034 - POS second staff round on same bill
+
+- Brief source: `0098`, E2E-034.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Waiter/cashier.
+  - Kitchen and beverage staff.
+- Starting state:
+  - T07 available.
+  - POS open bills `0`.
+  - KDS active board clear.
+- Steps executed:
+  - Opened POS.
+  - Selected T07.
+  - Added `Coffee` as the first round.
+  - Clicked `Send order`.
+  - Verified first round:
+    - `Order #183 sent for T07`
+    - `Bill #183 live`
+    - `T07 · 1 item · SGD 2.50`
+    - `Bill #183 payable`
+    - `Orders 1`
+    - `charge terminal - SGD 2.50`
+  - Clicked `Add items`.
+  - Added second-round items:
+    - `Coca Cola` SGD 3.00
+    - `Chile Relleno` SGD 15.00
+  - Verified add-on entry state:
+    - `Added Chile Relleno to the add-on round for bill #183. Send the round when ready.`
+    - `2 add-on items not sent yet`
+    - `1 current ticket`
+    - `2 in cart`
+    - `Coca Cola`
+    - `Chile Relleno`
+    - `Items 3 items`
+    - `Total SGD 20.50`
+    - `Send add-on round`
+  - Observed copy/amount ambiguity:
+    - message said `2 add-on items not sent yet · SGD 20.50 cart value`
+    - the two add-on items are SGD 18.00, while SGD 20.50 is the full table bill total including the first Coffee.
+  - Clicked `Send add-on round`.
+  - Verified same-bill result:
+    - `Add-on round sent to bill #183 for T07`
+    - `Current orders stay active until the table is closed`
+    - `Bill #183 live`
+    - `T07 · 3 items · SGD 20.50`
+    - `Bill #183 payable`
+    - `Orders 1`
+    - `charge terminal - SGD 20.50`
+  - Opened KDS.
+  - Verified KDS showed one ticket #183 containing all rounds:
+    - `#183 · T07`
+    - `3 items`
+    - `Coffee` tagged `BEVERAGE`
+    - `Coca Cola` tagged `BEVERAGE`
+    - `Chile Relleno` tagged `KITCHEN / MAIN COURSE`
+    - station counters `Kitchen 1`, `Beverages 1`
+  - Advanced #183 through:
+    - `Start ticket #183`
+    - `Ready for pass #183`
+    - `Served / Delivered #183`
+  - Verified KDS cleanup:
+    - ticket left live board.
+  - Returned to POS.
+  - Clicked `charge terminal - SGD 20.50`.
+  - Verified:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 112.50`
+    - `T07 Last bill #183 Paid`
+  - Observed post-payment drawer transition:
+    - paid state landed on board-level `Close table`, not a persistent open drawer.
+  - Clicked board-level `Close table`.
+  - Verified confirmation:
+    - `Keep table open`
+    - `Yes, close table`
+  - Confirmed close.
+  - Waited/refreshed the board.
+  - Verified final reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+- Expected final state: staff second round stays on the same table bill, KDS receives the combined current ticket, final payment total is correct, and table closes.
+- Actual final state:
+  - Staff add-on stayed on bill #183.
+  - Final total was correct at SGD 20.50.
+  - KDS showed the combined ticket with correct station tags.
+  - Terminal payment and close succeeded.
+  - Add-on amount copy is ambiguous.
+  - Post-payment drawer continuity issue recurred.
+- Cross-module verification:
+  - POS: first round, add-on round, same bill total, payment, and reset verified.
+  - KDS: combined ticket #183 and served cleanup verified.
+- Functional correctness: 9.3 / 10
+- UI/UX clarity: 8.4 / 10
+- Workflow speed: 8.5 / 10
+- Layout/device stability: 8.7 / 10
+- Data/payment/session integrity: 9.5 / 10
+- Launch readiness: 8.9 / 10
+- Final score: 8.9 / 10
+- Status: PASS WITH UX FIXES
+- Evidence:
+  - First round: `Order #183 sent for T07`, `Bill #183 payable`, `SGD 2.50`.
+  - Add-on: `Add-on round sent to bill #183 for T07`.
+  - Final bill: `T07 · 3 items · SGD 20.50`.
+  - KDS: `#183 · T07`, `3 items`, beverage and kitchen station tags.
+  - Payment: `Terminal payment recorded for T07`.
+  - Final reset: T07 `Available`, `Ready for order`.
+- Defects found:
+  - P2: add-on pre-send copy labels the combined bill total as `cart value`, which can confuse staff during second-round ordering.
+  - P3: after terminal payment, cashier is returned to board-level close instead of staying in a clear paid drawer with the primary close action.
+- Improvements needed:
+  - P2: distinguish `Add-on subtotal SGD 18.00` from `Bill total SGD 20.50`.
+  - P3: keep the post-payment close path visually continuous.
+  - P3: KDS combined ticket is operationally simple, but for busier kitchens consider visually marking add-on items/new round time so staff can see what was newly added.
+- Cleanup performed:
+  - Order #183 served in KDS.
+  - Order #183 terminal-paid.
+  - T07 closed and reset.
+- Launch decision: launch-safe for same-bill staff add-ons, with UX wording polish needed before final release.

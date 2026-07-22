@@ -585,3 +585,63 @@ Scores are out of 10 for:
   - Redeployed live build `2.1.6 196da566`.
   - Browser retest order `#159` confirmed POS table chip changed to `Bring terminal` after customer card-at-table request.
   - Browser retest order `#159` was processed through KDS/payment/close; T07 returned to `Available` and customer QR showed `Table Closed`.
+
+### SKR-FINAL-E2E-010 - Customer QR HitPay sandbox payment, POS paid sync, close table
+
+- Priority: P0
+- Roles simulated: customer, cashier
+- Starting state: T08 available; live build `2.1.6 196da566`; HitPay sandbox configured.
+- Test data:
+  - Table: `T08`
+  - Customer QR guest: `E2E010 HitPay Guest`
+  - Shared bill/order: `#160`
+  - QR order: `Coffee`
+  - HitPay sandbox reference: `a2518c31-b15c-49c1-be35-0a2d2a928cd4`
+  - Final bill total: `SGD 2.50`
+- Browser steps executed:
+  - Opened POS and selected available T08.
+  - Clicked staff `Open` to activate customer QR.
+  - Opened customer QR for T08.
+  - Customer entered name `E2E010 HitPay Guest`.
+  - Customer added `Coffee` and placed order `#160`.
+  - Customer tapped `Pay Now`.
+  - Verified customer payment panel showed `Pay with HitPay` and `Pay with Card at Table`; no Cash option.
+  - Customer selected `Pay with HitPay`.
+  - Browser navigated to `checkout.sandbox.hit-pay.com`.
+  - Filled sandbox checkout email `ralf.roeber@sakario.sg`.
+  - Selected Card and entered Stripe sandbox card `4242 4242 4242 4242`, expiry `12/34`, CVC `123`.
+  - HitPay completed and returned to Sakorio QR success URL.
+  - Customer QR showed `Payment successful. Thank you. Your payment has been received.`
+  - Staff POS opened T08 and showed `Last bill #160 paid`, `Paid`, `Close table`, and no open bill.
+  - Staff closed T08 through the POS drawer close action.
+  - Reloaded POS and customer QR for final verification.
+- Expected final state: HitPay sandbox success syncs back to Sakorio; staff POS shows bill paid; cashier closes table; QR session ends.
+- Actual final state:
+  - T08 returned to `Available`.
+  - Bill `#160` no longer appeared as live/open.
+  - Customer QR showed `Table Closed` after table close.
+  - Paid today showed `SGD 256.50`.
+- Cross-module verification:
+  - QR: HitPay success page returned to Sakorio with `status=completed` and `provider=hitpay`.
+  - POS: T08 showed `Last bill #160 paid` and `Paid`; close confirmation copy was correct.
+  - Payment: HitPay amount was `SGD 2.50`; paid total increased accordingly.
+- Functional correctness: 9.3 / 10
+- UI/UX clarity: 8.7 / 10
+- Workflow speed: 8.0 / 10
+- Layout/device stability: 8.8 / 10
+- Data/payment/session integrity: 9.5 / 10
+- Launch readiness: 9.1 / 10
+- Final score: 9.1 / 10
+- Status: PASS with external checkout UX notes
+- Evidence:
+  - HitPay checkout URL: `checkout.sandbox.hit-pay.com/payment-request/@ji-dan-private-limited/a2518c31-b15c-49c1-be35-0a2d2a928cd4/checkout`.
+  - HitPay success return: `/payment-success?order_id=160&provider=hitpay&status=completed&reference=a2518c31-b15c-49c1-be35-0a2d2a928cd4`.
+  - POS paid state: `Last bill #160 paid`, `Paid`, `Close table`.
+  - Final QR state: `Table Closed`.
+- Defects / improvements found:
+  - P2: HitPay/Stripe checkout can appear to stall with a disabled `Pay SGD 2.50` button while processing/validating, then later succeeds. This is external UX, but Sakorio should keep clear customer guidance such as “Do not close this tab while payment is processing.”
+  - P3: POS has both table-card and drawer `Close table` controls; with the drawer open, the drawer close action is the reliable one. Table-card close should either work above the drawer or be visually de-emphasized while the drawer is active.
+- Cleanup performed:
+  - T08 HitPay-paid and closed.
+  - Customer QR closed.
+- Launch decision: launch-safe for HitPay sandbox success path.

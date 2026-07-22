@@ -1636,6 +1636,9 @@ Scores are out of 10 for:
     - `We could not join the queue. Please check your details or speak to the host.`
   - Retried the same workflow with a fresh realistic Singapore-style mobile number starting with `9`.
   - Observed the same public failure message.
+  - Reopened the public waitlist page again during the same live run.
+  - Observed the page changed to the stronger availability message:
+    - `The queue is temporarily unavailable. Please speak to the host.`
   - Attempted to verify the host queue board after the failed public entries.
   - Staff session had expired and redirected to `https://staff.sakorio.com/login`.
   - Retried live staff login through the browser using the known staff login form controls:
@@ -1672,10 +1675,12 @@ Scores are out of 10 for:
 - Evidence:
   - Public waitlist first attempt showed the generic failure copy after submitting all required fields.
   - Public waitlist second attempt with phone `91234754` showed the same generic failure copy.
+  - Follow-up public waitlist page load showed `The queue is temporarily unavailable. Please speak to the host.`
   - Staff login page showed `Sign-in failed. Check your details and try again.`
   - Live authenticated staff tab was not available after checking the open browser tabs.
 - Defects found:
   - P0: public waitlist submission is currently failing on the live site with generic error copy even when all required fields are completed.
+  - P0: public waitlist service availability appears unstable during this live run; the page later reported the queue was temporarily unavailable.
   - P0: live staff login rejected the known staff credentials after session expiry, blocking browser-only host/POS/KDS verification.
   - P1: public waitlist failure copy is too generic for launch QA; it should show whether the issue is validation, duplicate/active queue state, tenant configuration, or server error.
 - Improvements needed:

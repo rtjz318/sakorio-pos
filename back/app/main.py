@@ -8730,6 +8730,7 @@ def _public_queue_entry_to_dict(q: models.GuestQueueEntry, session: Session) -> 
             )
             .order_by(models.GuestQueueEntry.requested_at.asc(), models.GuestQueueEntry.id.asc())
         ).all()
+        active_rows = [row for row in active_rows if not _is_stale_queue_entry(row)]
         position = next((index + 1 for index, row in enumerate(active_rows) if row.id == q.id), None)
 
     tenant = session.get(models.Tenant, q.tenant_id)

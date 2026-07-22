@@ -99,7 +99,7 @@ class TestGuestQueueSummaryStaleRows(PgClientTestCase):
 
     def test_public_queue_info_counts_only_non_stale_waiting_and_notified_rows(self) -> None:
         now = datetime.now(timezone.utc)
-        self._add_queue_row(
+        fresh = self._add_queue_row(
             name="Fresh public",
             status=models.GuestQueueStatus.waiting,
             party_size=2,
@@ -118,6 +118,10 @@ class TestGuestQueueSummaryStaleRows(PgClientTestCase):
 
         self.assertEqual(body["active_entries"], 1)
         self.assertEqual(body["waiting_guests"], 2)
+
+        status_response = self.client.get(f"/public/queue/{fresh.public_token}")
+        self.assertEqual(status_response.status_code, 200, status_response.text)
+        self.assertEqual(status_response.json()["position"], 1)
 
 
 if __name__ == "__main__":

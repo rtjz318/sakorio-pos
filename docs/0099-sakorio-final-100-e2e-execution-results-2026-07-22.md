@@ -1528,3 +1528,86 @@ Scores are out of 10 for:
   - Queue entry `Q0041` cleared from active board.
   - Customer QR closed.
 - Launch decision: launch-safe and strong for public waitlist-to-table lifecycle.
+
+### SKR-FINAL-E2E-022 - Staff-created walk-in queue, seat, staff POS order, KDS/payment/close
+
+- Priority: P0
+- Roles simulated: host, waiter, kitchen, beverage, cashier
+- Starting state: live build `2.1.6 196da566`; queue board active entries cleared; 3 stale queue rows hidden by default.
+- Test data:
+  - Customer: `Final QA SKR-FINAL-E2E-022 983551`
+  - Phone: `+6588983551`
+  - Party size: `2`
+  - Quoted wait: `5 min`
+  - Preferred seats: `2`
+  - Host-selected table: `T07`
+  - Staff POS order: `#173`
+  - Items: `Tacos de Carne Asada` + `Coca Cola`
+  - Final bill total: `SGD 15.00`
+- Browser steps executed:
+  - Opened staff Queue.
+  - Filled the `New walk-in` form with guest name, phone, party size, quoted wait, preferred seats, and notes.
+  - Submitted `Add to queue`.
+  - Verified the queue entry appeared in Waiting with source `HOST STAND`, party size, phone, quote, notes, and preferred seats.
+  - Verified recommendation panel offered:
+    - `T07 Best fit`
+    - `T09 Exact-fit backup`
+    - `T04 Larger backup`
+  - Clicked `Seat Final QA SKR-FINAL-E2E-022 983551 at T07`.
+  - POS opened T07 with queue handoff notice.
+  - Used staff POS menu inside the T07 drawer.
+  - Added `Tacos de Carne Asada` and `Coca Cola`.
+  - Verified staff cart showed 2 items, total `SGD 15.00`, with `Send order`.
+  - Clicked `Send order`.
+  - Verified POS created live order/bill `#173` and kept it on T07.
+  - Opened KDS.
+  - Verified `#173 · T07` appeared with both station labels:
+    - `Tacos de Carne Asada` as `KITCHEN / MAIN COURSE`
+    - `Coca Cola` as `BEVERAGE / BEVERAGES`
+  - Verified queue notes appeared on the KDS ticket.
+  - Advanced `#173` through `Start ticket` -> `Ready for pass` -> `Served / Delivered`.
+  - Verified KDS live board cleared; #173 remained only briefly in the served toast/countdown.
+  - Opened POS for T07.
+  - Verified `Bill #173 ready to pay`, payable `SGD 15.00`.
+  - Took Terminal payment.
+  - Verified Paid Today increased to `SGD 423.00`.
+  - Closed T07.
+  - Verified close confirmation did not include linked reservation text.
+  - Reopened Queue and verified active counters returned to zero and the QA guest no longer appeared.
+- Expected final state: staff-created queue entry seats cleanly, staff POS order routes to KDS, bill pays/closes, queue row clears.
+- Actual final state:
+  - Staff-created queue entry cleared from active board.
+  - T07 returned to available service state after close.
+  - KDS had no active ticket after served.
+  - Staff POS order stayed correctly attached to T07.
+- Cross-module verification:
+  - Staff Queue: entry created, selected, recommended, seated, and cleared.
+  - POS: T07 opened from queue handoff; order #173 paid and closed.
+  - KDS: #173 showed food and beverage routing on one ticket.
+  - Payment: terminal payment recorded and close enabled.
+- Functional correctness: 9.6 / 10
+- UI/UX clarity: 9.4 / 10
+- Workflow speed: 9.2 / 10
+- Layout/device stability: 9.2 / 10
+- Data/payment/session integrity: 9.7 / 10
+- Launch readiness: 9.5 / 10
+- Final score: 9.5 / 10
+- Status: PASS
+- Evidence:
+  - Queue entry: `HOST STAND`, `2 pax`, `5 min quote`, `+6588983551`, `2 seats preferred`.
+  - Recommendation: `T07 Best fit`, `Exact fit`, `Ready now`.
+  - POS handoff: `T07 opened from queue handoff for Final QA SKR-FINAL-E2E-022 983551.`
+  - Staff cart: `Tacos de Carne Asada`, `Coca Cola`, `Total SGD 15.00`.
+  - POS order: `Order #173 sent for T07`.
+  - KDS route: `Tacos de Carne Asada KITCHEN MAIN COURSE`, `Coca Cola BEVERAGE BEVERAGES`.
+  - Payment: `Terminal payment recorded for T07`, Paid Today `SGD 423.00`.
+  - Queue final counters: `WAITING GUESTS 0`, `NOTIFIED 0`, `SEATED 0`.
+- Defects found:
+  - None blocking.
+- Improvements needed:
+  - P4: staff POS payment drawer opened immediately after `Send order`; this is efficient for cashier mode but waiters may prefer to land on `Current orders` after sending, depending on service style.
+  - P3: stale queue rows remain hidden with good copy; archive flow still needs dedicated Phase C validation.
+- Cleanup performed:
+  - T07 terminal-paid and closed.
+  - Staff-created queue entry cleared from active board.
+- Launch decision: launch-safe and strong for staff-created walk-in queue lifecycle.

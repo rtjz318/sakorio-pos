@@ -2614,3 +2614,119 @@ Scores are out of 10 for:
   - T07 closed and reset to available.
   - T09 left untouched with empty cart.
 - Launch decision: not blocking for data integrity, but the POS switching behavior is a priority polish item before launch because it directly affects cashier speed and confidence.
+
+## E2E-032 - POS large mixed cart, KDS routing, payment, and close
+
+- Brief source: `0098`, E2E-032.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Waiter/cashier.
+  - Kitchen and beverage staff.
+- Starting state:
+  - T07 available.
+  - KDS active board clear.
+  - POS open bills `0`.
+- Steps executed:
+  - Opened POS.
+  - Selected T07 from the table grid.
+  - Verified T07 started at:
+    - `Ready for a new order`
+    - `Bill / Pay SGD 0.00`
+    - `Orders 0`
+  - Added six visible mixed-category items:
+    - `Coffee` SGD 2.50
+    - `Coca Cola` SGD 3.00
+    - `Chile Relleno` SGD 15.00
+    - `Enchiladas` SGD 20.00
+    - `Mole Poblano` SGD 15.00
+    - `Pozole` SGD 18.00
+  - Verified cart state:
+    - `6 add-on items not sent yet`
+    - `SGD 73.50 cart value`
+    - `6 in cart`
+    - `Bill / Pay SGD 73.50`
+    - item list showed each item at quantity `1`
+    - `Items 6 items`
+    - `Total SGD 73.50`
+  - Clicked `Send order`.
+  - Verified POS immediately showed:
+    - `Order #181 sent for T07`
+    - `OPEN BILLS 1`
+    - `T07 Open order`
+    - `Bill #181 live`
+    - `T07 · 6 items · SGD 73.50`
+    - `Bill #181 payable`
+    - `Orders 1`
+    - payment panel amount due `SGD 73.50`
+  - Opened KDS.
+  - Verified ticket #181:
+    - `#181 · T07`
+    - `Start ticket`
+    - `6 items`
+    - station counters `Kitchen 1`, `Beverages 1`
+    - `Coffee` and `Coca Cola` tagged `BEVERAGE`
+    - `Chile Relleno`, `Enchiladas`, `Mole Poblano`, and `Pozole` tagged `KITCHEN / MAIN COURSE`
+  - Advanced #181 through:
+    - `Start ticket #181`
+    - `Ready for pass #181`
+    - `Served / Delivered #181`
+  - Verified KDS cleanup:
+    - `Ticket #181 served`
+    - `6 items delivered`
+    - `No active orders`
+  - Returned to POS T07.
+  - Clicked `charge terminal - SGD 73.50`.
+  - Verified:
+    - `Terminal payment recorded for T07`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 89.50`
+    - `T07 Last bill #181 Paid`
+  - Clicked `Close table`.
+  - Verified close confirmation:
+    - `Keep table open`
+    - `Yes, close table`
+  - Confirmed close.
+  - Refreshed board.
+  - Verified final reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+- Expected final state: large cart stays readable, totals are correct, station routing is clear, bill is paid once, and table resets.
+- Actual final state:
+  - Large cart remained readable.
+  - SGD 73.50 total was correct.
+  - POS immediate state after send was correct in this run.
+  - KDS correctly showed both beverage and kitchen station routing on one ticket.
+  - Terminal payment and close completed cleanly.
+- Cross-module verification:
+  - POS: large cart, live bill, payment, and table reset verified.
+  - KDS: mixed station labels and served cleanup verified.
+- Functional correctness: 9.6 / 10
+- UI/UX clarity: 9.0 / 10
+- Workflow speed: 9.0 / 10
+- Layout/device stability: 8.8 / 10
+- Data/payment/session integrity: 9.6 / 10
+- Launch readiness: 9.3 / 10
+- Final score: 9.3 / 10
+- Status: PASS
+- Evidence:
+  - Cart: `6 add-on items not sent yet · SGD 73.50 cart value`.
+  - POS bill: `Bill #181 payable`, `T07 · 6 items · SGD 73.50`.
+  - KDS: `Kitchen 1`, `Beverages 1`, `6 items`, item station tags.
+  - KDS served: `Ticket #181 served`, `6 items delivered`.
+  - Payment: `Terminal payment recorded for T07`.
+  - Final reset: T07 `Available`, `Ready for order`.
+- Defects found:
+  - None blocking.
+- Improvements needed:
+  - P3: the first viewport showed only part of the product grid; on tablet, keep category/product list compact and make the remaining items clearly reachable without hiding the checkout/cart context.
+  - P3: after payment, the bill panel says `Terminal settled - SGD 0.00`; it is technically due-now zero, but clearer copy would say `Terminal settled - SGD 73.50`.
+- Cleanup performed:
+  - Order #181 served in KDS.
+  - Order #181 terminal-paid.
+  - T07 closed and reset.
+- Launch decision: launch-safe for large POS cart, mixed KDS routing, and terminal close flow.

@@ -7835,3 +7835,90 @@ Scores are out of 10 for:
 - Cleanup performed:
   - No cleanup performed; this case was an audit-only pass to preserve evidence.
 - Launch decision: the end-day checklist is valuable and close to launch-ready, but stale table/reservation reconciliation must be clearer before real service managers rely on it.
+
+## E2E-074 — Paid bill in History: detail, receipt, payment method, and edit safety
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/orders`
+- Roles simulated:
+  - Manager inspecting a paid/closed bill.
+  - Cashier checking whether receipt/payment method can be recovered.
+  - Manager verifying no accidental edit path exists from History.
+- Starting state:
+  - Order #219 was paid and closed from E2E-068.
+  - Orders History contained #219 at the top.
+- Steps executed:
+  - Opened Orders.
+  - Clicked/selected `Order History`.
+  - Verified the read-only launch warning:
+    - `CLOSED-SESSION HISTORY`
+    - `History is read-only for launch operations.`
+    - `Use invoice print/export for records; manager corrections, refunds and reopen flows must be recorded through the accounting process.`
+  - Verified paid row #219:
+    - `#219`
+    - `T02`
+    - customer `-`
+    - `1x Coffee`
+    - `SGD 2.50`
+    - `Paid`
+    - `7/23/2026, 14:59:21`.
+  - Clicked `#219`.
+  - Observed no detail drawer/page opened.
+  - Inspected visible order actions after clicking #219.
+  - Only broad section buttons were present:
+    - `Refresh`
+    - `Active Orders`
+    - `Not Paid Yet`
+    - `Paid - awaiting close`
+    - `Order History 214`.
+  - Verified no order-specific mutation actions were visible:
+    - no `Edit`
+    - no `Void`
+    - no `Refund`
+    - no `Reopen`
+    - no `Delete`
+    - no `Remove`.
+  - Verified no order-specific receipt actions were visible:
+    - no `Print receipt`
+    - no `Receipt`
+    - no `Download receipt`
+    - no `View invoice` for #219.
+  - Checked visible row/audit data.
+  - Payment method was not visible for #219.
+- Expected final state:
+  - Paid History is audit-safe and cannot be accidentally edited.
+  - Manager/cashier can inspect detail, payment method and receipt/reprint.
+- Actual final state:
+  - Audit safety is good: no accidental edit/refund/void path was visible.
+  - History row is shallow and not clickable into useful details.
+  - Payment method and receipt/reprint are missing from the order row.
+- Cross-module verification:
+  - Orders History only; no data mutation.
+- Functional correctness: 7.0 / 10
+- UI/UX clarity: 6.6 / 10
+- Workflow speed: 7.4 / 10
+- Layout/device stability: 8.7 / 10
+- Data/payment/session integrity: 8.3 / 10
+- Launch readiness: 7.0 / 10
+- Final score: 7.0 / 10
+- Status: PASS FOR READ-ONLY SAFETY, FAIL FOR AUDIT DETAIL
+- Evidence:
+  - History read-only warning visible.
+  - #219 visible with table/items/total/status/date.
+  - Buttons after selecting #219: only `Refresh`, section toggles.
+  - No payment method in row.
+  - No bill-specific receipt/reprint action.
+- Defects found:
+  - P1: paid History rows lack detail view.
+  - P1: payment method is not visible on paid order history.
+  - P1/P2: receipt/reprint is not available from paid History.
+  - P2: History guidance says `invoice print/export`, but the user is not shown how to reach invoice/receipt for that bill.
+- Improvements needed:
+  - P1: add `View bill` or clickable row details for every History order.
+  - P1: show payment method, payment reference, paid timestamp and close timestamp.
+  - P1/P2: add `Print receipt`, `View receipt`, or `Export receipt` from the paid detail.
+  - P2: keep read-only safety, but show audited manager-only correction/refund route if/when policy is ready.
+- Cleanup performed:
+  - No cleanup required; read-only case.
+- Launch decision: History is safe from accidental edits, but not manager-grade enough for receipts or audit reconciliation.

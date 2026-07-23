@@ -7525,3 +7525,101 @@ Scores are out of 10 for:
   - No data changes created.
   - POS and Reports checked only.
 - Launch decision: Reports are operationally promising, but daily cash-up cannot be considered launch-ready until POS Paid Today and Reports Today reconcile or are clearly scoped.
+
+## E2E-071 — Reports date filter and preset reliability
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/reports`
+- Roles simulated:
+  - Manager changing reporting date ranges during cash-up.
+  - Manager comparing today, weekly, monthly, and prior-period totals.
+- Starting state:
+  - Reports page was accessible.
+  - Report controls visible:
+    - `From`
+    - `To`
+    - `Refresh`
+    - `Export CSV`
+    - `Export Excel`
+    - quick range buttons.
+- Steps executed:
+  - Opened Reports.
+  - Captured default report:
+    - `REPORT RANGE 2026-06-23 - 2026-07-23`
+    - `COLLECTED SGD 2,551.50`
+    - `189 orders in this range`.
+  - Clicked `Today`.
+  - Verified report changed to:
+    - `REPORT RANGE 2026-07-23 - 2026-07-23`
+    - `COLLECTED SGD 154.50`
+    - `21 orders in this range`.
+  - Clicked `Last 7 days`.
+  - Verified report changed to:
+    - `REPORT RANGE 2026-07-17 - 2026-07-23`
+    - `COLLECTED SGD 1,936.00`
+    - `174 orders in this range`.
+  - Clicked `This month`.
+  - Verified report changed to:
+    - `REPORT RANGE 2026-07-01 - 2026-07-31`
+    - `COLLECTED SGD 2,400.50`
+    - `184 orders in this range`.
+  - Clicked `Previous month`.
+  - Verified report changed to:
+    - `REPORT RANGE 2026-06-01 - 2026-06-30`
+    - `COLLECTED SGD 512.50`
+    - `12 orders in this range`.
+  - Tested manual date fields.
+  - Filled:
+    - From `2026-07-22`
+    - To `2026-07-22`.
+  - Clicked `Refresh`.
+  - Verified report changed to:
+    - `REPORT RANGE 2026-07-22 - 2026-07-22`
+    - `COLLECTED SGD 553.50`
+    - `54 orders in this range`.
+  - Verified no crash/blank page across all filter changes.
+  - Verified report sections remained visible after each change:
+    - `Sales & Revenue`
+    - `Summary`
+    - `Sales by payment method`
+    - `By product`
+    - `By category`
+    - `By table`
+    - attendance/payroll area.
+- Expected final state:
+  - Presets and manual dates update report range and totals.
+  - No UI crash/stale report.
+  - Totals change meaningfully between date ranges.
+- Actual final state:
+  - Presets worked.
+  - Manual date fill and Refresh worked.
+  - Totals changed correctly between ranges.
+  - No crash observed.
+  - Date fields are functional but have no visible placeholder/aria labels.
+- Cross-module verification:
+  - Reports only; no data mutation.
+- Functional correctness: 9.0 / 10
+- UI/UX clarity: 8.3 / 10
+- Workflow speed: 8.8 / 10
+- Layout/device stability: 8.8 / 10
+- Data/payment/session integrity: 8.6 / 10
+- Launch readiness: 8.8 / 10
+- Final score: 8.8 / 10
+- Status: PASS WITH ACCESSIBILITY POLISH
+- Evidence:
+  - Today: `SGD 154.50`, `21 orders`.
+  - Last 7 days: `SGD 1,936.00`, `174 orders`.
+  - This month: `SGD 2,400.50`, `184 orders`.
+  - Previous month: `SGD 512.50`, `12 orders`.
+  - Manual 2026-07-22: `SGD 553.50`, `54 orders`.
+- Defects found:
+  - P3: `From` and `To` date fields work but lack explicit accessible labels/placeholders in detected input metadata.
+  - P3: default report range is broad and may surprise managers expecting `Today` by default during cash-up.
+- Improvements needed:
+  - P2/P3: add accessible labels to date inputs.
+  - P3: consider defaulting Reports to `Today` for POS cash-up or remember the manager’s last selected range.
+  - P3: show timezone/day-boundary helper text near date filters.
+- Cleanup performed:
+  - No cleanup required; no orders/tables changed.
+- Launch decision: date filtering is launch-ready, with minor accessibility/default-range polish.

@@ -8404,3 +8404,95 @@ Scores are out of 10 for:
   - Order #222 paid and T05 cleared.
   - KDS verified clean.
 - Launch decision: table move destination filtering is not launch-ready because a seated table can be offered as a move destination.
+
+## E2E-079 — Paid table awaiting close can be closed from Tables
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/tables`
+  - `https://staff.sakorio.com/kitchen`
+  - `https://staff.sakorio.com/orders`
+- Roles simulated:
+  - Cashier creating and paying a small bill.
+  - Host closing a paid/ready-to-clear table from Tables.
+  - Manager checking History.
+- Starting state:
+  - T07 was idle.
+  - KDS was clean.
+- Steps executed:
+  - Opened POS T07.
+  - Added `Coffee SGD 2.50`.
+  - Clicked `Send order`.
+  - POS showed:
+    - `Order #223 sent for T07. Review the bill, add another round, or collect payment.`
+  - Reopened POS T07.
+  - Terminal-paid #223:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `PAID TODAY SGD 313.50`.
+  - Opened Tables without closing from POS.
+  - Verified T07 paid-awaiting-close state:
+    - `T07 2 Seats`
+    - `READY TO CLEAR`
+    - `Bill #223`
+    - `View receipt`
+    - `Close table`.
+  - Clicked `Close table` from Tables.
+  - Verified T07 reset:
+    - `T07 2 Seats`
+    - `IDLE TABLE`
+    - `Orders`
+    - `Start order`.
+  - Checked KDS.
+  - Verified:
+    - `All 0`
+    - `Kitchen 0`
+    - `Beverages 0`
+    - `No active tickets`.
+  - Opened Orders History.
+  - Verified #223:
+    - `#223`
+    - `T07`
+    - `1x Coffee`
+    - `SGD 2.50`
+    - `Paid`
+    - timestamp `7/23/2026, 15:25:26`.
+- Expected final state:
+  - Paid table awaiting close is visible from Tables.
+  - Host can close it from Tables.
+  - Table becomes available and History remains intact.
+- Actual final state:
+  - Tables close path worked well.
+  - `READY TO CLEAR` state was discoverable.
+  - `View receipt` appeared in Tables ready-to-clear state, which is a positive improvement vs History/POS receipt gaps.
+  - T07 reset and #223 remained in History.
+- Cross-module verification:
+  - POS: #223 paid.
+  - Tables: ready-to-clear then idle.
+  - KDS: clean.
+  - Orders: #223 in History.
+- Functional correctness: 9.0 / 10
+- UI/UX clarity: 8.8 / 10
+- Workflow speed: 8.8 / 10
+- Layout/device stability: 8.7 / 10
+- Data/payment/session integrity: 9.1 / 10
+- Launch readiness: 8.9 / 10
+- Final score: 8.9 / 10
+- Status: PASS
+- Evidence:
+  - Tables paid state: `READY TO CLEAR Bill #223`, `View receipt`, `Close table`.
+  - Final Tables: T07 `IDLE TABLE`.
+  - History: `#223 T07 1x Coffee SGD 2.50 Paid`.
+  - KDS: `No active tickets`.
+- Defects found:
+  - P2: POS still briefly showed post-send empty/new-order state before reopening the bill.
+  - P3: `View receipt` appears in Tables ready-to-clear state, but equivalent receipt access is missing from History and not obvious in POS.
+- Improvements needed:
+  - P2: keep bill visible immediately after POS send.
+  - P2/P3: reuse Tables `View receipt` affordance in POS paid state and Orders History.
+  - P3: add a toast after Tables close, e.g. `T07 cleared; bill #223 moved to History`.
+- Cleanup performed:
+  - Order #223 terminal-paid.
+  - T07 closed from Tables and verified idle.
+  - KDS verified clean.
+- Launch decision: this workflow is launch-ready and is one of the cleanest close flows.

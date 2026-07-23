@@ -86,6 +86,11 @@
           </svg>
           <span>{{ tableGreeting() }}</span>
         </div>
+        @if (!customerName()) {
+        <button type="button" class="guest-name-chip" (click)="promptName()" data-testid="menu-add-name">
+          {{ 'MENU.NAME_OPTIONAL' | translate }}
+        </button>
+        }
         @if (tenantPhone() || tenantWhatsapp()) {
         <div class="restaurant-contact">
           @if (tenantPhone()) {
@@ -665,25 +670,28 @@
 
   <!-- Customer Name Modal -->
   @if (showNameModal()) {
-  <div class="modal-overlay">
-    <div class="modal-sheet" (click)="$event.stopPropagation()">
+  <div class="modal-overlay customer-name-overlay" (click)="skipName()">
+    <div class="modal-sheet customer-name-sheet" role="dialog" aria-modal="true" aria-labelledby="customer-name-title" (click)="$event.stopPropagation()">
       <div class="modal-handle">
         <span class="handle-bar"></span>
       </div>
       <div class="modal-content" appFocusFirstInput>
+        <button type="button" class="modal-close-btn" (click)="skipName()" aria-label="Skip customer name" data-testid="customer-name-close">
+          ×
+        </button>
         <div class="modal-icon">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
             <circle cx="12" cy="7" r="4" />
           </svg>
         </div>
-        <h3 class="modal-title">{{ 'MENU.WHATS_YOUR_NAME' | translate }}</h3>
+        <h3 id="customer-name-title" class="modal-title">{{ 'MENU.WHATS_YOUR_NAME' | translate }}</h3>
         <p class="modal-subtitle">{{ 'MENU.NAME_OPTIONAL' | translate }}</p>
         <input type="text" class="name-input" [(ngModel)]="nameInputValue" [placeholder]="'MENU.ENTER_NAME' | translate"
-          (keyup.enter)="confirmName()" #nameInput autofocus />
+          (keyup.enter)="confirmName()" #nameInput autofocus data-testid="customer-name-input" />
         <div class="modal-actions">
-          <button class="btn-secondary" (click)="skipName()">{{ 'COMMON.SKIP' | translate }}</button>
-          <button class="btn-primary" (click)="confirmName()">{{ 'COMMON.OK' | translate }}</button>
+          <button class="btn-secondary" (click)="skipName()" data-testid="customer-name-skip">{{ 'COMMON.SKIP' | translate }}</button>
+          <button class="btn-primary" (click)="confirmName()" data-testid="customer-name-confirm">{{ 'COMMON.OK' | translate }}</button>
         </div>
       </div>
     </div>

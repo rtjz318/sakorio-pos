@@ -219,9 +219,7 @@ export class MenuComponent implements OnInit, OnDestroy {
 
     const customerName = localStorage.getItem(nameKey);
 
-    if (!customerName) {
-      this.showNameModal.set(true);
-    } else {
+    if (customerName) {
       this.customerName.set(customerName);
     }
   }
@@ -261,7 +259,7 @@ export class MenuComponent implements OnInit, OnDestroy {
       const newSessionId = this.generateUUID();
       localStorage.setItem(`session_${this.tableToken}`, newSessionId);
       this.sessionId = newSessionId;
-      this.showNameModal.set(true);
+      this.showNameModal.set(false);
     } else {
       this.showNameModal.set(false);
     }
@@ -333,6 +331,11 @@ export class MenuComponent implements OnInit, OnDestroy {
   skipName() {
     this.showNameModal.set(false);
     this.nameInputValue = '';
+  }
+
+  promptName() {
+    this.nameInputValue = this.customerName();
+    this.showNameModal.set(true);
   }
 
   confirmName() {

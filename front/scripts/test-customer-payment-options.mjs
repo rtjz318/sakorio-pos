@@ -34,6 +34,10 @@ assert(
   'Customer QR menu component must not expose a selectPayCash handler.',
 );
 assert(
+  !/if\s*\(\s*!customerName\s*\)\s*\{[\s\S]*?this\.showNameModal\.set\(true\)/.test(menuComponent),
+  'Customer QR menu must not block initial browsing with an optional name modal.',
+);
+assert(
   apiService.includes("paymentMethod: 'card_terminal'"),
   'Customer QR requestPayment API must stay typed as terminal-only.',
 );

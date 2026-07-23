@@ -1286,7 +1286,7 @@
     "LABEL": "Label",
     "LABEL_PLACEHOLDER": "e.g. Morning, Evening",
     "DELETE_SHIFT": "Delete shift",
-    "DELETE_CONFIRM": "Remove this shift from the schedule?",
+    "DELETE_CONFIRM": "Remove this shift from the schedule?\n\n{{detail}}",
     "SAVED": "Shift saved.",
     "UPDATED": "Shift updated.",
     "SAVE_FAILED": "Failed to save shift.",

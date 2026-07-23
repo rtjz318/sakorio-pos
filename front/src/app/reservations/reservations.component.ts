@@ -86,6 +86,7 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
           class="filter-input guest-search"
           aria-label="Search reservations by name, phone, reservation number, or table" />
         <select [(ngModel)]="filterStatus" (ngModelChange)="load()" class="filter-select">
+          <option value="active">Active service</option>
           <option value="">{{ 'RESERVATIONS.ALL_STATUSES' | translate }}</option>
           <option value="booked">{{ 'RESERVATIONS.STATUS_BOOKED' | translate }}</option>
           <option value="seated">{{ 'RESERVATIONS.STATUS_SEATED' | translate }}</option>
@@ -689,7 +690,7 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   tablesWithStatus = signal<CanvasTable[]>([]);
   filterDate = '';
   filterPhone = '';
-  filterStatus = '';
+  filterStatus = 'active';
   showForm = signal(false);
   editingReservation = signal<Reservation | null>(null);
   formName = '';
@@ -784,9 +785,15 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   private filteredReservations(): Reservation[] {
     this.reservationSearchRevision();
     const term = this.filterPhone.trim().toLowerCase();
-    if (!term) return [...this.reservations()];
+    const status = this.filterStatus;
+    const byStatus = this.reservations().filter((r) => {
+      if (status === 'active') return r.status === 'booked' || r.status === 'seated';
+      if (status) return r.status === status;
+      return true;
+    });
+    if (!term) return [...byStatus];
     const normalizedTerm = this.normalizePhone(term);
-    return this.reservations().filter((r) => {
+    return byStatus.filter((r) => {
       const fields = [
         r.customer_name,
         r.customer_phone,
@@ -920,7 +927,7 @@ export class ReservationsComponent implements OnInit, OnDestroy {
     this.loading.set(true);
     this.api.getReservations({
       date: this.filterDate || undefined,
-      status: this.filterStatus || undefined,
+      status: this.filterStatus && this.filterStatus !== 'active' ? this.filterStatus as ReservationStatus : undefined,
     }).subscribe({
       next: (list) => { this.reservations.set(list); this.loading.set(false); },
       error: () => this.loading.set(false),

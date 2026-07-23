@@ -869,11 +869,13 @@ function isValidView(v: string | null): v is ViewMode {
 
       @if (deleteTarget() !== null) {
         <app-confirmation-modal
-          [title]="'WORKING_PLAN.DELETE_SHIFT' | translate"
-          [message]="'WORKING_PLAN.DELETE_CONFIRM' | translate"
-          [confirmText]="'COMMON.DELETE' | translate"
-          [cancelText]="'COMMON.CANCEL' | translate"
+          [title]="'WORKING_PLAN.DELETE_SHIFT'"
+          [message]="'WORKING_PLAN.DELETE_CONFIRM'"
+          [messageParams]="{ detail: deleteTargetDetail() }"
+          [confirmText]="deleteBusy() ? 'COMMON.SAVING' : 'COMMON.DELETE'"
+          [cancelText]="'COMMON.CANCEL'"
           confirmBtnClass="btn-danger"
+          [confirmDisabled]="deleteBusy()"
           (confirm)="doDelete()"
           (cancel)="deleteTarget.set(null)"
         />
@@ -1518,6 +1520,7 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
   showModal = signal(false);
   editingShift = signal<Shift | null>(null);
   deleteTarget = signal<Shift | null>(null);
+  deleteBusy = signal(false);
   formError = signal<string | null>(null);
   toast = signal<{ message: string; type: 'success' | 'error' } | null>(null);
   private toastTimeout?: ReturnType<typeof setTimeout>;
@@ -2600,6 +2603,11 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
     });
   }
 
+  deleteTargetDetail(): string {
+    const target = this.deleteTarget();
+    return target ? this.formatShiftLine(target) : '';
+  }
+
   onCalendarShiftDeleteClick(ev: Event, s: Shift): void {
     ev.stopPropagation();
     this.confirmDelete(s);
@@ -2864,16 +2872,21 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
 
   doDelete(): void {
     const s = this.deleteTarget();
-    if (!s) return;
+    if (!s || this.deleteBusy()) return;
+    this.deleteBusy.set(true);
     this.api.deleteShift(s.id).subscribe({
       next: () => {
+        this.shifts.update((rows) => rows.filter((row) => row.id !== s.id));
         this.deleteTarget.set(null);
-        this.load();
+        this.deleteBusy.set(false);
         this.showToast(this.translate.instant('WORKING_PLAN.DELETED'), 'success');
+        this.load();
       },
       error: (_err) => {
+        this.deleteBusy.set(false);
         this.deleteTarget.set(null);
         this.showToast(this.translate.instant('WORKING_PLAN.DELETE_FAILED'), 'error');
+        this.load();
       },
     });
   }

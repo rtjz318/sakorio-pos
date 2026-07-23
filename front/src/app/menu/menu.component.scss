@@ -313,6 +313,31 @@ $cart-expanded-max: 60vh;
   }
 }
 
+.guest-name-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: var(--space-2);
+  padding: 0.42rem 0.8rem;
+  min-height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.16);
+  color: white;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  touch-action: manipulation;
+
+  &:hover,
+  &:focus-visible {
+    background: rgba(255, 255, 255, 0.26);
+    outline: none;
+  }
+}
+
 .restaurant-contact {
   display: flex;
   flex-wrap: wrap;
@@ -2074,6 +2099,8 @@ $cart-expanded-max: 60vh;
   background: var(--color-surface);
   border-radius: 20px 20px 0 0;
   animation: slideUp 0.3s ease;
+  max-height: min(92vh, 720px);
+  overflow: hidden;
 
   @include for-tablet-portrait-up {
     max-width: 400px;
@@ -2092,9 +2119,64 @@ $cart-expanded-max: 60vh;
 }
 
 .modal-content {
+  position: relative;
   padding: var(--space-4);
   padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
   text-align: center;
+  max-height: calc(min(92vh, 720px) - 16px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 1.45rem;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+
+  &:focus-visible {
+    outline: 3px solid var(--color-primary-light);
+    outline-offset: 2px;
+  }
+}
+
+.customer-name-overlay {
+  align-items: center;
+  justify-content: center;
+  padding: max(var(--space-3), env(safe-area-inset-top)) var(--space-3)
+    max(var(--space-3), env(safe-area-inset-bottom));
+}
+
+.customer-name-sheet {
+  width: min(100%, 420px);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+
+  .modal-content {
+    padding-top: var(--space-6);
+  }
+
+  .modal-icon {
+    margin-bottom: var(--space-2);
+
+    svg {
+      width: 36px;
+      height: 36px;
+    }
+  }
+
+  .modal-subtitle {
+    margin-bottom: var(--space-3);
+  }
 }
 
 .modal-icon {
@@ -2286,6 +2368,11 @@ $cart-expanded-max: 60vh;
   display: flex;
   gap: var(--space-3);
   margin-top: var(--space-4);
+  position: sticky;
+  bottom: 0;
+  padding-top: var(--space-3);
+  padding-bottom: env(safe-area-inset-bottom);
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), var(--color-surface) 30%);
 }
 
 .btn-secondary {

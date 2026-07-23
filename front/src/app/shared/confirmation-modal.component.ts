@@ -26,7 +26,7 @@ import { TranslateModule } from '@ngx-translate/core';
               {{ cancelText | translate }}
             </button>
           }
-          <button type="button" class="btn" [ngClass]="confirmBtnClass" (click)="onConfirm()">
+          <button type="button" class="btn" [ngClass]="confirmBtnClass" (click)="onConfirm()" [disabled]="confirmDisabled">
             {{ confirmText | translate }}
           </button>
         </div>
@@ -126,6 +126,11 @@ import { TranslateModule } from '@ngx-translate/core';
       transition: all 0.15s;
     }
 
+    .btn:disabled {
+      opacity: 0.62;
+      cursor: wait;
+    }
+
     .btn-secondary {
       background: var(--color-surface);
       color: var(--color-text);
@@ -172,6 +177,7 @@ export class ConfirmationModalComponent {
   @Input() confirmText = 'COMMON.YES';
   @Input() cancelText = 'COMMON.NO';
   @Input() confirmBtnClass = 'btn-primary';
+  @Input() confirmDisabled = false;
   /** Left/footer dismiss button (e.g. “Close”). Header X and overlay click still dismiss when false. */
   @Input() showSecondaryButton = true;
 

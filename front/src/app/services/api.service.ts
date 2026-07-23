@@ -34,7 +34,7 @@ export const DEFAULT_TENANT_UI_MODULES: Record<TenantUiModuleKey, boolean> = {
   providers: true,
   reservations: true,
   kitchen_bar: true,
-  inventory: true,
+  inventory: false,
 };
 
 /**

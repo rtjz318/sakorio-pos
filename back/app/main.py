@@ -12507,9 +12507,7 @@ def get_current_order(
 ) -> dict:
     """Public endpoint - get current active order for a table (if any)."""
     table = session.exec(
-        select(models.Table)
-        .where(models.Table.token == table_token)
-        .with_for_update()
+        select(models.Table).where(models.Table.token == table_token)
     ).first()
 
     if not table:
@@ -12629,7 +12627,9 @@ def get_table_order_history(
 ) -> list[dict]:
     """Public endpoint retained for old clients, but previous diners' history is never exposed."""
     table = session.exec(
-        select(models.Table).where(models.Table.token == table_token)
+        select(models.Table)
+        .where(models.Table.token == table_token)
+        .with_for_update()
     ).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")

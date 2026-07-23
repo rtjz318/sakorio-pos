@@ -1529,6 +1529,7 @@ export interface OrderCreate {
   items: OrderItemCreate[];
   notes?: string;
   session_id?: string;  // Session identifier for order isolation
+  idempotency_key?: string;  // Prevent duplicate table-session submissions on retry/double tap
   customer_name?: string;  // Optional customer name
   staff_access?: string;  // Staff link token for opening the public menu from staff UI
   qr_access?: string;  // Signed credential from the permanent printed table QR

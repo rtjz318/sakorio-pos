@@ -143,6 +143,22 @@
   }
 }
 
+.export-feedback {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-lg);
+  background: #f0fdf4;
+  color: #166534;
+  font-weight: 700;
+}
+
+.export-feedback--error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
 .end-day-checklist {
   display: grid;
   grid-template-columns: minmax(15rem, 0.8fr) minmax(0, 1.6fr);

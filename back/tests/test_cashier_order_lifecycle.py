@@ -191,6 +191,81 @@ class TestCashierOrderLifecycle(PgClientTestCase):
         self.assertTrue(still_open["is_active"])
         self.assertEqual(still_open["active_order_id"], order_id)
 
+    def test_paid_active_table_rejects_new_order_until_closed(self) -> None:
+        activate = self.client.post(
+            f"/tables/{self.table_id}/activate",
+            headers=self.headers,
+        )
+        self.assertEqual(activate.status_code, 200, activate.text)
+
+        order = self._add_item()
+        order_id = order["order_id"]
+
+        paid = self.client.put(
+            f"/orders/{order_id}/mark-paid",
+            json={"payment_method": "terminal", "tip_percent": None},
+            headers=self.headers,
+        )
+        self.assertEqual(paid.status_code, 200, paid.text)
+
+        rejected = self.client.post(
+            "/orders/staff",
+            json={
+                "table_id": self.table_id,
+                "items": [
+                    {
+                        "product_id": self.product_id,
+                        "quantity": 1,
+                        "source": "product",
+                    }
+                ],
+            },
+            headers=self.headers,
+        )
+        self.assertEqual(rejected.status_code, 409, rejected.text)
+        detail = rejected.json()["detail"]
+        self.assertEqual(detail["code"], "table_bill_paid_awaiting_close")
+        self.assertEqual(detail["order_id"], order_id)
+
+    def test_public_qr_submission_idempotency_ignores_duplicate_key(self) -> None:
+        activate = self.client.post(
+            f"/tables/{self.table_id}/activate",
+            headers=self.headers,
+        )
+        self.assertEqual(activate.status_code, 200, activate.text)
+
+        table = self.session.get(models.Table, self.table_id)
+        self.assertIsNotNone(table)
+        assert table is not None
+
+        payload = {
+            "items": [
+                {
+                    "product_id": self.product_id,
+                    "quantity": 1,
+                    "source": "product",
+                }
+            ],
+            "session_id": "browser-session-1",
+            "idempotency_key": "submit-key-1",
+        }
+        first = self.client.post(f"/menu/{table.token}/order", json=payload)
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(first.json()["status"], "created")
+        order_id = first.json()["order_id"]
+
+        duplicate = self.client.post(f"/menu/{table.token}/order", json=payload)
+        self.assertEqual(duplicate.status_code, 200, duplicate.text)
+        self.assertEqual(duplicate.json()["status"], "duplicate_ignored")
+        self.assertTrue(duplicate.json()["duplicate"])
+        self.assertEqual(duplicate.json()["order_id"], order_id)
+
+        items = self.session.exec(
+            select(models.OrderItem).where(models.OrderItem.order_id == order_id)
+        ).all()
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].quantity, 1)
+
     def test_multiple_tickets_stay_current_until_table_close(self) -> None:
         activate = self.client.post(
             f"/tables/{self.table_id}/activate",

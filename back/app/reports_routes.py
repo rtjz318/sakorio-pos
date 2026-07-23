@@ -25,8 +25,9 @@ from .work_session_serialization import serialize_work_session
 
 router = APIRouter()
 
-# Order statuses we count as "revenue"
-REVENUE_STATUSES = {models.OrderStatus.paid, models.OrderStatus.completed}
+# Order states that count as collected revenue. Kitchen/service "completed"
+# without a payment timestamp is not cash-up revenue.
+REVENUE_STATUSES = {models.OrderStatus.paid}
 # Item statuses we exclude from revenue
 EXCLUDED_ITEM_STATUSES = {models.OrderItemStatus.cancelled}
 
@@ -48,6 +49,11 @@ def _as_utc(value: datetime) -> datetime:
 def _revenue_date(order: models.Order) -> datetime | None:
     """Date used for attributing revenue (paid_at if set, else created_at)."""
     return order.paid_at or order.created_at
+
+
+def _order_counts_as_revenue(order: models.Order) -> bool:
+    """Cash-up revenue must be collected, not merely kitchen/service completed."""
+    return order.deleted_at is None and (order.status == models.OrderStatus.paid or order.paid_at is not None)
 
 
 def _in_range(d: datetime | None, from_date: date, to_date: date) -> bool:
@@ -99,12 +105,13 @@ def _get_revenue_items(
         select(models.Order)
         .where(models.Order.tenant_id == tenant_id)
         .where(models.Order.deleted_at.is_(None))
-        .where(models.Order.status.in_([s.value for s in REVENUE_STATUSES]))
         .order_by(models.Order.created_at.asc())
     ).all()
 
     result = []
     for order in orders:
+        if not _order_counts_as_revenue(order):
+            continue
         rev_date = _revenue_date(order)
         if not _in_range(rev_date, from_date, to_date):
             continue
@@ -168,9 +175,10 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
         select(models.Order)
         .where(models.Order.tenant_id == tenant_id)
         .where(models.Order.deleted_at.is_(None))
-        .where(models.Order.status.in_([s.value for s in REVENUE_STATUSES]))
     ).all()
     for order in orders_for_tips:
+        if not _order_counts_as_revenue(order):
+            continue
         rev_date = _revenue_date(order)
         if not _in_range(rev_date, from_date, to_date):
             continue

@@ -2470,6 +2470,9 @@ export class TablesComponent implements OnInit {
     return this.tables()
       .filter((table) => table.id != null && table.id !== current.id)
       .filter((table) => !table.is_active && table.active_order_id == null)
+      .filter((table) => (table.status || 'available') === 'available')
+      .filter((table) => (table.operational_status || 'available') === 'available')
+      .filter((table) => !table.seated_reservation && !table.upcoming_reservation)
       .sort((a, b) => {
         const floorCompare = this.getFloorName(a.floor_id).localeCompare(this.getFloorName(b.floor_id));
         if (floorCompare !== 0) return floorCompare;

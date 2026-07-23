@@ -46,6 +46,7 @@ interface PosCartLine {
   priceCents: number;
   quantity: number;
   source: PosProductSource;
+  notes?: string;
   customizationAnswers?: Record<string, string | number | string[]>;
   customizationSummary?: string | null;
 }
@@ -595,6 +596,17 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                         @if (line.customizationSummary) {
                           <small class="line-customization">{{ line.customizationSummary }}</small>
                         }
+                        <label class="line-note-field">
+                          <span>Kitchen note</span>
+                          <input
+                            type="text"
+                            [ngModel]="line.notes || ''"
+                            (ngModelChange)="updateLineNotes(line.lineKey, $event)"
+                            placeholder="e.g. no chilli, allergy"
+                            maxlength="160"
+                            [disabled]="processingCheckout()"
+                          />
+                        </label>
                       </div>
                       <div class="line-controls">
                         <div class="qty-control">
@@ -1239,6 +1251,17 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                                 @if (line.customizationSummary) {
                                   <small>{{ line.customizationSummary }}</small>
                                 }
+                                <label class="line-note-field">
+                                  <span>Kitchen note</span>
+                                  <input
+                                    type="text"
+                                    [ngModel]="line.notes || ''"
+                                    (ngModelChange)="updateLineNotes(line.lineKey, $event)"
+                                    placeholder="e.g. no chilli, allergy"
+                                    maxlength="160"
+                                    [disabled]="processingCheckout()"
+                                  />
+                                </label>
                                 <span>{{ formatPrice(line.priceCents * line.quantity) }}</span>
                               </div>
                               <div class="pos-service-quantity">
@@ -7275,6 +7298,7 @@ export class CashierPosComponent {
           priceCents: product.priceCents,
           quantity: 1,
           source: product.source,
+          notes: '',
           customizationAnswers: customizationAnswers ? this.cloneCustomizationAnswers(customizationAnswers) : undefined,
           customizationSummary: customizationAnswers ? this.formatCustomizationSummary(customizationAnswers) : null,
         });
@@ -7408,6 +7432,16 @@ export class CashierPosComponent {
     return !!this.cartTargetTable();
   }
 
+  updateLineNotes(lineKey: string, notes: string): void {
+    this.cartLines.update((lines) =>
+      lines.map((line) =>
+        line.lineKey === lineKey
+          ? { ...line, notes: (notes || '').slice(0, 160) }
+          : line
+      )
+    );
+  }
+
   hasReadyTableForNewCart(): boolean {
     return this.availableTargetTables().length > 0;
   }
@@ -7516,6 +7550,7 @@ export class CashierPosComponent {
             product_id: line.productId,
             quantity: line.quantity,
             source: line.source,
+            notes: line.notes?.trim() || undefined,
             customization_answers: line.customizationAnswers,
           })),
           customer_name: handoffPrefill?.guestName?.trim() || undefined,
@@ -7626,6 +7661,7 @@ export class CashierPosComponent {
           product_id: line.productId,
           quantity: line.quantity,
           source: line.source,
+          notes: line.notes?.trim() || undefined,
           customization_answers: line.customizationAnswers,
         })),
         customer_name: handoffPrefill?.guestName?.trim() || undefined,

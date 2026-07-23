@@ -903,6 +903,11 @@ class Order(TenantMixin, table=True):
     # Customer requested bill / card terminal (public menu); idempotent timestamp
     bill_requested_at: datetime | None = None
 
+    # Last successful QR/POS table-session submission key. This gives duplicate-tap
+    # protection without changing the one-live-bill-per-table model.
+    last_submission_key: str | None = Field(default=None, max_length=128, index=True)
+    last_submission_at: datetime | None = None
+
     # Payment tracking
     paid_at: datetime | None = None
     paid_by_user_id: int | None = None  # Who marked it as paid (staff)
@@ -1300,6 +1305,7 @@ class OrderCreate(SQLModel):
     items: list[OrderItemCreate]
     notes: str | None = None
     session_id: str | None = None  # Session identifier for order isolation
+    idempotency_key: str | None = Field(default=None, max_length=128)
     customer_name: str | None = None  # Optional customer name
     staff_access: str | None = None  # Staff link token for opening public menu from staff UI
     qr_access: str | None = None  # Signed credential from the permanent printed table QR

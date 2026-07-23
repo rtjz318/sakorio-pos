@@ -61,6 +61,7 @@ export class ReportsComponent implements OnInit {
   loading = signal(true);
   error = signal<string | null>(null);
   exporting = signal(false);
+  exportFeedback = signal<{ type: 'success' | 'error'; message: string } | null>(null);
   workSessions = signal<WorkSession[]>([]);
   workSessionsLoading = signal(false);
   workSessionsError = signal<string | null>(null);
@@ -1021,6 +1022,7 @@ export class ReportsComponent implements OnInit {
 
   exportExcel() {
     this.exporting.set(true);
+    this.exportFeedback.set(null);
     const from = this.fromDate();
     const to = this.toDate();
     this.api.getReportsExport(from, to, 'xlsx', 'summary', this.languageService.getLanguage()).subscribe({
@@ -1032,8 +1034,18 @@ export class ReportsComponent implements OnInit {
         a.click();
         URL.revokeObjectURL(url);
         this.exporting.set(false);
+        this.exportFeedback.set({
+          type: 'success',
+          message: `Excel export started: pos2-sales-${from}-${to}.xlsx`,
+        });
       },
-      error: () => this.exporting.set(false),
+      error: (err) => {
+        this.exporting.set(false);
+        this.exportFeedback.set({
+          type: 'error',
+          message: this.apiErr.fromHttpError(err, 'Excel export failed. Please try again.'),
+        });
+      },
     });
   }
 
@@ -1043,6 +1055,7 @@ export class ReportsComponent implements OnInit {
       return;
     }
     this.exporting.set(true);
+    this.exportFeedback.set(null);
     const from = this.fromDate();
     const to = this.toDate();
     this.api.getReportsExport(from, to, 'csv', report, this.languageService.getLanguage()).subscribe({
@@ -1054,8 +1067,18 @@ export class ReportsComponent implements OnInit {
         a.click();
         URL.revokeObjectURL(url);
         this.exporting.set(false);
+        this.exportFeedback.set({
+          type: 'success',
+          message: `CSV export started: pos2-sales-${report}-${from}-${to}.csv`,
+        });
       },
-      error: () => this.exporting.set(false),
+      error: (err) => {
+        this.exporting.set(false);
+        this.exportFeedback.set({
+          type: 'error',
+          message: this.apiErr.fromHttpError(err, 'CSV export failed. Please try again.'),
+        });
+      },
     });
   }
 }

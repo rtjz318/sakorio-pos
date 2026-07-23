@@ -134,6 +134,27 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
               }
             </div>
 
+            <div class="orders-launch-search" role="search">
+              <label for="orders-launch-search-input">Find order or table</label>
+              <input
+                id="orders-launch-search-input"
+                type="search"
+                [ngModel]="orderSearch()"
+                (ngModelChange)="orderSearch.set($event)"
+                placeholder="Search #48, T07, table name, customer, item, payment..."
+                autocomplete="off"
+                data-testid="orders-search-input"
+              />
+              @if (orderSearch().trim()) {
+                <button type="button" class="btn btn-sm btn-secondary" (click)="orderSearch.set('')">
+                  Clear search
+                </button>
+              }
+              <span class="orders-launch-search-count">
+                {{ visibleOrderCount() }} matching ticket{{ visibleOrderCount() === 1 ? '' : 's' }}
+              </span>
+            </div>
+
             <!-- Active Orders Section -->
             @if (viewMode() === 'active' && activeOrders().length > 0) {
               <div class="table-overview-board">
@@ -1238,6 +1259,41 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
       border-radius: 12px;
       font-size: 0.75rem;
       font-weight: 600;
+    }
+    .orders-launch-search {
+      display: grid;
+      grid-template-columns: minmax(7rem, auto) minmax(14rem, 1fr) auto auto;
+      align-items: center;
+      gap: var(--space-2);
+      margin: 0 0 var(--space-4);
+      padding: var(--space-3);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface);
+    }
+    .orders-launch-search label {
+      font-size: 0.78rem;
+      font-weight: 800;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .orders-launch-search input {
+      width: 100%;
+      min-width: 0;
+      padding: var(--space-3);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      font-size: 0.95rem;
+      background: #fff;
+      color: var(--color-text);
+    }
+    .orders-launch-search-count {
+      justify-self: end;
+      color: var(--color-text-muted);
+      font-size: 0.85rem;
+      font-weight: 700;
+      white-space: nowrap;
     }
     .section-header { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
     .section-header h2 { font-size: 1.125rem; font-weight: 600; color: var(--color-text); margin: 0; }
@@ -2418,6 +2474,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
   currencyCode = signal<string | null>(null);
   showRemovedItems = false;
   viewMode = signal<OrdersViewMode>('active');
+  orderSearch = signal('');
   expandedActiveTableKey = signal<string | null>(null);
   orderToMarkPaid = signal<Order | null>(null);
   paymentMethod = 'cash';
@@ -2490,6 +2547,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
       ['pending', 'preparing', 'ready', 'partially_delivered'].includes(o.status)
     );
     if (tid != null) list = list.filter(o => o.table_id === tid);
+    list = this.applyOrderSearch(list);
     return [...list].sort((a, b) => {
       if (!!a.staff_urgent !== !!b.staff_urgent) {
         return a.staff_urgent ? -1 : 1;
@@ -2501,6 +2559,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     const tid = this.tableScopeId();
     let list = this.orders().filter(o => this.isHistoryOrder(o));
     if (tid != null) list = list.filter(o => o.table_id === tid);
+    list = this.applyOrderSearch(list);
     return list;
   });
   notPaidOrders = computed(() => {
@@ -2511,6 +2570,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
       !this.isOrderPaid(o)
     );
     if (tid != null) list = list.filter(o => o.table_id === tid);
+    list = this.applyOrderSearch(list);
     return list;
   });
   paidAwaitingCloseOrders = computed(() => {
@@ -2521,11 +2581,50 @@ export class OrdersComponent implements OnInit, OnDestroy {
       o.table_id != null
     );
     if (tid != null) list = list.filter(o => o.table_id === tid);
+    list = this.applyOrderSearch(list);
     return [...list].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
   });
   activeOrderGroups = computed(() => this.groupOrdersByTable(this.activeOrders()));
   notPaidOrderGroups = computed(() => this.groupOrdersByTable(this.notPaidOrders()));
   paidAwaitingCloseOrderGroups = computed(() => this.groupOrdersByTable(this.paidAwaitingCloseOrders()));
+  visibleOrderCount = computed(() => {
+    switch (this.viewMode()) {
+      case 'active': return this.activeOrders().length;
+      case 'not_paid': return this.notPaidOrders().length;
+      case 'paid_close': return this.paidAwaitingCloseOrders().length;
+      case 'history': return this.completedOrders().length;
+    }
+  });
+
+  private applyOrderSearch(list: Order[]): Order[] {
+    const query = this.orderSearch().trim().toLowerCase();
+    if (!query) return list;
+    const normalizedId = query.replace(/^#/, '');
+    return list.filter((order) => {
+      const haystack = [
+        String(order.id ?? ''),
+        `#${order.id ?? ''}`,
+        String(order.table_id ?? ''),
+        order.table_name,
+        order.table_group_label,
+        order.customer_name,
+        order.status,
+        order.payment_method,
+        order.paid_at,
+        order.created_at,
+        ...(order.items || []).flatMap((item) => [
+          item.product_name,
+          item.notes,
+          item.customization_summary,
+          item.line_modifiers_summary,
+        ]),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(query) || (!!normalizedId && String(order.id ?? '') === normalizedId);
+    });
+  }
 
   private isCurrentTableSessionOrder(order: Order): boolean {
     if (order.table_id == null) return false;

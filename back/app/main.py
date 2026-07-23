@@ -11667,6 +11667,33 @@ def move_table_bill(
             status_code=409,
             detail="Target table already has an active session or live bill. Close or move it first.",
         )
+    target_seated_reservation = session.exec(
+        select(models.Reservation).where(
+            models.Reservation.tenant_id == current_user.tenant_id,
+            models.Reservation.table_id == target.id,
+            models.Reservation.status == models.ReservationStatus.seated,
+        )
+    ).first()
+    target_seated_queue = session.exec(
+        select(models.GuestQueueEntry).where(
+            models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+            models.GuestQueueEntry.seated_table_id == target.id,
+            models.GuestQueueEntry.status == models.GuestQueueStatus.seated,
+        )
+    ).first()
+    target_open_order = session.exec(
+        select(models.Order).where(
+            models.Order.tenant_id == current_user.tenant_id,
+            models.Order.table_id == target.id,
+            models.Order.deleted_at.is_(None),
+            ~models.Order.status.in_([models.OrderStatus.paid, models.OrderStatus.cancelled]),
+        )
+    ).first()
+    if target_seated_reservation or target_seated_queue or target_open_order:
+        raise HTTPException(
+            status_code=409,
+            detail="Target table is occupied, seated, or still has a live ticket. Choose an available table.",
+        )
 
     current_session_orders = session.exec(
         select(models.Order).where(
@@ -12480,7 +12507,9 @@ def get_current_order(
 ) -> dict:
     """Public endpoint - get current active order for a table (if any)."""
     table = session.exec(
-        select(models.Table).where(models.Table.token == table_token)
+        select(models.Table)
+        .where(models.Table.token == table_token)
+        .with_for_update()
     ).first()
 
     if not table:
@@ -12783,14 +12812,29 @@ def create_order(
     # ============ GET OR CREATE SHARED ORDER ============
     # Order is created when table is activated only as a slot; we create it on first item add.
     # If no active order yet, we will create one below (requires at least one item).
+    idempotency_key = (order_data.idempotency_key or "").strip()[:128] or None
     order = None
     if table.active_order_id:
         order = session.get(models.Order, table.active_order_id)
-        if order and order.status in (
-            models.OrderStatus.paid,
-            models.OrderStatus.cancelled,
-        ):
-            order = None  # Will create a new order below if we have items
+        if order and idempotency_key and order.last_submission_key == idempotency_key:
+            return JSONResponse(content={
+                "status": "duplicate_ignored",
+                "order_id": order.id,
+                "session_id": order.session_id,
+                "customer_name": order.customer_name,
+                "duplicate": True,
+            })
+        if order and _order_is_settled(order):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "table_bill_paid_awaiting_close",
+                    "message": "This table's bill is already paid. Please ask staff to close and reset the table before placing a new order.",
+                    "order_id": order.id,
+                },
+            )
+        if order and order.status == models.OrderStatus.cancelled:
+            order = None  # Cancelled empty/old slot; allow a fresh order if the table is still active.
 
     if order is None:
         # No order yet, or previous shared order was paid/cancelled: create new order only if customer is adding items
@@ -13081,6 +13125,11 @@ def create_order(
 
     # Persist the order and its station receipts in one transaction. A local agent
     # leases these jobs after commit and prints them on the restaurant network.
+    if idempotency_key:
+        order.last_submission_key = idempotency_key
+        order.last_submission_at = datetime.now(timezone.utc)
+        session.add(order)
+
     enqueue_kitchen_receipts(
         session,
         tenant=tenant,

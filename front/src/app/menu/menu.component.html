@@ -473,6 +473,16 @@
             @if (formatCustomizationSummary(item.customization_answers, item.customization_summary)) {
             <span class="cart-item-customization">{{ formatCustomizationSummary(item.customization_answers, item.customization_summary) }}</span>
             }
+            <label class="cart-item-note">
+              <span>Special request</span>
+              <input
+                type="text"
+                [ngModel]="item.notes"
+                (ngModelChange)="updateCartItemNotes(item, $event)"
+                placeholder="e.g. less spicy, no chilli"
+                maxlength="160"
+              />
+            </label>
             <span class="cart-item-price">{{ formatPrice(item.product.price_cents * item.quantity) }}</span>
           </div>
           <div class="cart-item-controls">

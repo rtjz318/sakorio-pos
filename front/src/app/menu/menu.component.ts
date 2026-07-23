@@ -140,6 +140,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   private hadStoredCustomerStateOnInit = false;
   /** When set (from staff link), PIN is not required; sent with getMenu and submitOrder. */
   private staffAccess: string | null = null;
+  private activeSubmissionKey: string | null = null;
   /** Permanent signed bearer credential embedded in the printed table QR. */
   private qrAccess: string | null = null;
 
@@ -933,6 +934,15 @@ export class MenuComponent implements OnInit, OnDestroy {
     }
   }
 
+  updateCartItemNotes(item: CartItem, notes: string) {
+    const productKey = this.getProductKey(item.product, item.customization_answers);
+    this.cart.update(items => items.map(i =>
+      this.getProductKey(i.product, i.customization_answers) === productKey
+        ? { ...i, notes: (notes || '').slice(0, 160) }
+        : i
+    ));
+  }
+
   isProductInMenuCart(product: Product): boolean {
     const id = product.id;
     if (id == null) return false;
@@ -1005,11 +1015,23 @@ export class MenuComponent implements OnInit, OnDestroy {
   // ORDER SUBMISSION
   // ============================================
   submitOrder() {
+    if (this.submitting()) {
+      return;
+    }
+
     // Check if table is active
     if (!this.tableIsActive()) {
       alert('This table is not accepting orders. Please ask staff for assistance.');
       return;
     }
+
+    if (this.cart().length === 0) {
+      alert('Add at least one item before placing the order.');
+      return;
+    }
+
+    this.activeSubmissionKey = this.generateUUID();
+    this.submitting.set(true);
 
     // Proceed with order submission
     this.doSubmitOrder();
@@ -1043,11 +1065,11 @@ export class MenuComponent implements OnInit, OnDestroy {
       // Location denied or unavailable - continue without it
     }
 
-    this.submitting.set(true);
     this.api.submitOrder(this.tableToken, {
       items,
       notes: this.orderNotes || undefined,
       session_id: this.sessionId,
+      idempotency_key: this.activeSubmissionKey || undefined,
       customer_name: this.customerName() || undefined,
       staff_access: this.staffAccess ?? undefined,
       qr_access: this.qrAccess ?? undefined,
@@ -1074,6 +1096,7 @@ export class MenuComponent implements OnInit, OnDestroy {
         setTimeout(() => this.showSuccessToast.set(false), 3000);
         this.ordersExpanded.set(true);
         this.submitting.set(false);
+        this.activeSubmissionKey = null;
 
         this.loadStoredOrders();
 
@@ -1089,8 +1112,11 @@ export class MenuComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.submitting.set(false);
+        this.activeSubmissionKey = null;
         const detail = err.error?.detail;
-        const errorMsg = typeof detail === 'string' ? detail : 'Failed to place order.';
+        const errorMsg = typeof detail === 'string'
+          ? detail
+          : detail?.message || 'Failed to place order.';
 
         if (errorMsg.includes('active') || errorMsg.includes('accepting')) {
           alert('This table is not accepting orders. Please ask staff for assistance.');

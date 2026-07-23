@@ -51,6 +51,17 @@
   @if (error()) {
     <div class="error-banner">{{ error() }}</div>
   }
+  @if (exportFeedback(); as feedback) {
+    <div
+      class="export-feedback"
+      [class.export-feedback--error]="feedback.type === 'error'"
+      role="status"
+      aria-live="polite"
+      data-testid="reports-export-feedback"
+    >
+      {{ feedback.message }}
+    </div>
+  }
 
   @if (loading() && !report()) {
     <div class="loading-state">{{ 'REPORTS.LOADING' | translate }}</div>

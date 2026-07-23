@@ -6063,3 +6063,155 @@ Scores are out of 10 for:
   - T03 closed and reset.
   - QR confirmed closed after reset.
 - Launch decision: mixed KDS station split is launch-capable; waiter/POS partial-service visibility needs polish to reach 9+/10.
+
+## E2E-059 — Multiple active KDS tickets from multiple tables, process oldest first, pay, and close
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/kitchen`
+  - `https://staff.sakorio.com/pos`
+- Roles simulated:
+  - Host/waiter opening three QR sessions.
+  - Three customer tables placing orders.
+  - Kitchen/beverage user processing a small rush board.
+  - Cashier settling and closing all active tables.
+- Starting state:
+  - T04, T05, and T07 were available.
+  - POS showed `OPEN BILLS 0`.
+  - POS `PAID TODAY SGD 239.00`.
+- Steps executed:
+  - Opened T04 QR ordering from Tables.
+  - Verified T04:
+    - `SEATED · START ORDER`
+    - `T04 is open for QR ordering`
+    - QR link visible.
+  - Opened T05 QR ordering from Tables.
+  - Verified T05:
+    - `SEATED · START ORDER`
+    - `T05 is open for QR ordering`
+    - QR link visible.
+  - Opened T07 QR ordering from Tables.
+  - Verified T07:
+    - `SEATED · START ORDER`
+    - `T07 is open for QR ordering`
+    - QR link visible.
+  - Customer T04 submitted:
+    - `Order # 209`
+    - `Enchiladas`
+    - `SGD 20.00`
+  - Customer T05 submitted:
+    - `Order # 210`
+    - `Coca Cola`
+    - `SGD 3.00`
+  - Customer T07 submitted:
+    - `Order # 211`
+    - `Coffee`
+    - `SGD 2.50`
+  - Opened KDS rush board.
+  - Verified KDS counts:
+    - `All 3`
+    - `Kitchen 1`
+    - `Beverages 2`
+    - `Send to prep 3`
+    - `Working now 0`
+    - `Hand off 0`
+  - Verified ticket ordering/readability:
+    - `#209 · T04` / Enchiladas / Kitchen / Main Course
+    - `#210 · T05` / Coca Cola / Beverage
+    - `#211 · T07` / Coffee / Beverage
+  - Processed first/oldest ticket #209:
+    - `Start ticket 1 item`
+    - `Ready for pass 1 item`
+    - `Served / Delivered 1 item`
+  - Verified after #209 served:
+    - `All 2`
+    - `Kitchen 0`
+    - `Beverages 2`
+    - `Ticket #209 served`
+    - remaining tickets #210 and #211 still pending.
+  - Processed second ticket #210:
+    - `Start ticket 1 item`
+    - `Ready for pass 1 item`
+    - `Served / Delivered 1 item`
+  - Verified after #210 served:
+    - `All 1`
+    - `Beverages 1`
+    - remaining ticket #211 still pending.
+  - Processed third ticket #211:
+    - `Start ticket 1 item`
+    - `Ready for pass 1 item`
+    - `Served / Delivered 1 item`
+  - Verified final KDS:
+    - `All 0`
+    - `Kitchen 0`
+    - `Beverages 0`
+    - `No active tickets`
+    - `No active orders`
+  - Opened POS T04.
+  - Verified:
+    - `OPEN BILLS 3`
+    - T04 `Bill #209 ready`
+    - T05 `Bill #210 ready`
+    - T07 `Bill #211 ready`
+  - Terminal-paid T04:
+    - `charge terminal - SGD 20.00`
+    - `PAID TODAY SGD 259.00`
+  - Closed T04:
+    - `T04 is clear and ready for the next cashier bill.`
+    - T04 QR returned `Table Closed`.
+  - Terminal-paid T05:
+    - `charge terminal - SGD 3.00`
+    - `PAID TODAY SGD 262.00`
+  - Closed T05:
+    - `T05 is clear and ready for the next cashier bill.`
+    - T05 QR returned `Table Closed`.
+  - Terminal-paid and closed T07:
+    - final board verified `PAID TODAY SGD 264.50`
+    - `OPEN BILLS 0`
+    - T07 `Available`
+    - T07 QR returned `Table Closed`.
+  - Verified final board:
+    - `TABLES LOADED 10`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 264.50`
+    - T04, T05, T07 all `Available / Ready for order`.
+- Expected final state: KDS remains readable with multiple tickets, oldest/current ticket processing is understandable, all tickets can be served, paid, and closed without orphan open bills.
+- Actual final state:
+  - KDS rush board was readable at three concurrent tickets.
+  - Counts by station were accurate.
+  - Tickets processed cleanly oldest-first.
+  - Payment and close cleanup succeeded for all three tables.
+  - Final board had no open bills.
+- Cross-module verification:
+  - Customer QR: three orders submitted and confirmed.
+  - KDS: three active tickets, correct station counts, then clean board.
+  - POS: open bill count decreased from 3 -> 2 -> 1 -> 0 through cleanup.
+  - QR/session: all three QR links blocked after close.
+- Functional correctness: 9.3 / 10
+- UI/UX clarity: 8.6 / 10
+- Workflow speed: 8.2 / 10
+- Layout/device stability: 8.7 / 10
+- Data/payment/session integrity: 9.6 / 10
+- Launch readiness: 9.1 / 10
+- Final score: 9.1 / 10
+- Status: PASS
+- Evidence:
+  - KDS rush start: `All 3`, `Kitchen 1`, `Beverages 2`.
+  - KDS rush end: `All 0`, `Kitchen 0`, `Beverages 0`, `No active tickets`.
+  - POS final: `OPEN BILLS 0`, `PAID TODAY SGD 264.50`.
+  - T04/T05/T07: all `Available`, all QR links returned `Table Closed`.
+- Defects found:
+  - P3: KDS rush board is readable at three tickets, but ticket-level visual priority/age is still quite text-heavy; during a real rush with 10+ tickets this may need stronger card hierarchy.
+  - P3: paid-awaiting-close state still exposes `Start order` beside `Close table`; repeated clarity issue.
+- Improvements needed:
+  - P3: strengthen KDS ticket cards with clearer large table/order headers and aging/priority chips.
+  - P3: add a compact rush mode/density toggle for KDS if ticket count grows beyond 6-8.
+  - P3: suppress/de-emphasize `Start order` while paid bill awaits close.
+- Cleanup performed:
+  - Orders #209, #210, #211 served in KDS.
+  - T04, T05, T07 terminal-paid.
+  - T04, T05, T07 closed and reset.
+  - QR links confirmed closed.
+- Launch decision: KDS multiple-ticket service is launch-ready at small-rush scale; larger-rush visual density should be tested again with more tickets before peak-service go-live.

@@ -6596,3 +6596,66 @@ Scores are out of 10 for:
   - T01 successfully closed on retry.
   - QR confirmed closed after retry.
 - Launch decision: stale-KDS/bill integrity is acceptable, but close-table failure/recovery is a launch-risk polish item and should be fixed or operationally trained before go-live.
+
+## E2E-063 — KDS shift-start/backlog cleanliness check after many test tickets
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Kitchen lead checking live KDS readiness after many prior tickets.
+- Starting state:
+  - Prior cases E2E-058 through E2E-062 created, served, paid, and closed several orders.
+  - This case intentionally started after cleanup to see whether stale tickets polluted the live production board.
+- Steps executed:
+  - Opened live KDS.
+  - Verified top-level station counts:
+    - `All 0`
+    - `Kitchen 0`
+    - `Beverages 0`
+  - Verified lane counts:
+    - `Send to prep 0`
+    - `Working now 0`
+    - `Hand off 0`
+    - `Oldest wait —`
+  - Verified board message:
+    - `No active tickets`
+    - `No active orders`
+    - `New orders will appear here when customers place them`
+  - Verified service-flow guidance remained visible:
+    - `New tickets → In prep → Ready pass → Served / delivered`
+    - explanatory copy says older unresolved tickets stay in backlog mode so current service stays clean.
+  - Inspected visible controls.
+  - Visible controls included:
+    - station filters `All`, `Kitchen`, `Beverages`
+    - `Full screen`
+    - `Timer settings`
+    - lane filters `Send to prep`, `Working now`, `Hand off`
+  - No separate backlog/review button was visible while there was no backlog.
+- Expected final state: live KDS board is clean at shift start; stale/backlog tickets do not pollute active production; backlog review is available or the no-backlog state is clear.
+- Actual final state:
+  - Live KDS board was fully clean.
+  - No active test ticket polluted service.
+  - Backlog concept is described in copy, but no explicit backlog review affordance appears in the no-backlog state.
+- Cross-module verification:
+  - KDS live board only; no mutation performed.
+- Functional correctness: 9.3 / 10
+- UI/UX clarity: 8.5 / 10
+- Workflow speed: 9.4 / 10
+- Layout/device stability: 9.2 / 10
+- Data/payment/session integrity: 9.4 / 10
+- Launch readiness: 9.1 / 10
+- Final score: 9.1 / 10
+- Status: PASS
+- Evidence:
+  - `All 0`, `Kitchen 0`, `Beverages 0`.
+  - `No active tickets`.
+  - `No active orders`.
+- Defects found:
+  - No blocking defect found.
+  - P3: backlog/review affordance is not discoverable from the empty-board state; only explanatory text mentions backlog mode.
+- Improvements needed:
+  - P3: if backlog exists or is a feature, add a visible `Backlog / older tickets` button or empty-state hint, even when count is 0.
+- Cleanup performed:
+  - No cleanup needed.
+- Launch decision: KDS live-board cleanliness is launch-ready.

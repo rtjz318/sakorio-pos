@@ -6215,3 +6215,136 @@ Scores are out of 10 for:
   - T04, T05, T07 closed and reset.
   - QR links confirmed closed.
 - Launch decision: KDS multiple-ticket service is launch-ready at small-rush scale; larger-rush visual density should be tested again with more tickets before peak-service go-live.
+
+## E2E-060 — Attempt payment while KDS ticket is still pending, then serve and close
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/kitchen`
+  - `https://staff.sakorio.com/pos`
+- Roles simulated:
+  - Host/waiter opening T08 QR ordering.
+  - Customer placing a food order.
+  - Cashier attempting payment while kitchen ticket is pending.
+  - Kitchen user serving after payment.
+  - Cashier closing/resetting the table.
+- Starting state:
+  - T08 was available.
+  - POS showed `OPEN BILLS 0`.
+  - POS `PAID TODAY SGD 264.50`.
+- Steps executed:
+  - Opened T08 QR ordering from Tables.
+  - Verified:
+    - `T08 is open for QR ordering`
+    - QR link visible.
+  - Customer T08 submitted:
+    - `Order # 212`
+    - `Enchiladas`
+    - `SGD 20.00`
+    - `Status: Pending`
+  - Opened KDS before payment attempt.
+  - Verified ticket was still pending:
+    - `All 1`
+    - `Kitchen 1`
+    - `Beverages 0`
+    - `#212 · T08`
+    - `1x Enchiladas`
+    - `Pending`
+  - Opened POS for T08 before serving.
+  - Verified POS showed:
+    - `Bill #212 in service`
+    - `T08 · 1 item · SGD 20.00`
+    - `Bill #212 payable SGD 20.00`
+    - visible `Pay bill` button.
+  - Clicked `Pay bill` while KDS ticket was still pending.
+  - Verified payment panel did not warn about pending/unserved kitchen items.
+  - Verified panel allowed terminal payment:
+    - `Amount due SGD 20.00`
+    - `Live bill ready for payment.`
+    - `charge terminal - SGD 20.00`
+  - Clicked `charge terminal - SGD 20.00` before KDS service.
+  - Verified payment result:
+    - `Terminal payment recorded for T08. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 284.50`
+    - T08 `Last bill #212 Paid`
+  - Returned to KDS after payment.
+  - Verified #212 still existed and was pending:
+    - `#212 · T08`
+    - `1x Enchiladas`
+    - `Pending`
+  - Served #212 after payment:
+    - `Start ticket 1 item`
+    - `Ready for pass 1 item`
+    - `Served / Delivered 1 item`
+  - Verified KDS cleared:
+    - `All 0`
+    - `Kitchen 0`
+    - `Beverages 0`
+    - `No active tickets`
+    - `No active orders`
+  - Returned to POS T08.
+  - Verified paid/close-next state:
+    - `Last bill #212 paid`
+    - `Payment received - close the table`
+    - `Paid - close table next`
+    - `SGD 0.00`
+  - Initial `Close table` click hit the table-card action and did not open the confirmation.
+  - Clicked the in-drawer `Close table`.
+  - Verified final confirmation:
+    - `Close T08?`
+    - `Keep table open`
+    - `Yes, close table`
+  - Clicked `Yes, close table`.
+  - Verified final staff reset:
+    - `T08 is clear and ready for the next cashier bill.`
+    - T08 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+  - Reloaded T08 QR.
+  - Verified QR was blocked:
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T08`
+- Expected final state: if payment-before-served is allowed, the rule is clear and KDS remains safe; if blocked, staff sees a clear reason; final serve/payment/close is consistent.
+- Actual final state:
+  - Payment-before-served was allowed.
+  - No clear warning appeared in the staff payment panel that the kitchen item was still pending.
+  - KDS ticket remained safe after payment and could still be served.
+  - Close/reset worked after using the in-drawer close action.
+- Cross-module verification:
+  - Customer QR: order #212 submitted and pending.
+  - KDS: pending ticket persisted after early payment and later cleared after service.
+  - POS: early terminal payment recorded correctly; final close/reset worked.
+  - Session security: QR blocked after close.
+- Functional correctness: 8.8 / 10
+- UI/UX clarity: 7.4 / 10
+- Workflow speed: 8.1 / 10
+- Layout/device stability: 8.6 / 10
+- Data/payment/session integrity: 9.2 / 10
+- Launch readiness: 8.3 / 10
+- Final score: 8.3 / 10
+- Status: PASS WITH POLICY/UX GAP
+- Evidence:
+  - KDS before payment: `#212 · T08`, `Enchiladas`, `Pending`.
+  - POS before service: `Pay bill` available and `charge terminal - SGD 20.00`.
+  - Payment before service: `Terminal payment recorded for T08`, `PAID TODAY SGD 284.50`.
+  - KDS after payment: #212 still pending and safely served.
+  - Reset: T08 `Available`, QR `Table Closed`.
+- Defects found:
+  - P2: payment-before-served is allowed without an explicit warning such as `Kitchen has 1 pending item`.
+  - P3: multiple `Close table` buttons can cause the first click to miss the final confirmation; the in-drawer close button worked.
+  - P3: paid-awaiting-close state still exposes `Start order` beside `Close table`.
+- Improvements needed:
+  - P2: if early payment is intentionally allowed, show a clear warning in Bill/Pay: `1 kitchen item still pending. You can collect payment now, but close only after service.`
+  - P2: if early payment should not be allowed, disable `charge terminal` until KDS is served/cleared.
+  - P3: make all `Close table` buttons trigger the same final confirmation or label them more specifically.
+  - P3: suppress/de-emphasize `Start order` while paid bill awaits close.
+- Cleanup performed:
+  - Order #212 terminal-paid before service.
+  - Order #212 served in KDS after payment.
+  - T08 closed and reset.
+  - QR confirmed closed.
+- Launch decision: data integrity is safe, but payment-before-served policy needs explicit UX before launch training.

@@ -6348,3 +6348,115 @@ Scores are out of 10 for:
   - T08 closed and reset.
   - QR confirmed closed.
 - Launch decision: data integrity is safe, but payment-before-served policy needs explicit UX before launch training.
+
+## E2E-061 — KDS refresh during active ticket, transition persists, payment and close
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/kitchen`
+  - `https://staff.sakorio.com/pos`
+- Roles simulated:
+  - Host/waiter opening T09 QR ordering.
+  - Customer placing a beverage order.
+  - Beverage/KDS user starting the ticket, refreshing the KDS, then continuing.
+  - Cashier terminal-paying and closing/resetting the table.
+- Starting state:
+  - T09 was available.
+  - POS showed `OPEN BILLS 0`.
+  - POS `PAID TODAY SGD 284.50`.
+- Steps executed:
+  - Opened T09 QR ordering from Tables.
+  - Verified:
+    - `T09 is open for QR ordering`
+    - QR link visible.
+  - Customer T09 submitted:
+    - `Order # 213`
+    - `Coffee`
+    - `SGD 2.50`
+  - Opened KDS.
+  - Verified pending ticket:
+    - `All 1`
+    - `Kitchen 0`
+    - `Beverages 1`
+    - `#213 · T09`
+    - `1x Coffee`
+    - `Pending`
+  - Clicked `Start ticket 1 item`.
+  - Verified active/in-prep state:
+    - `Working now 1`
+    - `#213`
+    - `Preparing`
+    - `Ready for pass 1 item`
+    - `1x Coffee`
+  - Refreshed the live KDS page.
+  - Verified after refresh:
+    - `All 1`
+    - `Beverages 1`
+    - `Working now 1`
+    - `#213`
+    - `Preparing`
+    - `Ready for pass 1 item`
+    - item status persisted as `Preparing`.
+  - Continued after refresh:
+    - clicked `Ready for pass 1 item`
+    - clicked `Served / Delivered 1 item`
+  - Verified final KDS:
+    - `All 0`
+    - `Kitchen 0`
+    - `Beverages 0`
+    - `No active tickets`
+    - `No active orders`
+  - Opened POS T09.
+  - Verified:
+    - `Bill #213 ready`
+    - `T09 · 1 item · SGD 2.50`
+  - Terminal-paid T09:
+    - `charge terminal - SGD 2.50`
+    - `Terminal payment recorded for T09`
+    - `PAID TODAY SGD 287.00`
+  - Closed T09:
+    - `T09 is clear and ready for the next cashier bill.`
+    - T09 `Available`
+    - `Ready for order`
+  - Reloaded T09 QR.
+  - Verified QR blocked:
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T09`
+- Expected final state: refreshing KDS during an active/preparing ticket does not drop or reset status; transitions continue and bill remains payable.
+- Actual final state:
+  - KDS refresh preserved the Preparing state correctly.
+  - Ticket continued to Ready and Served after refresh.
+  - POS payment and close/reset were correct.
+- Cross-module verification:
+  - Customer QR: order #213 submitted.
+  - KDS: pending -> preparing -> refresh -> preparing persisted -> ready -> served.
+  - POS: terminal payment and close/reset verified.
+  - Session security: QR blocked after close.
+- Functional correctness: 9.4 / 10
+- UI/UX clarity: 8.8 / 10
+- Workflow speed: 8.5 / 10
+- Layout/device stability: 9.0 / 10
+- Data/payment/session integrity: 9.5 / 10
+- Launch readiness: 9.2 / 10
+- Final score: 9.2 / 10
+- Status: PASS
+- Evidence:
+  - Before refresh: `#213 Preparing`, `Working now 1`.
+  - After refresh: `#213 Preparing`, `Working now 1`, `Ready for pass 1 item`.
+  - KDS final: `All 0`, `No active tickets`.
+  - POS final: `PAID TODAY SGD 287.00`, T09 `Available`, QR `Table Closed`.
+- Defects found:
+  - No blocking defect found in this flow.
+  - P3 repeated: paid-awaiting-close state still exposes `Start order` beside `Close table`.
+- Improvements needed:
+  - P3: suppress/de-emphasize `Start order` while paid bill awaits close.
+  - P3: optionally show `Recovered after refresh` or a subtle freshness timestamp after KDS reload for staff confidence.
+- Cleanup performed:
+  - Order #213 served in KDS.
+  - Terminal-paid.
+  - T09 closed and reset.
+  - QR confirmed closed.
+- Launch decision: KDS refresh resilience is launch-ready for this flow.

@@ -8599,3 +8599,119 @@ Scores are out of 10 for:
   - T07 closed from Tables.
   - Final QR verified closed.
 - Launch decision: table QR session gating is launch-ready.
+
+## E2E-081 — Timetable shift lifecycle discovery and safe add-modal check
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/working-plan`
+  - `https://staff.sakorio.com/working-plan/calendar`
+- Roles simulated:
+  - Manager reviewing monthly timetable.
+  - Manager opening shift creation UI.
+- Starting state:
+  - Timetable loaded for Jul 2026.
+  - Existing staff:
+    - `Ajisen (Owner)`
+    - `Jason Tan (Waiter)`.
+- Steps executed:
+  - Opened Timetable.
+  - Verified renamed tab/page:
+    - `Timetable`.
+  - Verified main planning controls:
+    - `Apply to month`
+    - `Add shift`
+    - `Week`
+    - `Calendar`
+    - `Today`
+    - `Refresh`
+    - `Export Excel`.
+  - Verified staff filter:
+    - `All staff`
+    - `Ajisen (Owner)`
+    - `Jason Tan (Waiter)`.
+  - Verified summary cards:
+    - `TIMETABLE SCOPE Jul 2026`
+    - `SCHEDULED SHIFTS 24`
+    - `198h 30m planned`
+    - `UNSCHEDULED STAFF 0`
+    - `COVERAGE STATUS 1 warning`.
+  - Verified smart scheduling roster:
+    - `Employee roster`
+    - `Tap Schedule on iPad, or drag a staff member onto a calendar day on desktop.`
+    - `Ajisen Owner · 1 shifts · 13h`
+    - `Jason Tan Waiter · 23 shifts · 185h 30m`
+    - `Schedule`.
+  - Verified leave/MC ledger:
+    - `ANNUAL LEAVE 1 day(s)`
+    - `MC / SICK LEAVE 0 day(s)`
+    - `Record leave / MC`
+    - existing annual leave row for Jason Tan.
+  - Verified attendance setup/compliance:
+    - `HOURLY STAFF 1`
+    - `PAYROLL READY 1`
+    - `NO RATE 0`
+    - `PROFILE GAPS 0`
+    - compliance warning for Jason Tan exceeding weekly limit.
+  - Verified monthly calendar:
+    - selected day `23 Jul 2026`
+    - `1 shift planned`
+    - many `+ Add` day actions.
+  - Clicked `Add shift on 2026-07-26`.
+  - The browser-control runtime timed out while scanning the add modal; after reconnect, the modal was visible and the live app was stable.
+  - Verified add-shift modal contents:
+    - `Add shift`
+    - `Staff`
+    - `Select staff…`
+    - `Ajisen (Owner)`
+    - `Jason Tan (Waiter)`
+    - `Date`
+    - `Time step`
+    - `30 minutes`
+    - `1 hour`
+    - `Use any hour (e.g. cleaning)`
+    - `Allow times outside opening hours`
+    - `Split shift`
+    - `Start time`
+    - `End time`
+    - `Label`
+    - `Cancel`
+    - `Save`.
+  - Clicked `Cancel`.
+  - Verified Timetable returned to normal without creating a visible extra shift.
+- Expected final state:
+  - Manager creates/edits a synthetic shift.
+  - Staff sees/uses My Shift.
+  - Staff clocks in/out.
+- Actual final state:
+  - Timetable planning UI is rich and much improved.
+  - Add shift modal opens and cancels safely.
+  - Full create/edit/delete and My Shift clock-in/out were not completed in this run due the browser-control timeout during modal inspection.
+- Cross-module verification:
+  - Timetable only for this case.
+  - My Shift was not tested in this case.
+- Functional correctness: 7.2 / 10
+- UI/UX clarity: 8.1 / 10
+- Workflow speed: 6.5 / 10
+- Layout/device stability: 7.8 / 10
+- Data/payment/session integrity: 8.5 / 10
+- Launch readiness: 7.2 / 10
+- Final score: 7.2 / 10
+- Status: PARTIAL — CREATE/EDIT/CLOCK-IN LIFECYCLE NOT COMPLETED
+- Evidence:
+  - Timetable displayed `SCHEDULED SHIFTS 24`, `198h 30m planned`.
+  - Add shift modal displayed staff/date/start/end/save/cancel controls.
+  - Cancel returned to timetable.
+- Defects found:
+  - P2: Add-shift modal is dense; scanning/interacting with many controls is heavy and may be slow on constrained automation/tablet contexts.
+  - P2: full shift lifecycle still needs a focused run with create/edit/delete and My Shift clock-in/out.
+  - P3: date/time form control labels need accessibility verification.
+- Improvements needed:
+  - P1/P2: add a guided quick-add shift wizard or simpler iPad mode.
+  - P2: after creating a shift, show a clear toast and highlight the created shift.
+  - P2: ensure delete cleanup is obvious for synthetic/test shifts.
+  - P2: run dedicated E2E for My Shift clock-in/out from assigned shift.
+- Cleanup performed:
+  - Add modal cancelled.
+  - No shift intentionally created.
+- Launch decision: Timetable UI is promising and world-class direction is visible, but the full shift lifecycle still needs a clean create/edit/delete/clock-in QA pass before launch signoff.

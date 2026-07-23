@@ -5469,3 +5469,150 @@ Scores are out of 10 for:
   - T08 closed and reset.
   - QR confirmed closed after reset.
 - Launch decision: customer/staff bill total integrity is launch-ready for this flow.
+
+## E2E-055 — Customer checkout payment policy vs staff internal settlement methods
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Host/waiter opening T09 for QR ordering.
+  - Customer placing an order and opening payment choices.
+  - Cashier verifying staff-only settlement methods.
+  - Kitchen/beverage user serving the beverage ticket.
+  - Cashier terminal-paying and closing/resetting the table.
+- Starting state:
+  - T09 was `IDLE TABLE`.
+  - POS showed `OPEN BILLS 0`.
+  - POS `PAID TODAY SGD 190.50`.
+- Steps executed:
+  - Opened live Tables page.
+  - Opened T09 table service modal from `Start order`.
+  - Verified:
+    - `TABLE SERVICE T09`
+    - status `Closed`
+    - `Open table for QR ordering`
+  - Clicked `Open table for QR ordering`.
+  - Verified:
+    - T09 changed to `SEATED · START ORDER`
+    - modal status `Ready`
+    - QR link visible.
+  - Opened T09 public QR link.
+  - Customer skipped optional name prompt.
+  - Customer added:
+    - `Coffee SGD 2.50`
+  - Verified cart:
+    - `1 items`
+    - `SGD 2.50`
+    - `Total SGD 2.50`
+  - Clicked `Place order`.
+  - Verified customer current order:
+    - `Order # 205`
+    - `Status: Pending`
+    - `SGD 2.50`
+    - `Coffee SGD 2.50`
+    - `Pay Now`
+  - Clicked `Pay Now` from customer QR.
+  - Verified customer-facing payment area:
+    - `How would you like to pay?`
+    - `Total SGD 2.50`
+    - `Pay with HitPay`
+    - `Pay securely with HitPay checkout`
+    - `Pay with Card at Table`
+    - `A waiter will bring the card terminal`
+  - Verified customer-facing payment area did not show `Cash`.
+  - Opened staff POS for T09.
+  - Staff session had expired, so browser showed login page.
+  - Re-authenticated through the live staff login and reopened POS T09.
+  - Verified staff bill:
+    - `Bill #205 live`
+    - `T09 · 1 item · SGD 2.50`
+    - `1 x Coffee SGD 2.50`
+  - Clicked `Pay bill`.
+  - Verified staff payment panel:
+    - `STAFF CASH`
+    - `Cash (staff)`
+    - `Internal counter settlement`
+    - `TERMINAL`
+    - `Use terminal`
+    - `Machine confirmed`
+    - explanatory policy: `Customer QR checkout shows HitPay or card-at-table only. Cash is staff-only for counter settlement and manager reconciliation.`
+    - `charge terminal - SGD 2.50`
+  - Opened KDS.
+  - Verified KDS ticket:
+    - `#205 · T09`
+    - `1x Coffee`
+    - `BEVERAGE`
+    - `Pending`
+  - Advanced KDS:
+    - `Start ticket 1 item`
+    - `Ready for pass 1 item`
+    - `Served / Delivered 1 item`
+  - Observed a brief transitional state:
+    - toast showed `Ticket #205 served` / `1 item delivered`
+    - ready lane still briefly displayed #205.
+  - Waited and rechecked KDS.
+  - Verified KDS cleared after refresh interval:
+    - `All 0`
+    - `Beverages 0`
+    - `No active tickets`
+    - `No active orders`
+  - Returned to staff POS for T09.
+  - Clicked `Pay bill`.
+  - Clicked `charge terminal - SGD 2.50`.
+  - Verified payment result:
+    - `Terminal payment recorded for T09. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 193.00`
+    - T09 `Last bill #205 Paid`
+  - Clicked `Close table`.
+  - Confirmed with `Yes, close table`.
+  - Verified staff reset:
+    - `T09 is clear and ready for the next cashier bill.`
+    - T09 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+  - Reloaded the same T09 public QR link.
+  - Verified QR was closed:
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T09`
+- Expected final state: customer never sees Cash; customer sees only HitPay/card-at-table; staff checkout can show staff-only cash/terminal; bill is settled and table reset.
+- Actual final state:
+  - Customer saw only HitPay and Card at Table.
+  - Staff saw Staff Cash and Terminal, with clear policy copy.
+  - Order #205 was served, terminal-paid, closed, and QR-blocked after reset.
+- Cross-module verification:
+  - Customer QR: payment options confirmed, no Cash visible.
+  - Staff POS: internal settlement methods confirmed.
+  - KDS: #205 beverage ticket processed and cleared.
+  - Payment/session: Paid Today increased from `SGD 190.50` to `SGD 193.00`; T09 reset.
+- Functional correctness: 9.2 / 10
+- UI/UX clarity: 8.8 / 10
+- Workflow speed: 8.3 / 10
+- Layout/device stability: 8.7 / 10
+- Data/payment/session integrity: 9.4 / 10
+- Launch readiness: 9.0 / 10
+- Final score: 9.0 / 10
+- Status: PASS
+- Evidence:
+  - Customer payment area showed `Pay with HitPay` and `Pay with Card at Table`.
+  - Customer payment area did not show `Cash`.
+  - Staff payment panel showed `Cash (staff)` and `Use terminal`.
+  - Staff policy copy explicitly separated customer and staff payment methods.
+  - T09 reset and QR returned `Table Closed`.
+- Defects found:
+  - P3: KDS can momentarily show a served/cleared toast while the ready lane still displays the ticket; it clears after a short interval, but the transitional state can look contradictory for 2-5 seconds.
+  - P3: staff login expiry mid-flow is handled, but the user is dropped into login without preserving the attempted POS deep link until after re-navigation.
+- Improvements needed:
+  - P3: after `Served / Delivered`, optimistically remove the ticket from the visible lane immediately or show a clearer countdown overlay on the ticket itself.
+  - P3: preserve staff deep-link intent through login/session expiry so returning to `/pos?tableId=...` is automatic.
+- Cleanup performed:
+  - Order #205 served in KDS.
+  - Terminal-paid.
+  - T09 closed and reset.
+  - QR confirmed closed after reset.
+- Launch decision: customer payment-policy separation is launch-ready; KDS post-serve transition can be polished but does not block launch.

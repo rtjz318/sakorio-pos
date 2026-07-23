@@ -5891,3 +5891,175 @@ Scores are out of 10 for:
   - T02 closed and reset.
   - QR confirmed closed after reset.
 - Launch decision: beverage-only KDS/POS flow is launch-ready; close-refresh visual clarity should be polished.
+
+## E2E-058 — Mixed QR order with beverage served first, food served later, payment, and close
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/kitchen`
+  - `https://staff.sakorio.com/pos`
+- Roles simulated:
+  - Host/waiter opening T03 for QR ordering.
+  - Customer placing a mixed food/beverage QR order.
+  - Beverage user serving beverage first.
+  - Kitchen user serving food after beverage.
+  - Cashier terminal-paying and closing/resetting the table.
+- Starting state:
+  - T03 was `IDLE TABLE`.
+  - POS showed `OPEN BILLS 0`.
+  - POS `PAID TODAY SGD 216.00`.
+- Steps executed:
+  - Opened live Tables page.
+  - Verified T03:
+    - `IDLE TABLE`
+    - `Start order`
+  - Opened T03 table service modal.
+  - Clicked `Open table for QR ordering`.
+  - Verified:
+    - T03 modal status `Ready`
+    - `T03 is open for QR ordering`
+    - QR link visible.
+  - Opened T03 customer QR link.
+  - Customer skipped optional name prompt.
+  - Customer added:
+    - `Enchiladas SGD 20.00`
+    - `Coca Cola SGD 3.00`
+  - Verified cart:
+    - `2 items`
+    - `SGD 23.00`
+    - `Total SGD 23.00`
+  - Clicked `Place order`.
+  - Verified customer current order:
+    - `Order # 208`
+    - `Status: Pending`
+    - `SGD 23.00`
+    - `Coca Cola SGD 3.00`
+    - `Enchiladas SGD 20.00`
+  - Opened KDS.
+  - Verified mixed ticket:
+    - `All 1`
+    - `Kitchen 1`
+    - `Beverages 1`
+    - `#208 · T03`
+    - `1x Enchiladas` / `KITCHEN` / `MAIN COURSE`
+    - `1x Coca Cola` / `BEVERAGE` / `BEVERAGES`
+  - Clicked `Beverages` station filter.
+  - Verified beverage-only view reduced ticket to:
+    - `View Beverages only`
+    - `Start ticket 1 item`
+    - `1x Coca Cola`
+    - `BEVERAGE`
+  - Advanced beverage item:
+    - `Start ticket 1 item`
+    - `Ready for pass 1 item`
+    - `Served / Delivered 1 item`
+  - Verified after beverage served:
+    - `Beverages 0`
+    - beverage lane `No active orders`
+  - Switched back to `All`.
+  - Verified remaining ticket:
+    - `All 1`
+    - `Kitchen 1`
+    - `Beverages 0`
+    - `Start ticket 1 item`
+    - `1x Enchiladas`
+    - `Pending`
+  - Observed confusing residual toast near remaining food ticket:
+    - `#208 cleared from KDS (1 item).`
+  - Opened POS T03 before serving the food to check waiter visibility.
+  - Verified POS showed:
+    - `Bill #208 in service`
+    - `T03 · 2 items · SGD 23.00`
+    - `1 current ticket`
+    - `1 x Enchiladas`
+    - `1 x Coca Cola`
+  - POS did not clearly show item-level partial status, e.g. Coca Cola served while Enchiladas pending.
+  - Returned to KDS.
+  - Clicked `Kitchen` station filter.
+  - Verified kitchen-only view:
+    - `View Kitchen only`
+    - `Start ticket 1 item`
+    - `1x Enchiladas`
+    - `KITCHEN`
+    - `MAIN COURSE`
+  - Advanced food item:
+    - `Start ticket 1 item`
+    - `Ready for pass 1 item`
+    - `Served / Delivered 1 item`
+  - Waited for KDS to settle.
+  - Verified final KDS:
+    - `All 0`
+    - `Kitchen 0`
+    - `Beverages 0`
+    - `No active tickets`
+    - `No active orders`
+  - Opened POS for T03.
+  - Verified:
+    - `Bill #208 ready`
+    - `T03 · 2 items · SGD 23.00`
+    - `Bill #208 payable SGD 23.00`
+  - Clicked `Pay bill`.
+  - Verified payment action:
+    - `charge terminal - SGD 23.00`
+  - Clicked terminal payment.
+  - Verified payment result:
+    - `Terminal payment recorded for T03. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 239.00`
+    - T03 `Last bill #208 Paid`
+  - Clicked `Close table`.
+  - Confirmed with `Yes, close table`.
+  - Verified staff reset:
+    - `T03 is clear and ready for the next cashier bill.`
+    - T03 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+  - Reloaded same T03 QR.
+  - Verified QR was blocked:
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T03`
+- Expected final state: mixed ticket can be processed station-by-station, beverage can be served before food, waiter/cashier can understand partial service, final bill remains correct and payable.
+- Actual final state:
+  - KDS station-by-station partial service worked correctly.
+  - Beverage was served first without serving food.
+  - Kitchen item stayed pending and was served later.
+  - POS bill/payment stayed correct.
+  - POS/waiter view did not clearly expose item-level partial served/pending statuses.
+  - QR blocked after table close.
+- Cross-module verification:
+  - Customer QR: Order #208 placed with correct mixed total.
+  - KDS: beverage-only and kitchen-only filters correctly split item processing.
+  - POS: bill total and final payment remained correct.
+  - Session security: QR blocked after close.
+- Functional correctness: 9.0 / 10
+- UI/UX clarity: 7.8 / 10
+- Workflow speed: 8.4 / 10
+- Layout/device stability: 8.7 / 10
+- Data/payment/session integrity: 9.4 / 10
+- Launch readiness: 8.6 / 10
+- Final score: 8.6 / 10
+- Status: PASS WITH UX GAPS
+- Evidence:
+  - KDS after beverage served: `All 1`, `Kitchen 1`, `Beverages 0`, remaining `1x Enchiladas`.
+  - KDS after food served: `All 0`, `Kitchen 0`, `Beverages 0`.
+  - POS payment: `charge terminal - SGD 23.00`, `PAID TODAY SGD 239.00`.
+  - Reset: T03 `Available`, QR `Table Closed`.
+- Defects found:
+  - P2: POS/waiter view does not make partial service obvious; it lists bill items but not which item is already served vs still pending.
+  - P3: KDS residual toast `#208 cleared from KDS (1 item)` can appear near the remaining ticket after station-only service, which can read as if the whole ticket was cleared.
+  - P3: paid-but-not-closed state still shows `Start order` beside `Close table`.
+- Improvements needed:
+  - P2: show item-level service badges in POS/current order view, e.g. `Coca Cola · Served`, `Enchiladas · Pending/Preparing/Ready`.
+  - P2: add a compact table service summary such as `1 served · 1 pending`.
+  - P3: update station-only KDS toast to say `Beverage item served` or `Coca Cola served`, instead of `#208 cleared from KDS`.
+  - P3: suppress/de-emphasize `Start order` while paid bill awaits close.
+- Cleanup performed:
+  - Order #208 beverage item served.
+  - Order #208 food item served.
+  - Terminal-paid.
+  - T03 closed and reset.
+  - QR confirmed closed after reset.
+- Launch decision: mixed KDS station split is launch-capable; waiter/POS partial-service visibility needs polish to reach 9+/10.

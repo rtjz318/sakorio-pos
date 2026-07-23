@@ -4703,3 +4703,161 @@ Scores are out of 10 for:
   - T07 closed and reset.
   - KDS active board verified clear.
 - Launch decision: launch-safe for sequential multi-device QR add-ons, assuming E2E-047 duplicate-submit idempotency is fixed separately.
+
+## E2E-049 - Customer starts HitPay then abandons payment
+
+- Brief source: `0098`, E2E-049.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://checkout.sandbox.hit-pay.com/...`
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/orders`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Customer placing a QR order and starting HitPay checkout.
+  - Customer abandoning HitPay before payment completion.
+  - Cashier verifying unpaid state and recovering with terminal payment.
+  - Kitchen serving the order.
+- Starting state:
+  - T07 available.
+  - POS open bills `0`.
+  - POS Paid Today before payment: `SGD 154.00`.
+  - KDS active board clear.
+- Steps executed:
+  - Opened Tables.
+  - Opened T07 table service modal.
+  - Activated QR ordering with `Open table for QR ordering`.
+  - Opened T07 public QR.
+  - Verified customer menu active:
+    - `Ajisen Ramen`
+    - `T07`
+    - `No active order`
+  - Customer skipped optional name prompt.
+  - Customer added `Coffee`.
+  - Customer clicked `Place order`.
+  - Verified customer order:
+    - `Order # 200`
+    - `Status: Pending`
+    - `Coffee`
+    - `SGD 2.50`
+    - `Pay Now`
+  - Customer clicked `Pay Now`.
+  - Verified customer payment choice screen:
+    - `How would you like to pay?`
+    - `Total SGD 2.50`
+    - `Pay with HitPay`
+    - `Pay with Card at Table`
+  - Customer clicked `Pay with HitPay`.
+  - Verified HitPay sandbox checkout opened:
+    - `Sandbox Mode`
+    - `Ji Dan Private Limited`
+    - `Order #200 at Ajisen Ramen - T07`
+    - `Email Address*`
+    - payment methods including `Card`, `Apple Pay`, `Google Pay`, `PayNow`, `UPI QR`
+  - Did not complete payment.
+  - Clicked HitPay `Back`.
+  - Observed HitPay remained on the sandbox checkout screen instead of clearly returning to the merchant QR page.
+  - Opened staff POS.
+  - Verified abandoned payment recovery state:
+    - `OPEN BILLS 1`
+    - `PAID TODAY SGD 154.00`
+    - `T07 Bill #200 live`
+    - `Resume order`
+  - Opened Orders.
+  - Verified unpaid order:
+    - `Active Orders 1`
+    - `1 active ticket | SGD 2.50 on this table`
+    - `Latest #200`
+    - `1 tickets`
+    - `SGD 2.50`
+    - `#200 · 1x Coffee`
+  - Opened KDS.
+  - Verified KDS ticket:
+    - `#200`
+    - `T07`
+    - `1x Coffee`
+    - `Start ticket`
+  - Noted KDS translation regression in this run:
+    - `ORDER_STATUS.pending`
+    - `ITEM_STATUS.pending`
+  - Advanced KDS:
+    - `Start ticket`
+    - `Ready for pass`
+    - `Served / Delivered`
+  - Verified served state:
+    - `Ticket #200 served`
+    - `1 item delivered. The ticket leaves the live board now.`
+    - `No active orders`
+  - Returned to POS.
+  - Verified payment panel:
+    - `Bill #200 ready to pay`
+    - `T07 · 1 item · SGD 2.50`
+    - `Bill #200 payable`
+    - `Amount due SGD 2.50`
+    - `charge terminal - SGD 2.50`
+  - Terminal-paid `SGD 2.50`.
+  - Verified payment:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 156.50`
+    - `T07 Last bill #200 Paid`
+  - Observed recurring paid-table issue:
+    - `Close table`
+    - `Start order`
+  - Clicked `Close table` -> `Yes, close table`.
+  - Verified final reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 156.50`
+  - Verified final KDS:
+    - `No active tickets`
+    - `No active orders`
+- Expected final state: abandoned HitPay checkout leaves staff bill unpaid and recoverable; staff can terminal-pay and close without corruption.
+- Actual final state:
+  - HitPay checkout started successfully in sandbox.
+  - Abandoning HitPay did not mark the order paid.
+  - Staff POS/Orders still showed #200 as unpaid/live.
+  - Staff terminal recovery worked.
+  - KDS served and cleared.
+  - Table closed and reset.
+  - HitPay checkout Back behavior was unclear and did not visibly return to merchant page during the test.
+- Cross-module verification:
+  - Customer QR: order, payment choice, HitPay redirect verified.
+  - HitPay sandbox: checkout opened for order #200.
+  - POS: abandoned unpaid state, terminal payment, close/reset verified.
+  - Orders: unpaid ticket visible before recovery.
+  - KDS: ticket lifecycle and final clear verified.
+- Functional correctness: 9.0 / 10
+- UI/UX clarity: 8.0 / 10
+- Workflow speed: 8.4 / 10
+- Layout/device stability: 8.6 / 10
+- Data/payment/session integrity: 9.0 / 10
+- Launch readiness: 8.5 / 10
+- Final score: 8.5 / 10
+- Status: PASS WITH PAYMENT UX FIXES
+- Evidence:
+  - HitPay checkout: `Order #200 at Ajisen Ramen - T07`.
+  - POS unpaid: `T07 Bill #200 live`, `PAID TODAY SGD 154.00`.
+  - Orders unpaid: `1 active ticket | SGD 2.50 on this table`.
+  - KDS: `#200`, `1x Coffee`.
+  - Staff recovery: `charge terminal - SGD 2.50`, `PAID TODAY SGD 156.50`.
+  - Final: T07 `Available`, KDS clear.
+- Defects found:
+  - P2: HitPay sandbox `Back` did not visibly return to the Sakorio QR page; customer abandonment path needs clearer return/cancel UX.
+  - P2: KDS showed raw translation keys during this run: `ORDER_STATUS.pending`, `ITEM_STATUS.pending`.
+  - P1: after staff terminal payment, paid-but-not-closed table still exposed `Start order` beside `Close table`.
+- Improvements needed:
+  - P1: add a clear `Return to order` / `Payment not completed` handling page after abandoned HitPay checkout.
+  - P2: show customer QR state after abandoned HitPay as `Payment not completed - retry or pay at cashier`.
+  - P2: fix KDS translation fallback keys.
+  - P1: hide/disable ordering controls after payment until table close.
+- Cleanup performed:
+  - Order #200 served in KDS.
+  - Order #200 terminal-paid by staff.
+  - T07 closed and reset.
+  - KDS active board verified clear.
+- Launch decision: recovery path is launch-safe, but customer-facing abandoned-payment UX needs polish.

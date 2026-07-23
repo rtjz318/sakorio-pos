@@ -213,6 +213,27 @@ class TestPaymentSecurity(PgClientTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "paid")
 
+    @patch("app.main._hitpay_retrieve_payment_request")
+    def test_confirm_hitpay_paid_order_is_idempotent(self, mock_retrieve):
+        order_id = self._create_order_with_hitpay_request()
+        order = self.session.get(models.Order, order_id)
+        self.assertIsNotNone(order)
+        order.status = models.OrderStatus.paid
+        order.paid_at = datetime.now(timezone.utc)
+        order.payment_method = "hitpay"
+        self.session.add(order)
+        self.session.commit()
+
+        response = self.client.post(
+            f"/orders/{order_id}/confirm-hitpay-payment",
+            params={"table_token": self.table.token},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "paid")
+        self.assertTrue(response.json()["already_paid"])
+        mock_retrieve.assert_not_called()
+
     def test_hitpay_webhook_replay_is_idempotent(self):
         order_id = self._create_order_with_hitpay_request()
         payload = {

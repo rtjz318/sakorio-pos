@@ -37,6 +37,17 @@ export const DEFAULT_TENANT_UI_MODULES: Record<TenantUiModuleKey, boolean> = {
   inventory: true,
 };
 
+/**
+ * Day-one launch scope guard.
+ *
+ * Inventory remains in the product for a later stock-data rollout, but it should
+ * not appear in staff navigation or pass route guards until real launch stock is
+ * loaded and the receiving/deduction workflow is signed off.
+ */
+const LAUNCH_DISABLED_TENANT_UI_MODULES: ReadonlySet<TenantUiModuleKey> = new Set([
+  'inventory',
+]);
+
 export interface User {
   id?: number;
   email: string;
@@ -2788,6 +2799,9 @@ export class ApiService {
         }
       });
     }
+    LAUNCH_DISABLED_TENANT_UI_MODULES.forEach((k) => {
+      next[k] = false;
+    });
     this.tenantUiModules.set(next);
     this.tenantUiModulesResolved.set(true);
   }

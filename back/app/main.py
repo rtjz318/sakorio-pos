@@ -15358,6 +15358,14 @@ def confirm_hitpay_payment(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
+    if order.status == models.OrderStatus.paid and order.paid_at is not None:
+        return {
+            "status": "paid",
+            "order_id": order.id,
+            "already_paid": True,
+            "payment_method": order.payment_method,
+        }
+
     if not order.hitpay_payment_request_id:
         raise HTTPException(
             status_code=400,

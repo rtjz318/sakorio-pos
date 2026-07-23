@@ -1058,6 +1058,23 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                         </select>
                       </label>
 
+                      <div class="quick-move-target-grid" role="list" aria-label="Ready destination tables">
+                        @for (target of quickMoveTargetTables(); track target.id) {
+                          <button
+                            type="button"
+                            role="listitem"
+                            class="quick-move-target-card"
+                            [class.selected]="quickMoveTargetTableId() === target.id"
+                            (click)="onQuickMoveTargetChange(target.id!)"
+                            [attr.aria-pressed]="quickMoveTargetTableId() === target.id"
+                            [attr.aria-label]="'Move visit to ' + target.name">
+                            <strong>{{ target.name }}</strong>
+                            <span>{{ target.seat_count || 0 }} seats · {{ getFloorName(target.floor_id) }}</span>
+                            <small>Available destination</small>
+                          </button>
+                        }
+                      </div>
+
                       @if (quickMoveTargetTable(); as destinationTable) {
                         <div class="quick-move-confirm-card">
                           <span>Confirm table move</span>
@@ -1086,6 +1103,9 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                       <button type="button" class="quick-submit" (click)="moveQuickBill()" [disabled]="quickMovingBill() || !quickMoveTargetTableId() || !quickMoveConfirmed()">
                         {{ quickMovingBill() ? 'Moving table…' : 'Move table now' }}
                       </button>
+                      @if (!quickMovingBill() && quickMoveDisabledReason()) {
+                        <p class="quick-move-disabled-reason">{{ quickMoveDisabledReason() }}</p>
+                      }
                       <p class="quick-move-help">This keeps the same customer session, seated reservation, queue entry, and current orders, then clears {{ serviceTable.name }} and opens the destination table.</p>
                     </section>
                   }
@@ -2303,6 +2323,47 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
       font: inherit;
     }
     .quick-move-field textarea { resize: vertical; }
+    .quick-move-target-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.65rem;
+    }
+    .quick-move-target-card {
+      min-height: 88px;
+      display: grid;
+      gap: 0.2rem;
+      align-content: center;
+      padding: 0.85rem;
+      border: 1px solid #dce1dc;
+      border-radius: 14px;
+      background: #fff;
+      color: #24312a;
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+    .quick-move-target-card:hover,
+    .quick-move-target-card:focus-visible {
+      border-color: #193c32;
+      box-shadow: 0 0 0 3px rgba(25, 60, 50, 0.12);
+      outline: none;
+      transform: translateY(-1px);
+    }
+    .quick-move-target-card.selected {
+      border-color: #193c32;
+      background: #eef8f1;
+      box-shadow: 0 0 0 3px rgba(25, 60, 50, 0.12);
+    }
+    .quick-move-target-card strong { font-size: 1.05rem; }
+    .quick-move-target-card span,
+    .quick-move-target-card small { color: #637168; font-size: 0.82rem; }
+    .quick-move-disabled-reason {
+      margin: -0.4rem 0 0;
+      color: #9a3b21;
+      font-size: 0.86rem;
+      font-weight: 750;
+    }
     .quick-move-help { margin: 0; font-size: 0.86rem; }
     .quick-qr-view { flex: 1; overflow: auto; display: grid; place-content: center; justify-items: center; padding: 1.5rem; text-align: center; }
     .quick-qr-view h3 { margin-top: 0.25rem; font-size: 2rem; }
@@ -2483,6 +2544,15 @@ export class TablesComponent implements OnInit {
     const targetId = this.quickMoveTargetTableId();
     if (!targetId) return null;
     return this.quickMoveTargetTables().find((table) => table.id === targetId) ?? null;
+  });
+  quickMoveDisabledReason = computed(() => {
+    if (!this.quickMoveTargetTableId()) {
+      return 'Choose a destination table.';
+    }
+    if (!this.quickMoveConfirmed()) {
+      return 'Confirm the guests are physically moving before enabling the transfer.';
+    }
+    return '';
   });
 
   // Confirmation Modal State

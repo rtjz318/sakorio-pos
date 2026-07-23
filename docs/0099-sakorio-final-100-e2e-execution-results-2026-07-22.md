@@ -5180,3 +5180,157 @@ Scores are out of 10 for:
   - T07 reset.
   - KDS active board verified clear.
 - Launch decision: customer notes are not launch-ready because the input path is missing.
+
+## E2E-053 — Customer QR category browsing + cart edit before submit + KDS/payment/close
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/kitchen`
+  - `https://staff.sakorio.com/pos`
+- Roles simulated:
+  - Host/waiter opening T07 for QR ordering.
+  - Customer browsing categories, editing cart, and submitting.
+  - Kitchen/beverage user advancing the ticket.
+  - Cashier taking terminal payment and closing the table.
+- Starting state:
+  - T07 was `IDLE TABLE`.
+  - Customer QR initially showed `Table Closed`.
+  - POS showed `OPEN BILLS 0`.
+  - POS `PAID TODAY SGD 162.00`.
+- Steps executed:
+  - Opened live Tables page.
+  - Opened T07 table service modal from `Start order`.
+  - Clicked `Open table for QR ordering`.
+  - Verified T07 changed to:
+    - `SEATED · START ORDER`
+    - modal status `Ready`
+    - QR link visible.
+  - Reloaded the public QR link.
+  - Verified customer QR was active and showed:
+    - `T07`
+    - category chips `ALL`, `BEVERAGES`, `MAIN COURSE`
+    - `Current order / No active order`
+    - customer name prompt.
+  - Customer clicked `Skip` on optional name prompt.
+  - Searched visible customer controls for a menu search field.
+  - No QR menu search input was found.
+  - Clicked category `BEVERAGES`.
+  - Verified beverage category filtered to:
+    - `Tecate Light`
+    - `Water`
+    - `Coca Cola`
+    - `Tecate Roja`
+    - `Coffee`
+  - Added three items:
+    - `Coffee SGD 2.50`
+    - `Coca Cola SGD 3.00`
+    - `Tecate Roja SGD 4.00`
+  - Verified cart:
+    - `3 items`
+    - `SGD 9.50`
+  - Inspected cart edit controls.
+  - Found quantity minus/plus buttons, but they had no visible text or aria labels.
+  - Used the third minus control to remove `Tecate Roja`.
+  - Verified cart changed to:
+    - `2 items`
+    - `SGD 5.50`
+    - `Coffee`
+    - `Coca Cola`
+    - removed item no longer in cart.
+  - Clicked `Place order`.
+  - Verified customer confirmation:
+    - `Order # 203`
+    - `Status: Pending`
+    - `Coca Cola SGD 3.00`
+    - `Coffee SGD 2.50`
+    - total `SGD 5.50`
+  - Opened KDS.
+  - Verified KDS ticket:
+    - `#203 · T07`
+    - `2 items`
+    - `1x Coffee`
+    - `1x Coca Cola`
+    - `Pending`
+    - removed `Tecate Roja` did not appear.
+  - Advanced KDS:
+    - `Start ticket 2 items`
+    - `Ready for pass 2 items`
+    - `Served / Delivered 2 items`
+  - Verified served completion:
+    - `Ticket #203 served`
+    - `2 items delivered. The ticket leaves the live board now.`
+    - `No active orders`
+  - Opened POS for T07.
+  - Verified:
+    - `OPEN BILLS 1`
+    - `T07 Bill #203 ready`
+    - bill total `SGD 5.50`
+    - bill items `1 x Coca Cola`, `1 x Coffee`
+  - Clicked `Pay bill`.
+  - Verified payment panel:
+    - `Amount due SGD 5.50`
+    - `Terminal`
+    - `charge terminal - SGD 5.50`
+  - Clicked `charge terminal - SGD 5.50`.
+  - Verified payment result:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 167.50`
+    - `T07 Last bill #203 Paid`
+  - Clicked `Close table`.
+  - Verified final confirmation dialog:
+    - `Close T07?`
+    - explains QR session ends and bill moves into History.
+    - `Keep table open`
+    - `Yes, close table`
+  - Clicked `Yes, close table`.
+  - Verified final reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+  - Reloaded the same customer QR after close.
+  - Verified customer QR was closed:
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T07`
+- Expected final state: customer can browse/filter, search menu, add several items, remove one before submit, final order contains only remaining items, KDS/pay/close/reset all stay correct.
+- Actual final state:
+  - Category filter worked.
+  - Customer-side QR search input was not available.
+  - Cart removal worked, but quantity buttons were unlabeled.
+  - Final order, KDS, payment, and table close/reset were correct.
+- Cross-module verification:
+  - QR: category browsing, cart edit, submit, final closed state verified.
+  - KDS: only remaining items appeared; ticket served and cleared.
+  - POS: payment and table close/reset verified.
+- Functional correctness: 8.4 / 10
+- UI/UX clarity: 7.4 / 10
+- Workflow speed: 8.2 / 10
+- Layout/device stability: 8.6 / 10
+- Data/payment/session integrity: 9.3 / 10
+- Launch readiness: 8.2 / 10
+- Final score: 8.2 / 10
+- Status: PASS WITH UX GAPS
+- Evidence:
+  - Order #203 contained only `Coffee` and `Coca Cola` after removing `Tecate Roja`.
+  - KDS #203 displayed exactly two beverage items.
+  - POS paid total was `SGD 5.50`.
+  - `PAID TODAY` increased from `SGD 162.00` to `SGD 167.50`.
+  - T07 reset and the QR returned `Table Closed`.
+- Defects found:
+  - P2: customer QR does not expose a menu search field; this becomes painful for larger menus.
+  - P2: cart quantity minus/plus controls have no visible label or aria label, making removal non-obvious and weak for accessibility.
+  - P3: T07 paid state still briefly shows both `Close table` and `Start order`; staff could be confused about whether to close or start a new session.
+- Improvements needed:
+  - P2: add a compact customer QR search box above category chips or above the menu list.
+  - P2: label cart controls clearly, e.g. `Remove Coffee`, `Add one Coffee`, visible `−` / `+` text, and aria labels.
+  - P3: when a table has a paid-but-not-closed bill, visually prioritize `Close table` and suppress or de-emphasize `Start order`.
+- Cleanup performed:
+  - Order #203 served in KDS.
+  - Terminal-paid.
+  - T07 closed and reset.
+  - QR confirmed closed after reset.
+- Launch decision: core cart edit and cross-module integrity are launch-usable; customer QR search and cart-control clarity should be polished before go-live with a larger real menu.

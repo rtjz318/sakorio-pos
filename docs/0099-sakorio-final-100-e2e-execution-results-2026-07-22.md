@@ -5334,3 +5334,138 @@ Scores are out of 10 for:
   - T07 closed and reset.
   - QR confirmed closed after reset.
 - Launch decision: core cart edit and cross-module integrity are launch-usable; customer QR search and cart-control clarity should be polished before go-live with a larger real menu.
+
+## E2E-054 — Customer QR bill total vs staff POS bill total
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Host/waiter opening T08 for QR ordering.
+  - Customer placing a QR order and reviewing bill total.
+  - Cashier comparing staff POS total against customer total.
+  - Kitchen user serving the mixed ticket.
+  - Cashier terminal-paying and closing the table.
+- Starting state:
+  - T08 was `IDLE TABLE`.
+  - POS showed `OPEN BILLS 0`.
+  - POS `PAID TODAY SGD 167.50`.
+  - Customer QR was expected to be closed until staff opened it.
+- Steps executed:
+  - Opened live Tables page.
+  - Opened T08 table service modal through `Start order`.
+  - Verified modal:
+    - `TABLE SERVICE T08`
+    - status `Closed`
+    - `Open table for QR ordering`
+  - Clicked `Open table for QR ordering`.
+  - Verified:
+    - T08 changed to `SEATED · START ORDER`
+    - modal status `Ready`
+    - QR link was visible.
+  - Opened the T08 customer QR link.
+  - Customer skipped optional name prompt.
+  - Customer added:
+    - `Enchiladas SGD 20.00`
+    - `Coca Cola SGD 3.00`
+  - Verified customer cart before submit:
+    - `2 items`
+    - `SGD 23.00`
+    - `Total SGD 23.00`
+  - Submitted order.
+  - Verified customer bill/current order screen:
+    - `Order # 204`
+    - `Status: Pending`
+    - `SGD 23.00`
+    - `Coca Cola SGD 3.00`
+    - `Enchiladas SGD 20.00`
+    - `Pay Now`
+  - Opened staff POS for T08.
+  - Verified staff POS bill matched customer:
+    - `Bill #204 live`
+    - `T08 · 2 items · SGD 23.00`
+    - `Bill #204 payable SGD 23.00`
+    - `Live bill Bill #204`
+    - `1 x Enchiladas SGD 20.00`
+    - `1 x Coca Cola SGD 3.00`
+    - `Total SGD 23.00`
+  - Opened KDS.
+  - Verified KDS ticket:
+    - `#204 · T08`
+    - `1x Enchiladas`
+    - `1x Coca Cola`
+    - stations showed mixed `KITCHEN` and `BEVERAGE`.
+  - Advanced KDS:
+    - `Start ticket 2 items`
+    - `Ready for pass 2 items`
+    - `Served / Delivered 2 items`
+  - Verified KDS cleared:
+    - `Ticket #204 served`
+    - `2 items delivered. The ticket leaves the live board now.`
+    - `No active orders`
+  - Returned to staff POS for T08.
+  - Verified bill remained payable:
+    - `Bill #204 ready`
+    - `SGD 23.00`
+  - Clicked `Pay bill`.
+  - Verified terminal payment action:
+    - `charge terminal - SGD 23.00`
+  - Clicked terminal payment.
+  - Verified payment result:
+    - `Terminal payment recorded for T08. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 190.50`
+    - T08 `Last bill #204 Paid`
+  - Clicked `Close table`.
+  - Confirmed with `Yes, close table`.
+  - Verified staff reset:
+    - `T08 is clear and ready for the next cashier bill.`
+    - T08 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+  - Reloaded same T08 customer QR.
+  - Verified customer QR blocked after close:
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T08`
+- Expected final state: customer QR bill total and staff POS bill total match exactly; payment and close produce a clean table reset.
+- Actual final state:
+  - Customer total and staff total matched exactly at `SGD 23.00`.
+  - Item breakdown matched exactly.
+  - KDS served the same order.
+  - Terminal payment and close/reset succeeded.
+  - QR was blocked after the table closed.
+- Cross-module verification:
+  - Customer QR: order #204 displayed `SGD 23.00`.
+  - Staff POS: bill #204 displayed `SGD 23.00`, same two items.
+  - KDS: #204 showed same two items and cleared after served.
+  - POS payment: Paid Today increased by exactly `SGD 23.00`.
+  - Table session: T08 reset and old QR blocked.
+- Functional correctness: 9.3 / 10
+- UI/UX clarity: 8.4 / 10
+- Workflow speed: 8.7 / 10
+- Layout/device stability: 8.8 / 10
+- Data/payment/session integrity: 9.5 / 10
+- Launch readiness: 9.1 / 10
+- Final score: 9.1 / 10
+- Status: PASS
+- Evidence:
+  - Customer: `Order #204`, `SGD 23.00`, `Coca Cola`, `Enchiladas`.
+  - Staff POS: `Bill #204`, `2 items · SGD 23.00`, same item totals.
+  - Payment: `charge terminal - SGD 23.00`, then `PAID TODAY SGD 190.50`.
+  - Close/reset: T08 `Available`, QR returned `Table Closed`.
+- Defects found:
+  - P3: customer add buttons are duplicated between Featured and Menu; this is visually acceptable but can create selection ambiguity in automation and possibly screen readers if not grouped/labeled clearly.
+  - P3: paid-but-not-closed state still shows `Start order` near `Close table`, which remains mildly confusing.
+- Improvements needed:
+  - P3: differentiate Featured quick-add labels from menu-card add labels for accessibility, e.g. `Add featured Enchiladas to cart` vs `Add Enchiladas from menu to cart`.
+  - P3: visually suppress or secondary-style `Start order` while a paid bill is waiting to be closed.
+- Cleanup performed:
+  - Order #204 served in KDS.
+  - Terminal-paid.
+  - T08 closed and reset.
+  - QR confirmed closed after reset.
+- Launch decision: customer/staff bill total integrity is launch-ready for this flow.

@@ -1112,7 +1112,11 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                 </section>
 
                 <nav class="pos-service-tabs" aria-label="POS table views">
-                  <button type="button" [class.active]="posDrawerView() === 'menu'" (click)="setPosDrawerView('menu')">
+                  <button
+                    type="button"
+                    [class.active]="posDrawerView() === 'menu'"
+                    (click)="setPosDrawerView('menu')"
+                    [disabled]="paidTableNeedsClose(serviceTable)">
                     Add items
                   </button>
                   <button type="button" [class.active]="posDrawerView() === 'checkout'" (click)="setPosDrawerView('checkout')">
@@ -1129,7 +1133,20 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                   Launch guardrail: keep one active bill per table session. Split payments, table merges, refunds and paid-bill corrections need manager/accounting handling before the table is closed.
                 </p>
 
-                @if (posDrawerView() === 'menu') {
+                @if (posDrawerView() === 'menu' && paidTableNeedsClose(serviceTable)) {
+                  <div class="pos-service-close-focus">
+                    <p class="eyebrow">Paid bill</p>
+                    <h3>{{ serviceTable.name }} is settled</h3>
+                    <p>Close and reset this table before starting another round or handing the QR to new guests.</p>
+                    <button
+                      type="button"
+                      class="btn btn-primary btn-sm"
+                      (click)="clearTable(serviceTable)"
+                      [disabled]="pendingTableId() === serviceTable.id">
+                      {{ pendingTableId() === serviceTable.id ? 'Closing...' : 'Close table' }}
+                    </button>
+                  </div>
+                } @else if (posDrawerView() === 'menu') {
                   <div class="pos-service-workspace">
                     <div class="pos-service-menu-pane">
                       <div class="pos-service-toolbar">
@@ -6459,6 +6476,12 @@ export class CashierPosComponent {
   }
 
   setPosDrawerView(view: PosDrawerView): void {
+    if (view === 'menu' && this.paidTableNeedsClose(this.effectiveCheckoutTable())) {
+      const tableName = this.effectiveCheckoutTable()?.name || 'This table';
+      this.notice.set(`${tableName} is already paid. Close and reset the table before adding another round.`);
+      this.posDrawerView.set('orders');
+      return;
+    }
     this.posDrawerView.set(view);
   }
 
@@ -7266,6 +7289,12 @@ export class CashierPosComponent {
       this.notice.set(null);
       return;
     }
+    if (this.paidTableNeedsClose(table)) {
+      this.error.set(`${table.name} is already paid. Close and reset the table before adding another round.`);
+      this.notice.set(null);
+      this.posDrawerView.set('orders');
+      return;
+    }
 
     if (this.selectedTableId() !== table.id) {
       this.selectedTableId.set(table.id);
@@ -7429,7 +7458,8 @@ export class CashierPosComponent {
       return false;
     }
 
-    return !!this.cartTargetTable();
+    const table = this.cartTargetTable();
+    return !!table && !this.paidTableNeedsClose(table);
   }
 
   updateLineNotes(lineKey: string, notes: string): void {
@@ -7759,6 +7789,10 @@ export class CashierPosComponent {
     const currentOrder = this.tableCurrentOrder(table);
     const paymentState = String(table.payment_status || '').toLowerCase();
     return paymentState === 'paid' || !!(currentOrder && this.isPaid(currentOrder));
+  }
+
+  paidTableNeedsClose(table: CanvasTable | null | undefined): boolean {
+    return this.canClearTable(table);
   }
 
   canReleaseEmptyTable(table: CanvasTable | null | undefined): boolean {
@@ -8214,6 +8248,9 @@ export class CashierPosComponent {
   }
 
   tablePrimaryActionLabel(table: CanvasTable): string {
+    if (this.paidTableNeedsClose(table)) {
+      return 'Review bill';
+    }
     const serviceOrder = this.tableServiceOrder(table);
     if (serviceOrder && !this.isPaid(serviceOrder) && this.isClosedOrder(serviceOrder)) {
       return 'Take payment';

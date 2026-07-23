@@ -8715,3 +8715,755 @@ Scores are out of 10 for:
   - Add modal cancelled.
   - No shift intentionally created.
 - Launch decision: Timetable UI is promising and world-class direction is visible, but the full shift lifecycle still needs a clean create/edit/delete/clock-in QA pass before launch signoff.
+
+## E2E-082 — Shared iPad staff profile selection and My Shift clock-in
+
+- Date executed: 2026-07-23
+- Browser/live URL used:
+  - `https://staff.sakorio.com/my-shift`
+- Roles simulated:
+  - Staff member choosing their own profile on a shared staff device.
+- Steps executed:
+  - Opened My Shift.
+  - Verified profile selector shows:
+    - `Ajisen — Owner`
+    - `Jason Tan — Waiter`.
+  - Verified Owner profile shows:
+    - `CURRENT STATUS Off shift Ready`
+    - disabled `No shift available to clock in`
+    - `No shifts scheduled`.
+  - Switched profile to `Jason Tan — Waiter`.
+  - Verified Jason profile shows:
+    - role `Waiter`
+    - contact `rtjz318@gmail.com`
+    - rate `$12.00/hr`
+    - today shift `THU 23 9:00 AM - 5:00 PM`
+    - `Clock in now`
+    - `Take photo and clock in`
+    - `MY TIMETABLE Scheduled shifts 7 upcoming`.
+  - Clicked clock-in.
+  - Verified live proof modal:
+    - `Clock-in photo`
+    - `Position your face in the frame. Gallery uploads are not accepted.`
+  - Browser/device returned `Requested device not found`.
+  - Closed the modal.
+- Expected final state:
+  - Staff can select their profile, choose an eligible shift, take live photo proof, and clock in.
+- Actual final state:
+  - Profile and shift selection work.
+  - Camera-dependent clock-in cannot complete on this desktop browser because no camera device is exposed.
+- Final score: 8.0 / 10
+- Status: PARTIAL — DEVICE-BLOCKED CLOCK-IN
+- Defects found:
+  - P2: no-camera state is understandable, but staff cannot complete clock-in without a fallback or a physical-device QA path.
+  - P3: clock-in flow should explain that live camera permission/device is mandatory before the modal opens.
+- Improvements needed:
+  - Add a clearer no-camera recovery message for desktop QA/manager override.
+  - Run this again on a real iPad with camera permissions enabled.
+- Cleanup performed:
+  - Clock-in modal closed.
+  - No attendance record created.
+- Launch decision:
+  - Profile selection is launch-ready; photo clock-in needs real-device validation.
+
+## E2E-083 — Timetable quick-add shift create and delete cleanup
+
+- Date executed: 2026-07-23
+- Browser/live URL used:
+  - `https://staff.sakorio.com/working-plan/calendar`
+- Roles simulated:
+  - Manager adding a shift from the calendar.
+- Steps executed:
+  - Opened Timetable calendar.
+  - Clicked `Add shift on 2026-07-26`.
+  - Modal opened successfully.
+  - Attempted a controlled quick-add shift.
+  - Saved a synthetic shift for `Ajisen (Owner)` on `2026-07-26`, `10:00–12:00`.
+  - Verified page updated:
+    - `SCHEDULED SHIFTS 25`
+    - `200h 30m planned`
+    - calendar day `26` showed `Ajisen 10-12`
+    - toast showed `Shift saved.`
+  - Attempted cleanup by using the visible delete action:
+    - exact accessible label observed: `Delete shift: Ajisen (Owner) 10:00–12:00`.
+  - Clicked delete and reloaded.
+- Expected final state:
+  - Synthetic shift can be deleted cleanly after creation.
+- Actual final state:
+  - Create worked.
+  - Delete appeared clickable but the shift remained after reload.
+- Final score: 5.8 / 10
+- Status: FAIL — SHIFT DELETE/CLEANUP DID NOT COMPLETE
+- Defects found:
+  - P1: timetable shift delete action does not reliably remove the created shift.
+  - P1: synthetic QA shift remains in live data: `Ajisen (Owner) 2026-07-26 10:00–12:00`.
+  - P2: staff selection in add modal is easy to misread; intended Jason test shift became Owner shift.
+- Improvements needed:
+  - Fix delete confirmation/persistence.
+  - After deletion, show a toast and remove the shift without requiring reload.
+  - Highlight the selected staff name in the modal before save.
+- Cleanup performed:
+  - Cleanup attempted through live browser, but shift remained.
+- Launch decision:
+  - Timetable cannot be launch-signed for manager shift maintenance until delete cleanup is reliable.
+
+## E2E-084 — Leave / MC ledger inspection
+
+- Date executed: 2026-07-23
+- Browser/live URL used:
+  - `https://staff.sakorio.com/working-plan/calendar`
+- Roles simulated:
+  - Manager reviewing staff leave/MC balances.
+- Steps executed:
+  - Opened Timetable.
+  - Verified leave control section:
+    - `Annual leave / MC ledger`
+    - `ANNUAL LEAVE 1 day(s)`
+    - `MC / SICK LEAVE 0 day(s)`
+    - `Staff Jason Tan`
+    - `Type Annual leave / MC / sick leave`
+    - `From`
+    - `To`
+    - `Days deducted`
+    - `Notes`
+    - `Record leave / MC`.
+  - Verified existing leave row:
+    - `Jason Tan Annual leave`
+    - `2026-07-01 → 2026-07-01`
+    - `1 day(s)`
+    - `Delete`.
+  - Did not create another leave record because E2E-083 exposed cleanup/delete persistence risk.
+- Expected final state:
+  - Manager can record leave/MC and deduct from balances.
+- Actual final state:
+  - Ledger and input controls are visible.
+  - Full create/delete lifecycle was not safely executed because timetable cleanup is already unreliable.
+- Final score: 7.8 / 10
+- Status: PARTIAL — LEDGER VISIBLE, MUTATION DEFERRED
+- Defects found:
+  - P2: leave/MC delete needs verification after shift delete is fixed.
+  - P3: balance/deduction explanation should be more explicit for managers.
+- Improvements needed:
+  - Add clearer “remaining annual leave” and “remaining MC” counters per employee.
+  - Add safe undo or confirmation on leave/MC deletion.
+- Cleanup performed:
+  - No new leave/MC record created.
+- Launch decision:
+  - Good management surface, but lifecycle still needs a clean mutation pass.
+
+## E2E-085 — Users and staff profile setup
+
+- Date executed: 2026-07-23
+- Browser/live URL used:
+  - `https://staff.sakorio.com/users`
+- Roles simulated:
+  - Manager reviewing users and opening staff creation.
+- Steps executed:
+  - Opened Users page.
+  - Verified users:
+    - `Ajisen`
+    - `ricktan318@hotmail.com`
+    - `Owner`
+    - `Administrative account`
+    - `Jason Tan`
+    - `rtjz318@gmail.com`
+    - `Waiter`
+    - `$12.00/hr`
+    - `Profile ready`.
+  - Opened `Add User` modal.
+  - Verified fields:
+    - `Email`
+    - `Full Name`
+    - `Role`
+    - `Administrator`
+    - `Kitchen Staff`
+    - `Bartender`
+    - `Waiter`
+    - `Receptionist`
+    - `Courier`
+    - `Job title`
+    - `Phone`
+    - `Hourly pay (SGD)`
+    - `Employment start date`
+    - `Password`
+    - `Confirm password`
+    - `Cancel`
+    - `Save`.
+  - Cancelled modal without creating a synthetic user.
+- Expected final state:
+  - Manager can create and manage staff users.
+- Actual final state:
+  - User list and add modal are functional.
+  - Full create/deactivate/delete was not run because this pass is live and should not leave unclean staff accounts without a proven cleanup path.
+- Final score: 8.2 / 10
+- Status: PASS WITH CAUTION
+- Defects found:
+  - P2: no safe visible “create test user then remove” lifecycle was validated.
+  - P3: role permission verification needs actual staff credentials.
+- Improvements needed:
+  - Add a clear deactivate/archive path for QA-created users.
+  - Add staff-role smoke accounts for browser QA.
+- Cleanup performed:
+  - Add User modal cancelled.
+- Launch decision:
+  - User setup surface is ready for manager use, but role permissions need a dedicated credentialed QA pass.
+
+## E2E-086 — Waiter role access and restricted permissions
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/users`
+  - existing staff session pages.
+- Roles simulated:
+  - Manager checking that waiter profile exists.
+- Steps executed:
+  - Verified `Jason Tan` exists as a `Waiter`.
+  - Verified waiter profile has hourly pay and is profile-ready.
+  - Did not log in as waiter because no separate waiter password was available in the live browser.
+- Expected final state:
+  - Waiter can log in and access POS/Tables/Orders/Kitchen as intended while being blocked from manager-only pages.
+- Actual final state:
+  - Role exists, but true role-based access was not executable.
+- Final score: 6.0 / 10
+- Status: BLOCKED — WAITER LOGIN CREDENTIAL MISSING
+- Defects found:
+  - P1: launch QA needs dedicated credentials for each role.
+- Improvements needed:
+  - Create controlled test users for Waiter, Host, Kitchen, Bartender, and Manager.
+  - Add a browser QA checklist for role-based route access.
+- Cleanup performed:
+  - No account changes.
+- Launch decision:
+  - Role data exists, but authorization cannot be launch-signed from this run.
+
+## E2E-087 — Payment settings visibility and HitPay configuration
+
+- Date executed: 2026-07-23
+- Browser/live URL used:
+  - `https://staff.sakorio.com/settings`
+- Roles simulated:
+  - Manager reviewing payment readiness.
+- Steps executed:
+  - Opened Settings.
+  - Clicked `Payment Settings`.
+  - Verified:
+    - currency `SGD`
+    - `HitPay Integration`
+    - `HitPay environment Sandbox Live`
+    - `HitPay Business API Key`
+    - `HitPay Webhook Salt`
+    - webhook instruction for `/api/payments/hitpay/webhook`
+    - `Immediate payment required`
+    - POS tip settings
+    - terminal/card amount mode.
+- Expected final state:
+  - Manager can verify payment settings without exposing secrets.
+- Actual final state:
+  - Payment settings are present and understandable.
+  - Secrets were not revealed in this QA note.
+- Final score: 8.6 / 10
+- Status: PASS
+- Defects found:
+  - P2: page should show a non-secret connection health indicator, e.g. “Sandbox configured / webhook reachable”.
+- Improvements needed:
+  - Add payment gateway self-test button.
+  - Add webhook last-seen timestamp.
+- Cleanup performed:
+  - No settings changed.
+- Launch decision:
+  - Payment setup page is usable; operational gateway health would improve confidence.
+
+## E2E-088 — Product catalog visibility across Products, POS, and QR
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/products`
+  - `https://staff.sakorio.com/pos?tableId=8`
+  - `https://order.sakorio.com/menu/2acfac4d-0e5f-4705-8ac7-b38afd2b7a6b`
+- Roles simulated:
+  - Manager reviewing products.
+  - Cashier selecting menu items.
+  - Customer opening table QR menu.
+- Steps executed:
+  - Opened Products page.
+  - Verified menu products and categories:
+    - Beverages
+    - Main Course
+    - `Tecate Light`
+    - `Water`
+    - `Enchiladas`
+    - `Chile Relleno`
+    - `Tacos de Carne Asada`
+    - `Mole Poblano`
+    - `Pozole`
+    - `Coca Cola`
+    - `Tecate Roja`
+    - `Coffee`.
+  - Opened POS table T08.
+  - Verified POS menu shows 9 catalog items with category filters and prices.
+  - Opened T08 QR before activation and observed `Table Closed`.
+  - Activated T08 QR from POS by clicking exact primary `Open`.
+  - Reopened customer QR and verified menu displays.
+- Expected final state:
+  - Products are visible to staff POS and customer QR when table QR is active.
+- Actual final state:
+  - Products are visible.
+  - QR requires explicit activation even when POS text says QR is “ready”.
+- Final score: 8.1 / 10
+- Status: PASS WITH QR ACTIVATION POLISH
+- Defects found:
+  - P2: QR “ready” language is confusing because the customer page still says table closed until staff clicks `Open`.
+  - P3: duplicate/ambiguous `Open customer QR` and `Open` labels are poor for accessibility.
+- Improvements needed:
+  - Rename actions to `Preview QR` and `Activate customer ordering`.
+  - Show customer-facing status: `Closed`, `Open for ordering`, or `Payment/closing`.
+- Cleanup performed:
+  - No product changes.
+- Launch decision:
+  - Product visibility is acceptable; QR activation copy needs polishing.
+
+## E2E-089 — Inventory dashboard and launch stock readiness
+
+- Date executed: 2026-07-23
+- Browser/live URL used:
+  - `https://staff.sakorio.com/inventory`
+- Roles simulated:
+  - Manager reviewing stock readiness.
+- Steps executed:
+  - Opened Inventory.
+  - Verified dashboard:
+    - `Stock Dashboard`
+    - `0 TOTAL ITEMS`
+    - `0 LOW STOCK ALERTS`
+    - `SGD 0.00 TOTAL VALUE`
+    - `Inventory setup needed`
+    - `Add launch stock items first, or keep inventory hidden from day-one staff.`
+    - `Manage items`
+    - `Create PO`
+    - `Suppliers`
+    - `Stock Levels`
+    - `No inventory items yet`.
+- Expected final state:
+  - Inventory is either configured for launch or intentionally hidden.
+- Actual final state:
+  - Inventory page is stable but empty.
+- Final score: 7.0 / 10
+- Status: PARTIAL — MODULE STABLE, DATA NOT LAUNCH-READY
+- Defects found:
+  - P2: zero-stock state is safe but not operationally useful for launch.
+- Improvements needed:
+  - Seed launch inventory or hide Inventory from day-one staff roles.
+  - Add a setup checklist linking Products to inventory items.
+- Cleanup performed:
+  - No inventory records created.
+- Launch decision:
+  - Inventory should not be treated as launch-ready unless stock is intentionally out of scope.
+
+## E2E-090 — Logout and relogin recovery
+
+- Date executed: 2026-07-23
+- Browser/live URL used:
+  - `https://staff.sakorio.com/pos`
+- Roles simulated:
+  - Staff ending and restoring a session.
+- Steps executed:
+  - Opened POS while logged in as Owner.
+  - Verified header shows logged-in owner and `Logout`.
+  - Attempted to click `Logout` by accessible role.
+  - Browser action timed out while resolving `Logout`.
+  - Attempted a DOM fallback; browser execution environment did not allow constructing a click event.
+- Expected final state:
+  - Staff can log out, return to login, and log back in without stale state.
+- Actual final state:
+  - Logout is visible but could not be executed reliably through the live browser automation in this run.
+- Final score: 5.5 / 10
+- Status: BLOCKED — LOGOUT CONTROL NOT AUTOMATION-RELIABLE
+- Defects found:
+  - P2: visible `Logout` should have a stable accessible target and not time out under role lookup.
+- Improvements needed:
+  - Add `aria-label="Logout"` directly to the button.
+  - Add a logout smoke test.
+- Cleanup performed:
+  - Session remained logged in.
+- Launch decision:
+  - Manual logout may work, but automated live QA could not complete it; requires follow-up.
+
+## E2E-091 — Customer QR order with refresh/back/forward duplicate protection
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/pos?tableId=8`
+  - `https://order.sakorio.com/menu/2acfac4d-0e5f-4705-8ac7-b38afd2b7a6b`
+- Roles simulated:
+  - Cashier activating QR.
+  - Customer opening QR.
+- Steps executed:
+  - Opened T08 QR before activation.
+  - Verified customer sees:
+    - `Table Closed`
+    - `This table is not currently accepting orders.`
+  - Opened staff POS T08.
+  - Clicked exact primary `Open`.
+  - Verified staff POS shows:
+    - `QR active`
+    - `Show this QR or send the link below.`
+  - Reopened customer QR.
+  - Verified menu loads and shows:
+    - `Ajisen Ramen`
+    - `T08`
+    - categories
+    - current order panel
+    - menu items.
+  - Customer name prompt appeared:
+    - `What's your name (optional - you can skip this)`
+    - `Skip`
+    - `OK`.
+  - Attempted to click `Skip`.
+  - Browser could not hit lower modal buttons at the current viewport (`No element found at point`).
+- Expected final state:
+  - Customer can skip optional name, add item, refresh/back/forward, and place exactly one order without duplicate submission.
+- Actual final state:
+  - QR activation and menu load work.
+  - Customer ordering could not continue because the prompt action row was not reliably clickable in this live browser viewport.
+- Final score: 6.2 / 10
+- Status: FAIL — CUSTOMER PROMPT VIEWPORT/ACTION BLOCKER
+- Defects found:
+  - P1: optional name modal buttons are too low/unreliable in the browser viewport.
+  - P2: duplicate-submission protection could not be verified because prompt blocked progress.
+- Improvements needed:
+  - Make customer name prompt smaller and sticky-safe on mobile/tablet.
+  - Allow tapping menu background or a clear top-right close/skip action.
+  - Add automated refresh/resubmit QR regression once prompt is fixed.
+- Cleanup performed:
+  - No order submitted.
+- Launch decision:
+  - Customer QR flow needs urgent viewport polish before launch.
+
+## E2E-092 — HitPay return refresh/idempotency
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/settings`
+  - existing POS/Reports payment surfaces.
+- Roles simulated:
+  - Customer returning from HitPay.
+  - Cashier checking payment state.
+- Steps executed:
+  - Verified payment settings are configured for HitPay sandbox/live mode selection.
+  - Did not complete a new HitPay payment in this case because E2E-091 customer ordering was blocked before checkout.
+  - Checked Reports surface, which shows paid-order totals and launch close flow.
+- Expected final state:
+  - Refreshing a HitPay success/return URL does not duplicate payment, order, or history entries.
+- Actual final state:
+  - Not executable in this run due upstream QR ordering blocker.
+- Final score: 6.0 / 10
+- Status: BLOCKED BY E2E-091
+- Defects found:
+  - P1: HitPay idempotency regression depends on customer QR order flow being unblocked.
+- Improvements needed:
+  - After QR prompt fix, run a dedicated HitPay success refresh/back test.
+  - Surface payment reference in POS bill timeline.
+- Cleanup performed:
+  - No new payment created.
+- Launch decision:
+  - Cannot be final-signed from this run.
+
+## E2E-093 — Add-on order while cashier is preparing payment
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/pos?tableId=8`
+  - `https://order.sakorio.com/menu/2acfac4d-0e5f-4705-8ac7-b38afd2b7a6b`
+- Roles simulated:
+  - Cashier in POS drawer.
+  - Customer attempting add-on through QR.
+- Steps executed:
+  - Staff POS opened T08 and activated QR.
+  - Customer QR menu opened.
+  - Add-on ordering could not continue because the customer name prompt blocked actionable menu interaction.
+- Expected final state:
+  - If cashier is paying/closing, customer add-on is either included safely or blocked clearly.
+- Actual final state:
+  - Concurrency behavior could not be verified because QR customer entry was blocked.
+- Final score: 5.8 / 10
+- Status: BLOCKED BY CUSTOMER PROMPT
+- Defects found:
+  - P1: cashier/customer concurrency cannot be launch-tested until QR prompt is fixed.
+- Improvements needed:
+  - Add “table is being paid/closed” state to customer QR.
+  - Lock or reconcile add-ons during cashier checkout.
+- Cleanup performed:
+  - No add-on order submitted.
+- Launch decision:
+  - Not launch-signed.
+
+## E2E-094 — Reservation same-record concurrent seating
+
+- Date executed: 2026-07-23
+- Browser/live URL used:
+  - `https://staff.sakorio.com/reservations`
+- Roles simulated:
+  - Host reviewing reservation board.
+- Steps executed:
+  - Opened Reservations.
+  - Verified active arrival:
+    - `#19 Luca Rossi`
+    - `BOOKED`
+    - `6 guests`
+    - `Seat at table`
+    - `Send to queue`
+    - `Send reminder`
+    - `Edit`
+    - `Mark as no-show`
+    - `Cancel`.
+  - Verified historical finished QA reservations are visible in the same timeline.
+  - Did not seat the same reservation in two staff tabs because live data already has stale/duplicate seating artifacts and this case could worsen them.
+- Expected final state:
+  - Host A seating should immediately prevent Host B from seating the same booking elsewhere.
+- Actual final state:
+  - Reservation controls exist, but concurrency guard was not safely executed.
+- Final score: 6.5 / 10
+- Status: PARTIAL — CONCURRENCY NOT SAFELY MUTATED
+- Defects found:
+  - P1: historical/finished QA reservations crowd the live timeline.
+  - P1: duplicate/stale table artifacts must be cleaned before destructive concurrency tests.
+- Improvements needed:
+  - Add clear search/highlight for new bookings.
+  - Add stale reservation cleanup/archive.
+  - Add conflict toast: `Reservation already seated by another host`.
+- Cleanup performed:
+  - No reservation state changed.
+- Launch decision:
+  - Host reservation board works, but concurrency needs clean-data test.
+
+## E2E-095 — Same table POS open in two tabs
+
+- Date executed: 2026-07-23
+- Browser/live URL used:
+  - `https://staff.sakorio.com/tables`
+- Roles simulated:
+  - Two staff members potentially operating the same table.
+- Steps executed:
+  - Opened Tables.
+  - Verified floor has 10 tables.
+  - Observed active/stale data:
+    - `T06 LIVE ORDER Bill #136`
+    - `Luca Rossi`
+    - `T10 Emma Wilson`
+    - duplicate QA seating suggestions for T07, T09, and T04.
+  - Did not submit concurrent POS orders because the board already shows residual active/stale sessions.
+- Expected final state:
+  - POS should prevent duplicate stale-cart submissions from two tabs or reconcile them visibly.
+- Actual final state:
+  - Could not safely execute without adding more live data pollution.
+- Final score: 6.0 / 10
+- Status: PARTIAL — NEEDS CLEAN-BOARD CONCURRENCY RUN
+- Defects found:
+  - P1: active/stale table artifacts remain visible on launch board.
+  - P2: same-table concurrent edit lock/reconciliation is still unverified.
+- Improvements needed:
+  - Add “opened by another staff/device” warning.
+  - Add server-side optimistic lock/version conflict message for table bills.
+- Cleanup performed:
+  - No orders submitted.
+- Launch decision:
+  - Needs dedicated clean concurrency run.
+
+## E2E-096 — POS checkout back/forward/refresh recovery
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/orders`
+  - `https://staff.sakorio.com/reports`
+- Roles simulated:
+  - Cashier checking paid/closed orders after navigation.
+- Steps executed:
+  - Opened Orders.
+  - Verified page loaded but showed compressed/read-only state:
+    - `Paid - awaiting close`
+    - `219`
+    - `CLOSED-SESSION HISTORY`
+    - `History is read-only for launch operations`.
+  - Opened Reports and verified:
+    - `COLLECTED SGD 2,565.00`
+    - `194 orders in this range`
+    - launch close flow checklist.
+  - Did not create a new checkout/back/refresh payment because QR ordering was blocked and logout/navigation controls were unreliable in this run.
+- Expected final state:
+  - Cashier can refresh/back/forward during checkout and return to the same bill safely.
+- Actual final state:
+  - Orders and Reports render, but checkout navigation idempotency was not executed end-to-end.
+- Final score: 6.3 / 10
+- Status: PARTIAL
+- Defects found:
+  - P1: Orders overview remains too compressed/confusing for final daily operation.
+  - P2: checkout refresh/back flow needs a clean table with successful order entry.
+- Improvements needed:
+  - Improve Orders layout to group active sessions by table with clearer bill/action columns.
+  - Add checkout recovery banner after return/refresh.
+- Cleanup performed:
+  - No payment changes.
+- Launch decision:
+  - Needs a follow-up payment recovery run after QR prompt fix.
+
+## E2E-097 — iPad landscape POS table lifecycle
+
+- Date executed: 2026-07-23
+- Browser/live URL used:
+  - `https://staff.sakorio.com/pos`
+- Roles simulated:
+  - Cashier/waiter using tablet-size POS.
+- Steps executed:
+  - Attempted to inspect viewport/resize capability in the live browser.
+  - The in-app browser control surface did not expose a reliable viewport resize API.
+  - Checked POS at the available live browser size and verified table drawer/menu renders.
+- Expected final state:
+  - POS layout is verified at iPad landscape size, with tables/menu/cart visible without excessive scrolling.
+- Actual final state:
+  - True iPad landscape simulation was not possible from this browser control surface.
+- Final score: 6.8 / 10
+- Status: BLOCKED — TRUE VIEWPORT SIMULATION NOT AVAILABLE
+- Defects found:
+  - P1: tablet QA cannot be considered complete unless performed in a resizable browser or real iPad.
+- Improvements needed:
+  - Add Playwright viewport regression tests for 1024×768 and 1180×820.
+  - Add screenshot diff checks for POS drawer/table/menu/cart.
+- Cleanup performed:
+  - No data changes.
+- Launch decision:
+  - Requires true iPad pass.
+
+## E2E-098 — iPad portrait host flow
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/reservations`
+  - `https://staff.sakorio.com/queue`
+  - `https://staff.sakorio.com/tables`
+- Roles simulated:
+  - Host using iPad portrait orientation.
+- Steps executed:
+  - Opened Reservations, Queue, and Tables in the live browser.
+  - Verified the host workflow surfaces load:
+    - reservation timeline
+    - queue lanes
+    - table grid/list.
+  - True portrait viewport simulation could not be forced by the in-app browser control surface.
+- Expected final state:
+  - Host can reserve/seat/queue/assign tables in portrait without hidden action buttons.
+- Actual final state:
+  - Pages render at current browser size, but portrait-specific pass is not confirmed.
+- Final score: 6.7 / 10
+- Status: BLOCKED — TRUE VIEWPORT SIMULATION NOT AVAILABLE
+- Defects found:
+  - P1: host iPad portrait must be physically or Playwright-viewport tested.
+  - P2: table board still shows stale QA/reservation artifacts.
+- Improvements needed:
+  - Add portrait-specific sticky host action bars.
+  - Add daily cleanup/archive for stale queue/reservation test records.
+- Cleanup performed:
+  - No state changes.
+- Launch decision:
+  - Host pages work, but iPad portrait launch signoff remains open.
+
+## E2E-099 — iPad Kitchen / beverages flow
+
+- Date executed: 2026-07-23
+- Browser/live URL used:
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Kitchen/beverage staff on tablet.
+- Steps executed:
+  - Opened Kitchen & beverages.
+  - Verified clean live state:
+    - `All 0`
+    - `Kitchen 0`
+    - `Beverages 0`
+    - `Send to prep 0`
+    - `Working now 0`
+    - `Hand off 0`
+    - `Ready pass`
+    - no active tickets.
+  - True iPad viewport simulation could not be forced.
+- Expected final state:
+  - Kitchen receives tickets, advances prep/ready/served, and toast/countdown confirms completion.
+- Actual final state:
+  - Kitchen board is clean and stable, but no new ticket could be created because customer QR ordering was blocked.
+- Final score: 7.0 / 10
+- Status: PARTIAL — CLEAN BOARD, NO NEW TICKET
+- Defects found:
+  - P2: KDS served toast/countdown still needs validation with a fresh ticket.
+  - P2: iPad viewport not verified.
+- Improvements needed:
+  - Add KDS demo ticket mode for safe tablet QA.
+  - Add visible served countdown/toast regression.
+- Cleanup performed:
+  - No kitchen state changed.
+- Launch decision:
+  - KDS board is operationally clean, but fresh-ticket tablet pass remains open.
+
+## E2E-100 — Full launch rehearsal and close-day readiness
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/reservations`
+  - `https://staff.sakorio.com/queue`
+  - `https://staff.sakorio.com/tables`
+  - `https://staff.sakorio.com/kitchen`
+  - `https://staff.sakorio.com/orders`
+  - `https://staff.sakorio.com/reports`
+- Roles simulated:
+  - Manager doing launch-day final readiness check.
+- Steps executed:
+  - Checked Reservation board.
+  - Checked Queue board.
+  - Checked Tables board.
+  - Checked Kitchen board.
+  - Checked Orders board.
+  - Checked Reports launch close flow.
+- Expected final state:
+  - Clean start board can handle one reservation table, one queue walk-in, one POS-only table, one QR-only table, one mixed add-on table, KDS service, payment, table close, and end-day reports.
+- Actual final state:
+  - System has strong launch surfaces, but this rehearsal cannot be signed off as clean because:
+    - customer QR prompt blocked order entry in the live browser viewport,
+    - timetable synthetic shift cleanup failed,
+    - table board still has active/stale QA artifacts,
+    - queue hides stale records but still reports loaded stale records,
+    - Orders overview remains compressed/confusing,
+    - iPad viewport cannot be fully simulated from this browser control surface.
+- Final score: 7.0 / 10
+- Status: NOT LAUNCH-SIGNED — FINAL BLOCKERS REMAIN
+- Defects found:
+  - P0/P1: QR customer prompt viewport click blocker.
+  - P1: timetable shift delete persistence failure.
+  - P1: stale/duplicate QA seating artifacts on Tables/Reservations.
+  - P1: missing role-specific QA credentials.
+  - P1: true iPad viewport pass not completed.
+  - P2: Reports active-table count and Orders overview need clearer operational mapping.
+- Improvements needed:
+  - Fix QR prompt layout/action row first.
+  - Fix timetable delete and clean synthetic shift.
+  - Clean/archive stale queue/reservation/table QA records.
+  - Create controlled launch QA staff accounts.
+  - Run real iPad or viewport-controlled Playwright regression.
+  - Re-run E2E-091 through E2E-100 after fixes.
+- Cleanup performed:
+  - No additional cleanup possible through safe browser-only workflow.
+- Launch decision:
+  - Sakorio POS is close, but this final 100-run does not support a full launch signoff yet. The priority is to fix the QR prompt/tablet blocker and cleanup defects, then rerun the final launch rehearsal.
+
+## Final E2E-001 to E2E-100 completion summary
+
+- Completed through: E2E-100.
+- Browser-only rule followed:
+  - All QA observations in this continuation came from live Sakorio pages in the in-app browser.
+  - No local login or local API testing was used for scoring.
+- Overall launch-readiness judgement:
+  - Core POS/Tables/Kitchen/Reservations/Queue/Reports surfaces are present and much more polished than earlier passes.
+  - The system is not yet final-launch-signed because the remaining blockers affect real customer ordering, timetable data hygiene, operational cleanup, and tablet validation.
+- Highest-priority next fixes:
+  1. Fix customer QR optional-name prompt so `Skip`/`OK` are always visible and tappable on tablet/mobile.
+  2. Fix Timetable shift delete persistence and remove the synthetic `Ajisen (Owner) 2026-07-26 10:00–12:00` shift.
+  3. Clean/archive stale QA queue, reservation, and table seating records from live staging.
+  4. Provide role-specific QA credentials for Waiter/Host/Kitchen/Manager.
+  5. Run a true iPad viewport regression for POS, host, customer QR, and Kitchen.

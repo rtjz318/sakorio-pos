@@ -6659,3 +6659,111 @@ Scores are out of 10 for:
 - Cleanup performed:
   - No cleanup needed.
 - Launch decision: KDS live-board cleanliness is launch-ready.
+
+## E2E-064 — Payment complete, receipt/print affordance discovery, and close
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/kitchen`
+  - `https://staff.sakorio.com/pos`
+- Roles simulated:
+  - Host/waiter opening T02 QR ordering.
+  - Customer placing a beverage order.
+  - KDS user serving the ticket.
+  - Cashier paying the bill and checking for receipt/print actions.
+  - Cashier closing/resetting the table.
+- Starting state:
+  - T02 was available.
+  - POS showed `OPEN BILLS 0`.
+  - POS `PAID TODAY SGD 290.00`.
+- Steps executed:
+  - Opened T02 QR ordering from Tables.
+  - Customer T02 submitted:
+    - `Order # 215`
+    - `Coffee`
+    - `SGD 2.50`
+  - Opened KDS.
+  - Served #215:
+    - `Start ticket`
+    - `Ready for pass`
+    - `Served / Delivered`
+  - Opened POS T02.
+  - Verified:
+    - `Bill #215 ready`
+    - `T02 · 1 item · SGD 2.50`
+    - `1 x Coffee SGD 2.50`
+  - Initial exact-button automation missed `Pay bill`, but live UI clearly displayed:
+    - table card `Take payment`
+    - in-drawer `Pay bill`
+    - bill footer `Pay bill`
+  - Clicked in-drawer `Pay bill`.
+  - Verified payment action:
+    - `charge terminal - SGD 2.50`
+  - Clicked terminal payment.
+  - Verified paid state:
+    - `Terminal payment recorded for T02. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 292.50`
+    - T02 `Last bill #215 Paid`
+  - Inspected visible paid-state controls for:
+    - print
+    - receipt
+    - invoice
+    - email
+    - download
+  - Found no visible receipt/print/download action in the POS paid state.
+  - Visible relevant paid-state controls were:
+    - `Close table`
+    - `Start order`
+    - `Orders (18)`
+    - navigation `Customers (Invoice)`
+  - Clicked `Close table`.
+  - Confirmed with `Yes, close table`.
+  - Verified staff reset:
+    - `T02 is clear and ready for the next cashier bill.`
+    - T02 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+  - Reloaded T02 QR.
+  - Verified QR blocked:
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T02`
+- Expected final state: after payment, receipt/print affordance is visible if supported; if printing is future-scope, no broken printer action confuses cashier; close/reset works.
+- Actual final state:
+  - Payment and close worked.
+  - No broken printer action appeared.
+  - No explicit receipt/print action appeared either.
+  - The only invoice-related visible path was the side navigation `Customers (Invoice)`, not bill-specific receipt printing.
+- Cross-module verification:
+  - Customer QR: order #215 submitted.
+  - KDS: #215 served and cleared.
+  - POS: terminal-paid and closed.
+  - Receipt/print: no bill-specific print/receipt affordance found.
+- Functional correctness: 8.5 / 10
+- UI/UX clarity: 7.4 / 10
+- Workflow speed: 8.1 / 10
+- Layout/device stability: 8.7 / 10
+- Data/payment/session integrity: 9.3 / 10
+- Launch readiness: 8.2 / 10
+- Final score: 8.2 / 10
+- Status: PASS WITH FEATURE GAP
+- Evidence:
+  - Payment: `charge terminal - SGD 2.50`, `PAID TODAY SGD 292.50`.
+  - Paid controls search found no visible `Print receipt` / `Receipt` / `Download` action.
+  - Reset: T02 `Available`, QR `Table Closed`.
+- Defects found:
+  - P2: no bill-specific receipt/print affordance is visible after payment, so cashier cannot naturally print or reprint a receipt from the paid state.
+  - P3: paid-awaiting-close state still exposes `Start order` beside `Close table`.
+- Improvements needed:
+  - P2: add a clear post-payment receipt action, e.g. `Print receipt`, `View receipt`, or `Send receipt`, even if actual hardware printer integration remains future-scope.
+  - P2: if printer integration is not ready, show a safe disabled/info state: `Receipt printing coming soon` or `Printer not configured`.
+  - P3: suppress/de-emphasize `Start order` while paid bill awaits close.
+- Cleanup performed:
+  - Order #215 served in KDS.
+  - Terminal-paid.
+  - T02 closed and reset.
+  - QR confirmed closed.
+- Launch decision: payment/close is launch-ready, but receipt/print UX is not obvious and should be added before operational launch if printed receipts are expected.

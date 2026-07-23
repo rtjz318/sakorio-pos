@@ -4539,3 +4539,167 @@ Scores are out of 10 for:
   - Closed T07.
   - KDS active board verified clear.
 - Launch decision: not launch-safe until QR order submission is idempotent and duplicate bill targeting is fixed.
+
+## E2E-048 - Same QR opened on two customer devices
+
+- Brief source: `0098`, E2E-048.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/orders`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Host/cashier opening QR ordering.
+  - Customer A ordering from one QR tab/device.
+  - Customer B ordering from another QR tab/device using the same QR.
+  - Kitchen processing the combined ticket.
+  - Cashier settling and closing the table.
+- Starting state:
+  - T07 available.
+  - POS open bills `0`.
+  - POS Paid Today before payment: `SGD 148.50`.
+  - KDS active board clear.
+- Steps executed:
+  - Opened POS and verified:
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 148.50`
+    - T07 `Available`
+    - `Ready for order`
+  - Opened Tables.
+  - Opened T07 table service modal.
+  - Clicked `Add items`.
+  - Clicked `Open table for QR ordering`.
+  - Verified staff confirmation:
+    - `T07 is open for QR ordering.`
+  - Opened `Table QR`.
+  - Verified QR panel:
+    - `SELF-ORDER QR`
+    - `Guests scan this code to open the table menu, order, and check out online.`
+    - public QR link for T07
+  - Opened the same T07 QR link in Customer A tab.
+  - Opened the same T07 QR link in Customer B tab.
+  - Verified both customer tabs showed the active menu:
+    - `Ajisen Ramen`
+    - `T07`
+    - `No active order`
+    - menu items visible
+    - optional name prompt visible
+  - Customer A skipped optional name prompt.
+  - Customer A added `Coffee`.
+  - Customer A submitted the order.
+  - Verified Customer A result:
+    - `Your order status: Pending`
+    - `Order # 199`
+    - `Coffee`
+    - `SGD 2.50`
+  - Customer B, still on the same QR session, saw the existing active order #199.
+  - Customer B skipped optional name prompt.
+  - Customer B added `Coca Cola`.
+  - Customer B saw the add-on action:
+    - `Add to order`
+  - Customer B clicked `Add to order`.
+  - Verified Customer B result:
+    - `Order # 199`
+    - `SGD 5.50`
+    - `Coca Cola SGD 3.00`
+    - `Coffee SGD 2.50`
+    - both lines `PENDING`
+  - Opened staff POS.
+  - Verified:
+    - `OPEN BILLS 1`
+    - `T07 Bill #199 live`
+    - `Resume order`
+  - Opened Orders.
+  - Verified combined table state:
+    - `Active Orders 1`
+    - `1 active ticket | SGD 5.50 on this table`
+    - `Latest #199`
+    - `1 tickets`
+    - `SGD 5.50`
+    - `#199 · 1x Coffee + 1 more`
+  - Opened KDS.
+  - Verified one combined KDS ticket:
+    - `#199`
+    - `T07`
+    - `Start ticket`
+    - `2 items`
+    - `1x Coffee`
+    - `1x Coca Cola`
+  - Advanced KDS:
+    - `Start ticket`
+    - `Ready for pass`
+    - `Served / Delivered`
+  - Verified served outcome:
+    - `Ticket #199 served`
+    - `2 items delivered. The ticket leaves the live board now.`
+    - `No active orders`
+  - Returned to POS.
+  - Verified payment panel:
+    - `Bill #199 ready to pay`
+    - `T07 · 2 items · SGD 5.50`
+    - `Bill #199 payable`
+    - `Amount due SGD 5.50`
+    - `2 items · T07`
+    - `charge terminal - SGD 5.50`
+  - Terminal-paid `SGD 5.50`.
+  - Verified payment state:
+    - `Terminal payment recorded for T07. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 154.00`
+    - `T07 Last bill #199 Paid`
+  - Observed recurring paid-table issue:
+    - T07 still exposed `Start order` alongside `Close table` after payment.
+  - Clicked `Close table` -> `Yes, close table`.
+  - Verified final reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 154.00`
+  - Verified final KDS:
+    - `No active tickets`
+    - no active orders.
+- Expected final state: same QR on two devices adds different items into one coherent table bill/ticket; staff can serve, pay, and close without duplicate/bill split issues.
+- Actual final state:
+  - Multi-device QR flow worked when devices submitted different rounds sequentially.
+  - Customer B correctly joined the active order instead of creating a second bill.
+  - Staff POS and Orders showed one live bill #199 totaling SGD 5.50.
+  - KDS showed one combined ticket with both items.
+  - Payment and close completed cleanly.
+  - The known paid-but-not-closed ordering control issue remains.
+- Cross-module verification:
+  - Customer QR A/B: same QR, same active order #199, add-on merge verified.
+  - POS: one live bill, correct total, terminal payment, close/reset verified.
+  - Orders: one active ticket and combined total verified.
+  - KDS: one combined ticket and final clear verified.
+- Functional correctness: 9.4 / 10
+- UI/UX clarity: 8.6 / 10
+- Workflow speed: 8.8 / 10
+- Layout/device stability: 8.8 / 10
+- Data/payment/session integrity: 9.3 / 10
+- Launch readiness: 8.9 / 10
+- Final score: 8.9 / 10
+- Status: PASS WITH KNOWN GUARDRAIL ISSUE
+- Evidence:
+  - Customer A: `Order # 199`, `Coffee`, `SGD 2.50`.
+  - Customer B: `Order # 199`, `SGD 5.50`, `Coca Cola`, `Coffee`.
+  - Orders: `1 active ticket | SGD 5.50 on this table`.
+  - KDS: `#199`, `2 items`, `1x Coffee`, `1x Coca Cola`.
+  - Payment: `charge terminal - SGD 5.50`, `PAID TODAY SGD 154.00`.
+  - Final: T07 `Available`, `Ready for order`, KDS clear.
+- Defects found:
+  - P1: after terminal payment, T07 still exposed `Start order` alongside `Close table`; this repeats the paid-table guard issue.
+  - P2: both customer tabs showed the optional name prompt; once an active order exists, the prompt should not compete with the active order/add-on flow.
+  - P3: QR activation still requires staff to know the `Open table for QR ordering` button in Tables; POS QR controls alone are not enough when a table is closed.
+- Improvements needed:
+  - P1: hide/disable ordering controls after payment until table close.
+  - P2: suppress optional name prompt after an active order exists, or move it behind a small `Add name` link.
+  - P2: expose the same `Open table for QR ordering` action clearly in POS.
+- Cleanup performed:
+  - Order #199 served in KDS.
+  - Order #199 terminal-paid.
+  - T07 closed and reset.
+  - KDS active board verified clear.
+- Launch decision: launch-safe for sequential multi-device QR add-ons, assuming E2E-047 duplicate-submit idempotency is fixed separately.

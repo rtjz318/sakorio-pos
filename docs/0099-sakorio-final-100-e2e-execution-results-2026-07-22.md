@@ -8496,3 +8496,106 @@ Scores are out of 10 for:
   - T07 closed from Tables and verified idle.
   - KDS verified clean.
 - Launch decision: this workflow is launch-ready and is one of the cleanest close flows.
+
+## E2E-080 — Closed old QR blocked, new table session QR works, pay and close
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/tables`
+  - `https://staff.sakorio.com/pos`
+- Roles simulated:
+  - Customer reopening an old QR link.
+  - Host starting a new table session.
+  - Customer ordering from the reopened QR.
+  - Cashier paying and host closing the table.
+- Starting state:
+  - T07 had just been closed after E2E-079.
+  - Old T07 QR link from previous service existed.
+- Steps executed:
+  - Opened old T07 QR link.
+  - Verified it was blocked:
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T07`.
+  - Opened Tables.
+  - Started T07 again.
+  - Clicked `Open table for QR ordering`.
+  - Verified QR activated.
+  - Opened the T07 QR link again.
+  - Observed the QR token/link was the same stable table QR URL, but access state changed correctly after staff activation.
+  - Verified customer menu:
+    - `Ajisen Ramen`
+    - `T07`
+    - `Current order`
+    - `No active order`.
+  - Skipped optional name prompt.
+  - Added `Coca Cola SGD 3.00`.
+  - Clicked `Place order`.
+  - Verified customer current session:
+    - `Order # 224`
+    - `Status: Pending`
+    - `SGD 3.00`
+    - `Coca Cola SGD 3.00`
+    - `PENDING`
+    - `Pay Now`.
+  - Opened POS T07.
+  - Terminal-paid:
+    - `Terminal payment recorded for T07`
+    - `PAID TODAY SGD 316.50`.
+  - Opened Tables.
+  - Verified paid-awaiting-close state:
+    - `T07 READY TO CLEAR`
+    - `Bill #224`
+    - `View receipt`
+    - `Close table`.
+  - Clicked `Close table` from Tables.
+  - Verified final Tables state:
+    - T07 `IDLE TABLE`
+    - `Orders`
+    - `Start order`.
+  - Reopened QR.
+  - Verified QR blocked again:
+    - `Table Closed`
+    - `T07`.
+- Expected final state:
+  - Old/closed QR cannot order.
+  - Host starts new session.
+  - QR works only for the active session.
+  - Payment and close reset the table and close QR again.
+- Actual final state:
+  - Old QR was blocked.
+  - New T07 session worked.
+  - QR token appears stable/reused for the table, but backend access state correctly controls whether ordering is open or closed.
+  - Payment and close worked.
+  - Final QR was blocked again.
+- Cross-module verification:
+  - Customer QR: blocked → active order #224 → blocked.
+  - Tables: T07 active/ready-to-clear/idle.
+  - POS: #224 terminal-paid.
+- Functional correctness: 9.0 / 10
+- UI/UX clarity: 8.6 / 10
+- Workflow speed: 8.7 / 10
+- Layout/device stability: 8.7 / 10
+- Data/payment/session integrity: 9.2 / 10
+- Launch readiness: 9.0 / 10
+- Final score: 9.0 / 10
+- Status: PASS
+- Evidence:
+  - Old QR: `Table Closed`.
+  - New QR: `Order # 224`, `Coca Cola SGD 3.00`.
+  - Payment: `Terminal payment recorded for T07`, `PAID TODAY SGD 316.50`.
+  - Tables paid state: `READY TO CLEAR Bill #224`.
+  - Final QR: `Table Closed`.
+- Defects found:
+  - P3: stable QR token reuse is acceptable if intentional, but staff documentation should explain that the link is table-stable while ordering state is session-controlled.
+  - P3: optional name prompt remains modal and could be clearer on mobile.
+- Improvements needed:
+  - P3: add small customer copy on closed QR: `This QR will work again when staff opens a new session for this table.`
+  - P3: add staff copy: `QR link is permanent; Open/Close controls customer access.`
+  - P3: make customer name prompt focus/skip behavior clearer.
+- Cleanup performed:
+  - Order #224 terminal-paid.
+  - T07 closed from Tables.
+  - Final QR verified closed.
+- Launch decision: table QR session gating is launch-ready.

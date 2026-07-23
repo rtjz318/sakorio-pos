@@ -8181,3 +8181,125 @@ Scores are out of 10 for:
   - Customer QR verified closed.
   - KDS verified clean.
 - Launch decision: Tables-led service flow is one of the strongest workflows so far, with polish needed around POS handoff loading and duplicate payment/close controls.
+
+## E2E-077 — Active unpaid table move to available table, then cleanup
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/tables`
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Waiter moving guests from one table to another.
+  - Cashier settling the bill after move attempt.
+  - Kitchen user verifying no orphan ticket remains.
+- Starting state:
+  - T04 was idle.
+  - T05 was idle and available as the intended destination.
+  - KDS was clean.
+- Steps executed:
+  - Opened Tables.
+  - Clicked T04 `Start order`.
+  - Added `Coffee $2.50` from the Tables drawer.
+  - Verified current add-on:
+    - `CURRENT ADD-ON`
+    - `1 items`
+    - `Coffee $2.50`
+    - `Add-on total $2.50`
+    - `Open table & send`.
+  - Clicked `Open table & send`.
+  - Verified T04 became live:
+    - `T04 LIVE ORDER Bill #221`
+    - drawer `Live order #221`
+    - `Orders 1`
+    - `1 item sent to the kitchen`.
+  - Attempted table move.
+  - Opened move UI:
+    - `MOVE ACTIVE TABLE`
+    - `Transfer T04 to another table`
+    - `MOVING FROM T04`
+    - `Current orders: 1 · Live bill #221`
+    - `MOVE VISIT TO READY TABLE`.
+  - Verified destination options were listed:
+    - `T01 · 4 seats · Main`
+    - `T02 · 4 seats · Main`
+    - `T03 · 4 seats · Main`
+    - `T05 · 4 seats · Main`
+    - `T07 · 2 seats · Main`
+    - `T08 · 2 seats · Main`
+    - `T09 · 2 seats · Main`
+    - `T10 · 2 seats · Main`.
+  - Initially attempted to click visible `T05` text.
+  - Click timed out because destination options were not exposed as buttons.
+  - Inspected form controls and found destination was a select/dropdown.
+  - Selected `T05 · 4 seats · Main` from the dropdown.
+  - UI displayed:
+    - `Confirm table move T04 -> T05`
+    - `Moves 1 current ticket · bill #221 · QR/customer session follows T05`
+    - `I checked the guests are moving to T05.`
+  - `Move table now` remained disabled.
+  - Checked the visible safety checkbox.
+  - `Move table now` still remained disabled.
+  - Confirmed no move occurred:
+    - T04 still showed `LIVE ORDER Bill #221`.
+    - T05 remained idle.
+  - Cleanup:
+    - Opened POS T04.
+    - Verified bill #221:
+      - `Bill #221 in service`
+      - `Bill #221 payable SGD 2.50`.
+    - Terminal-paid:
+      - `Terminal payment recorded for T04`
+      - `PAID TODAY SGD 308.00`.
+    - Closed T04 using drawer `Close table`.
+    - Confirmed `Yes, close table`.
+    - Verified Tables:
+      - T04 `IDLE TABLE`
+      - T05 `IDLE TABLE`.
+    - Verified KDS clean:
+      - `All 0`
+      - `Kitchen 0`
+      - `Beverages 0`
+      - `No active tickets`.
+- Expected final state:
+  - Bill/session follows destination table T05, or move is safely blocked with a clear reason.
+  - If moved, add second round, KDS/pay/close continue from destination.
+- Actual final state:
+  - Move did not complete.
+  - It was safely blocked in the sense that no unsafe move/overwrite happened.
+  - The reason was not clear: destination selected and safety checkbox checked, but `Move table now` stayed disabled.
+  - Cleanup payment/close worked from original T04.
+- Cross-module verification:
+  - Tables: T04 remained source table; T05 remained idle.
+  - POS: #221 paid and closed from T04.
+  - KDS: no orphan ticket after cleanup.
+- Functional correctness: 6.4 / 10
+- UI/UX clarity: 5.8 / 10
+- Workflow speed: 5.6 / 10
+- Layout/device stability: 8.2 / 10
+- Data/payment/session integrity: 8.6 / 10
+- Launch readiness: 6.4 / 10
+- Final score: 6.4 / 10
+- Status: FAIL — ACTIVE TABLE MOVE CANNOT BE COMPLETED FROM LIVE UI
+- Evidence:
+  - Move modal: `T04 -> T05`, `Moves 1 current ticket · bill #221 · QR/customer session follows T05`.
+  - `Move table now` remained disabled after destination select and safety checkbox.
+  - T04 remained `LIVE ORDER Bill #221`.
+  - Cleanup: `Terminal payment recorded for T04`, T04 `IDLE TABLE`, KDS `No active tickets`.
+- Defects found:
+  - P1: active table move cannot be completed from live UI even after selecting a valid destination and confirming safety checkbox.
+  - P1: destination options look like clickable list items but are actually a dropdown, causing a usability trap.
+  - P1: disabled `Move table now` does not explain what is missing.
+  - P2: if note/reason is required, the UI does not clearly mark it as required.
+- Improvements needed:
+  - P1: fix the enablement logic for `Move table now`.
+  - P1: show inline validation reason when disabled, e.g. `Select destination` / `Confirm guest move` / `Reason required`.
+  - P1: make destination options large clickable cards on tablet, not only a dropdown.
+  - P2: after successful move, show clear success state: `Bill #221 moved from T04 to T05`.
+  - P2: add regression test for active bill move from T04 to T05.
+- Cleanup performed:
+  - Order #221 terminal-paid and closed from T04.
+  - T04 verified idle.
+  - T05 verified idle.
+  - KDS verified clean.
+- Launch decision: active table move is not launch-ready; it safely avoids data corruption, but the move workflow is blocked/fiddly and cannot be completed live.

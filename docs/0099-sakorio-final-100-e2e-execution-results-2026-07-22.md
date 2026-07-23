@@ -6767,3 +6767,129 @@ Scores are out of 10 for:
   - T02 closed and reset.
   - QR confirmed closed.
 - Launch decision: payment/close is launch-ready, but receipt/print UX is not obvious and should be added before operational launch if printed receipts are expected.
+
+## E2E-065 — Staff POS item note discovery, KDS visibility, payment, and close
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+  - `https://staff.sakorio.com/orders`
+  - `https://order.sakorio.com/menu/...`
+- Roles simulated:
+  - Waiter/cashier entering an order directly in staff POS.
+  - Kitchen/beverage user checking the ticket.
+  - Cashier paying and closing/resetting the table.
+- Starting state:
+  - T03 was available.
+  - POS showed `OPEN BILLS 0`.
+  - POS `PAID TODAY SGD 292.50`.
+- Steps executed:
+  - Opened POS T03.
+  - Verified:
+    - `Ready for a new order`
+    - `Start this table order`
+    - menu grid visible.
+  - Added `Coffee SGD 2.50` from staff POS.
+  - Verified cart state:
+    - `Send this round to kitchen`
+    - `1 add-on item not sent yet · SGD 2.50 cart value`
+    - `Current cart`
+    - `Coffee SGD 2.50`
+    - quantity controls `-`, `1`, `+`
+    - `Send order`
+  - Inspected visible cart controls and form fields.
+  - Found no staff POS note/special-instruction input, textarea, modifier, or item comment control.
+  - Clicked visible `Send order`.
+  - POS showed:
+    - `Order #216 sent for T03. Review the bill, add another round, or collect payment.`
+  - Immediately after send, POS drawer temporarily looked empty/available:
+    - `Ready for a new order`
+    - `No tickets yet`
+    - `Orders 0`
+    - `No payable bill yet`
+  - Opened KDS to verify whether the order actually existed.
+  - Verified KDS ticket:
+    - `#216 · T03`
+    - `1x Coffee`
+    - `BEVERAGE`
+    - `BEVERAGES`
+    - `Pending`
+    - no note shown.
+  - Opened Orders to cross-check.
+  - Verified Orders page:
+    - `Active Orders 1`
+    - `T03`
+    - `1 active ticket | SGD 2.50 on this table`
+    - `Latest #216`
+    - `#216 · 1x Coffee`
+    - `Open table POS`
+    - `View tickets`
+  - Returned to KDS.
+  - Served #216:
+    - `Start ticket 1 item`
+    - `Ready for pass 1 item`
+    - `Served / Delivered 1 item`
+  - Verified KDS clear:
+    - `All 0`
+    - `Kitchen 0`
+    - `Beverages 0`
+    - `No active tickets`
+  - Opened POS T03.
+  - Verified bill recovered/visible:
+    - `Bill #216 ready`
+    - `T03 · 1 item · SGD 2.50`
+    - `Bill #216 payable SGD 2.50`
+  - Terminal-paid:
+    - `charge terminal - SGD 2.50`
+    - `Terminal payment recorded for T03`
+    - `PAID TODAY SGD 295.00`
+  - Closed T03:
+    - `T03 is clear and ready for the next cashier bill.`
+    - T03 `Available`
+    - `Ready for order`
+  - Reloaded T03 QR.
+  - Verified QR blocked:
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T03`
+- Expected final state: staff can add an item note; note appears in KDS; order survives to bill/payment/close.
+- Actual final state:
+  - Staff POS item note input was not available.
+  - KDS note visibility could not be validated because no note could be entered.
+  - No-note staff order did reach KDS and Orders.
+  - POS drawer briefly looked empty immediately after sending, but Orders/KDS confirmed the active ticket.
+  - Bill later recovered in POS for payment and close.
+- Cross-module verification:
+  - POS: item add/send worked but no note field.
+  - KDS: ticket #216 appeared with Coffee, no note.
+  - Orders: active T03 ticket visible.
+  - POS payment/close: terminal-paid and reset verified.
+- Functional correctness: 6.8 / 10
+- UI/UX clarity: 6.3 / 10
+- Workflow speed: 7.1 / 10
+- Layout/device stability: 8.2 / 10
+- Data/payment/session integrity: 8.4 / 10
+- Launch readiness: 6.9 / 10
+- Final score: 6.9 / 10
+- Status: FAIL - STAFF ITEM NOTE FEATURE MISSING
+- Evidence:
+  - Cart after add showed `Coffee`, quantity controls, `Send order`, but no note field.
+  - KDS #216 showed `1x Coffee` only.
+  - Orders #216 visible under T03 active orders.
+  - Final cleanup: `PAID TODAY SGD 295.00`, T03 `Available`, QR `Table Closed`.
+- Defects found:
+  - P1: staff POS does not expose item/order note input, so waiter-entered allergies/modifiers cannot reach KDS.
+  - P2: after staff sends order, POS drawer can temporarily show `No tickets yet` / `Orders 0` even though KDS and Orders already have #216.
+  - P3: item quantity controls in POS cart are minimal (`-`, `+`) without clear item-specific labels.
+- Improvements needed:
+  - P1: add staff POS item-level notes and order-level notes.
+  - P1: render staff notes clearly in KDS with safe wrapping and allergy highlighting.
+  - P2: after `Send order`, keep the newly-created live bill visible immediately instead of showing an empty/new-order state.
+  - P3: label quantity controls for accessibility, e.g. `Remove one Coffee`, `Add one Coffee`.
+- Cleanup performed:
+  - Order #216 served in KDS.
+  - Terminal-paid.
+  - T03 closed and reset.
+  - QR confirmed closed.
+- Launch decision: staff POS no-note ordering works, but staff notes are not launch-ready.

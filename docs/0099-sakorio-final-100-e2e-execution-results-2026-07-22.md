@@ -7017,3 +7017,170 @@ Scores are out of 10 for:
   - T01 close confirmation accepted.
   - Orders History confirmed #217 paid.
 - Launch decision: Orders current/history separation is launch-usable, but POS state refresh needs polishing before final launch confidence.
+
+## E2E-067 — Old table history remains separate from new QR/current session
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/pos`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/orders`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Cashier/host opening a table with many old historical sessions.
+  - Customer ordering from the current QR session.
+  - Cashier paying and closing/resetting the table.
+- Starting state:
+  - T01 was available.
+  - T01 had old historical orders.
+  - POS showed `History 22` and `Orders 0` for T01.
+  - POS showed `PAID TODAY SGD 297.50`.
+- Steps executed:
+  - Opened live POS.
+  - Clicked T01 `Start order`.
+  - Verified staff separation before new order:
+    - T01 `Available`
+    - `Ready for order`
+    - `Orders 0`
+    - `History 22`
+    - `T01 QR is ready`.
+  - Copied/opened the QR link shown in POS.
+  - As customer, opened the QR link before explicit QR activation.
+  - Customer page incorrectly showed:
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T01`.
+  - Returned to staff POS and clicked `Open customer QR`.
+  - Staff POS changed from:
+    - `QR opens on tap`
+    - to `QR active`.
+  - Reloaded the QR link as customer.
+  - Verified QR opened correctly:
+    - `Ajisen Ramen`
+    - `T01`
+    - category tabs.
+    - `Current order`
+    - `No active order`
+    - `Add items from the menu below and place your order`.
+  - Verified old history was not exposed on QR:
+    - No prior T01 order list appeared.
+    - No historical order numbers were shown.
+    - No previous bill rows were visible.
+  - Encountered optional name prompt:
+    - `What's your name (optional - you can skip this)`
+    - `Skip`
+    - `OK`.
+  - Clicked `Skip`.
+  - Added `Coca Cola SGD 3.00`.
+  - Verified customer cart:
+    - `1 items`
+    - `SGD 3.00`
+    - `Coca Cola SGD 3.00`
+    - `Total SGD 3.00`
+    - `Place order`.
+  - Clicked `Place order`.
+  - Verified QR current session only:
+    - `Your order status: Pending`
+    - `Order # 218`
+    - `Status: Pending`
+    - `SGD 3.00`
+    - `Coca Cola SGD 3.00`
+    - `PENDING`
+    - `Pay Now`.
+  - Opened staff Orders.
+  - Verified Current Orders:
+    - `Active Orders 1`
+    - `T01`
+    - `1 active ticket | SGD 3.00 on this table`
+    - `Latest #218`
+    - `NEWEST TICKET #218 · 1x Coca Cola`
+    - `Open table POS`.
+  - Opened POS from Orders.
+  - Verified staff current/history separation while active:
+    - `Bill #218 in service`
+    - `T01 · 1 item · SGD 3.00`
+    - `Orders 1`
+    - `History 22`.
+  - Terminal-paid:
+    - `Terminal payment recorded for T01`
+    - `PAID TODAY SGD 300.50`.
+  - First close attempt did not complete from the visible paid table state.
+  - Reopened `https://staff.sakorio.com/pos?tableId=1`.
+  - Found multiple close controls:
+    - table-card `Close table`
+    - drawer close `x`
+    - drawer `Close table`.
+  - Clicked drawer `Close table`.
+  - Confirmed `Yes, close table`.
+  - Immediately after confirmation, POS drawer still showed stale paid/current text.
+  - Reloaded POS.
+  - Verified T01 became:
+    - `Available`
+    - `Ready for order`.
+  - Opened Orders.
+  - Verified `#218` moved to History:
+    - `#218`
+    - `T01`
+    - `1x Coca Cola`
+    - `SGD 3.00`
+    - `Paid`
+    - timestamp `7/23/2026, 14:56:01`.
+  - Reloaded customer QR.
+  - Verified QR closed:
+    - `Table Closed`
+    - `T01`.
+  - Checked KDS.
+  - Verified no active KDS ticket remained:
+    - `All 0`
+    - `Kitchen 0`
+    - `Beverages 0`
+    - `No active tickets`.
+- Expected final state:
+  - Old table history remains in staff History only.
+  - QR customer sees only current session/current bill.
+  - Current session moves to History after payment/close.
+  - QR is closed after table close.
+- Actual final state:
+  - Staff Current/History separation worked.
+  - Customer QR did not expose historical sessions.
+  - Payment, history migration, QR closure and KDS cleanup worked.
+  - POS QR activation wording was misleading: the visible QR link looked ready but opened as `Table Closed` until staff clicked `Open customer QR`.
+  - POS close state again needed reload to clear stale paid/current drawer text.
+- Cross-module verification:
+  - POS staff: history count and current count verified before and after order.
+  - Customer QR: old history hidden; current #218 visible only.
+  - Orders: #218 active before payment, historical after close.
+  - KDS: clean after close.
+- Functional correctness: 8.1 / 10
+- UI/UX clarity: 7.2 / 10
+- Workflow speed: 7.8 / 10
+- Layout/device stability: 8.5 / 10
+- Data/payment/session integrity: 9.0 / 10
+- Launch readiness: 8.1 / 10
+- Final score: 8.1 / 10
+- Status: PASS WITH QR-ACTIVATION / CLOSE-REFRESH DEFECTS
+- Evidence:
+  - Staff before order: `Orders 0`, `History 22`.
+  - Customer current session: `Order # 218`, `Coca Cola SGD 3.00`, no old history rows.
+  - Staff active: `Orders 1`, `History 22`.
+  - Staff history after close: `#218 T01 1x Coca Cola SGD 3.00 Paid`.
+  - QR after close: `Table Closed`.
+  - KDS: `All 0`, `No active tickets`.
+- Defects found:
+  - P1: POS shows a QR link under `T01 QR is ready` before the table QR is actually active; customer sees `Table Closed` until staff clicks `Open customer QR`.
+  - P2: close flow has duplicate visible `Close table` controls and only the drawer close path reliably led to final confirmation.
+  - P2: after successful close confirmation, POS can keep stale `Live order #218` / paid-close drawer text until reload.
+  - P3: optional QR name prompt blocks ordering interaction until skipped/confirmed; acceptable, but it should be more obviously modal/focused.
+- Improvements needed:
+  - P1: do not show/copy a customer QR link as ready until the table QR session is active, or auto-activate when `Start order` opens the POS drawer.
+  - P1: change wording from `QR opens on tap` to an explicit state/action, e.g. `QR not active yet — click Open customer QR to activate`.
+  - P2: consolidate duplicate close controls and make the final confirmation path deterministic.
+  - P2: after table close, force POS drawer/table state refresh or close the drawer.
+  - P3: make the optional name prompt visually modal and focus the `Skip` / name input controls.
+- Cleanup performed:
+  - Order #218 terminal-paid.
+  - T01 close confirmed.
+  - POS reload verified T01 available.
+  - Customer QR verified closed.
+  - KDS verified clean.
+- Launch decision: customer session privacy is strong, but QR activation state must be made clearer because staff can easily hand a customer a link that still says `Table Closed`.

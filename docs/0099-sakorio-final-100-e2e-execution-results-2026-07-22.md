@@ -7623,3 +7623,86 @@ Scores are out of 10 for:
 - Cleanup performed:
   - No cleanup required; no orders/tables changed.
 - Launch decision: date filtering is launch-ready, with minor accessibility/default-range polish.
+
+## E2E-072 — Reports export/download behavior
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/reports`
+- Roles simulated:
+  - Manager exporting daily reports for cash-up handover.
+  - Manager exporting payment-method CSV.
+  - Manager checking attendance/payroll workbook exports.
+- Starting state:
+  - Reports page loaded.
+  - `Today` range selected:
+    - `REPORT RANGE 2026-07-23 - 2026-07-23`
+    - `COLLECTED SGD 154.50`
+    - `21 orders in this range`.
+  - Export buttons visible:
+    - `Export CSV`
+    - `Export Excel`
+    - `Export payment CSV`
+    - `Download Excel`
+    - `Download attendance workbook`.
+- Steps executed:
+  - Clicked `Export CSV`.
+  - Waited for browser download event.
+  - No download event was captured.
+  - No visible success/error feedback appeared.
+  - Clicked `Export Excel`.
+  - Waited for browser download event.
+  - No download event was captured.
+  - No visible success/error feedback appeared.
+  - Clicked `Export payment CSV`.
+  - Waited for browser download event.
+  - No download event was captured.
+  - No visible success/error feedback appeared.
+  - Clicked attendance `Download Excel`.
+  - Waited for browser download event.
+  - No download event was captured.
+  - No visible success/error feedback appeared.
+  - Clicked `Download attendance workbook`.
+  - Waited for browser download event.
+  - No download event was captured.
+  - No visible success/error feedback appeared.
+  - Checked browser tabs after export attempts.
+  - Verified no new tab was opened by any export action.
+- Expected final state:
+  - Export buttons either download files successfully or show clear unsupported/error messaging.
+  - Suggested filenames should be clear enough for handover.
+  - If no data is available, attendance exports should show a user-readable empty-state/disabled-state.
+- Actual final state:
+  - Export buttons were visible and enabled.
+  - Clicking them caused no browser download event in the live browser.
+  - No toast, inline error, disabled reason, or unsupported message appeared.
+  - No new tab opened.
+- Cross-module verification:
+  - Reports UI only; no data mutation.
+- Functional correctness: 4.8 / 10
+- UI/UX clarity: 5.4 / 10
+- Workflow speed: 5.0 / 10
+- Layout/device stability: 8.2 / 10
+- Data/payment/session integrity: 7.0 / 10
+- Launch readiness: 5.2 / 10
+- Final score: 5.2 / 10
+- Status: FAIL — EXPORT ACTIONS DO NOT PROVE DOWNLOAD OR FEEDBACK
+- Evidence:
+  - `Export CSV`, `Export Excel`, `Export payment CSV`, `Download Excel`, and `Download attendance workbook` were enabled.
+  - Each click timed out waiting for browser download.
+  - Page remained on `https://staff.sakorio.com/reports?...`.
+  - No new tab appeared.
+  - No visible success/error message appeared.
+- Defects found:
+  - P1: report export buttons do not produce a verifiable download in the live browser.
+  - P1: export failures or no-op states provide no user feedback.
+  - P2: attendance export buttons are enabled despite the visible state `No completed attendance in this period`; if an empty file is intended, the user should be told.
+- Improvements needed:
+  - P1: make export buttons trigger real file downloads with clear filenames.
+  - P1: show a toast or inline message: `CSV downloaded`, `Excel downloaded`, or `Export failed — try again`.
+  - P1: add automated browser-level export smoke tests for CSV/XLSX endpoints.
+  - P2: disable empty attendance exports or show `No attendance records for selected period`.
+  - P2: include date range in filenames, e.g. `sakorio-sales-2026-07-23.csv`.
+- Cleanup performed:
+  - No cleanup required.
+- Launch decision: Reports visual analytics are useful, but export/download is not launch-ready until downloads or explicit feedback are proven live.

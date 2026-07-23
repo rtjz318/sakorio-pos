@@ -7184,3 +7184,144 @@ Scores are out of 10 for:
   - Customer QR verified closed.
   - KDS verified clean.
 - Launch decision: customer session privacy is strong, but QR activation state must be made clearer because staff can easily hand a customer a link that still says `Table Closed`.
+
+## E2E-068 — Orders table search/filter discovery, open bill, payment, and close
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/orders`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Cashier creating a staff POS table order.
+  - Cashier searching/filtering Orders by table.
+  - Cashier opening, paying, and closing the bill.
+- Starting state:
+  - T02 was available.
+  - POS showed `OPEN BILLS 0`.
+  - POS showed `PAID TODAY SGD 300.50`.
+  - T02 had `History 18`.
+- Steps executed:
+  - Opened POS.
+  - Clicked T02 `Start order`.
+  - Verified:
+    - `T02 is clear and ready for a new order`
+    - `T02 QR is ready`
+    - `Orders 0`
+    - `History 18`.
+  - Added `Coffee SGD 2.50`.
+  - Verified cart:
+    - `Send this round to kitchen`
+    - `1 add-on item not sent yet · SGD 2.50 cart value`
+    - `New ticket not sent`
+    - `1 in cart`
+    - `Bill / Pay SGD 2.50`.
+  - Clicked `Send order`.
+  - POS showed:
+    - `Order #219 sent for T02. Review the bill, add another round, or collect payment.`
+  - POS immediately reverted again to an empty drawer state:
+    - `Ready for a new order`
+    - `No tickets yet`
+    - `Orders 0`
+    - `No payable bill yet`.
+  - Opened live Orders.
+  - Verified the active order card was present without needing search:
+    - `Active Orders 1`
+    - `Table orders`
+    - `T02`
+    - `1 active ticket | SGD 2.50 on this table`
+    - `Latest #219`
+    - `NEWEST TICKET #219 · 1x Coffee`
+    - `Open table POS`
+    - `View tickets`.
+  - Inspected Orders search/filter controls.
+  - Found only one input field:
+    - no placeholder.
+    - no aria-label.
+    - no visible search label.
+    - no obvious `Search by table` UI.
+  - Tried to fill the input with `T02`.
+  - Browser interaction timed out on the input, so it was not usable as a visible table filter.
+  - Used the visible `Open table POS` action instead.
+  - Verified POS recovered #219:
+    - `T02 Open order Bill #219 live`
+    - `Bill #219 in service`
+    - `T02 · 1 item · SGD 2.50`
+    - `Bill #219 payable SGD 2.50`
+    - `Orders 1`
+    - `History 18`.
+  - Opened payment panel.
+  - Verified payment state:
+    - `Amount due SGD 2.50`
+    - `1 item · T02`
+    - `STAFF CASH`
+    - `TERMINAL`
+    - `Customer QR checkout shows HitPay or card-at-table only`.
+  - Clicked `charge terminal - SGD 2.50`.
+  - Verified:
+    - `Terminal payment recorded for T02`
+    - `PAID TODAY SGD 303.00`
+    - T02 `Ready Last bill #219 Paid`
+    - T02 `Close table`.
+  - Reopened POS with `tableId=2`.
+  - Found duplicate close controls:
+    - table-card `Close table`
+    - drawer close `x`
+    - drawer `Close table`.
+  - Used drawer `Close table`.
+  - Confirmed `Yes, close table`.
+  - Reloaded POS.
+  - Verified T02 reset:
+    - `Available`
+    - `Ready for order`
+    - `Orders 0`
+    - `History 19`.
+  - Checked KDS.
+  - Verified clean board:
+    - `All 0`
+    - `Kitchen 0`
+    - `Beverages 0`
+    - `No active tickets`.
+- Expected final state:
+  - Staff can search/filter Orders by table name quickly.
+  - Correct bill opens from the search result.
+  - Payment and close complete cleanly.
+- Actual final state:
+  - Correct bill was visible and openable from Orders.
+  - Payment and close worked.
+  - KDS remained clean.
+  - Table search/filter UX did not work because no visible/usable table search field was discoverable.
+- Cross-module verification:
+  - POS: created #219 and later recovered it for payment.
+  - Orders: active T02 card was present.
+  - Search/filter: failed/discoverability gap.
+  - KDS: no residual ticket.
+- Functional correctness: 7.2 / 10
+- UI/UX clarity: 6.2 / 10
+- Workflow speed: 6.8 / 10
+- Layout/device stability: 8.5 / 10
+- Data/payment/session integrity: 8.8 / 10
+- Launch readiness: 7.2 / 10
+- Final score: 7.2 / 10
+- Status: PARTIAL FAIL — TABLE SEARCH/FILTER NOT LAUNCH-READY
+- Evidence:
+  - Active card: `T02`, `Latest #219`, `1 active ticket | SGD 2.50 on this table`.
+  - Input metadata: one input present with no placeholder and no aria label.
+  - Fill attempt on input timed out.
+  - Payment cleanup: `Terminal payment recorded for T02`, `PAID TODAY SGD 303.00`, T02 reset with `History 19`.
+- Defects found:
+  - P1: Orders page has no clearly visible/usable table search/filter control for active table bills.
+  - P2: the only detected input lacks placeholder/aria label and did not accept table filter text in live browser testing.
+  - P2: post-send POS drawer again showed `No tickets yet` even though Orders had #219.
+  - P2: duplicate close controls remain in paid state.
+- Improvements needed:
+  - P1: add a prominent Orders search bar with placeholder such as `Search table, order #, customer, item`.
+  - P1: support direct table terms like `T02` and highlight matching table/order cards.
+  - P2: expose filter chips: `Current`, `Paid awaiting close`, `History`, `Table`, `Today`.
+  - P2: add accessible labels for search/filter controls.
+  - P2: maintain live bill state immediately after staff `Send order`.
+- Cleanup performed:
+  - Order #219 terminal-paid.
+  - T02 closed and verified available after reload.
+  - KDS verified clean.
+- Launch decision: payment/close path is usable, but Orders search by table is not launch-ready for busy-service operations.

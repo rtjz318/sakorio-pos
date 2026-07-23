@@ -7417,3 +7417,111 @@ Scores are out of 10 for:
   - No new data created for this case.
   - Order #219 remained paid/closed in History.
 - Launch decision: recent closed orders are visible, but manager-grade exact order lookup and audit detail are not launch-ready.
+
+## E2E-070 — Reports today reconciliation after paid table tests
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/reports`
+  - `https://staff.sakorio.com/pos`
+- Roles simulated:
+  - Manager performing cash-up / daily reconciliation.
+  - Cashier cross-checking POS `Paid Today`.
+- Starting state:
+  - Several same-day test orders had just been paid and closed.
+  - POS after E2E-068 showed `PAID TODAY SGD 303.00`.
+  - Recent known paid orders included:
+    - #217 T01 Coffee SGD 2.50 terminal-paid.
+    - #218 T01 Coca Cola SGD 3.00 terminal-paid.
+    - #219 T02 Coffee SGD 2.50 terminal-paid.
+- Steps executed:
+  - Opened live Reports.
+  - Verified report shell:
+    - `Sales & Revenue`
+    - `Revenue analysis from paid orders`
+    - `From`
+    - `To`
+    - `Refresh`
+    - `Export CSV`
+    - `Export Excel`
+    - quick ranges `Today`, `Last 7 days`, `This week`, `This month`, `Previous month`.
+  - Initial report loaded broad range:
+    - `REPORT RANGE 2026-06-23 - 2026-07-23`
+    - `COLLECTED SGD 2,551.50`
+    - `4 payment methods`
+    - `189 orders in this range`.
+  - Verified broad report has useful breakdowns:
+    - `Sales by payment method`
+    - `Terminal`
+    - `HitPay`
+    - `Cash`
+    - `other`
+    - `By product`
+    - `By category`
+    - `By table`
+    - `By waiter`.
+  - Verified broad report table totals included:
+    - `T02 15 SGD 313.00`
+    - `Terminal 165 SGD 1,713.50`.
+  - Clicked `Today`.
+  - Verified today range:
+    - `REPORT RANGE 2026-07-23 - 2026-07-23`.
+  - Verified today report showed:
+    - `COLLECTED SGD 154.50`
+    - `1 payment method`
+    - `21 orders in this range`
+    - `Total collected SGD 154.50`
+    - `Terminal 21 SGD 154.50`
+    - `Daily sales 23 Jul SGD 154.50`
+    - `By table`
+    - `T02 3 SGD 8.00`
+    - `T01 4 SGD 28.50`.
+  - Checked whether exact recent order numbers appeared in Reports.
+  - Found no #217/#218/#219 order-level rows in Reports.
+  - Returned to POS.
+  - Reconfirmed POS still showed:
+    - `PAID TODAY SGD 303.00`
+    - `42 paid today`.
+  - Also observed transient untranslated role text:
+    - `USERS.ROLES.OWNER`.
+- Expected final state:
+  - Reports Today should reconcile with POS Paid Today, or the UI should clearly explain different scopes.
+  - Recent paid orders/table/payment method should be discoverable enough for cash-up.
+- Actual final state:
+  - Reports UI is useful and has export buttons.
+  - Reports Today shows payment method, table totals, product totals and daily sales.
+  - Reports Today does not expose exact order numbers.
+  - Reports Today total `SGD 154.50` does not match POS `PAID TODAY SGD 303.00`.
+  - Payment method is discoverable only in aggregate, not per order.
+- Cross-module verification:
+  - POS: `PAID TODAY SGD 303.00`.
+  - Reports Today: `Total collected SGD 154.50`, `Terminal 21 SGD 154.50`.
+  - Orders History: recent order-level data exists, but Reports does not link to exact orders.
+- Functional correctness: 6.4 / 10
+- UI/UX clarity: 7.2 / 10
+- Workflow speed: 7.8 / 10
+- Layout/device stability: 8.4 / 10
+- Data/payment/session integrity: 5.8 / 10
+- Launch readiness: 6.4 / 10
+- Final score: 6.4 / 10
+- Status: FAIL — POS/REPORTS CASH-UP RECONCILIATION MISMATCH
+- Evidence:
+  - POS: `PAID TODAY SGD 303.00`.
+  - Reports Today: `COLLECTED SGD 154.50`, `Total collected SGD 154.50`, `Terminal 21 SGD 154.50`.
+  - Reports broad range: `COLLECTED SGD 2,551.50`.
+  - Reports export controls visible: `Export CSV`, `Export Excel`, `Export payment CSV`.
+- Defects found:
+  - P0/P1: POS `Paid Today` and Reports `Today` collected amount do not match for the same live environment/day.
+  - P1: Reports does not expose recent exact order IDs (#217/#218/#219), so managers cannot reconcile from total to transaction without switching to Orders History.
+  - P1: Reports has aggregate payment method, but no per-order payment method detail.
+  - P2: `USERS.ROLES.OWNER` translation key surfaced in POS header during this check.
+- Improvements needed:
+  - P0/P1: define and align the source of truth for `Paid Today` vs `Reports Today`; if scopes differ, label them clearly.
+  - P1: add a report drill-down table for paid orders in the selected range with order #, table, items, total, payment method, paid time and close time.
+  - P1: allow click-through from Reports table totals to filtered Orders History.
+  - P2: fix role translation fallback in POS header.
+  - P2: show report timezone/day boundary explicitly, e.g. `Today: 2026-07-23 Asia/Singapore`.
+- Cleanup performed:
+  - No data changes created.
+  - POS and Reports checked only.
+- Launch decision: Reports are operationally promising, but daily cash-up cannot be considered launch-ready until POS Paid Today and Reports Today reconcile or are clearly scoped.

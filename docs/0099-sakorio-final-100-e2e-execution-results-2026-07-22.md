@@ -8303,3 +8303,104 @@ Scores are out of 10 for:
   - T05 verified idle.
   - KDS verified clean.
 - Launch decision: active table move is not launch-ready; it safely avoids data corruption, but the move workflow is blocked/fiddly and cannot be completed live.
+
+## E2E-078 — Attempt to move active table into occupied/seated table
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/tables`
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Waiter attempting to move an active unpaid bill.
+  - Cashier continuing original service and cleanup.
+- Starting state:
+  - T05 was idle.
+  - T06 was occupied/live:
+    - `LIVE ORDER Bill #136`
+    - `Luca Rossi · 4 guests`.
+  - T10 was seated:
+    - `SEATED · 3 GUESTS`
+    - `Emma Wilson · 3 guests`.
+- Steps executed:
+  - Opened Tables.
+  - Clicked T05 `Start order`.
+  - Added `Coca Cola $3.00`.
+  - Clicked `Open table & send`.
+  - Verified T05 became active:
+    - `T05 LIVE ORDER Bill #222`
+    - `1 item sent to the kitchen`.
+  - Opened `Move bill` / move active table UI.
+  - Verified source:
+    - `MOVE ACTIVE TABLE`
+    - `Transfer T05 to another table`
+    - `MOVING FROM T05`
+    - `Current orders: 1 · Live bill #222`.
+  - Inspected destination list:
+    - `T01 · 4 seats · Main`
+    - `T02 · 4 seats · Main`
+    - `T03 · 4 seats · Main`
+    - `T04 · 4 seats · Main`
+    - `T07 · 2 seats · Main`
+    - `T08 · 2 seats · Main`
+    - `T09 · 2 seats · Main`
+    - `T10 · 2 seats · Main`.
+  - Verified T06 did not appear as a destination.
+  - Verified T10 did appear as a destination despite being visibly seated on the table board.
+  - Did not execute move into T10 because that would risk corrupting a live/stale seated record.
+  - Continued original service on T05.
+  - Opened POS T05.
+  - Terminal-paid #222:
+    - `Terminal payment recorded`
+    - POS paid today increased to `SGD 311.00` during this cleanup sequence.
+  - Closed/cleared T05 from Tables.
+  - Verified T05 returned to:
+    - `IDLE TABLE`
+    - `Orders`
+    - `Start order`.
+  - Checked KDS.
+  - Verified:
+    - `All 0`
+    - `Kitchen 0`
+    - `Beverages 0`
+    - `No active tickets`.
+- Expected final state:
+  - Occupied/seated destination tables must be blocked or omitted.
+  - No unsafe overwrite/merge should be possible.
+  - Original service can continue/pay/close.
+- Actual final state:
+  - T06 live-order table was correctly omitted from destination list.
+  - T10 seated table was incorrectly listed as a ready destination.
+  - No unsafe move was executed.
+  - Original T05 bill could be paid and closed.
+- Cross-module verification:
+  - Tables: T05 active then idle after cleanup.
+  - Move UI: T10 listed despite `SEATED · 3 GUESTS`.
+  - POS: T05 bill paid.
+  - KDS: no orphan ticket after cleanup.
+- Functional correctness: 6.8 / 10
+- UI/UX clarity: 6.3 / 10
+- Workflow speed: 6.8 / 10
+- Layout/device stability: 8.4 / 10
+- Data/payment/session integrity: 7.2 / 10
+- Launch readiness: 6.8 / 10
+- Final score: 6.8 / 10
+- Status: FAIL — SEATED TABLE OFFERED AS MOVE DESTINATION
+- Evidence:
+  - Board: `T10 2 Seats SEATED · 3 GUESTS`.
+  - Move destination list included `T10 · 2 seats · Main`.
+  - Board: `T06 LIVE ORDER Bill #136`; move list did not include T06.
+  - Cleanup: T05 returned to `IDLE TABLE`; KDS `No active tickets`.
+- Defects found:
+  - P1: move destination filter excludes live-order T06 but still offers seated T10, creating possible unsafe guest/session overwrite.
+  - P1: destination list labels do not show why a table is safe/unsafe.
+  - P2: no explicit warning explains why T06 is omitted or why T10 is considered available.
+- Improvements needed:
+  - P1: destination list must exclude all non-idle/non-ready tables, including seated/no-bill tables like T10.
+  - P1: add destination table status labels: `Available`, `Occupied`, `Live bill`, `Paid awaiting close`, `Blocked`.
+  - P1: if a destination becomes occupied between modal open and confirmation, block the move server-side.
+  - P2: add automated tests for move destination filtering across idle/live/seated/paid states.
+- Cleanup performed:
+  - Order #222 paid and T05 cleared.
+  - KDS verified clean.
+- Launch decision: table move destination filtering is not launch-ready because a seated table can be offered as a move destination.

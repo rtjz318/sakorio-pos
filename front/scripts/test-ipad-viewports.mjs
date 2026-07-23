@@ -49,7 +49,7 @@ const viewports = [
   { name: 'iPad landscape', width: 1180, height: 820 },
 ];
 
-const staffRoutes = ['/pos', '/tables', '/reservations', '/queue', '/kitchen', '/orders', '/reports', '/my-shift'];
+const staffRoutes = ['/pos', '/tables', '/reservations', '/queue', '/kitchen', '/staff/orders', '/reports', '/my-shift'];
 
 async function bodyText(page) {
   return await page.evaluate(() => document.body?.innerText || '');

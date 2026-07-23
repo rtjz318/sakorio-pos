@@ -7706,3 +7706,132 @@ Scores are out of 10 for:
 - Cleanup performed:
   - No cleanup required.
 - Launch decision: Reports visual analytics are useful, but export/download is not launch-ready until downloads or explicit feedback are proven live.
+
+## E2E-073 — End-day audit across POS, Orders, KDS, Queue, Reservations, and Reports
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/orders`
+  - `https://staff.sakorio.com/kitchen`
+  - `https://staff.sakorio.com/queue`
+  - `https://staff.sakorio.com/reservations`
+  - `https://staff.sakorio.com/reports`
+- Roles simulated:
+  - Manager doing end-day service audit.
+  - Host checking queues/reservations/tables.
+  - Cashier checking open bills and unpaid orders.
+  - Kitchen user checking backlog.
+- Starting state:
+  - Most recent test tables had been paid and closed.
+  - Known historical/stale operational data remained from earlier test passes.
+- Steps executed:
+  - Opened POS.
+  - Verified:
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 303.00`.
+  - Checked visible table board.
+  - Observed remaining seated/stale tables:
+    - `T06 2 seats Luca Rossi · 4 guests Seated Guests seated · 4`
+    - `T10 2 seats Emma Wilson · 3 guests Seated Guests seated · 3`.
+  - Opened Orders.
+  - Verified:
+    - `Active Orders`
+    - `Not Paid Yet`
+    - `Paid - awaiting close`
+    - `Order History 214`.
+  - No active/unpaid table orders were visible in the Orders summary after recent cleanup.
+  - Opened KDS.
+  - Verified:
+    - `All 0`
+    - `Kitchen 0`
+    - `Beverages 0`
+    - `No active tickets`.
+  - Opened Queue.
+  - Verified:
+    - `WAITING GUESTS 0`
+    - `NOTIFIED 0`
+    - `SEATED 0`
+    - `LOADED RECORDS 3`.
+  - Verified queue stale-data guardrail:
+    - `Current service view is hiding 3 stale queue entries older than 12 hours.`
+    - `Archive old QA/test or abandoned queue rows before service so hosts see only live guests.`
+    - `Review stale`
+    - `Archive stale`.
+  - Opened Reservations.
+  - Verified service-day summary:
+    - `EXPECTED GUESTS 6`
+    - `Across 1 active bookings`
+    - `AWAITING ARRIVAL 1`
+    - `NEEDS A TABLE 1`.
+  - Observed active reservation:
+    - `12:45 PM #19 Luca Rossi`
+    - `BOOKED`
+    - `6 guests`
+    - `Arrival window is open. Pick a table to seat the guest and start ordering.`
+    - `Seat at table`
+    - `Send to queue`
+    - `Send reminder`
+    - `Edit`
+    - `Mark as no-show`
+    - `Cancel`.
+  - Observed completed/cancelled test reservations remain visible in same service timeline:
+    - #88/#89/#90/#92/#93 `FINISHED`
+    - #91 `CANCELLED`.
+  - Opened Reports.
+  - Verified launch close checklist:
+    - `LAUNCH CLOSE FLOW`
+    - `1. Tables Close or clear every table that has finished service.`
+    - `1 active · 0 ready to clear`
+    - `2. Orders ... 0 unpaid / open bills`
+    - `3. Kitchen ... 0 kitchen tickets not settled`
+    - `4. Staff sessions ... 0 staff still clocked in`
+    - `5. Export reports ...`
+- Expected final state:
+  - End-day checklist should clearly reveal any remaining table, order, KDS, queue, reservation, report/export blockers.
+  - Manager should know exactly what must be cleaned before launch/opening tomorrow.
+- Actual final state:
+  - Orders and KDS were clean.
+  - POS had no open bills.
+  - Queue correctly hid stale entries and warned about 3 stale records.
+  - Reservations still had 1 active Luca Rossi booking needing a table.
+  - POS still showed seated/stale T06 and T10 parties with no open bills.
+  - Reports launch checklist caught `1 active`, but POS showed two seated-looking table cards; this needs clarification/alignment.
+  - Reports export reminder exists, but E2E-072 showed export buttons did not download/feedback.
+- Cross-module verification:
+  - POS: no open bills, but stale seated tables visible.
+  - Orders: no current unpaid/open order visible.
+  - KDS: no backlog.
+  - Queue: stale rows hidden with archive affordance.
+  - Reservations: active booking remains.
+  - Reports: end-day checklist present.
+- Functional correctness: 8.0 / 10
+- UI/UX clarity: 7.7 / 10
+- Workflow speed: 8.0 / 10
+- Layout/device stability: 8.6 / 10
+- Data/payment/session integrity: 7.7 / 10
+- Launch readiness: 7.9 / 10
+- Final score: 7.9 / 10
+- Status: PASS WITH END-DAY CLEANUP RISKS
+- Evidence:
+  - POS: `OPEN BILLS 0`, `PAID TODAY SGD 303.00`.
+  - POS stale seated: T06 Luca Rossi, T10 Emma Wilson.
+  - KDS: `All 0`, `No active tickets`.
+  - Queue: `3 stale active entries`, `Archive stale`.
+  - Reservations: `NEEDS A TABLE 1`, active `#19 Luca Rossi BOOKED`.
+  - Reports checklist: `1 active · 0 ready to clear`, `0 unpaid / open bills`, `0 kitchen tickets not settled`.
+- Defects found:
+  - P1: end-day audit reveals stale/legacy seated tables T06/T10 with no open bills; manager needs a clearer resolution path.
+  - P1: Reports checklist `1 active` does not obviously reconcile with POS visually showing T06 and T10 seated.
+  - P1: active Luca Rossi reservation remains in service day and appears related to stale/seated T06 state, but the relationship is not obvious.
+  - P2: Queue stale cleanup is well-signposted, but still needs either automatic archival policy or manager-safe batch confirmation before launch.
+  - P2: Reports checklist includes export step, but export functionality failed in E2E-072.
+- Improvements needed:
+  - P1: add an end-day command center or checklist detail that links each active table/reservation/queue issue to the exact record.
+  - P1: provide safe manager actions for stale seated/no-bill tables: `Clear stale seating`, `Finish reservation`, `No-show`, or `Keep open`.
+  - P1: align Reports active table count with POS visible seated/open states.
+  - P2: allow one-click review/archive of stale queue records with before/after count confirmation.
+  - P2: block or warn before exporting reports if export no-op/fails.
+- Cleanup performed:
+  - No cleanup performed; this case was an audit-only pass to preserve evidence.
+- Launch decision: the end-day checklist is valuable and close to launch-ready, but stale table/reservation reconciliation must be clearer before real service managers rely on it.

@@ -7325,3 +7325,95 @@ Scores are out of 10 for:
   - T02 closed and verified available after reload.
   - KDS verified clean.
 - Launch decision: payment/close path is usable, but Orders search by table is not launch-ready for busy-service operations.
+
+## E2E-069 — Orders lookup by exact order number and audit-state discovery
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/orders`
+- Roles simulated:
+  - Cashier/manager trying to locate a known order by order number.
+  - Manager auditing table/payment state after the bill was paid and closed.
+- Starting state:
+  - Order #219 had just been created, terminal-paid, closed, and moved to History.
+  - Orders page showed no active orders.
+  - Orders History count was `214`.
+- Steps executed:
+  - Opened live Orders.
+  - Verified page sections:
+    - `Active Orders`
+    - `Not Paid Yet`
+    - `Paid - awaiting close`
+    - `Order History 214`.
+  - Verified History list showed:
+    - `Order #`
+    - `Table`
+    - `Customer`
+    - `Items`
+    - `Total`
+    - `Status`
+    - `Date`.
+  - Verified #219 row was visible at the top:
+    - `#219`
+    - `T02`
+    - customer `-`
+    - `1x Coffee`
+    - `SGD 2.50`
+    - `Paid`
+    - `7/23/2026, 14:59:21`.
+  - Inspected for order-number search controls.
+  - No input fields were visible/detected on the History page.
+  - Tried exact order-number interaction by clicking `#219`.
+  - Clicking the `#219` text did not open a detail drawer/page.
+  - Inspected available buttons after click.
+  - Only broad section buttons were available:
+    - `Not Paid Yet`
+    - `Paid - awaiting close`
+    - `Order History 214`.
+  - No visible order-specific actions were present:
+    - no `Open`
+    - no `View details`
+    - no `Receipt`
+    - no `Print`
+    - no `Refund`
+    - no `Void`
+    - no `Audit`.
+- Expected final state:
+  - Manager/cashier can search `#219`.
+  - Exact order result is highlighted/found.
+  - Staff can open the exact bill and audit table, items, payment state, method, and timestamp.
+- Actual final state:
+  - #219 was visible because it was recent and at the top of History.
+  - No order-number search field was available.
+  - Clicking the order number did not open a bill detail/audit view.
+  - Table/items/total/status/date were visible in the row, but payment method and detailed audit trail were not available from the row.
+- Cross-module verification:
+  - Orders History retained paid/closed order #219.
+  - Audit detail/detail drawer was not available from live UI.
+- Functional correctness: 6.5 / 10
+- UI/UX clarity: 5.8 / 10
+- Workflow speed: 6.0 / 10
+- Layout/device stability: 8.5 / 10
+- Data/payment/session integrity: 8.4 / 10
+- Launch readiness: 6.5 / 10
+- Final score: 6.5 / 10
+- Status: PARTIAL FAIL — ORDER-NUMBER SEARCH AND AUDIT DETAIL MISSING
+- Evidence:
+  - Visible history row: `#219 T02 - 1x Coffee SGD 2.50 Paid 7/23/2026, 14:59:21`.
+  - Detected input fields on History page: none.
+  - Available actions after clicking #219: only section buttons.
+- Defects found:
+  - P1: Orders/History has no visible search field for exact order number lookup.
+  - P1: History rows do not open an order detail/audit view.
+  - P1: payment method is not visible in History row, making cash-up/payment reconciliation harder.
+  - P2: no visible receipt/reprint action from History row.
+- Improvements needed:
+  - P1: add a global Orders search input supporting exact `#219`, plain `219`, table, customer, item, and status.
+  - P1: add clickable History rows or `View details` buttons.
+  - P1: detail view should show table, items, quantities, timestamps, payment method, payment reference, close time, and staff/user actions.
+  - P2: include receipt/print/export action in the detail view.
+  - P2: highlight exact search matches and preserve the filter in URL/query state.
+- Cleanup performed:
+  - No new data created for this case.
+  - Order #219 remained paid/closed in History.
+- Launch decision: recent closed orders are visible, but manager-grade exact order lookup and audit detail are not launch-ready.

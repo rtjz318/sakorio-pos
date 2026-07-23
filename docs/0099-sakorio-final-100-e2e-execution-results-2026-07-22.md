@@ -7922,3 +7922,94 @@ Scores are out of 10 for:
 - Cleanup performed:
   - No cleanup required; read-only case.
 - Launch decision: History is safe from accidental edits, but not manager-grade enough for receipts or audit reconciliation.
+
+## E2E-075 — Refund/reversal/correction path discovery for a paid synthetic bill
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/orders`
+  - `https://staff.sakorio.com/reports`
+  - `https://staff.sakorio.com/customers`
+- Roles simulated:
+  - Manager looking for a safe refund/reversal/correction route.
+  - Cashier checking whether an accidental refund/void/edit could be triggered.
+  - Manager checking invoice/customer area for payment correction support.
+- Starting state:
+  - Paid/closed synthetic order #219 existed in History.
+  - #219 row showed:
+    - `T02`
+    - `1x Coffee`
+    - `SGD 2.50`
+    - `Paid`.
+- Steps executed:
+  - Opened Orders History.
+  - Verified policy text:
+    - `CLOSED-SESSION HISTORY`
+    - `History is read-only for launch operations.`
+    - `Use invoice print/export for records; manager corrections, refunds and reopen flows must be recorded through the accounting process.`
+  - Scanned visible History actions.
+  - Found only:
+    - `Not Paid Yet`
+    - `Paid - awaiting close`
+    - `Order History`.
+  - Verified no unsafe paid-order action buttons:
+    - no clickable `Refund`
+    - no clickable `Reverse`
+    - no clickable `Void`
+    - no clickable `Reopen`
+    - no clickable `Edit`
+    - no clickable `Delete`.
+  - Opened Reports.
+  - Verified aggregate payment/reporting area exists:
+    - `Sales by payment method`
+    - `HitPay`
+    - `Terminal`
+    - `Cash`
+    - `other`.
+  - Verified Reports did not expose refund/reversal/correction controls.
+  - Opened Customers (Invoice).
+  - Verified empty invoice/customer area:
+    - `Customers (Invoice)`
+    - `Add customer`
+    - `No customers yet`
+    - `Add customers that need a tax invoice with their company details.`
+    - `Create first customer`.
+  - Verified Customers (Invoice) did not expose order #219, refund, reversal, or correction actions.
+- Expected final state:
+  - Refund/reversal path is either blocked with clear policy or available only through audited manager controls.
+  - Accidental cashier edits/refunds should not be possible.
+- Actual final state:
+  - Unsafe refund/reversal/edit actions are not exposed, which is safe.
+  - There is no audited manager refund/reversal workflow in the live UI.
+  - Policy text mentions manager corrections/refunds/reopen flows, but does not route the manager to a record/action.
+  - Invoice/customer area is unrelated to paid order #219 and currently empty.
+- Cross-module verification:
+  - Orders: safe read-only History.
+  - Reports: aggregate payment info only.
+  - Customers (Invoice): no paid-order correction route.
+- Functional correctness: 7.0 / 10
+- UI/UX clarity: 6.4 / 10
+- Workflow speed: 6.8 / 10
+- Layout/device stability: 8.6 / 10
+- Data/payment/session integrity: 8.5 / 10
+- Launch readiness: 7.1 / 10
+- Final score: 7.1 / 10
+- Status: PASS FOR BLOCKING UNSAFE ACTIONS, FAIL FOR AUDITED MANAGER WORKFLOW
+- Evidence:
+  - Orders History policy references corrections/refunds/reopen but only as text.
+  - No visible refund/reversal/void/reopen/edit buttons.
+  - Reports has payment-method aggregates but no order-level correction.
+  - Customers (Invoice) has no customers/orders and no correction route.
+- Defects found:
+  - P1: there is no manager-grade audited refund/reversal workflow for paid bills.
+  - P1: policy text mentions manager corrections/refunds/reopen, but does not provide a next step.
+  - P2: no link from paid History row to invoice/customer/receipt/correction workflow.
+- Improvements needed:
+  - P1: implement an audited `Manager correction` detail flow for paid bills.
+  - P1: if refund/reversal is not launch scope, show explicit operational instructions: `Refunds handled outside POS — record in accounting`, plus required fields/process.
+  - P1: add manager permission guard and audit log for any future refund/reopen/void.
+  - P2: add order detail view with a disabled/info state for refund until configured.
+  - P2: link invoice/receipt workflows to paid order records rather than only customer master data.
+- Cleanup performed:
+  - No data changes; read-only discovery.
+- Launch decision: safe for launch if refunds/reversals are intentionally out-of-scope, but not launch-ready if managers need in-POS corrections/refunds.

@@ -8013,3 +8013,171 @@ Scores are out of 10 for:
 - Cleanup performed:
   - No data changes; read-only discovery.
 - Launch decision: safe for launch if refunds/reversals are intentionally out-of-scope, but not launch-ready if managers need in-POS corrections/refunds.
+
+## E2E-076 — Tables tab full lifecycle: table selection, QR order, POS payment, close
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Host/waiter using Tables tab.
+  - Customer ordering from QR.
+  - Cashier settling from POS handoff.
+  - Kitchen/beverage user clearing the ticket.
+- Starting state:
+  - Tables tab displayed all T01-T10.
+  - T03 was `IDLE TABLE`.
+  - Known stale/occupied records remained:
+    - T06 `LIVE ORDER Bill #136`.
+    - T10 `SEATED · 3 GUESTS`.
+- Steps executed:
+  - Opened Tables.
+  - Verified all table cards visible:
+    - T01, T02, T03, T04, T05, T06, T07, T08, T09, T10.
+  - Verified host context:
+    - `HOST STAND`
+    - `0 Waiting`
+    - `0 Notified`
+    - `48 Total in view`
+    - best next seats area.
+  - Clicked T03 `Start order`.
+  - Verified compact Tables service drawer:
+    - `TABLE SERVICE T03`
+    - `4 seats · Main`
+    - `Closed`
+    - `Add items`
+    - `Orders 0`
+    - `History 10`
+    - `Move bill`
+    - `Table QR`
+    - menu grid.
+  - Verified clear activation action:
+    - `Open table for QR ordering`.
+  - Clicked `Open table for QR ordering`.
+  - Verified T03 became active from Tables:
+    - T03 card `SEATED · START ORDER`
+    - T03 drawer `Ready`
+    - `T03 is open for QR ordering`
+    - `SELF-ORDER QR T03`
+    - QR link displayed
+    - `Print table QR`
+    - `Copy link`.
+  - Opened customer QR.
+  - Verified QR customer menu:
+    - `Ajisen Ramen`
+    - `T03`
+    - `Current order`
+    - `No active order`.
+  - Skipped optional name prompt.
+  - Added `Coffee SGD 2.50`.
+  - Verified cart:
+    - `1 items`
+    - `Coffee SGD 2.50`
+    - `Total SGD 2.50`
+    - `Place order`.
+  - Clicked `Place order`.
+  - Verified QR current order:
+    - `Order # 220`
+    - `Status: Pending`
+    - `SGD 2.50`
+    - `Coffee SGD 2.50`
+    - `PENDING`
+    - `Pay Now`.
+  - Opened POS with `tableId=3`.
+  - First POS handoff captured a loading/sync state:
+    - `TABLES LOADED Syncing`
+    - `OPEN BILLS Syncing`
+    - `Loading floor tables…`.
+  - After retry/wait, POS loaded #220:
+    - `T03 Open order Bill #220 live`
+    - `Bill #220 in service`
+    - `T03 · 1 item · SGD 2.50`
+    - `Bill #220 payable SGD 2.50`
+    - `Orders 1`
+    - `History 10`.
+  - Checked KDS:
+    - `#220 · T03`
+    - `1x Coffee`
+    - `Beverages 1`.
+  - Advanced KDS from pending to working/ready sequence.
+  - Opened POS payment panel.
+  - Verified duplicate payment buttons remained:
+    - `Pay bill` with hidden labels `Open payment panel for T03`, `Pay live bill #220 for T03`, `Review bill and pay T03`.
+  - Clicked terminal charge.
+  - Verified:
+    - `Terminal payment recorded for T03`
+    - `PAID TODAY SGD 305.50`.
+  - Reopened POS for T03 paid state.
+  - Found duplicate close controls:
+    - table-card `Close table`
+    - drawer close `x`
+    - drawer `Close table`.
+  - Used drawer `Close table`.
+  - Confirmed `Yes, close table`.
+  - Opened KDS.
+  - Verified KDS clean:
+    - `All 0`
+    - `Kitchen 0`
+    - `Beverages 0`
+    - `No active tickets`.
+  - Opened Tables.
+  - Verified T03 reset:
+    - `T03`
+    - `IDLE TABLE`
+    - `Orders`
+    - `Start order`.
+  - Reloaded old QR.
+  - Verified QR blocked:
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T03`.
+- Expected final state:
+  - Tables workflow remains intuitive and compact.
+  - QR activation/order works.
+  - POS handoff works for payment.
+  - Close resets table and QR.
+- Actual final state:
+  - Tables workflow is much clearer than POS for starting QR because it has an explicit `Open table for QR ordering` action.
+  - QR order worked.
+  - POS handoff worked after a loading wait/retry.
+  - Payment and close worked.
+  - T03 reset and QR closed.
+- Cross-module verification:
+  - Tables: T03 idle → QR active/seated → idle.
+  - Customer QR: order #220 created; old QR closed after close.
+  - POS: bill #220 paid and closed.
+  - KDS: #220 appeared and final board cleared.
+- Functional correctness: 8.6 / 10
+- UI/UX clarity: 8.4 / 10
+- Workflow speed: 8.0 / 10
+- Layout/device stability: 8.5 / 10
+- Data/payment/session integrity: 8.9 / 10
+- Launch readiness: 8.6 / 10
+- Final score: 8.6 / 10
+- Status: PASS WITH HANDOFF/LOADER POLISH
+- Evidence:
+  - Tables activation: `T03 is open for QR ordering`, `SELF-ORDER QR T03`.
+  - QR order: `Order # 220`, `Coffee SGD 2.50`.
+  - POS payment: `Terminal payment recorded for T03`, `PAID TODAY SGD 305.50`.
+  - Final Tables: T03 `IDLE TABLE`.
+  - Final QR: `Table Closed`.
+  - Final KDS: `No active tickets`.
+- Defects found:
+  - P2: POS `tableId` handoff can initially show `Syncing` with no payment buttons; staff may think the bill is missing if impatient.
+  - P2: duplicate `Pay bill` and duplicate `Close table` controls remain.
+  - P2: KDS advancing action gave mixed state text during click sequence; final cleanup was correct.
+  - P3: Tables still shows stale T06/T10 records from earlier data, which can distract from clean floor operation.
+- Improvements needed:
+  - P2: POS handoff should show a persistent loading skeleton and auto-resolve into the selected bill, or retry internally until loaded.
+  - P2: make Tables-to-POS payment handoff one explicit button: `Settle in POS`.
+  - P2: consolidate payment/close actions and labels.
+  - P3: add stale seated-table resolution from Tables/end-day checklist.
+- Cleanup performed:
+  - Order #220 terminal-paid and closed.
+  - T03 verified idle.
+  - Customer QR verified closed.
+  - KDS verified clean.
+- Launch decision: Tables-led service flow is one of the strongest workflows so far, with polish needed around POS handoff loading and duplicate payment/close controls.

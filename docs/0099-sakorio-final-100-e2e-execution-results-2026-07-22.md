@@ -5616,3 +5616,140 @@ Scores are out of 10 for:
   - T09 closed and reset.
   - QR confirmed closed after reset.
 - Launch decision: customer payment-policy separation is launch-ready; KDS post-serve transition can be polished but does not block launch.
+
+## E2E-056 — QR food order through KDS full service flow, POS payment, and close
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/kitchen`
+  - `https://staff.sakorio.com/pos`
+- Roles simulated:
+  - Host/waiter opening T01 for QR ordering.
+  - Customer placing a food-only QR order.
+  - Kitchen user processing the KDS ticket.
+  - Cashier terminal-paying and closing the table.
+- Starting state:
+  - T01 was `IDLE TABLE`.
+  - POS showed `OPEN BILLS 0`.
+  - POS `PAID TODAY SGD 193.00`.
+- Steps executed:
+  - Opened live Tables page.
+  - Verified T01:
+    - `IDLE TABLE`
+    - `Start order`
+  - Opened T01 table service modal.
+  - Verified:
+    - `TABLE SERVICE T01`
+    - status `Closed`
+    - `Open table for QR ordering`
+  - Clicked `Open table for QR ordering`.
+  - Verified:
+    - modal status `Ready`
+    - `T01 is open for QR ordering`
+    - QR link visible.
+  - Opened T01 customer QR link.
+  - Customer skipped optional name prompt.
+  - Customer added:
+    - `Enchiladas SGD 20.00`
+  - Verified cart:
+    - `1 items`
+    - `SGD 20.00`
+    - `Total SGD 20.00`
+  - Clicked `Place order`.
+  - Verified customer current order:
+    - `Order # 206`
+    - `Status: Pending`
+    - `SGD 20.00`
+    - `Enchiladas SGD 20.00`
+    - `PENDING`
+  - Opened KDS.
+  - Verified correct routing:
+    - `All 1`
+    - `Kitchen 1`
+    - `Beverages 0`
+    - `#206 · T01`
+    - `1x Enchiladas`
+    - `KITCHEN`
+    - `MAIN COURSE`
+    - `Pending`
+  - Clicked `Start ticket 1 item`.
+  - Verified transition:
+    - `Working now 1`
+    - `Preparing`
+    - `#206 started (1 item).`
+  - Clicked `Ready for pass 1 item`.
+  - Verified transition:
+    - `Hand off 1`
+    - `Ready`
+    - `#206 moved to ready (1 item).`
+  - Clicked `Served / Delivered 1 item`.
+  - Waited for KDS to settle.
+  - Verified final KDS state:
+    - `All 0`
+    - `Kitchen 0`
+    - `Beverages 0`
+    - `No active tickets`
+    - `No active orders`
+  - Opened POS for T01.
+  - Verified:
+    - `Bill #206 ready`
+    - `T01 · 1 item · SGD 20.00`
+    - `Bill #206 payable SGD 20.00`
+    - `1 x Enchiladas SGD 20.00`
+  - Clicked `Pay bill`.
+  - Verified payment action:
+    - `charge terminal - SGD 20.00`
+  - Clicked terminal payment.
+  - Verified payment result:
+    - `Terminal payment recorded for T01. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 213.00`
+    - T01 `Last bill #206 Paid`
+  - Clicked `Close table`.
+  - Confirmed with `Yes, close table`.
+  - Verified staff reset:
+    - `T01 is clear and ready for the next cashier bill.`
+    - T01 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+  - Reloaded the same T01 QR link.
+  - Verified QR was blocked:
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T01`
+- Expected final state: QR food order appears in Kitchen lane, moves Pending -> Preparing -> Ready -> Served, remains payable, then payment and table close reset cleanly.
+- Actual final state:
+  - Food-only order routed correctly to Kitchen and not Beverages.
+  - All KDS state transitions worked.
+  - POS payment and table close worked.
+  - QR was blocked after close.
+- Cross-module verification:
+  - Customer QR: Order #206 placed with correct total.
+  - KDS: station routing and state transitions verified.
+  - POS: payable bill, terminal settlement, paid counter, and reset verified.
+  - Session security: QR blocked after close.
+- Functional correctness: 9.4 / 10
+- UI/UX clarity: 8.8 / 10
+- Workflow speed: 8.7 / 10
+- Layout/device stability: 8.9 / 10
+- Data/payment/session integrity: 9.5 / 10
+- Launch readiness: 9.2 / 10
+- Final score: 9.2 / 10
+- Status: PASS
+- Evidence:
+  - Customer: `Order #206`, `Enchiladas`, `SGD 20.00`.
+  - KDS: `All 1`, `Kitchen 1`, `Beverages 0`, then `All 0` after served.
+  - POS: `charge terminal - SGD 20.00`, `PAID TODAY SGD 213.00`.
+  - Reset: T01 `Available`, QR `Table Closed`.
+- Defects found:
+  - P3: paid-but-not-closed state still shows `Start order` beside `Close table`; repeated here as a lingering clarity issue.
+- Improvements needed:
+  - P3: make paid-awaiting-close state visually single-purpose: primary `Close table`, secondary/history actions only.
+- Cleanup performed:
+  - Order #206 served in KDS.
+  - Terminal-paid.
+  - T01 closed and reset.
+  - QR confirmed closed after reset.
+- Launch decision: QR food -> KDS -> POS payment -> close is launch-ready.

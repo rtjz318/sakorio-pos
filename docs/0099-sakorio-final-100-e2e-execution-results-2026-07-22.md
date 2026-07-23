@@ -6893,3 +6893,127 @@ Scores are out of 10 for:
   - T03 closed and reset.
   - QR confirmed closed.
 - Launch decision: staff POS no-note ordering works, but staff notes are not launch-ready.
+
+## E2E-066 — Orders current-to-history separation after active table order
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/orders`
+- Roles simulated:
+  - Cashier creating a staff POS table order.
+  - Cashier/manager checking Orders current vs History.
+  - Cashier settling and closing the table.
+- Starting state:
+  - T01 was available.
+  - POS showed `OPEN BILLS 0`.
+  - POS showed `PAID TODAY SGD 295.00`.
+- Steps executed:
+  - Opened live POS.
+  - Clicked T01 `Start order`.
+  - Verified POS drawer:
+    - `T01 QR is ready`
+    - `Start this table order`
+    - `Orders 0`
+    - `History 21`
+    - menu grid visible.
+  - Added `Coffee SGD 2.50`.
+  - Verified cart:
+    - `Send this round to kitchen`
+    - `1 add-on item not sent yet · SGD 2.50 cart value`
+    - `Current cart`
+    - `Coffee SGD 2.50`
+    - `Send order`.
+  - Clicked `Send order`.
+  - POS showed:
+    - `Order #217 sent for T01. Review the bill, add another round, or collect payment.`
+  - Immediately after send, POS drawer incorrectly reverted to:
+    - `Ready for a new order`
+    - `No tickets yet`
+    - `Orders 0`
+    - `No payable bill yet`
+  - Opened live Orders.
+  - Verified Current/Active Orders:
+    - `Active Orders 1`
+    - `Table orders`
+    - `T01`
+    - `1 active ticket | SGD 2.50 on this table`
+    - `Latest #217`
+    - `NEWEST TICKET #217 · 1x Coffee`
+    - `Open table POS`
+    - `View tickets`.
+  - Clicked `Open table POS`.
+  - Verified POS recovered bill #217:
+    - `OPEN BILLS 1`
+    - `T01 Open order Bill #217 live`
+    - `Bill #217 in service`
+    - `Bill #217 payable SGD 2.50`
+    - `Orders 1`
+    - `History 21`.
+  - Opened payment panel.
+  - Verified payment options:
+    - `STAFF CASH`
+    - `TERMINAL`
+    - customer QR messaging states customer checkout has HitPay/card-at-table only.
+  - Clicked `charge terminal - SGD 2.50`.
+  - Verified:
+    - `Terminal payment recorded for T01. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 297.50`
+    - T01 `Ready Last bill #217 Paid`
+    - T01 `Close table`.
+  - Clicked `Close table`.
+  - Verified final confirmation:
+    - `Close T01?`
+    - `This resets the table for the next guest, ends the current QR ordering session, and moves this table's current bill into History.`
+    - `Keep table open`
+    - `Yes, close table`.
+  - Confirmed `Yes, close table`.
+  - Opened Orders again.
+  - Verified Active Orders no longer showed T01/#217.
+  - Verified History:
+    - `Order History 212`
+    - `#217`
+    - `T01`
+    - `1x Coffee`
+    - `SGD 2.50`
+    - `Paid`
+    - timestamp `7/23/2026, 14:51:47`.
+- Expected final state:
+  - Current Orders shows active table bill before payment/close.
+  - Paid+closed bill moves to History.
+  - Current vs History separation remains correct.
+- Actual final state:
+  - Orders page current/history separation worked.
+  - Payment and History migration worked.
+  - POS drawer still has a temporary stale/empty state immediately after `Send order`.
+  - After close, POS success text said T01 was clear, but the immediate board still displayed `Last bill #217 Paid` and `Close table` beside `Start order` before full state settling.
+- Cross-module verification:
+  - POS: staff order creation, terminal payment, close confirmation.
+  - Orders: active ticket visible before payment/close, history visible after close.
+  - History: paid row #217 present and read-only list visible.
+- Functional correctness: 8.3 / 10
+- UI/UX clarity: 7.6 / 10
+- Workflow speed: 8.2 / 10
+- Layout/device stability: 8.7 / 10
+- Data/payment/session integrity: 8.9 / 10
+- Launch readiness: 8.3 / 10
+- Final score: 8.3 / 10
+- Status: PASS WITH STATE-REFRESH DEFECT
+- Evidence:
+  - Current Orders before payment: `T01`, `Latest #217`, `1 active ticket | SGD 2.50 on this table`.
+  - Payment: `Terminal payment recorded for T01`, `PAID TODAY SGD 297.50`.
+  - History after close: `#217 T01 1x Coffee SGD 2.50 Paid`.
+- Defects found:
+  - P2: immediately after staff POS `Send order`, the POS drawer can show `No tickets yet` / `Orders 0` while Orders already has the active bill.
+  - P2: immediately after close, POS board can still show `Close table` next to `Start order` for the just-closed paid bill.
+  - P3: multiple payment affordances still share the visible label `Pay bill`, requiring hidden labels/position to pick the intended action.
+- Improvements needed:
+  - P2: after `Send order`, refresh/select the new live bill in-place and keep `Orders 1` visible.
+  - P2: after successful close, force table-card state to `Available / Ready for order` and suppress stale paid-close actions.
+  - P3: make payment actions visually unique, e.g. `Open payment`, `Pay bill #217`, `Review bill`, instead of repeated `Pay bill`.
+- Cleanup performed:
+  - Order #217 terminal-paid.
+  - T01 close confirmation accepted.
+  - Orders History confirmed #217 paid.
+- Launch decision: Orders current/history separation is launch-usable, but POS state refresh needs polishing before final launch confidence.

@@ -4861,3 +4861,75 @@ Scores are out of 10 for:
   - T07 closed and reset.
   - KDS active board verified clear.
 - Launch decision: recovery path is launch-safe, but customer-facing abandoned-payment UX needs polish.
+
+## E2E-050 - Customer opens old QR after table is closed
+
+- Brief source: `0098`, E2E-050.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/orders`
+- Roles simulated:
+  - Customer opening an old QR link after the previous table session was paid and closed.
+  - Cashier verifying no new bill/session is created.
+- Starting state:
+  - T07 had just been closed from E2E-049.
+  - POS open bills `0`.
+  - POS Paid Today: `SGD 156.50`.
+  - Old QR link still available in browser history.
+- Steps executed:
+  - Opened the old T07 QR link after table close.
+  - Verified customer-facing page:
+    - `Ajisen Ramen`
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T07`
+  - Inspected customer page controls.
+  - Verified no actionable controls were visible:
+    - no menu item add buttons
+    - no `Place order`
+    - no `Pay Now`
+    - no order history
+    - no previous customer/order details
+  - Opened staff POS.
+  - Verified old QR visit did not reopen the table:
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 156.50`
+    - T07 `Available`
+    - `Ready for order`
+  - Opened staff Orders.
+  - Verified staff authenticated history still showed paid orders, including #200, but the customer old QR did not expose this data.
+  - Verified no new active order was created by the old QR visit.
+- Expected final state: old QR from a closed table blocks ordering/payment/history and does not leak previous session/customer data.
+- Actual final state:
+  - Customer old QR safely blocked.
+  - Customer saw no previous order details.
+  - Customer had no menu/payment/order controls.
+  - POS remained open bills `0`.
+  - T07 remained available.
+- Cross-module verification:
+  - Customer QR: closed-state block and no controls verified.
+  - POS: no reopen/no open bill verified.
+  - Orders: authenticated staff history remained normal; no new active order created.
+- Functional correctness: 9.7 / 10
+- UI/UX clarity: 9.1 / 10
+- Workflow speed: 9.4 / 10
+- Layout/device stability: 9.0 / 10
+- Data/payment/session integrity: 9.7 / 10
+- Launch readiness: 9.4 / 10
+- Final score: 9.4 / 10
+- Status: PASS
+- Evidence:
+  - Customer old QR: `Table Closed`, `This table is not currently accepting orders`.
+  - Customer controls: none visible.
+  - POS: `OPEN BILLS 0`, T07 `Available`, `Ready for order`.
+  - Staff Orders: paid history still staff-only/authenticated.
+- Defects found:
+  - None blocking.
+- Improvements needed:
+  - P3: customer closed-table message could add `Please ask staff for a fresh QR` to make the next step clearer.
+  - P3: optionally display a non-sensitive restaurant/help button, but no order/payment/history data should be exposed.
+- Cleanup performed:
+  - No cleanup needed; no order/session was created.
+- Launch decision: launch-safe for old closed-table QR access.

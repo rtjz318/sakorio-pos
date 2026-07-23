@@ -5753,3 +5753,141 @@ Scores are out of 10 for:
   - T01 closed and reset.
   - QR confirmed closed after reset.
 - Launch decision: QR food -> KDS -> POS payment -> close is launch-ready.
+
+## E2E-057 — QR beverage-only order through beverage KDS lane, payment, and close
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/kitchen`
+  - `https://staff.sakorio.com/pos`
+- Roles simulated:
+  - Host/waiter opening T02 for QR ordering.
+  - Customer placing a beverage-only QR order.
+  - Beverage/KDS user processing the ticket.
+  - Cashier terminal-paying and closing/resetting the table.
+- Starting state:
+  - T02 was `IDLE TABLE`.
+  - POS showed `OPEN BILLS 0`.
+  - POS `PAID TODAY SGD 213.00`.
+- Steps executed:
+  - Opened live Tables page.
+  - Verified T02:
+    - `IDLE TABLE`
+    - `Start order`
+  - Opened T02 table service modal.
+  - Clicked `Open table for QR ordering`.
+  - Verified:
+    - T02 modal status `Ready`
+    - `T02 is open for QR ordering`
+    - QR link visible.
+  - Opened T02 customer QR link.
+  - Customer skipped optional name prompt.
+  - Customer selected category `BEVERAGES`.
+  - Customer added:
+    - `Coca Cola SGD 3.00`
+  - Verified cart:
+    - `1 items`
+    - `SGD 3.00`
+    - `Total SGD 3.00`
+  - Clicked `Place order`.
+  - Verified customer current order:
+    - `Order # 207`
+    - `Status: Pending`
+    - `SGD 3.00`
+    - `Coca Cola SGD 3.00`
+    - `PENDING`
+  - Opened KDS.
+  - Verified beverage-only routing:
+    - `All 1`
+    - `Kitchen 0`
+    - `Beverages 1`
+    - `#207 · T02`
+    - `1x Coca Cola`
+    - `BEVERAGE`
+    - `BEVERAGES`
+    - `Pending`
+  - Clicked `Start ticket 1 item`.
+  - Verified:
+    - `Working now 1`
+    - `Preparing`
+    - `#207 started (1 item).`
+  - Clicked `Ready for pass 1 item`.
+  - Verified:
+    - `Hand off 1`
+    - `Ready`
+    - `#207 moved to ready (1 item).`
+  - Clicked `Served / Delivered 1 item`.
+  - Waited for KDS to settle.
+  - Verified final KDS:
+    - `All 0`
+    - `Kitchen 0`
+    - `Beverages 0`
+    - `No active tickets`
+    - `No active orders`
+  - Opened POS for T02.
+  - Verified:
+    - `Bill #207 ready`
+    - `T02 · 1 item · SGD 3.00`
+    - `Bill #207 payable SGD 3.00`
+  - Clicked `Pay bill`.
+  - Verified payment action:
+    - `charge terminal - SGD 3.00`
+  - Clicked terminal payment.
+  - Verified payment result:
+    - `Terminal payment recorded for T02. Close the table when guests leave.`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 216.00`
+    - T02 `Last bill #207 Paid`
+  - Clicked `Close table`.
+  - Confirmed with `Yes, close table`.
+  - Initial post-close board showed `Refreshing...` and still briefly displayed T02 paid state.
+  - Waited and rechecked the live board.
+  - Verified final staff reset after refresh:
+    - `T02 is clear and ready for the next cashier bill.`
+    - T02 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+  - Reloaded same T02 QR.
+  - Verified QR was blocked:
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T02`
+- Expected final state: beverage-only QR order appears in Beverages lane, not Kitchen, transitions cleanly, remains payable, then table closes/reset.
+- Actual final state:
+  - Beverage-only routing was correct.
+  - KDS transitions worked.
+  - POS terminal payment worked.
+  - Close/reset worked after a short refresh interval.
+  - QR was blocked after close.
+- Cross-module verification:
+  - Customer QR: Order #207 placed with correct total.
+  - KDS: `Kitchen 0`, `Beverages 1` confirmed for beverage-only ticket.
+  - POS: payable bill, terminal settlement, paid counter, and reset verified.
+  - Session security: QR blocked after close.
+- Functional correctness: 9.2 / 10
+- UI/UX clarity: 8.5 / 10
+- Workflow speed: 8.3 / 10
+- Layout/device stability: 8.7 / 10
+- Data/payment/session integrity: 9.4 / 10
+- Launch readiness: 9.0 / 10
+- Final score: 9.0 / 10
+- Status: PASS
+- Evidence:
+  - Customer: `Order #207`, `Coca Cola`, `SGD 3.00`.
+  - KDS: `All 1`, `Kitchen 0`, `Beverages 1`, then `All 0`.
+  - POS: `charge terminal - SGD 3.00`, `PAID TODAY SGD 216.00`.
+  - Reset: T02 `Available`, QR `Table Closed`.
+- Defects found:
+  - P3: after closing, table card can briefly show stale paid state while the board says `Refreshing...`; it resolves after a short wait, but could confuse a fast-moving cashier.
+  - P3: paid-but-not-closed state still shows `Start order` beside `Close table`; repeated clarity issue.
+- Improvements needed:
+  - P3: show a temporary disabled/loading state on the specific table card during close refresh, e.g. `Resetting T02...`, instead of leaving stale paid buttons visible.
+  - P3: suppress/de-emphasize `Start order` while paid bill awaits close.
+- Cleanup performed:
+  - Order #207 served in KDS.
+  - Terminal-paid.
+  - T02 closed and reset.
+  - QR confirmed closed after reset.
+- Launch decision: beverage-only KDS/POS flow is launch-ready; close-refresh visual clarity should be polished.

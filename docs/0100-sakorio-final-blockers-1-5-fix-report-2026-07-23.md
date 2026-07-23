@@ -121,6 +121,47 @@ SAKORIO_QA_TENANT_ID=1 SAKORIO_QA_PASSWORD="..." python -m app.seeds.seed_role_q
 4. Seed QA users with a staging-only password and run role access matrix.
 5. Run iPad viewport regression against staging with live credentials and a current customer QR URL.
 
+## Live deployment and browser verification
+
+Deployment completed on 2026-07-23:
+
+- `restaurant-pos-staging-staff-web`: live on `123e2e40`.
+- `restaurant-pos-staging-customer-webv2`: live on `123e2e40`.
+- `restaurant-pos-staging-api`: live on `123e2e40`.
+
+Live browser verification completed:
+
+- Customer QR:
+  - Fresh QR tab loaded the menu without the blocking name modal.
+  - The optional name copy appears as a small header chip.
+  - Added `Coca Cola` to cart successfully without dismissing any prompt.
+- Reservations:
+  - Staff page shows version `123e2e40`.
+  - Default filter is `Active service`.
+  - Host board showed `1 of 7 reservations`, hiding finished QA history from the normal service view.
+- Timetable:
+  - Staff page shows version `123e2e40`.
+  - Synthetic `Ajisen (Owner) 2026-07-26 10:00–12:00` shift was visible before cleanup.
+  - Delete confirmation showed exact shift detail.
+  - Browser confirmed deletion.
+  - Timetable dropped from `25` to `24` scheduled shifts and `Ajisen 10-12` no longer appeared on Jul 26.
+- Role QA:
+  - Created live QA accounts:
+    - `qa.waiter@sakario.sg`
+    - `qa.host@sakario.sg`
+    - `qa.kitchen@sakario.sg`
+    - `qa.manager@sakario.sg`
+  - Staging-only QA password used for all four accounts: `SakorioQA!2026Launch`.
+  - Browser role smoke results:
+    - Waiter: allowed POS/Tables/Orders/My Shift; restricted Users/Settings.
+    - Host/Receptionist: allowed Reservations/Queue/Tables/My Shift; restricted Users/Settings.
+    - Kitchen: allowed Kitchen/My Shift; restricted Users/Settings.
+    - Manager/Admin: allowed POS/Reports/Users/Settings.
+  - The final Owner re-login after repeated rapid role swaps hit the live login rate limiter (`Too many login attempts`). The role checks had already completed; this is expected rate-limit protection.
+- iPad/tablet:
+  - Regression tooling is now available via `npm run test:ipad-viewports --prefix front`.
+  - The in-app browser used for this live pass still does not expose true viewport resizing, so the physical/viewport-controlled iPad run remains the next verification step.
+
 ## Launch-readiness impact
 
-These changes directly address the five blockers found in E2E-082 through E2E-100. The system still needs a live redeploy and browser regression rerun before changing the final launch decision from “not launch-signed” to “launch-ready”.
+These changes directly address the five blockers found in E2E-082 through E2E-100. Live redeploy and browser checks passed for QR prompt behavior, Reservations active-service default, Timetable cleanup, and role-specific QA access. The remaining verification item is the viewport-controlled iPad regression run using the new script or a real iPad.

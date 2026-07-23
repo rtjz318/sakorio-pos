@@ -6460,3 +6460,139 @@ Scores are out of 10 for:
   - T09 closed and reset.
   - QR confirmed closed.
 - Launch decision: KDS refresh resilience is launch-ready for this flow.
+
+## E2E-062 — POS correction/void discovery while KDS has stale ticket view, stale KDS action, payment and close
+
+- Date executed: 2026-07-23
+- Browser/live URLs used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/kitchen`
+  - `https://staff.sakorio.com/pos`
+- Roles simulated:
+  - Host/waiter opening T01 QR ordering.
+  - Customer placing a beverage order.
+  - Kitchen/beverage user holding a stale KDS tab.
+  - Cashier searching for correction/void controls.
+  - Kitchen/beverage user processing the stale KDS ticket.
+  - Cashier terminal-paying and closing/resetting the table.
+- Starting state:
+  - T01 was available.
+  - POS showed `OPEN BILLS 0`.
+  - POS `PAID TODAY SGD 287.00`.
+- Steps executed:
+  - Opened T01 QR ordering from Tables.
+  - Verified:
+    - `T01 is open for QR ordering`
+    - QR link visible.
+  - Customer T01 submitted:
+    - `Order # 214`
+    - `Coca Cola`
+    - `SGD 3.00`
+  - Opened a separate KDS tab and left it on the ticket view.
+  - Verified KDS stale-start view:
+    - `All 1`
+    - `Kitchen 0`
+    - `Beverages 1`
+    - `#214 · T01`
+    - `1x Coca Cola`
+    - `Pending`
+  - Opened POS T01 in another staff tab.
+  - Verified:
+    - `Bill #214 in service`
+    - `T01 · 1 item · SGD 3.00`
+    - `Bill #214 payable SGD 3.00`
+    - `1 x Coca Cola SGD 3.00`
+  - Inspected visible POS controls for:
+    - void
+    - remove
+    - delete
+    - cancel
+    - refund
+    - correct
+    - edit
+  - Found no visible void/remove/correction control for the already-submitted item.
+  - Available visible controls were payment-related:
+    - `Pay bill`
+    - `Review bill and pay T01`
+  - Concluded POS item correction was safely unavailable from this surface.
+  - Returned to the stale KDS tab.
+  - Processed the still-visible ticket:
+    - `Start ticket 1 item`
+    - `Ready for pass 1 item`
+    - `Served / Delivered 1 item`
+  - Verified KDS after stale action:
+    - `All 0`
+    - `Kitchen 0`
+    - `Beverages 0`
+    - `No active tickets`
+    - `No active orders`
+  - Terminal-paid T01:
+    - `charge terminal - SGD 3.00`
+    - `Terminal payment recorded`
+    - `PAID TODAY SGD 290.00`
+  - Attempted to close T01.
+  - First close attempt failed in the live browser:
+    - POS showed `Failed to fetch`.
+    - T01 still showed `Last bill #214 Paid`.
+    - T01 still showed `QR active`.
+    - Customer QR still opened the active menu, not `Table Closed`.
+  - Also observed a transient UI text issue during retry:
+    - role label appeared as `USERS.ROLES.OWNER`.
+  - Retried T01 close using the in-drawer `Close table` button.
+  - Confirmed with `Yes, close table`.
+  - Verified final staff reset after retry:
+    - `T01 is clear and ready for the next cashier bill.`
+    - T01 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 290.00`
+  - Reloaded T01 QR after retry.
+  - Verified QR was blocked:
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T01`
+- Expected final state: if POS void/correction is unsupported it is safely unavailable; stale KDS action cannot corrupt the bill; final bill/KDS/table are consistent.
+- Actual final state:
+  - POS did not expose unsafe void/remove controls for already-submitted item.
+  - Stale KDS action processed the ticket normally and did not corrupt the bill.
+  - Payment succeeded.
+  - First close attempt failed with `Failed to fetch`, leaving paid table and QR active until retry.
+  - Retry close succeeded and final state was clean.
+- Cross-module verification:
+  - Customer QR: order #214 submitted.
+  - POS: no correction controls found; payment completed.
+  - KDS stale tab: ticket advanced and cleared.
+  - Table/session: first close failed; second close reset table and blocked QR.
+- Functional correctness: 7.8 / 10
+- UI/UX clarity: 7.0 / 10
+- Workflow speed: 7.1 / 10
+- Layout/device stability: 8.2 / 10
+- Data/payment/session integrity: 8.3 / 10
+- Launch readiness: 7.6 / 10
+- Final score: 7.6 / 10
+- Status: PASS WITH DEFECT
+- Evidence:
+  - No POS void/remove/correction controls visible for bill #214.
+  - KDS stale tab actions: `Start ticket 1 item`, `Ready for pass 1 item`, `Served / Delivered 1 item`.
+  - KDS final: `All 0`, `No active tickets`.
+  - First close: `Failed to fetch`; QR still active.
+  - Retry close: T01 `Available`, QR `Table Closed`.
+- Defects found:
+  - P1: close-table action can fail with `Failed to fetch` after paid/served state, leaving paid table and QR ordering active until manual retry.
+  - P2: if close fails, the UI does not provide a strong recovery banner or clearly say the table is still open/QR active.
+  - P3: role translation key appeared as `USERS.ROLES.OWNER` during retry state.
+  - P3: multiple `Close table` controls remain confusing; in-drawer close is more reliable than table-card close.
+- Improvements needed:
+  - P1: make close-table idempotent/retry-safe and surface a clear error with automatic retry or explicit `Try close again`.
+  - P1: if close fails, immediately show `Table still open — QR remains active` so staff do not walk away.
+  - P2: add final post-close QR/session verification in the UI or show `QR disabled`.
+  - P3: fix translation fallback for owner role label.
+  - P3: consolidate close-table actions or ensure every close button opens the same final confirmation.
+- Cleanup performed:
+  - Order #214 served in KDS.
+  - Terminal-paid.
+  - First close attempt failed.
+  - T01 successfully closed on retry.
+  - QR confirmed closed after retry.
+- Launch decision: stale-KDS/bill integrity is acceptable, but close-table failure/recovery is a launch-risk polish item and should be fixed or operationally trained before go-live.

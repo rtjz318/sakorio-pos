@@ -5054,3 +5054,129 @@ Scores are out of 10 for:
   - T07 reset.
   - KDS active board verified clear.
 - Launch decision: launch-safe for stale unsent QR cart protection after table close.
+
+## E2E-052 - Customer long note with punctuation, emoji, and non-Latin text
+
+- Brief source: `0098`, E2E-052.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Customer attempting to add a special note through QR ordering.
+  - Kitchen receiving the submitted ticket.
+  - Cashier paying and closing the bill.
+- Intended test note:
+  - Long note with punctuation, emoji, and non-Latin text, e.g. allergy/no garnish/spicy instructions with `🌶️`, Chinese, Hindi, Arabic, and punctuation.
+- Starting state:
+  - T07 available.
+  - POS open bills `0`.
+  - POS Paid Today before cleanup payment: `SGD 159.50`.
+  - KDS active board clear.
+- Steps executed:
+  - Opened Tables.
+  - Opened T07 table service modal.
+  - Activated QR ordering with `Open table for QR ordering`.
+  - Opened T07 public QR.
+  - Customer skipped optional name prompt.
+  - Customer added `Coffee`.
+  - Inspected visible QR cart/menu controls.
+  - Verified customer cart:
+    - `1 items`
+    - `Coffee`
+    - `SGD 2.50`
+    - `Total SGD 2.50`
+    - `Place order`
+  - Searched visible customer controls for:
+    - note
+    - remark
+    - instruction
+    - special
+    - comment
+    - message
+  - Found no textarea/input/control for customer item/table notes.
+  - Submitted the order without a note because the customer note path was not available.
+  - Verified customer order:
+    - `Order # 202`
+    - `Status: Pending`
+    - `Coffee`
+    - `SGD 2.50`
+  - Opened KDS.
+  - Verified KDS ticket:
+    - `#202`
+    - `T07`
+    - `1x Coffee`
+    - `Pending`
+    - no note shown, because no note could be entered.
+  - Opened staff POS.
+  - Verified:
+    - `OPEN BILLS 1`
+    - `T07 Bill #202 live`
+  - Advanced KDS:
+    - `Start ticket`
+    - `Ready for pass`
+    - `Served / Delivered`
+  - Verified served outcome:
+    - `Ticket #202 served`
+    - `1 item delivered. The ticket leaves the live board now.`
+    - `No active orders`
+  - Returned to POS.
+  - Initial payment attempt missed because the drawer was not open; POS still showed `Bill #202 ready`.
+  - Reopened using `Take payment`.
+  - Verified payment controls:
+    - `Bill / Pay SGD 2.50`
+    - `Terminal Use terminal Machine confirmed`
+    - `charge terminal - SGD 2.50`
+  - Terminal-paid #202.
+  - Verified:
+    - `PAID TODAY SGD 162.00`
+    - `T07 Last bill #202 Paid`
+  - Clicked `Close table` -> `Yes, close table`.
+  - Verified final reset:
+    - `T07 is clear and ready for the next cashier bill.`
+    - T07 `Available`
+    - `Ready for order`
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 162.00`
+  - Verified final KDS:
+    - `No active tickets`
+    - `No active orders`
+- Expected final state: customer can enter a long special note; note appears safely in KDS without layout break or script/render issue; order can be served, paid, and closed.
+- Actual final state:
+  - Customer QR ordering did not expose a note/special-instructions field.
+  - The intended note stress test could not be performed through the customer QR workflow.
+  - Normal no-note order #202 submitted, appeared in KDS, was served, paid, and closed cleanly.
+- Cross-module verification:
+  - Customer QR: no note input found; normal order submit verified.
+  - KDS: no-note ticket displayed and served correctly.
+  - POS: bill #202 payment and close/reset verified.
+- Functional correctness: 6.4 / 10
+- UI/UX clarity: 6.2 / 10
+- Workflow speed: 8.3 / 10
+- Layout/device stability: 8.8 / 10
+- Data/payment/session integrity: 8.7 / 10
+- Launch readiness: 6.8 / 10
+- Final score: 6.8 / 10
+- Status: FAIL - CUSTOMER NOTE FEATURE MISSING
+- Evidence:
+  - Customer cart controls included `Place order` but no note/special-instructions field.
+  - KDS #202 showed only `1x Coffee`.
+  - Final cleanup: `PAID TODAY SGD 162.00`, T07 `Available`, KDS clear.
+- Defects found:
+  - P1: customer QR does not currently support order/item notes, so allergy/modifier/special request workflows cannot be captured by customers.
+  - P2: no KDS note layout/safety validation is possible until the note field exists.
+  - P3: payment cleanup required reopening via `Take payment`; direct retry from the first route did not expose the charge button until drawer/payment panel was reopened.
+- Improvements needed:
+  - P1: add customer QR note support, preferably both:
+    - item-level note, e.g. `No ice`, `less spicy`, `allergy`
+    - order-level note, e.g. `Birthday table`, `serve later`
+  - P1: render notes clearly in KDS with safe wrapping, sanitization, and length limits.
+  - P2: add staff-visible warning style for allergy notes.
+  - P2: add automated/browser regression for punctuation, emoji, CJK, Hindi, Arabic, long whitespace, and script-like text.
+- Cleanup performed:
+  - No-note order #202 served, terminal-paid, and closed.
+  - T07 reset.
+  - KDS active board verified clear.
+- Launch decision: customer notes are not launch-ready because the input path is missing.

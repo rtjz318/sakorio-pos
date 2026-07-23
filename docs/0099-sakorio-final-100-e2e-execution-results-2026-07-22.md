@@ -4933,3 +4933,124 @@ Scores are out of 10 for:
 - Cleanup performed:
   - No cleanup needed; no order/session was created.
 - Launch decision: launch-safe for old closed-table QR access.
+
+## E2E-051 - Customer stale QR cart tries to submit after table close
+
+- Brief source: `0098`, E2E-051.
+- Execution date: 2026-07-23.
+- Browser/live surfaces used:
+  - `https://staff.sakorio.com/tables`
+  - `https://order.sakorio.com/menu/...`
+  - `https://staff.sakorio.com/pos`
+  - `https://staff.sakorio.com/orders`
+  - `https://staff.sakorio.com/kitchen`
+- Roles simulated:
+  - Customer leaving an unsent QR cart open.
+  - Cashier creating, serving, paying, and closing a separate bill on the same table.
+  - Customer attempting to submit the stale cart after table close.
+- Starting state:
+  - T07 available.
+  - POS open bills `0`.
+  - POS Paid Today before payment: `SGD 156.50`.
+  - KDS active board clear.
+- Steps executed:
+  - Opened Tables.
+  - Opened T07 table service modal.
+  - Activated QR ordering with `Open table for QR ordering`.
+  - Opened T07 public QR in a customer tab.
+  - Customer skipped optional name prompt.
+  - Customer added `Coffee`.
+  - Verified stale unsent customer cart:
+    - `1 items`
+    - `Coffee`
+    - `SGD 2.50`
+    - `Total SGD 2.50`
+    - `Place order`
+  - Did not submit the customer cart.
+  - Opened staff POS.
+  - Selected T07.
+  - Added `Coca Cola`.
+  - Sent staff order #201.
+  - Verified staff bill:
+    - `Bill #201 in service`
+    - `T07 · 1 item · SGD 3.00`
+    - `Bill #201 payable`
+  - Opened KDS.
+  - Verified KDS:
+    - `#201`
+    - `T07`
+    - `1x Coca Cola`
+    - `Pending`
+  - Advanced KDS:
+    - `Start ticket`
+    - `Ready for pass`
+    - `Served / Delivered`
+  - Verified KDS served outcome:
+    - `Ticket #201 served`
+    - `1 item delivered. The ticket leaves the live board now.`
+    - `No active orders`
+  - Returned to POS.
+  - Terminal-paid #201:
+    - `charge terminal - SGD 3.00`
+    - `PAID TODAY SGD 159.50`
+  - Closed T07:
+    - `Close table`
+    - `Yes, close table`
+    - `T07 is clear and ready for the next cashier bill.`
+  - Returned to the stale customer cart tab.
+  - Observed the stale tab had automatically changed to:
+    - `Table Closed`
+    - `This table is not currently accepting orders. Please ask a member of staff for assistance.`
+    - `T07`
+  - Attempted to click `Place order` / `Add to order`.
+  - Verified no such button was available.
+  - Opened staff POS.
+  - Verified:
+    - `OPEN BILLS 0`
+    - `PAID TODAY SGD 159.50`
+    - T07 `Available`
+    - `Ready for order`
+  - Opened staff Orders.
+  - Verified:
+    - no new active order from the stale customer cart
+    - #201 appears only in paid history
+  - Opened KDS.
+  - Verified:
+    - `No active tickets`
+    - `No active orders`
+- Expected final state: once staff closes the table, any old unsent customer QR cart is blocked and cannot create a new order/session.
+- Actual final state:
+  - Stale customer tab was safely converted to `Table Closed`.
+  - No stale submit button remained.
+  - No new order was created.
+  - POS remained open bills `0`.
+  - KDS remained clear.
+- Cross-module verification:
+  - Customer QR: stale cart became closed/block state.
+  - POS: table stayed closed/available with no open bill after stale submit attempt.
+  - Orders: no active stale order; #201 in history only.
+  - KDS: no stale kitchen ticket.
+- Functional correctness: 9.7 / 10
+- UI/UX clarity: 9.0 / 10
+- Workflow speed: 9.0 / 10
+- Layout/device stability: 8.9 / 10
+- Data/payment/session integrity: 9.8 / 10
+- Launch readiness: 9.5 / 10
+- Final score: 9.5 / 10
+- Status: PASS
+- Evidence:
+  - Stale cart before close: `Coffee`, `Total SGD 2.50`, `Place order`.
+  - After close: `Table Closed`, no order buttons.
+  - POS after stale attempt: `OPEN BILLS 0`, T07 `Available`.
+  - Orders: #201 paid history, no new active order.
+  - KDS: `No active tickets`, `No active orders`.
+- Defects found:
+  - None blocking.
+- Improvements needed:
+  - P3: closed-table message could specifically say `Your unsent cart expired because the table was closed` for clearer customer understanding.
+  - P3: optionally add `Ask staff for a new QR` copy.
+- Cleanup performed:
+  - Staff order #201 served, terminal-paid, and closed.
+  - T07 reset.
+  - KDS active board verified clear.
+- Launch decision: launch-safe for stale unsent QR cart protection after table close.

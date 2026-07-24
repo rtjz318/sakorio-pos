@@ -3,7 +3,7 @@ import { Component, DestroyRef, HostListener, computed, inject, signal } from '@
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { catchError, forkJoin, firstValueFrom, map, of, switchMap } from 'rxjs';
+import { catchError, forkJoin, firstValueFrom, of } from 'rxjs';
 import { QRCodeComponent } from 'angularx-qrcode';
 import {
   ApiService,
@@ -6379,44 +6379,35 @@ export class CashierPosComponent {
   loadData(): void {
     this.loading.set(true);
     this.error.set(null);
+    const loadWarnings: string[] = [];
 
     forkJoin({
       settings: this.api.getTenantServiceSettings().pipe(catchError(() => of(null))),
-      tables: this.api.getTablesWithStatus(),
-      orders: this.api.getOrders(),
-      tenantProducts: this.api.getTenantProducts(true).pipe(catchError(() => of([]))),
-      legacyProducts: this.api.getProducts().pipe(
-        switchMap((products) => {
-          const productIds = products
-            .map((product) => product.id)
-            .filter((id): id is number => typeof id === 'number' && id > 0);
-
-          if (productIds.length === 0) {
-            return of(products);
-          }
-
-          return forkJoin(
-            productIds.map((productId) =>
-              this.api.getProductQuestions(productId).pipe(catchError(() => of([]))),
-            ),
-          ).pipe(
-            map((questionSets) => {
-              const questionsByProductId = new Map<number, ProductQuestion[]>();
-              productIds.forEach((productId, index) => {
-                questionsByProductId.set(productId, questionSets[index] ?? []);
-              });
-
-              return products.map((product) => ({
-                ...product,
-                questions:
-                  typeof product.id === 'number'
-                    ? questionsByProductId.get(product.id) ?? product.questions ?? []
-                    : product.questions ?? [],
-              }));
-            }),
-          );
+      tables: this.api.getTablesWithStatus().pipe(
+        catchError(() => {
+          loadWarnings.push('tables');
+          return of([]);
         }),
-        catchError(() => of([])),
+      ),
+      orders: this.api.getOrders().pipe(
+        catchError(() => {
+          loadWarnings.push('orders');
+          return of([]);
+        }),
+      ),
+      tenantProducts: this.api.getTenantProducts(true).pipe(
+        catchError(() => {
+          loadWarnings.push('tenant menu');
+          return of([]);
+        }),
+      ),
+      // Keep the cashier floor responsive. Product questions are optional for the floor/menu
+      // shell and should not block POS startup for a large imported catalog.
+      legacyProducts: this.api.getProducts().pipe(
+        catchError(() => {
+          loadWarnings.push('legacy menu');
+          return of([]);
+        }),
       ),
     }).subscribe({
       next: ({ settings, tables, orders, tenantProducts, legacyProducts }) => {
@@ -6426,6 +6417,9 @@ export class CashierPosComponent {
         this.tenantProducts.set(tenantProducts);
         this.legacyProducts.set(legacyProducts);
         this.loading.set(false);
+        if (loadWarnings.length) {
+          this.error.set(`POS loaded partially. Refresh if ${loadWarnings.join(', ')} data is needed.`);
+        }
         if (this.focusNextClearTableAfterReload) {
           this.focusNextClearTableAfterReload = false;
           this.focusReadyTableAfterReload();

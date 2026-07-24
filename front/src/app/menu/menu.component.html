@@ -57,8 +57,8 @@
         <path d="M12 8v4M12 16h.01" />
       </svg>
     </div>
-    <h1>{{ 'MENU.TITLE' | translate }}</h1>
-    <p>{{ 'ERRORS.NOT_FOUND' | translate }}</p>
+    <h1>{{ errorTitle() }}</h1>
+    <p>{{ errorMessage() }}</p>
   </div>
   } @else {
   <!-- Hero Header -->

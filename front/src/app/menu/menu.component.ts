@@ -48,6 +48,8 @@ export class MenuComponent implements OnInit, OnDestroy {
   // Core state
   loading = signal(true);
   error = signal(false);
+  errorTitle = signal('Menu unavailable');
+  errorMessage = signal('This table menu link is not available right now.');
   tableClosed = signal(false);
   closedTableName = signal('');
   closedTenantName = signal('');
@@ -421,6 +423,20 @@ export class MenuComponent implements OnInit, OnDestroy {
             );
           }
         } else {
+          this.errorTitle.set('Menu link not available');
+          if (err.status === 404) {
+            this.errorMessage.set(
+              'This QR link is not active for a current table session. Please ask our staff to reopen the table or scan a fresh QR code.',
+            );
+          } else if (err.status === 403) {
+            this.errorMessage.set(
+              'This table session is not open for ordering right now. Please ask our staff to activate QR ordering for your table.',
+            );
+          } else {
+            this.errorMessage.set(
+              'We could not load this menu. Please refresh once, or ask our staff to open a fresh table QR.',
+            );
+          }
           this.error.set(true);
         }
         this.loading.set(false);

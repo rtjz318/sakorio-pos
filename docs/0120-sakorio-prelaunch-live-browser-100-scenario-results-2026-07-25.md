@@ -2718,3 +2718,380 @@ Live build observed for this phase: `2.1.6 a7e24524`.
   - Consider quick profile switch only if it is secured by PIN/password and auditable.
 - Cleanup performed: None; manager session preserved.
 - Launch decision: Role switching is not launch-certified yet.
+
+### Phase J - Reporting, end-of-day, resilience, and final launch rehearsal
+
+#### SKR-PRELAUNCH-20260725-E2E-091
+
+- Priority: P0
+- Roles simulated: Cashier, owner
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: T07/T08 idle, owner/admin session available after re-login.
+- Test data: T08 order #253, 1x A12 Boiled Seasoned Egg, terminal payment SGD 2.00.
+- Browser steps executed:
+  - Opened T07 POS as manager/admin and added A12 to cart.
+  - Attempted `Send order`; first attempt produced `Failed to fetch` and left the item unsent.
+  - Cleared T07 cart back to SGD 0.00.
+  - Session redirected to `/login`; logged back in using the provided owner staff credentials.
+  - Opened T08 POS fresh under owner session.
+  - Added A12, sent order, confirmed order #253 live.
+  - Used terminal payment method to settle SGD 2.00.
+  - Confirmed `Paid today` increased from SGD 86.80 to SGD 88.80.
+  - Closed T08 with final confirmation.
+  - Verified Orders History and Reports.
+- Expected final state: Revenue trail is correct.
+- Actual final state: PASS after session recovery, with one resilience defect.
+- Cross-module verification: POS, Orders, Reports, Tables.
+- Functional correctness: 8/10
+- UI/UX clarity: 8/10
+- Workflow speed: 7/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 8/10
+- Final score: 8.0
+- Status: PASS/PARTIAL
+- Evidence:
+  - T08 order #253 created and paid.
+  - POS showed `Terminal payment recorded for T08. Close the table when guests leave.`
+  - T08 changed to `Last bill #253 paid`, then after close: `T08 is clear and ready for the next cashier bill.`
+  - Orders History showed `#253`, `T08`, `1x A12 Boiled Seasoned Egg`, `SGD 2.00`, `Paid`, timestamp `7/26/2026, 02:46:08`.
+  - Reports showed total collected `SGD 2,464.80`, 215 orders, Terminal revenue updated.
+- Defects found:
+  - First send attempt on T07 failed with `Failed to fetch` and no automatic retry/recovery guidance.
+  - Session expiry during POS retry redirected to login; recovery worked, but the first failure is still a cashier-flow risk.
+- Improvements recommended:
+  - Add POS send retry button / clearer recoverable error message: `Connection failed. Cart is safe. Retry sending ticket.`
+  - If session expires, preserve intended return URL and unsent cart state explicitly.
+- Cleanup performed: T07 cart cleared; T08 paid and closed.
+- Launch decision: Payment/revenue reconciliation passes, but POS send resilience needs polish before a perfect launch score.
+
+#### SKR-PRELAUNCH-20260725-E2E-092
+
+- Priority: P0
+- Roles simulated: Owner
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Several QA/live records existed from prior test passes.
+- Test data: T08 #253, QA Manager shifts from Phase I, visible launch close flow.
+- Browser steps executed:
+  - Reviewed Reports launch close flow.
+  - Verified unpaid/open bills count.
+  - Verified kitchen not-settled count.
+  - Verified staff still-clocked-in count.
+  - Attempted to remove the two QA Manager Timetable shifts created in Phase I.
+- Expected final state: Launch board is clean.
+- Actual final state: PARTIAL.
+- Cross-module verification: Reports, POS/Tables, Timetable.
+- Functional correctness: 7/10
+- UI/UX clarity: 7/10
+- Workflow speed: 7/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 7/10
+- Launch readiness: 6.5/10
+- Final score: 6.5
+- Status: PARTIAL
+- Evidence:
+  - Reports close flow showed `0 unpaid / open bills`.
+  - Reports close flow showed `0 kitchen tickets not settled`.
+  - Reports close flow showed `0 staff still clocked in`.
+  - Reports close flow still showed `2 active` tables.
+  - Timetable QA Manager shifts remained visible after attempted delete via exact delete controls.
+- Defects found:
+  - Timetable shift delete controls did not remove QA Manager shifts in this live run.
+  - Delete controls are icon-only in the calendar row; selected-day summary has no visible delete action.
+  - Launch cleanup cannot be certified while two active tables remain and QA shifts cannot be removed through the tested UI.
+- Improvements recommended:
+  - Fix Timetable shift deletion and add a success/failure toast.
+  - Add a launch cleanup dashboard with exact clickable records: active tables, open bills, stuck tickets, open staff sessions, QA/test records.
+  - Add selected-day shift actions: Edit / Delete / Duplicate.
+- Cleanup performed: T08 closed; QA MC test record deleted; QA Manager shifts still outstanding.
+- Launch decision: End-of-day cleanup is not 10/10 yet.
+
+#### SKR-PRELAUNCH-20260725-E2E-093
+
+- Priority: P1
+- Roles simulated: Cashier
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: T07 failed send once; owner session recovered and T08 completed.
+- Test data: A12 send/retry path, T08 #253.
+- Browser steps executed:
+  - Tried order send on T07; observed `Failed to fetch`.
+  - Cleared cart and reloaded/logged in.
+  - Retried same low-value A12 workflow on T08.
+  - Verified only one successful paid order #253 was created for the retry.
+- Expected final state: No duplicate order/payment during retry/refresh.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: POS, Orders History.
+- Functional correctness: 8/10
+- UI/UX clarity: 7/10
+- Workflow speed: 7/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 8/10
+- Final score: 8.0
+- Status: PASS/PARTIAL
+- Evidence:
+  - T07 failed send did not create a visible order.
+  - T08 retry created a single order #253 and closed cleanly.
+  - Orders History showed #253 once at the top.
+- Defects found:
+  - Recovery is manual; cashier must know whether cart/order is safe after failure.
+- Improvements recommended:
+  - Add idempotency UI: `Last send failed before ticket creation. Retry safe.`
+  - Disable repeated send button while request is pending and show precise success/failure state.
+- Cleanup performed: T07 cart cleared; T08 closed.
+- Launch decision: Data integrity passed; user-facing recovery should improve.
+
+#### SKR-PRELAUNCH-20260725-E2E-094
+
+- Priority: P1
+- Roles simulated: Cashier
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: T08 order #253 paid and table closed.
+- Test data: Old URL `/pos?tableId=8&orderId=253`.
+- Browser steps executed:
+  - Opened old paid order/table URL after close.
+  - Verified T08 displayed as available.
+  - Verified bill total was SGD 0.00 and Pay button was disabled.
+  - Verified history count included the closed bill.
+- Expected final state: Old state does not become actionable.
+- Actual final state: PASS.
+- Cross-module verification: POS old URL, closed table state.
+- Functional correctness: 9/10
+- UI/UX clarity: 9/10
+- Workflow speed: 9/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 9/10
+- Final score: 9.0
+- Status: PASS
+- Evidence:
+  - T08 was `Available / Ready for order`.
+  - Drawer said `Ready for a new order`.
+  - `Pay bill` was disabled at SGD 0.00.
+  - History count changed to 22.
+- Defects found:
+  - None blocking.
+- Improvements recommended:
+  - Optional: show a small banner on old order URLs: `This bill is closed and in History.`
+- Cleanup performed: None needed.
+- Launch decision: Closed bill old URL behavior is launch-ready.
+
+#### SKR-PRELAUNCH-20260725-E2E-095
+
+- Priority: P1
+- Roles simulated: Staff/cashier
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Active POS workflow and later login recovery.
+- Test data: T07 failed send, owner login recovery, T08 completed flow.
+- Browser steps executed:
+  - Encountered live `Failed to fetch` during active POS send.
+  - Confirmed cart state was not silently converted into an order.
+  - Cleared cart.
+  - Encountered login redirect during subsequent POS navigation.
+  - Logged in again and completed T08 successfully.
+- Expected final state: State recovers without data loss.
+- Actual final state: PARTIAL.
+- Cross-module verification: POS, login, Orders.
+- Functional correctness: 7/10
+- UI/UX clarity: 6/10
+- Workflow speed: 6/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 8/10
+- Launch readiness: 7/10
+- Final score: 7.0
+- Status: PARTIAL
+- Evidence:
+  - No duplicate or ghost paid order observed from failed T07 send.
+  - Login recovery succeeded.
+  - Completed T08 order/payment afterward.
+- Defects found:
+  - `Failed to fetch` is too generic for live service.
+  - Session expiry dropped the operator into login without a clear POS-specific recovery message.
+- Improvements recommended:
+  - Add session-expired toast and return-to-table after login.
+  - Preserve unsent cart in local/session state and display explicit recovery action.
+- Cleanup performed: T07 cart cleared.
+- Launch decision: Recoverable, but not polished enough for 10/10.
+
+#### SKR-PRELAUNCH-20260725-E2E-096
+
+- Priority: P1
+- Roles simulated: Host, cashier
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Tables board showed T09 occupied/ready and T10 seated with guests; T06 seated with guest info.
+- Test data: Existing live/seated table states.
+- Browser steps executed:
+  - Inspected Tables and POS board active table statuses.
+  - Did not force-close existing seated/occupied records except the controlled T08 QA order.
+- Expected final state: Empty occupied/seated table can be released safely.
+- Actual final state: NOT FULLY EXECUTED.
+- Cross-module verification: Tables, POS board.
+- Functional correctness: 6/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 8/10
+- Launch readiness: 6.5/10
+- Final score: 6.5
+- Status: PARTIAL
+- Evidence:
+  - Tables board clearly displayed active/seated states and actions like `Close table` on T09.
+  - Reports launch close flow still counted 2 active tables after QA cleanup.
+- Defects found:
+  - This pass did not safely determine whether active tables were intentional live test data or stale records.
+- Improvements recommended:
+  - Add an admin cleanup view showing why each table is active and when it last changed.
+  - Add `Release empty seated table` flow with audit note.
+- Cleanup performed: T08 only.
+- Launch decision: Requires owner review of remaining active tables before go-live.
+
+#### SKR-PRELAUNCH-20260725-E2E-097
+
+- Priority: P2
+- Roles simulated: Owner/cashier
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: POS and Orders accessible.
+- Test data: T08 #253 and visible Orders/Reports.
+- Browser steps executed:
+  - Inspected POS payment and Orders History surfaces during controlled payment.
+  - Did not require physical receipt printing because printer work is intentionally future/deferred.
+- Expected final state: Printer future work is documented and not blocking if out of scope.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: POS, Orders, Reports.
+- Functional correctness: 8/10
+- UI/UX clarity: 7/10
+- Workflow speed: 8/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 8/10
+- Launch readiness: 7.5/10
+- Final score: 7.5
+- Status: PARTIAL
+- Evidence:
+  - Payment and history can be completed without printer dependency.
+  - Reports export options are available.
+- Defects found:
+  - Receipt/printer actions were not fully verified with hardware.
+- Improvements recommended:
+  - Keep printer in future fixes list.
+  - Before physical go-live, test kitchen receipt, beverage receipt, cashier bill, and end-day report print.
+- Cleanup performed: None.
+- Launch decision: Printer is not blocking only if explicitly out of launch scope.
+
+#### SKR-PRELAUNCH-20260725-E2E-098
+
+- Priority: P2
+- Roles simulated: Staff/owner
+- Browser/device mode: Simulated iPad plus desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: iPad simulation already performed for Timetable in Phase I; POS/table old URL inspected on desktop.
+- Test data: Timetable, POS, Orders, Reports.
+- Browser steps executed:
+  - Verified Timetable at `1024x768` and `768x1024` in E2E-089.
+  - Inspected POS drawer/table flow on live desktop during E2E-091/094.
+  - Verified Orders and Reports pages after payment.
+- Expected final state: No tab has launch-blocking overlap.
+- Actual final state: PARTIAL.
+- Cross-module verification: Timetable, POS, Orders, Reports.
+- Functional correctness: 8/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 8/10
+- Launch readiness: 7.5/10
+- Final score: 7.5
+- Status: PARTIAL
+- Evidence:
+  - Timetable simulated iPad had no horizontal overflow.
+  - POS payment lane stayed on the right during desktop controlled flow.
+  - Orders/Reports rendered long records without blocking interaction.
+- Defects found:
+  - Full all-tab iPad sweep was not completed in this Phase J due the POS resilience issue taking priority.
+- Improvements recommended:
+  - Run a dedicated physical iPad pass on POS, Tables, Orders, Queue, Reservations, Kitchen, Timetable, Products, Reports, Settings.
+- Cleanup performed: Viewport reset in E2E-089.
+- Launch decision: Partial tablet confidence only; physical iPad pass still recommended.
+
+#### SKR-PRELAUNCH-20260725-E2E-099
+
+- Priority: P2
+- Roles simulated: Owner
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Owner logged in after session recovery.
+- Test data: Settings Business Profile surface.
+- Browser steps executed:
+  - Opened Settings.
+  - Reviewed visible tabs/sections.
+  - Inspected visible Business Profile text and input values for secret leakage.
+- Expected final state: Launch config is reviewable and safe.
+- Actual final state: PASS.
+- Cross-module verification: Settings.
+- Functional correctness: 9/10
+- UI/UX clarity: 8/10
+- Workflow speed: 9/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 8.5/10
+- Final score: 8.5
+- Status: PASS
+- Evidence:
+  - Visible Settings sections: Business Profile, Navigation, Contact Information, Opening Hours, Payment Settings, Email (SMTP), Reservations, Contract templates, Taxes, Kitchen stations, Printing, Integrations, Social posts, Providers, Translations, Security, Data & privacy.
+  - Visible Business Profile fields did not expose API keys, webhook salts, tokens, or passwords.
+  - Business name showed `Ajisen Ramen`.
+- Defects found:
+  - Timezone field said no timezone configured; UTC will be used for reservation validation.
+- Improvements recommended:
+  - Set restaurant timezone to Singapore before launch if not already configured elsewhere.
+  - Review Payment Settings and Email (SMTP) pages separately for masked-secret behavior.
+- Cleanup performed: None.
+- Launch decision: Business Profile settings are safe; timezone needs review.
+
+#### SKR-PRELAUNCH-20260725-E2E-100
+
+- Priority: P0
+- Roles simulated: Owner/full team
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: 99 preceding scenarios plus controlled Phase J payment flow.
+- Test data: Existing reservations/queues/orders, T08 #253, Timetable QA shifts.
+- Browser steps executed:
+  - Completed controlled POS order/payment/close table flow.
+  - Verified Orders History and Reports.
+  - Checked launch close flow summary.
+  - Checked Settings safety.
+  - Attempted QA shift cleanup.
+- Expected final state: System is launch-ready only if every active record reconciles and cleanup is complete.
+- Actual final state: NOT 100% LAUNCH READY.
+- Cross-module verification: POS, Tables, Orders, Reports, Timetable, Settings.
+- Functional correctness: 8/10
+- UI/UX clarity: 8/10
+- Workflow speed: 7/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 8/10
+- Launch readiness: 7/10
+- Final score: 7.5
+- Status: PARTIAL
+- Evidence:
+  - Payment/revenue trail reconciled for T08 #253.
+  - Reports launch close flow showed `0 unpaid / open bills`, `0 kitchen tickets not settled`, `0 staff still clocked in`.
+  - Remaining concerns: `2 active` tables, QA Manager timetable shifts not removable in live UI, POS `Failed to fetch` resilience, role-switch credentials not fully certified, camera clock-in/out not physically verified.
+- Defects found:
+  - POS send failure needs better recovery UX.
+  - Timetable shift deletion did not work in this browser pass.
+  - Staff clock-in/out requires actual camera hardware pass.
+  - Role permissions require known waiter/host/kitchen credentials and a true logout/login matrix.
+  - Settings timezone appears unset in Business Profile.
+- Improvements recommended:
+  - Fix Timetable delete and user password autofill before final launch sign-off.
+  - Add POS retry/session recovery messaging.
+  - Run physical iPad + camera + printer/hardware launch rehearsal.
+  - Resolve or explicitly accept remaining active tables before go-live.
+- Cleanup performed: T08 closed; T07 cart cleared; QA MC test deleted; QA shifts still visible and need fix/manual cleanup.
+- Launch decision: Strong overall progress, but not “no more errors” launch-ready yet. The remaining blockers are finite and now clearly documented.

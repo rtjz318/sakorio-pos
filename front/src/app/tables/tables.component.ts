@@ -809,6 +809,27 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                     </button>
                   </div>
 
+                  @if (tableQrHandoff()?.tableId === table.id) {
+                    <div class="table-qr-handoff" role="status">
+                      <div>
+                        <strong>{{ tableQrHandoff()?.tableName }} QR is ready</strong>
+                        <small>
+                          @if (tableQrHandoff()?.opened) {
+                            Customer ordering opened in a new tab. Keep this link visible in case the browser blocked it.
+                          } @else if (tableQrHandoff()?.copied) {
+                            QR link copied. The visible link below is still available for staff.
+                          } @else {
+                            Use this visible fallback if popup or clipboard is blocked.
+                          }
+                        </small>
+                      </div>
+                      <a [href]="tableQrHandoff()?.url || '#'" target="_blank" rel="noopener noreferrer">
+                        Open customer ordering page
+                      </a>
+                      <code>{{ tableQrHandoff()?.url }}</code>
+                    </div>
+                  }
+
                   <div class="qr-section qr-section--compact">
                     <div class="qr-card">
                       <div class="qr-code-wrapper">
@@ -1123,6 +1144,14 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   <div class="quick-qr-actions">
                     <button type="button" class="btn btn-primary" (click)="printTableQr()">Print table QR</button>
                     <button type="button" class="btn btn-secondary" (click)="copyLink(serviceTable)">Copy link</button>
+                    <a class="btn btn-secondary" [href]="getMenuUrl(serviceTable)" target="_blank" rel="noopener noreferrer">
+                      Open customer ordering page
+                    </a>
+                  </div>
+                  <div class="quick-qr-fallback" role="status">
+                    <strong>Permanent customer QR link</strong>
+                    <small>This is the fixed link for {{ serviceTable.name }}. It stays visible even if popups or clipboard copy are blocked.</small>
+                    <code>{{ getMenuUrl(serviceTable) }}</code>
                   </div>
                 </div>
               }
@@ -1662,6 +1691,30 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     .header-actions { display: flex; gap: var(--space-1); }
     
     .qr-section { margin-bottom: var(--space-4); }
+    .table-qr-handoff {
+      display: grid;
+      gap: 0.45rem;
+      margin: 0.7rem 0;
+      padding: 0.75rem;
+      border: 1px solid #cfe7f4;
+      border-radius: 14px;
+      background: #eef7ff;
+      color: #0f4f76;
+      overflow: hidden;
+    }
+    .table-qr-handoff strong { display: block; font-size: 0.9rem; }
+    .table-qr-handoff small { display: block; color: #54748a; line-height: 1.35; }
+    .table-qr-handoff a { color: #0f4f76; font-weight: 800; text-decoration: underline; }
+    .table-qr-handoff code {
+      display: block;
+      max-width: 100%;
+      padding: 0.45rem 0.55rem;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.78);
+      color: #24495d;
+      font-size: 0.72rem;
+      overflow-wrap: anywhere;
+    }
     .qr-card {
       background: white; border: 2px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-4); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
@@ -2372,6 +2425,27 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     .quick-qr-card strong { font-size: 1.4rem; }
     .quick-qr-card small { max-width: 100%; overflow-wrap: anywhere; color: #7a847e; }
     .quick-qr-actions { display: flex; gap: 0.65rem; margin-top: 1rem; }
+    .quick-qr-fallback {
+      width: min(520px, 88vw);
+      display: grid;
+      gap: 0.45rem;
+      margin-top: 1rem;
+      padding: 0.85rem 1rem;
+      border: 1px solid #cfe7f4;
+      border-radius: 16px;
+      background: #eef7ff;
+      color: #0f4f76;
+      text-align: left;
+    }
+    .quick-qr-fallback small { color: #54748a; line-height: 1.4; }
+    .quick-qr-fallback code {
+      padding: 0.55rem 0.65rem;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.82);
+      color: #24495d;
+      font-size: 0.78rem;
+      overflow-wrap: anywhere;
+    }
     .quick-customize-dialog { width: min(620px, 94vw); max-height: 88vh; overflow: hidden; display: flex; flex-direction: column; border-radius: 24px; background: #fff; box-shadow: 0 30px 80px rgba(15, 23, 42, 0.3); }
     .quick-customize-dialog header { display: flex; justify-content: space-between; align-items: center; padding: 1.15rem 1.25rem; border-bottom: 1px solid #e5e8e4; }
     .quick-customize-dialog h3 { margin-top: 0.2rem; font-size: 1.45rem; }
@@ -2465,6 +2539,13 @@ export class TablesComponent implements OnInit {
   activatingTableId = signal<number | null>(null);
   /** While fetching staff menu token for open-in-new-tab. */
   staffMenuOpeningTableId = signal<number | null>(null);
+  tableQrHandoff = signal<{
+    tableId: number;
+    tableName: string;
+    url: string;
+    opened: boolean;
+    copied: boolean;
+  } | null>(null);
   waiters = signal<User[]>([]);
   queueSummary = signal<GuestQueueSummary | null>(null);
   queueEntries = signal<GuestQueueEntry[]>([]);
@@ -3759,34 +3840,39 @@ export class TablesComponent implements OnInit {
 
   private doOpenStaffMenu(table: Table) {
     if (!table.id) return;
-    this.staffMenuOpeningTableId.set(table.id);
-    this.api.getStaffMenuToken(table.id).subscribe({
-      next: (res) => {
-        this.staffMenuOpeningTableId.set(null);
-        const url = `${getCustomerPublicOrigin()}/menu/${res.table_token}?staff_access=${encodeURIComponent(res.token)}`;
-        window.open(url, '_blank', 'noopener,noreferrer');
-      },
-      error: () => {
-        this.staffMenuOpeningTableId.set(null);
-        this.showToast('ORDERS.OPEN_MENU_ERROR', 'error');
-      },
-    });
+    const url = this.getMenuUrl(table);
+    this.setTableQrHandoff(table, url, false, false);
+    const openedWindow = window.open(url, '_blank', 'noopener,noreferrer');
+    this.setTableQrHandoff(table, url, !!openedWindow, false);
   }
 
   copyLink(table: Table) {
     if (!table.id) return;
     const url = this.getMenuUrl(table);
     const tableId = table.id;
+    this.setTableQrHandoff(table, url, false, false);
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(() => {
         this.showCopiedFeedback(tableId);
+        this.setTableQrHandoff(table, url, false, true);
       }).catch(err => {
         this.fallbackCopy(url, tableId);
       });
     } else {
       this.fallbackCopy(url, tableId);
     }
+  }
+
+  private setTableQrHandoff(table: Table, url: string, opened: boolean, copied: boolean) {
+    if (!table.id) return;
+    this.tableQrHandoff.set({
+      tableId: table.id,
+      tableName: table.name || 'Table',
+      url,
+      opened,
+      copied,
+    });
   }
 
   private showCopiedFeedback(tableId: number) {
@@ -3808,6 +3894,8 @@ export class TablesComponent implements OnInit {
     try {
       if (document.execCommand('copy')) {
         this.showCopiedFeedback(tableId);
+        const table = this.tables().find(t => t.id === tableId);
+        if (table) this.setTableQrHandoff(table, text, false, true);
       }
     } catch (err) {
       this.error.set('Failed to copy link');

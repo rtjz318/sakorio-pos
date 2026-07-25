@@ -116,7 +116,7 @@ export const SUPPORT_USER_EMAIL = 'support@sakario.sg';
                   </svg>
                 </button>
               </div>
-              <form class="modal-body" (ngSubmit)="saveUser()">
+              <form class="modal-body" autocomplete="off" (ngSubmit)="saveUser()">
                 <div class="form-group">
                   <label for="email">{{ 'USERS.EMAIL' | translate }}</label>
                   <input
@@ -124,6 +124,9 @@ export const SUPPORT_USER_EMAIL = 'support@sakario.sg';
                     id="email"
                     [(ngModel)]="formEmail"
                     name="email"
+                    autocomplete="off"
+                    autocapitalize="none"
+                    spellcheck="false"
                     required
                     [disabled]="editingUser()?.id === currentUser()?.id"
                   />
@@ -231,6 +234,7 @@ export const SUPPORT_USER_EMAIL = 'support@sakario.sg';
                       id="password"
                       [(ngModel)]="formPassword"
                       name="password"
+                      autocomplete="new-password"
                       [required]="!editingUser()"
                       minlength="6"
                     />
@@ -251,6 +255,7 @@ export const SUPPORT_USER_EMAIL = 'support@sakario.sg';
                       id="password_confirm"
                       [(ngModel)]="formPasswordConfirm"
                       name="password_confirm"
+                      autocomplete="new-password"
                       minlength="6"
                     />
                     <button type="button" class="pw-toggle" (click)="showPasswordConfirm.set(!showPasswordConfirm())" [attr.aria-label]="showPasswordConfirm() ? ('USERS.HIDE_PASSWORD' | translate) : ('USERS.SHOW_PASSWORD' | translate)" tabindex="-1">

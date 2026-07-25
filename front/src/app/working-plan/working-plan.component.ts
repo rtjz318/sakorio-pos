@@ -531,15 +531,30 @@ function isValidView(v: string | null): v is ViewMode {
               @if (selectedDay.shifts.length) {
                 <div class="calendar-selected-shifts">
                   @for (shift of selectedDay.shifts; track shift.id) {
+                    <div
+                      class="calendar-selected-shift-card"
+                      [style.--wp-shift-h]="shiftHue(shift.user_id)"
+                    >
                     <button
                       type="button"
-                      class="calendar-selected-shift"
+                      class="calendar-selected-shift calendar-selected-shift-main"
                       (click)="openEdit(shift)"
-                      [style.--wp-shift-h]="shiftHue(shift.user_id)"
+                      [attr.aria-label]="calendarShiftEditAria(shift)"
                     >
                       <strong>{{ shift.user_name || 'Staff' }}</strong>
                       <span>{{ shift.start_time }}–{{ shift.end_time }} · {{ getRoleLabel(shift.user_role) }}</span>
                     </button>
+                    @if (canEditShift(shift)) {
+                      <div class="calendar-selected-shift-actions">
+                        <button type="button" class="btn btn-ghost btn-sm" (click)="openEdit(shift)">
+                          {{ 'COMMON.EDIT' | translate }}
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-sm danger" (click)="confirmDelete(shift)">
+                          {{ 'COMMON.DELETE' | translate }}
+                        </button>
+                      </div>
+                    }
+                    </div>
                   }
                 </div>
               }
@@ -1255,19 +1270,34 @@ function isValidView(v: string | null): v is ViewMode {
       grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
       gap: 0.45rem;
     }
-    .calendar-selected-shift {
+    .calendar-selected-shift-card {
       display: grid;
-      gap: 0.12rem;
+      gap: 0.45rem;
       min-height: 3rem;
       padding: 0.55rem 0.65rem;
       border: 1px solid hsla(var(--wp-shift-h), 48%, 36%, 0.28);
       border-left: 4px solid hsl(var(--wp-shift-h), 48%, 36%);
       border-radius: 10px;
       background: var(--card-bg, #fff);
+    }
+    .calendar-selected-shift {
+      display: grid;
+      gap: 0.12rem;
+      width: 100%;
+      padding: 0;
+      border: 0;
+      background: transparent;
       text-align: left;
       cursor: pointer;
+      color: inherit;
     }
     .calendar-selected-shift span { color: var(--text-muted, #666); font-size: 0.82rem; }
+    .calendar-selected-shift-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+    }
     .calendar-grid { display: flex; flex-direction: column; gap: 2px; width: 100%; max-width: 100rem; }
     .calendar-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
     .calendar-cell {
@@ -2609,7 +2639,11 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
   }
 
   onCalendarShiftDeleteClick(ev: Event, s: Shift): void {
+    ev.preventDefault();
     ev.stopPropagation();
+    if ('stopImmediatePropagation' in ev) {
+      ev.stopImmediatePropagation();
+    }
     this.confirmDelete(s);
   }
 

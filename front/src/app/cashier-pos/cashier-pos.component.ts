@@ -7737,7 +7737,12 @@ export class CashierPosComponent {
       if (mode === 'hitpay') {
         this.hitPayFlowState.set('failed');
       }
-      this.error.set(this.getErrorMessage(err, 'Unable to complete the cashier action.'));
+      this.error.set(
+        this.getRecoverableCashierErrorMessage(
+          err,
+          'Unable to complete the cashier action. The bill/cart state was kept on this table; retry or refresh the board before continuing.',
+        ),
+      );
     } finally {
       this.processingCheckout.set(false);
     }
@@ -7798,7 +7803,12 @@ export class CashierPosComponent {
       );
       await this.refreshPosData({ setLoading: false, clearError: false });
     } catch (err) {
-      this.error.set(this.getErrorMessage(err, 'Unable to send the order to the kitchen.'));
+      this.error.set(
+        this.getRecoverableCashierErrorMessage(
+          err,
+          'Unable to send the order to the kitchen. Your cart is still safe here; retry sending the ticket or refresh the board before taking payment.',
+        ),
+      );
     } finally {
       this.processingCheckout.set(false);
     }
@@ -8979,6 +8989,34 @@ export class CashierPosComponent {
     }
 
     return fallback;
+  }
+
+  private getRecoverableCashierErrorMessage(err: unknown, fallback: string): string {
+    if (this.isNetworkOrSessionError(err)) {
+      return 'Connection or session check failed. Your cart was not cleared; retry sending the ticket, or sign in again and return to this table before taking payment.';
+    }
+    return this.getErrorMessage(err, fallback);
+  }
+
+  private isNetworkOrSessionError(err: unknown): boolean {
+    if (!err || typeof err !== 'object') return false;
+    const anyErr = err as {
+      status?: unknown;
+      message?: unknown;
+      name?: unknown;
+      error?: { message?: unknown; detail?: unknown };
+    };
+    if (anyErr.status === 0 || anyErr.status === 401 || anyErr.status === 403) return true;
+    const text = [
+      anyErr.message,
+      anyErr.name,
+      anyErr.error?.message,
+      anyErr.error?.detail,
+    ]
+      .filter((value): value is string => typeof value === 'string')
+      .join(' ')
+      .toLowerCase();
+    return /failed to fetch|network|timeout|unauthorized|forbidden|session|login/.test(text);
   }
 
   private resolveSellableProductImageUrl(imageFilename: string | null, tenantId: number | null): string | null {

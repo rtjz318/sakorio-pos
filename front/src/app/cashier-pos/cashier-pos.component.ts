@@ -1115,12 +1115,23 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                       <div class="pos-service-toolbar">
                         <label class="pos-service-search">
                           <span>Search menu</span>
-                          <input
-                            id="pos-drawer-catalog-search"
-                            type="search"
-                            [ngModel]="productSearch()"
-                            (ngModelChange)="productSearch.set($event || '')"
-                            placeholder="Dish, drink, category" />
+                          <span style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.45rem; align-items: center;">
+                            <input
+                              id="pos-drawer-catalog-search"
+                              type="search"
+                              [ngModel]="productSearch()"
+                              (ngModelChange)="productSearch.set($event || '')"
+                              placeholder="Dish, drink, category" />
+                            @if (productSearch()) {
+                              <button
+                                type="button"
+                                aria-label="Clear menu search"
+                                style="min-height: 2.85rem; padding: 0 0.75rem; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); color: var(--color-muted); font: inherit; font-size: 0.78rem; font-weight: 900; cursor: pointer; white-space: nowrap;"
+                                (click)="clearProductSearch()">
+                                Clear
+                              </button>
+                            }
+                          </span>
                         </label>
                         <div class="pos-service-categories" aria-label="Menu categories">
                           <button type="button" [class.active]="!selectedCategory()" (click)="selectedCategory.set('')">
@@ -1467,6 +1478,12 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                     @if (posHistoryOrders().length === 0) {
                       <div class="pos-service-empty">No previous sessions for this table yet.</div>
                     } @else {
+                      @if (posHistoryNeedsLaunchReview()) {
+                        <div class="pos-service-empty pos-service-empty--checkout" role="note">
+                          <strong>Launch data review</strong>
+                          <span>Older staging/demo bills are separated from current orders. Review or archive them before go-live if this table should start clean.</span>
+                        </div>
+                      }
                       <div class="pos-service-order-list">
                         @for (order of posHistoryOrders(); track order.id) {
                           <button type="button" class="pos-service-order-card" (click)="continueOrderInPos(order)">
@@ -5825,6 +5842,17 @@ export class CashierPosComponent {
     const currentIds = new Set(this.posCurrentSessionOrders().map((order) => order.id));
     return this.tableScopedOrders().filter((order) => !currentIds.has(order.id));
   });
+  posHistoryNeedsLaunchReview = computed(() => {
+    const history = this.posHistoryOrders();
+    if (history.length >= 8) {
+      return true;
+    }
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    return history.some((order) => {
+      const timestamp = this.backendTimestamp(order.created_at);
+      return timestamp > 0 && Date.now() - timestamp > sevenDaysMs;
+    });
+  });
   queueOrders = computed(() => {
     const table = this.effectiveCheckoutTable();
     if (table?.id != null) {
@@ -6338,11 +6366,32 @@ export class CashierPosComponent {
   }
 
   loadData(): void {
-    this.loading.set(true);
-    this.error.set(null);
+    void this.refreshPosData({ setLoading: true, clearError: true });
+  }
+
+  private async refreshPosData(
+    options: {
+      setLoading?: boolean;
+      clearError?: boolean;
+      applyRouteFocus?: boolean;
+      processHitPayReturn?: boolean;
+    } = {},
+  ): Promise<void> {
+    const setLoading = options.setLoading !== false;
+    const clearError = options.clearError !== false;
+    const applyRouteFocus = options.applyRouteFocus !== false;
+    const processHitPayReturn = options.processHitPayReturn !== false;
+
+    if (setLoading) {
+      this.loading.set(true);
+    }
+    if (clearError) {
+      this.error.set(null);
+    }
     const loadWarnings: string[] = [];
 
-    forkJoin({
+    try {
+      const { settings, tables, orders, tenantProducts, legacyProducts } = await firstValueFrom(forkJoin({
       settings: this.api.getTenantServiceSettings().pipe(catchError(() => of(null))),
       tables: this.api.getTablesWithStatus().pipe(
         catchError(() => {
@@ -6370,32 +6419,35 @@ export class CashierPosComponent {
           return of([]);
         }),
       ),
-    }).subscribe({
-      next: ({ settings, tables, orders, tenantProducts, legacyProducts }) => {
-        this.settings.set(settings);
-        this.tables.set(tables);
-        this.orders.set(orders);
-        this.tenantProducts.set(tenantProducts);
-        this.legacyProducts.set(legacyProducts);
+      }));
+      this.settings.set(settings);
+      this.tables.set(tables);
+      this.orders.set(orders);
+      this.tenantProducts.set(tenantProducts);
+      this.legacyProducts.set(legacyProducts);
+      if (setLoading) {
         this.loading.set(false);
-        if (loadWarnings.length) {
-          this.error.set(`POS loaded partially. Refresh if ${loadWarnings.join(', ')} data is needed.`);
-        }
-        if (this.focusNextClearTableAfterReload) {
-          this.focusNextClearTableAfterReload = false;
-          this.focusReadyTableAfterReload();
-          return;
-        }
-        if (this.routeHasExplicitSelection()) {
-          this.applyFocusFromQuery();
-        }
+      }
+      if (loadWarnings.length) {
+        this.error.set(`POS loaded partially. Refresh if ${loadWarnings.join(', ')} data is needed.`);
+      }
+      if (this.focusNextClearTableAfterReload) {
+        this.focusNextClearTableAfterReload = false;
+        this.focusReadyTableAfterReload();
+        return;
+      }
+      if (applyRouteFocus && this.routeHasExplicitSelection()) {
+        this.applyFocusFromQuery();
+      }
+      if (processHitPayReturn) {
         void this.processHitPayReturnFromQuery();
-      },
-      error: (err) => {
+      }
+    } catch (err) {
+      if (setLoading) {
         this.loading.set(false);
-        this.error.set(this.getErrorMessage(err, 'Unable to load cashier POS data.'));
-      },
-    });
+      }
+      this.error.set(this.getErrorMessage(err, 'Unable to load cashier POS data.'));
+    }
   }
 
   selectTable(table: CanvasTable): void {
@@ -6505,6 +6557,11 @@ export class CashierPosComponent {
       const input = document.getElementById(inputId) as HTMLInputElement | null;
       input?.focus();
     });
+  }
+
+  clearProductSearch(): void {
+    this.productSearch.set('');
+    this.focusCatalogSearch();
   }
 
   focusLiveBillForItems(): void {
@@ -7048,7 +7105,7 @@ export class CashierPosComponent {
           ? `${table.name} QR is open. The QR card and link are also shown below.`
           : `${table.name} QR is ready below. If the browser blocked the new tab, use the QR card or copy the link.`,
       );
-      this.loadData();
+      await this.refreshPosData({ setLoading: false, clearError: false });
     } catch (err) {
       this.error.set(this.getErrorMessage(err, `Unable to open QR ordering for ${table.name}.`));
     }
@@ -7064,7 +7121,7 @@ export class CashierPosComponent {
       await this.ensureTableReady(table);
       this.markTableLocallyActive(table);
       await this.copyCustomerMenuUrl(table, url);
-      this.loadData();
+      await this.refreshPosData({ setLoading: false, clearError: false });
     } catch (err) {
       this.error.set(this.getErrorMessage(err, `Unable to prepare QR ordering for ${table.name}.`));
     }
@@ -7559,14 +7616,18 @@ export class CashierPosComponent {
         throw new Error('No payable order could be found for this table.');
       }
 
+      const checkoutAmountCents = this.checkoutAmountCents();
+
       if (mode === 'cash' || mode === 'card_terminal') {
         await firstValueFrom(this.api.markOrderPaid(orderId, mode));
         this.applyPaidOrderLocally(orderId, tableId, mode);
+        this.selectedOrderId.set(orderId);
+        this.syncSelectionToQuery(tableId, orderId);
         this.lastCheckoutOutcome.set({
           mode,
           tableName: table.name,
           orderId,
-          amountCents: this.checkoutAmountCents(),
+          amountCents: checkoutAmountCents,
         });
         this.notice.set(
           mode === 'cash'
@@ -7590,23 +7651,21 @@ export class CashierPosComponent {
         if (hitPayCheckoutWindow && !hitPayCheckoutWindow.closed) {
           hitPayCheckoutWindow.location.href = payment.checkout_url;
           this.selectedOrderId.set(orderId);
+          this.syncSelectionToQuery(tableId, orderId);
           this.clearCart();
-          this.queueReadyTableAfterReload(tableId, 'catalog', false);
           this.hitPayFlowState.set('idle');
           this.notice.set(`HitPay checkout opened in a new tab for ${table.name}. Keep this bill open until payment is confirmed.`);
-          this.loadData();
+          await this.refreshPosData({ setLoading: false, clearError: false });
           return;
         }
         window.location.href = payment.checkout_url;
         return;
       }
 
-      this.selectedOrderId.set(null);
       this.clearCart();
-      if (mode === 'cash' || mode === 'card_terminal') {
-        this.queueReadyTableAfterReload(tableId, 'catalog', false);
-      }
-      this.loadData();
+      this.selectedOrderId.set(orderId);
+      this.syncSelectionToQuery(tableId, orderId);
+      await this.refreshPosData({ setLoading: false, clearError: false });
     } catch (err) {
       if (hitPayCheckoutWindow && !hitPayCheckoutWindow.closed) {
         hitPayCheckoutWindow.close();
@@ -7665,6 +7724,7 @@ export class CashierPosComponent {
       }
 
       this.selectedOrderId.set(orderId);
+      this.syncSelectionToQuery(tableId, orderId);
       this.clearCart();
       this.posDrawerView.set('checkout');
       this.notice.set(
@@ -7672,7 +7732,7 @@ export class CashierPosComponent {
           ? `Add-on round sent to bill #${orderId} for ${table.name}. Current orders stay active until the table is closed.`
           : `Order #${orderId} sent for ${table.name}. Review the bill, add another round, or collect payment.`,
       );
-      this.loadData();
+      await this.refreshPosData({ setLoading: false, clearError: false });
     } catch (err) {
       this.error.set(this.getErrorMessage(err, 'Unable to send the order to the kitchen.'));
     } finally {
@@ -7723,7 +7783,7 @@ export class CashierPosComponent {
         await firstValueFrom(this.api.activateTable(table.id));
         this.notice.set(`${table.name} is now accepting orders.`);
       }
-      this.loadData();
+      await this.refreshPosData({ setLoading: false, clearError: false });
     } catch (err) {
       this.error.set(
         this.getErrorMessage(
@@ -7842,9 +7902,10 @@ export class CashierPosComponent {
       if (this.selectedTableId() === tableId) {
         this.selectedTableId.set(null);
         this.selectedOrderId.set(null);
+        this.syncSelectionToQuery(null, null);
       }
       this.queueReadyTableAfterReload(tableId, 'catalog', false);
-      this.loadData();
+      await this.refreshPosData({ setLoading: false, clearError: false });
     } catch (err) {
       this.error.set(this.getErrorMessage(err, 'Unable to close the table.'));
     } finally {
@@ -8101,7 +8162,7 @@ export class CashierPosComponent {
       };
       this.showQuickCreate.set(false);
       this.notice.set(`${name} is now sellable from the cashier screen.`);
-      this.loadData();
+      await this.refreshPosData({ setLoading: false, clearError: false });
     } catch (err) {
       this.error.set(this.getErrorMessage(err, 'Unable to create the quick product.'));
     } finally {
@@ -8679,7 +8740,7 @@ export class CashierPosComponent {
           : `HitPay checkout returned "${rawReturnStatus}" for ${table.name}. The bill is still open and ready to retry.`,
       );
       await this.clearHitPayReturnQuery();
-      this.loadData();
+      await this.refreshPosData({ setLoading: false, clearError: false });
       return;
     }
 
@@ -8697,9 +8758,9 @@ export class CashierPosComponent {
         null;
       this.selectedTableId.set(table.id);
       this.selectedOrderId.set(normalizedOrderId);
+      this.syncSelectionToQuery(table.id, normalizedOrderId);
       this.selectedSettlementMode.set('hitpay');
       this.clearCart();
-      this.queueReadyTableAfterReload(table.id, 'catalog', false);
       this.lastCheckoutOutcome.set({
         mode: 'hitpay',
         tableName: table.name,
@@ -8709,7 +8770,7 @@ export class CashierPosComponent {
       this.hitPayFlowState.set('idle');
       this.notice.set(`HitPay checkout completed for ${table.name}. Close the table when guests leave.`);
       await this.clearHitPayReturnQuery();
-      this.loadData();
+      await this.refreshPosData({ setLoading: false, clearError: false });
     } catch (err) {
       this.hitPayFlowState.set('failed');
       this.error.set(this.getErrorMessage(err, 'Unable to confirm the HitPay payment.'));

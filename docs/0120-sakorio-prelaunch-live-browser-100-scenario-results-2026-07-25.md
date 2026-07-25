@@ -66,6 +66,8 @@ Current run note: execution started after the POS drawer QR removal/menu-card po
 | SKR-PRELAUNCH-20260725-E2E-048 | P1 | PASS/PARTIAL | 8.5 | Wrong pre-send item `C1 (2pcs)Deep Fried Chicken` could be cleared before kitchen send/payment, returning T02 to SGD 0.00. | Post-send manager void/refund/correction path was not executed; needs dedicated manager-permission pass. |
 | SKR-PRELAUNCH-20260725-E2E-049 | P1 | PASS/PARTIAL | 8.8 | T08 History showed recently closed #238 with Paid state, A5 Chanja, Terminal, SGD 5.00. | Older legacy demo/test history entries remain visible with outdated item names; clean launch data or label demo history. Reopen/refund action not executed. |
 | SKR-PRELAUNCH-20260725-E2E-050 | P2 | PARTIAL | 8.5 | POS layout remained usable at the available browser landscape size; payment lane stayed visible/reachable and no measured menu/cart overlap occurred. | In-app browser viewport override did not actually switch to 1024x768; true iPad device/browser test still required. |
+| SKR-PRELAUNCH-20260725-E2E-051 | P0 | PASS | 9.5 | T03 cashier order #240 stayed current until terminal payment and final close, then moved to History with T03 available. | Completed fix: desktop paid-close confirmation now exposes `Yes, close table`. |
+| SKR-PRELAUNCH-20260725-E2E-052 | P0 | PASS | 9.5 | T08 fixed QR opened, customer placed two QR rounds into the same #241 session, KDS processed both items, cashier terminal-paid and closed the table. | Completed fixes: fixed QR activation is visible above the fold, and customer product detail add-to-cart is reachable on 1280x720/tablet-landscape height. |
 
 ## Detailed execution notes
 
@@ -1082,3 +1084,44 @@ Live build observed for this phase: `2.1.6 a7e24524`.
 - Improvements completed: Added final confirmation to desktop checkout outcome and ready-to-clear bill dock branches, matching the POS drawer behavior.
 - Cleanup performed: T03 order #240 terminal-paid and closed; T03 reset to Available / Ready.
 - Launch decision: Current/history boundary is ready for launch for this flow.
+
+#### SKR-PRELAUNCH-20260725-E2E-052
+
+- Priority: P0
+- Roles simulated: Host, customer, kitchen, cashier
+- Browser/device mode: Live browser at observed 1280x720 landscape height
+- Live build: `2.1.6 cf39262f`
+- Starting state: T08 seated/start-order state; fixed QR URL existed but needed staff-open verification.
+- Test data: T08 fixed QR, order #241, 1x A12 Boiled Seasoned Egg SGD 2.00, 1x A7 Edamame SGD 6.00, terminal payment SGD 8.00.
+- Browser steps executed:
+  - Opened live Tables and verified the live build reached `cf39262f`.
+  - Verified T08 fixed QR ordering could be opened from the Tables table-service header after the fixed-QR activation polish.
+  - Opened the fixed customer QR URL for T08.
+  - Confirmed customer QR did not ask for customer name and showed segmented category headers instead of a single menu wall.
+  - Opened A12 product detail and measured the new inline `Add to cart · SGD 2.00` button inside the 1280x720 viewport.
+  - Added A12 from product detail and placed the first customer order.
+  - Verified customer page showed Order #241, Pending, SGD 2.00.
+  - Added A7 Edamame as a second round from the same QR page.
+  - Verified the second submit button changed to `Add to order`, and after submission #241 remained the same current order with both A12 and A7, total SGD 8.00.
+  - Opened staff Orders and verified T08 showed one active ticket, latest #241, SGD 8.00.
+  - Opened ticket detail and verified both A12 and A7 were present on #241.
+  - Opened Kitchen & beverages and verified #241/T08 appeared with both items in New tickets.
+  - Advanced #241 through `Start ticket` → `Ready for pass` → `Served / Delivered`.
+  - Verified KDS returned to zero active tickets and showed the served completion toast/countdown.
+  - Opened POS T08/#241, charged terminal for SGD 8.00, used final close confirmation, and verified T08 reset to Available / Ready for order.
+- Expected final state: Fixed QR table can accept repeat customer rounds into one active session; KDS sees the ticket; cashier can pay and close; table resets cleanly.
+- Actual final state: PASS after live-found UI fixes.
+- Cross-module verification: Tables fixed QR, customer QR menu, Orders current ticket, KDS status lanes, POS terminal payment, POS close confirmation, table reset.
+- Functional correctness: 10/10
+- UI/UX clarity: 9/10
+- Workflow speed: 9/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 10/10
+- Launch readiness: 9.5/10
+- Final score: 9.5
+- Status: PASS
+- Evidence: Customer current order showed `Order # 241`, `A7 Edamame`, `A12 Boiled Seasoned Egg`, SGD 8.00; Orders showed `Latest #241`; KDS showed `#241 · T08`; POS showed `T08 is clear and ready for the next cashier bill`.
+- Defects found: Fixed QR activation was not obvious above the fold, and product-detail add-to-cart initially rendered below the usable viewport on the live 1280x720 browser.
+- Improvements completed: Added above-fold fixed QR activation in Tables; added customer QR inline add-to-cart and compact tablet/landscape product detail sheet.
+- Cleanup performed: #241 served in KDS, terminal-paid, closed; T08 reset to Available / Ready.
+- Launch decision: Fixed QR multi-round customer ordering is ready for launch at the tested landscape/browser size. True physical iPad pass remains useful before production go-live.

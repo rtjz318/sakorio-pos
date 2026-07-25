@@ -329,12 +329,31 @@
 // Staff toolbar: hide main sidebar (tablet+) for a wider canvas
 @include for-tablet-portrait-up {
     .layout.layout--nav-collapsed {
+        .mobile-header {
+            display: flex;
+        }
+
         .sidebar {
             transform: translateX(-100%);
-            pointer-events: none;
+            transition: transform 0.25s ease;
+            pointer-events: auto;
         }
+
+        &.sidebar-open .sidebar {
+            transform: translateX(0);
+        }
+
+        &.sidebar-open .overlay {
+            display: block;
+        }
+
+        .close-btn {
+            display: block;
+        }
+
         .main {
             margin-left: 0;
+            padding-top: calc(56px + var(--space-6));
             max-width: 100vw;
         }
     }

@@ -86,6 +86,16 @@ Current run note: execution started after the POS drawer QR removal/menu-card po
 | SKR-PRELAUNCH-20260725-E2E-068 | P2 | PASS/PARTIAL | 8.0 | Kitchen route filters were tested: Beverages-only hid #252, Kitchen-only showed it, All restored it. | Filters do not lose context, but beverage routing defect makes Beverages-only falsely empty for drinks. |
 | SKR-PRELAUNCH-20260725-E2E-069 | P2 | PASS | 9.0 | QR add-on updated #252 to two items; Kitchen showed readable names/categories for A12 and C1 without relying on images. | KDS item content is robust even when product images are absent from the production board. |
 | SKR-PRELAUNCH-20260725-E2E-070 | P2 | PASS/PARTIAL | 8.5 | Waiter moved #252 to Ready/Served, POS showed bill #252 payable SGD 8.00, terminal payment and close reset T04. | Service-to-billing handoff works; one POS tab got stuck syncing and needed a fresh open. |
+| SKR-PRELAUNCH-20260725-E2E-071 | P0 | PASS/PARTIAL | 8.5 | Compared 20 PDF-derived items against live POS: 20/20 names/prices matched; Products/QR/POS images loaded after scroll/reload. | One sampled item, B7, had no matching image alt in POS image list; QR requires active table session for full menu access. |
+| SKR-PRELAUNCH-20260725-E2E-072 | P1 | PASS/PARTIAL | 7.5 | Products search and category tabs work; edit view opens safely and Cancel returns without saving. | Edit form category dropdown shows generic categories instead of imported menu categories, creating recategorization risk. |
+| SKR-PRELAUNCH-20260725-E2E-073 | P1 | PASS | 9.0 | Active T09 QR category chips were tapped across all major categories; counts and filtered items changed logically. | Category navigation handles 112 items well. |
+| SKR-PRELAUNCH-20260725-E2E-074 | P1 | PASS | 9.0 | POS search added A12 and B7 to an unsent T06 cart, showed correct totals, then cart was cleared without sending. | Staff can sell/search image-backed and image-unclear items. |
+| SKR-PRELAUNCH-20260725-E2E-075 | P1 | PASS | 9.0 | Products reload showed 90/90 images loaded; QR lazy images became 96/96 loaded after scroll with 0 broken. | Persistent image storage is healthy; QR lazy images need scroll to fully load. |
+| SKR-PRELAUNCH-20260725-E2E-076 | P2 | FAIL/PARTIAL | 5.0 | Active QR menu has category chips but no search input. | Customers cannot search lowercase/partial text; long 112-item menu still depends on category browsing. |
+| SKR-PRELAUNCH-20260725-E2E-077 | P2 | PASS | 9.0 | POS search handled promo, Yume, Chill Green, Stir fried pork hearts, 98WINES, and Coca terms. | Long imported item names remain readable and searchable. |
+| SKR-PRELAUNCH-20260725-E2E-078 | P2 | PARTIAL | 6.5 | Products page loaded with 90/90 images, but requested iPad viewport still reported 1280x720 and body width 1272. | Current live-browser tool cannot prove iPad Products layout; physical/iPad browser pass still needed. |
+| SKR-PRELAUNCH-20260725-E2E-079 | P2 | PASS | 9.0 | Active QR menu appeared by first timed read and showed 112 items quickly. | Loading is good in current warmed/live environment. |
+| SKR-PRELAUNCH-20260725-E2E-080 | P2 | PASS | 9.0 | QR, POS, Orders, and Reports all use consistent `SGD xx.xx` formatting; Reports handles commas and decimals. | Currency display is consistent across core surfaces. |
 
 ## Detailed execution notes
 
@@ -1959,3 +1969,372 @@ Live build observed for this phase: `2.1.6 a7e24524`.
   - Preserve a manual `Refresh table session` action inside the POS drawer for stuck sync states.
 - Cleanup performed: Terminal-paid and closed T04/#252.
 - Launch decision: Service-to-billing handoff works, but stuck sync tabs need a polish fix for 10/10 confidence.
+
+### Phase H - Menu, products, images, and catalog accuracy
+
+#### SKR-PRELAUNCH-20260725-E2E-071
+
+- Priority: P0
+- Roles simulated: Manager, customer, cashier
+- Browser/device mode: Desktop live browser plus rendered PDF reference
+- Live build: `2.1.6 cf39262f`
+- Starting state: Uploaded image-rich PDF `MENU (1).pdf` rendered locally for visual reference; live POS/Products/QR on Sakorio domain.
+- Test data: 20 PDF-derived spot-check items from Quick Bites, Stir Fried, and Deep Fried pages.
+- Browser/PDF steps executed:
+  - Rendered `MENU (1).pdf` to PNG pages under `tmp/pdfs/menu1_render`.
+  - Visually inspected PDF pages for Quick Bites, Stir Fried, and Deep Fried items/prices/images.
+  - Opened live staff POS T06 menu with 112 items.
+  - Extracted live POS text and image alt data.
+  - Compared 20 sampled PDF items against live POS names and prices.
+  - Checked Products and QR image load counts during E2E-075.
+- Expected final state: No funny characters, wrong prices, or missing key images in the sampled menu.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: Rendered PDF, POS menu, Products, QR menu.
+- Functional correctness: 9/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 8.5/10
+- Final score: 8.5
+- Status: PASS/PARTIAL
+- Evidence:
+  - 20/20 sampled names/prices matched live POS: A1, A2, A3, A7, A10, A12, A16, B1, B2 half/full, B6 5pcs/8pcs, B7, C1 2pcs/4pcs, C2 2pcs/4pcs, C3, C4, C5.
+  - POS showed `All 112`, category counts, and `SGD` prices matching the PDF-derived expectations.
+  - POS image DOM showed 90 loaded images; Products later confirmed 90/90 loaded; QR confirmed 96/96 loaded after scroll.
+  - B7 was present with correct name/price, but no matching image alt was found in the POS image-alt list.
+- Defects found:
+  - B7 image mapping/alt appears missing or not aligned with its product name, even though the product exists and is sellable.
+  - QR menu requires an active/open table session; closed fixed QR links correctly show `Table Closed`, but this makes pure catalog checking dependent on finding an active table.
+- Improvements recommended:
+  - Audit image mapping for B7 `Ramen Izakaya Style Omelette`.
+  - Add a staff-only menu preview route that shows the customer menu without requiring an active table session.
+  - Keep using PDF-rendered visual audit for future menu imports because the PDF is image-based and text extraction is blank.
+- Cleanup performed: None; read-only except later POS unsent cart test was cleared in E2E-074.
+- Launch decision: Menu data is broadly launch-ready; B7 image mapping and staff preview would lift this to 10/10.
+
+#### SKR-PRELAUNCH-20260725-E2E-072
+
+- Priority: P1
+- Roles simulated: Manager
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Products page loaded under authenticated staff session.
+- Test data: Search terms `A12`, `C1`, `Mapo`, `Coca-Cola`, `Tsukemen`; category tabs across imported menu categories.
+- Browser steps executed:
+  - Opened `/staff/products`.
+  - Verified category ribbon: Deep Fried Menu, Drink Menu, Izakaya Menu, Noodle & Rice Menu, Quick Bites, Stir Fried Menu.
+  - Searched for five terms and verified matching products/prices/categories.
+  - Reloaded Products to clear search state.
+  - Clicked all imported category tabs and verified each filtered to the correct category list.
+  - Opened first product edit/details view via `Edit`.
+  - Verified image preview, fields, Cancel and Update buttons.
+  - Clicked Cancel without saving.
+- Expected final state: Menu management is usable and safe without accidental changes.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: Products list, search, category filters, edit form.
+- Functional correctness: 8/10
+- UI/UX clarity: 7/10
+- Workflow speed: 8/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 7/10
+- Launch readiness: 7.5/10
+- Final score: 7.5
+- Status: PASS/PARTIAL
+- Evidence:
+  - Search found A12, C1/C1.5, B2/B2.5 Mapo, Coca-Cola/Coca-Cola Zero, and Tsukemen variants.
+  - Category tabs worked after page reload and showed correct imported category rows.
+  - Edit view opened with product image, Product Name, Price, Category, Prep station, Tax override, date windows, image upload, customization questions, Cancel, Update.
+  - Cancel returned to Products without saving.
+- Defects found:
+  - Edit form Category dropdown showed generic categories (`Beverages`, `Desserts`, `Main Course`, `Sides`, `Starters`) instead of the imported categories shown in the grid.
+  - Category tab filtering can look blank if a prior search term is still applied; a reload cleared it.
+  - Product row edit/delete icon buttons are icon-only in the grid.
+- Improvements recommended:
+  - Make the edit-form Category dropdown use the same imported category list as the Products grid/ribbon.
+  - Add a visible `Clear search` chip when category tabs are filtered by hidden search state.
+  - Add accessible labels/tooltips for edit/delete buttons.
+- Cleanup performed: Cancelled edit form; no product changes saved.
+- Launch decision: Products is usable, but edit-category mismatch is a manager-facing launch polish issue.
+
+#### SKR-PRELAUNCH-20260725-E2E-073
+
+- Priority: P1
+- Roles simulated: Customer
+- Browser/device mode: Desktop live browser on active T09 QR link
+- Live build: `2.1.6 cf39262f`
+- Starting state: Active fixed QR found for T09; other closed QR links correctly showed `Table Closed`.
+- Test data: T09 QR menu, all category chips.
+- Browser steps executed:
+  - Opened active T09 QR menu.
+  - Clicked All, Deep Fried Menu, Drink Menu, Izakaya Menu, Noodle & Rice Menu, Quick Bites, and Stir Fried Menu.
+  - Verified product count and item list changed logically.
+  - Retested Quick Bites after a bad capture and confirmed 19 items.
+- Expected final state: Category navigation works with 112-item menu.
+- Actual final state: PASS.
+- Cross-module verification: QR menu category chips.
+- Functional correctness: 9/10
+- UI/UX clarity: 9/10
+- Workflow speed: 9/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 9/10
+- Final score: 9.0
+- Status: PASS
+- Evidence:
+  - All showed 112 items with segmented category headers.
+  - Deep Fried showed 8 items; Drink showed 41; Izakaya showed 8; Noodle & Rice showed 24; Quick Bites showed 19; Stir Fried showed 12.
+- Defects found:
+  - None blocking.
+- Improvements recommended:
+  - Consider sticky category chips on mobile so customers do not scroll back to the top.
+- Cleanup performed: None; no order placed.
+- Launch decision: QR category navigation is launch-ready.
+
+#### SKR-PRELAUNCH-20260725-E2E-074
+
+- Priority: P1
+- Roles simulated: Cashier
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: T06 had a live seated session but no current ticket.
+- Test data: Unsent cart only: `A12 Boiled Seasoned Egg` and `B7 Ramen Izakaya Style Omelette`.
+- Browser steps executed:
+  - Searched POS menu for `A12`.
+  - Added A12 to cart.
+  - Searched POS menu for `B7`.
+  - Added B7 to cart.
+  - Verified current cart with 2 items and total `SGD 14.00`.
+  - Clicked Clear and verified cart returned to 0 items without sending to kitchen.
+- Expected final state: Staff can sell all items even if an image is missing/unclear.
+- Actual final state: PASS.
+- Cross-module verification: POS table drawer search, cart, clear action.
+- Functional correctness: 9/10
+- UI/UX clarity: 9/10
+- Workflow speed: 9/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 9/10
+- Final score: 9.0
+- Status: PASS
+- Evidence:
+  - A12 search returned exact item at `SGD 2.00`.
+  - B7 search returned exact item at `SGD 12.00`.
+  - Cart showed both items and total `SGD 14.00`.
+  - Cart cleared successfully; no kitchen ticket was created.
+- Defects found:
+  - None blocking.
+- Improvements recommended:
+  - Keep item-code search behavior; it is excellent for staff speed.
+- Cleanup performed: Cleared unsent T06 cart.
+- Launch decision: POS menu search/add is launch-ready.
+
+#### SKR-PRELAUNCH-20260725-E2E-075
+
+- Priority: P1
+- Roles simulated: Manager, customer
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Images had previously been reuploaded after persistent disk setup.
+- Test data: Products reload and active T09 QR reload/scroll.
+- Browser steps executed:
+  - Reloaded Products page.
+  - Counted image DOM load state.
+  - Reloaded active T09 QR menu.
+  - Counted image DOM load state before and after scrolling through the whole QR menu.
+- Expected final state: Persistent disk/image path remains stable.
+- Actual final state: PASS.
+- Cross-module verification: Products, QR menu images, `api.sakorio.com/uploads/...` URLs.
+- Functional correctness: 9/10
+- UI/UX clarity: 9/10
+- Workflow speed: 9/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 9/10
+- Final score: 9.0
+- Status: PASS
+- Evidence:
+  - Products reload: 90 image elements, 90 loaded, 0 broken.
+  - QR initial load: offscreen lazy images reported incomplete until scroll.
+  - QR after full scroll: 96 image elements, 96 loaded, 0 broken.
+  - Image URLs served from `https://api.sakorio.com/uploads/1/products/...`.
+- Defects found:
+  - None blocking; initial QR incomplete count was lazy-loading, not broken storage.
+- Improvements recommended:
+  - Optional: add graceful image placeholders while QR lazy images load below the fold.
+- Cleanup performed: None.
+- Launch decision: Image persistence is launch-ready.
+
+#### SKR-PRELAUNCH-20260725-E2E-076
+
+- Priority: P2
+- Roles simulated: Customer
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Active T09 QR menu open.
+- Test data: Expected search use: lowercase/partial menu text and category text.
+- Browser steps executed:
+  - Inspected QR page inputs.
+  - Verified category chips exist.
+  - Looked for a customer-facing search box.
+- Expected final state: QR search is forgiving for customers.
+- Actual final state: FAIL/PARTIAL.
+- Cross-module verification: QR menu DOM and visible UI.
+- Functional correctness: 5/10
+- UI/UX clarity: 5/10
+- Workflow speed: 5/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 8/10
+- Launch readiness: 5/10
+- Final score: 5.0
+- Status: FAIL/PARTIAL
+- Evidence:
+  - QR page had no `input` elements.
+  - Customers can use category chips, but cannot search `egg`, `coca`, `ramen`, etc.
+- Defects found:
+  - No QR menu search input exists for a 112-item menu.
+- Improvements recommended:
+  - Add a sticky customer menu search field with partial/lowercase matching.
+  - Search should match item name, code, category, and description.
+- Cleanup performed: None.
+- Launch decision: Category navigation is good, but QR search should be added for 10/10 customer experience.
+
+#### SKR-PRELAUNCH-20260725-E2E-077
+
+- Priority: P2
+- Roles simulated: Cashier
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: POS T06 drawer open.
+- Test data: POS search terms `promo`, `Yume`, `Chill Green`, `Stir fried pork hearts`, `98WINES`, `Coca`.
+- Browser steps executed:
+  - Typed each search term into POS search.
+  - Verified matching imported products and prices.
+  - Cleared search field.
+- Expected final state: Long imported item names remain readable/searchable.
+- Actual final state: PASS.
+- Cross-module verification: POS menu search.
+- Functional correctness: 9/10
+- UI/UX clarity: 9/10
+- Workflow speed: 9/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 9/10
+- Final score: 9.0
+- Status: PASS
+- Evidence:
+  - `promo` found `(Promo) Sake Yume no Kaori 180ml $18`.
+  - `Yume` found promo and regular Yume no Kaori.
+  - `Chill Green` found bottle/glass.
+  - `Stir fried pork hearts` found B4 half/full.
+  - `98WINES` found rose/white.
+  - `Coca` found Coca-Cola and Coca-Cola Zero.
+- Defects found:
+  - None blocking.
+- Improvements recommended:
+  - Keep this POS search behavior as the standard for QR search.
+- Cleanup performed: Search field cleared; no cart items sent.
+- Launch decision: POS search is launch-ready.
+
+#### SKR-PRELAUNCH-20260725-E2E-078
+
+- Priority: P2
+- Roles simulated: Manager
+- Browser/device mode: Attempted iPad landscape viewport in live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Products page loaded.
+- Test data: Products page with 112 products and 90 loaded images.
+- Browser steps executed:
+  - Requested viewport override `1024x768`.
+  - Reloaded Products page.
+  - Measured reported viewport and body dimensions.
+  - Reset viewport override.
+- Expected final state: Product admin is tablet-usable.
+- Actual final state: PARTIAL.
+- Cross-module verification: Products page, viewport capability.
+- Functional correctness: 7/10
+- UI/UX clarity: 6/10
+- Workflow speed: 7/10
+- Layout/device stability: 6/10
+- Data/payment/session integrity: 8/10
+- Launch readiness: 6.5/10
+- Final score: 6.5
+- Status: PARTIAL
+- Evidence:
+  - Products loaded with 90/90 images.
+  - Requested iPad viewport still reported `innerWidth 1280`, `innerHeight 720`, body width `1272`.
+- Defects found:
+  - Current live browser did not honor iPad viewport override, so this cannot be certified as a true iPad QA pass.
+- Improvements recommended:
+  - Run Products admin on a real iPad or browser devtools device emulation outside this in-app browser limitation.
+  - Avoid relying on Products admin for live service iPads until physical-tablet check is complete.
+- Cleanup performed: Viewport reset requested.
+- Launch decision: Products data is good; tablet layout still needs a real-device pass.
+
+#### SKR-PRELAUNCH-20260725-E2E-079
+
+- Priority: P2
+- Roles simulated: Customer
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Active T09 QR menu.
+- Test data: Timed QR reload reads.
+- Browser steps executed:
+  - Opened active T09 QR menu with fresh `qa` query.
+  - Read body text after short waits.
+  - Verified menu content appeared.
+- Expected final state: Loading state is clear and menu eventually appears.
+- Actual final state: PASS.
+- Cross-module verification: QR menu reload.
+- Functional correctness: 9/10
+- UI/UX clarity: 9/10
+- Workflow speed: 9/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 9/10
+- Final score: 9.0
+- Status: PASS
+- Evidence:
+  - First timed read already included menu content and popular items.
+  - Later reads showed `Menu 112 items` and full category content.
+- Defects found:
+  - None observed in warmed live environment.
+- Improvements recommended:
+  - Optional: add a skeleton/loading indicator for cold mobile networks.
+- Cleanup performed: None.
+- Launch decision: QR menu load is launch-ready in this live test.
+
+#### SKR-PRELAUNCH-20260725-E2E-080
+
+- Priority: P2
+- Roles simulated: Owner, cashier, customer
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: QR, POS, Orders, and Reports accessible.
+- Test data: Currency samples from QR, POS T06, Orders, Reports.
+- Browser steps executed:
+  - Opened QR menu, POS, Orders, and Reports.
+  - Extracted visible money samples from each.
+  - Compared `SGD` formatting.
+- Expected final state: SGD formatting is consistent.
+- Actual final state: PASS.
+- Cross-module verification: QR, POS, Orders, Reports.
+- Functional correctness: 9/10
+- UI/UX clarity: 9/10
+- Workflow speed: 9/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 9/10
+- Final score: 9.0
+- Status: PASS
+- Evidence:
+  - QR examples: `SGD 5.00`, `SGD 6.00`, `SGD 2.00`.
+  - POS examples: `SGD 86.80`, `SGD 0.00`, `SGD 5.00`.
+  - Orders examples: `SGD 8.00`, `SGD 38.80`, `SGD 5.00`.
+  - Reports examples: `SGD 2,462.80`, `SGD 11.50`, `SGD 1,930.30`.
+- Defects found:
+  - None blocking.
+- Improvements recommended:
+  - Keep using `SGD` prefix consistently across all surfaces.
+- Cleanup performed: None.
+- Launch decision: Currency formatting is launch-ready.

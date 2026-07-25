@@ -70,6 +70,7 @@ Current run note: execution started after the POS drawer QR removal/menu-card po
 | SKR-PRELAUNCH-20260725-E2E-052 | P0 | PASS | 9.5 | T08 fixed QR opened, customer placed two QR rounds into the same #241 session, KDS processed both items, cashier terminal-paid and closed the table. | Completed fixes: fixed QR activation is visible above the fold, and customer product detail add-to-cart is reachable on 1280x720/tablet-landscape height. |
 | SKR-PRELAUNCH-20260725-E2E-053 | P1 | PASS/PARTIAL | 8.0 | Orders Active, Paid-awaiting-close and History can find live #242 and closed #241/#242; staff can complete the table workflow. | `Not Paid Yet` does not show active unpaid table bills, and exact history searches can include unrelated legacy rows. |
 | SKR-PRELAUNCH-20260725-E2E-054 | P1 | PARTIAL | 6.5 | Closed History row shows #242/T07/A12/SGD 2.00/Paid/date, but no detail drawer opens. | Manager audit lacks payment method, close timestamp, and a full paid-order detail view in closed History. |
+| SKR-PRELAUNCH-20260725-E2E-055 | P1 | PASS | 9.0 | T05/#243 was served in KDS but remained current/unpaid in Orders with Collect payment available, then terminal-paid/closed cleanly. | Served status correctly does not equal paid; minor copy `1 ready to close` can confuse before payment. |
 
 ## Detailed execution notes
 
@@ -1220,3 +1221,48 @@ Live build observed for this phase: `2.1.6 a7e24524`.
   - Preserve payment method in History after close.
 - Cleanup performed: None needed; #242 was already closed from E2E-053.
 - Launch decision: Not manager-audit ready at 10/10. Operational row-level history exists, but accounting/manager audit detail needs improvement before launch confidence.
+
+#### SKR-PRELAUNCH-20260725-E2E-055
+
+- Priority: P1
+- Roles simulated: Cashier, kitchen
+- Browser/device mode: Live desktop browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: T05 available; no open bills.
+- Test data: T05, order #243, 1x A12 Boiled Seasoned Egg, SGD 2.00.
+- Browser steps executed:
+  - Opened POS T05.
+  - Added A12 Boiled Seasoned Egg to the cart and sent the order, creating #243.
+  - Opened Kitchen & beverages and verified #243/T05/A12 appeared in New tickets.
+  - Advanced #243 through `Start ticket` → `Ready for pass` → `Served / Delivered`.
+  - Verified KDS showed `Ticket #243 served`, `1 item delivered`, and returned to zero active tickets.
+  - Opened Orders before payment.
+  - Verified #243 remained under `Awaiting payment`, T05, SGD 2.00, with `Collect payment` available.
+  - Verified item line showed `Delivered`, proving served/kitchen-complete did not mark the bill as paid or closed.
+  - Clicked `Not Paid Yet` and verified the same #243/T05 awaiting-payment state remained visible.
+  - Returned to POS, charged terminal, and closed T05 with final confirmation for cleanup.
+- Expected final state: Served tickets remain current/unpaid until cashier payment and table close.
+- Actual final state: PASS.
+- Cross-module verification: POS order creation, KDS service lifecycle, Orders current/unpaid state, POS terminal payment, POS final close.
+- Functional correctness: 10/10
+- UI/UX clarity: 8/10
+- Workflow speed: 9/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 10/10
+- Launch readiness: 9/10
+- Final score: 9.0
+- Status: PASS
+- Evidence:
+  - KDS showed `#243 · T05`, A12, then `Ticket #243 served`, `1 item delivered`.
+  - Orders showed `Awaiting payment`, `T05`, `Latest #243`, `SGD 2.00`, `Collect payment`, `Delivered`.
+  - `Not Paid Yet` also showed #243 after service completion.
+  - POS cleanup showed `Terminal payment recorded for T05`, then `T05 is clear and ready for the next cashier bill`.
+- Defects found:
+  - Orders copy for served/unpaid ticket says `1 ready to close` while the bill is still unpaid; operationally correct due `Awaiting payment` and `Collect payment`, but the phrase could mislead staff into thinking close is available before payment.
+  - Staff POS product-card accessibility issue from E2E-053 repeated: visual card click works, but semantic button naming is weak.
+- Improvements recommended:
+  - Rename the pre-payment served count from `ready to close` to `served / ready for payment`.
+  - Keep `Collect payment` as the strongest CTA until settlement.
+  - Add semantic accessible labels to POS product cards.
+- Cleanup performed: #243 terminal-paid and closed; T05 reset to Available / Ready.
+- Launch decision: Served-but-unpaid order integrity is launch-ready; copy polish would bring this closer to 10/10.

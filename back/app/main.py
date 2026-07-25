@@ -357,8 +357,30 @@ async def database_statement_error_handler(request: Request, exc: StatementError
     raise exc
 
 
-# Uploads directory for product images
-UPLOADS_DIR = Path(__file__).parent.parent / "uploads"
+def _resolve_uploads_dir() -> Path:
+    """Return the filesystem directory used for runtime uploads.
+
+    Local/dev Docker mounts `back/uploads` into `/app/uploads`, so the historical
+    path beside the backend package is still the default. Render native Python
+    services with root directory `back` check code out under
+    `/opt/render/project/src/back`; a disk mounted at `/opt/render/project/src/uploads`
+    is therefore a sibling of `back`, not inside it. Prefer that mounted disk when
+    it exists so product images survive deploys/restarts.
+    """
+
+    configured = os.getenv("UPLOADS_DIR")
+    if configured:
+        return Path(configured).expanduser()
+
+    render_disk = Path("/opt/render/project/src/uploads")
+    if render_disk.is_dir():
+        return render_disk
+
+    return Path(__file__).parent.parent / "uploads"
+
+
+# Uploads directory for product images and tenant media
+UPLOADS_DIR = _resolve_uploads_dir()
 UPLOADS_DIR.mkdir(exist_ok=True)
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/avif"}
 MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB (optimized after upload via optimize_image)

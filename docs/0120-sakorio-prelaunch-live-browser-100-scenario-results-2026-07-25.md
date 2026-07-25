@@ -69,6 +69,7 @@ Current run note: execution started after the POS drawer QR removal/menu-card po
 | SKR-PRELAUNCH-20260725-E2E-051 | P0 | PASS | 9.5 | T03 cashier order #240 stayed current until terminal payment and final close, then moved to History with T03 available. | Completed fix: desktop paid-close confirmation now exposes `Yes, close table`. |
 | SKR-PRELAUNCH-20260725-E2E-052 | P0 | PASS | 9.5 | T08 fixed QR opened, customer placed two QR rounds into the same #241 session, KDS processed both items, cashier terminal-paid and closed the table. | Completed fixes: fixed QR activation is visible above the fold, and customer product detail add-to-cart is reachable on 1280x720/tablet-landscape height. |
 | SKR-PRELAUNCH-20260725-E2E-053 | P1 | PASS/PARTIAL | 8.0 | Orders Active, Paid-awaiting-close and History can find live #242 and closed #241/#242; staff can complete the table workflow. | `Not Paid Yet` does not show active unpaid table bills, and exact history searches can include unrelated legacy rows. |
+| SKR-PRELAUNCH-20260725-E2E-054 | P1 | PARTIAL | 6.5 | Closed History row shows #242/T07/A12/SGD 2.00/Paid/date, but no detail drawer opens. | Manager audit lacks payment method, close timestamp, and a full paid-order detail view in closed History. |
 
 ## Detailed execution notes
 
@@ -1176,3 +1177,46 @@ Live build observed for this phase: `2.1.6 a7e24524`.
   - Improve staff POS product-card accessibility labels so every product has a unique `Add [item] to cart` control.
 - Cleanup performed: #242 terminal-paid and closed; T07 reset to Available / Ready.
 - Launch decision: Orders can be used operationally, but this is not yet a 10/10 cashier lookup experience. Fix search precision and Not Paid semantics before final production confidence.
+
+#### SKR-PRELAUNCH-20260725-E2E-054
+
+- Priority: P1
+- Roles simulated: Manager
+- Browser/device mode: Live desktop browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: #242 had been terminal-paid and closed during E2E-053.
+- Test data: Closed paid Order #242, T07, 1x A12 Boiled Seasoned Egg, SGD 2.00.
+- Browser steps executed:
+  - Opened live Orders.
+  - Searched History for `242`.
+  - Verified #242 was visible in Order History.
+  - Verified visible row fields: order number, table, customer placeholder, item line, total, status, date/time.
+  - Clicked the #242 history row to test whether a manager detail drawer/modal opened.
+  - Inspected visible buttons/links after row click for detail, invoice, print, export, refund, reopen, or audit actions.
+- Expected final state: Manager can open paid order detail and verify item lines, total, payment method, table, and close timestamp.
+- Actual final state: PARTIAL.
+- Cross-module verification: Orders History/search only.
+- Functional correctness: 7/10
+- UI/UX clarity: 6/10
+- Workflow speed: 7/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 6/10
+- Launch readiness: 6.5/10
+- Final score: 6.5
+- Status: PARTIAL
+- Evidence:
+  - History row showed `#242`, `T07`, `1x A12 Boiled Seasoned Egg`, `SGD 2.00`, `Paid`, `7/26/2026, 01:16:19`.
+  - Clicking the row did not change the page or open any detail panel.
+  - Available action controls remained limited to filters/search/refresh; no paid-detail, payment-method, invoice/export, close timestamp, refund, reopen, or audit action appeared in the History row.
+- Defects found:
+  - Closed paid History does not expose a full order-detail view.
+  - Closed paid History row does not show payment method, despite Paid-awaiting-close showing `Paid by card terminal` before the table was closed.
+  - Closed paid History row shows one date/time but does not label whether it is order time, payment time, or close time.
+  - The page copy mentions invoice print/export, but no visible print/export action is available in this History view.
+- Improvements recommended:
+  - Add `View details` for closed History rows.
+  - Detail panel should show order created time, payment time, close time, payment method/reference, staff/cashier, table, item lines, void/refund/reopen policy, and invoice/receipt action if supported.
+  - Label the existing History date column clearly, or split it into `Ordered`, `Paid`, and `Closed`.
+  - Preserve payment method in History after close.
+- Cleanup performed: None needed; #242 was already closed from E2E-053.
+- Launch decision: Not manager-audit ready at 10/10. Operational row-level history exists, but accounting/manager audit detail needs improvement before launch confidence.

@@ -76,6 +76,11 @@ Current run note: execution started after the POS drawer QR removal/menu-card po
 | SKR-PRELAUNCH-20260725-E2E-058 | P1 | PASS/PARTIAL | 8.0 | Reports live page reconciled paid/closed activity: close-flow checklist showed 0 unpaid/open bills, 0 kitchen tickets, 0 clocked-in staff, 206 paid orders and SGD 2,388.00 collected. | Reports is useful for end-day, but it is summary-heavy; recent paid order drilldown/audit trail is still easier from Orders History than Reports. |
 | SKR-PRELAUNCH-20260725-E2E-059 | P1 | PARTIAL | 7.0 | Created unpaid #244 on T04, removed item through live Orders confirmation, and verified collected revenue stayed SGD 2,388.00 / 206 orders. | Removing the only unpaid item clears revenue impact but leaves an active/ghost session marker (`Live order #244`) and Reports active-table count increased. |
 | SKR-PRELAUNCH-20260725-E2E-060 | P1 | PASS/PARTIAL | 8.5 | Created T08/#245, refreshed Orders, added a second round, refreshed Orders again, then terminal-paid and closed table back to Available. | Live refresh works, but add-on button wording changed from `Send order` to `Send add-on round`, and Orders summary does not clearly show the full second-round line items without expanding. |
+| SKR-PRELAUNCH-20260725-E2E-061 | P0 | FAIL/PARTIAL | 6.0 | Mixed food+drink failed twice on T05 with generic `Failed to fetch`; the same cart succeeded on T01 as #246. Kitchen routed Coca-Cola to Kitchen, not Beverages. | Station routing is wrong for drinks, and stale table/session state can block sending from T05 without actionable recovery. |
+| SKR-PRELAUNCH-20260725-E2E-062 | P1 | PASS/PARTIAL | 8.5 | Kitchen progressed #246 through Pending → Preparing → Ready → Served; toast/countdown appeared and board cleared after serve. | Status persistence is good, but inherited beverage misrouting remains visible on drink items. |
+| SKR-PRELAUNCH-20260725-E2E-063 | P1 | PASS/PARTIAL | 8.0 | T02/#247 and T03/#248 were submitted close together; Kitchen labels kept them distinct; serving #247 left #248 active. | Table labels prevent mix-ups, but served tickets can remain visually stale until refresh. |
+| SKR-PRELAUNCH-20260725-E2E-064 | P1 | FAIL/PARTIAL | 5.5 | Beverage-only T07/#249 appeared under Kitchen with Beverages count 0 and `Coca-Cola` labelled `KITCHEN / DRINK MENU`. | Drink lane is effectively non-functional for this beverage product; KDS stale-card behavior repeats after serve. |
+| SKR-PRELAUNCH-20260725-E2E-065 | P1 | PASS/PARTIAL | 7.5 | Long T08/#250 ticket with five items and notes was readable; all notes reached KDS. iPad override request did not apply and KDS body width stayed 1280px. | Notes are good, but true iPad viewport validation is blocked in the live browser tool; served-card stale display repeats. |
 
 ## Detailed execution notes
 
@@ -1510,3 +1515,237 @@ Live build observed for this phase: `2.1.6 a7e24524`.
   - Add a small `last refreshed` timestamp or toast after manual Refresh so staff know the view updated.
 - Cleanup performed: Terminal-paid #245 and closed T08; T08 returned to Available.
 - Launch decision: Live Orders refresh is operationally ready. Minor UX polish would improve confidence during rush periods.
+
+### Phase G - Kitchen and beverage operations
+
+#### SKR-PRELAUNCH-20260725-E2E-061
+
+- Priority: P0
+- Roles simulated: Customer, cashier, kitchen, beverage station
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Kitchen baseline was clean: All `0`, Kitchen `0`, Beverages `0`, no active orders.
+- Test data:
+  - Failed table-specific attempt: T05 mixed cart with `A12 Boiled Seasoned Egg` and `Coca-Cola`, total `SGD 7.00`.
+  - Control successful attempt: T01/#246 with `A12 Boiled Seasoned Egg` and `Coca-Cola`, total `SGD 7.00`.
+- Browser steps executed:
+  - Opened Kitchen & beverage display and verified empty baseline.
+  - Opened POS T05 and added one quick-bite item plus one drink.
+  - Clicked `Send order`; observed `Failed to fetch`.
+  - Retried `Send order`; observed the same `Failed to fetch`.
+  - Cleared T05 unsent cart.
+  - Repeated the same mixed order on T01.
+  - Verified T01 created live bill #246 successfully.
+  - Opened Kitchen display and inspected station counts and item labels.
+- Expected final state: Mixed food/drink ticket routes food to Kitchen and drink to Beverages, with both station lanes clear and readable.
+- Actual final state: FAIL/PARTIAL.
+- Cross-module verification: POS, Kitchen & beverage display.
+- Functional correctness: 6/10
+- UI/UX clarity: 6/10
+- Workflow speed: 6/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 5/10
+- Launch readiness: 6/10
+- Final score: 6.0
+- Status: FAIL/PARTIAL
+- Evidence:
+  - T05 showed `Failed to fetch` twice and retained `New ticket not sent`, `2 in cart`, `SGD 7.00`.
+  - T01 created #246 and POS showed `T01 · 2 items · SGD 7.00`.
+  - Kitchen display showed All `1`, Kitchen `1`, Beverages `0`.
+  - Ticket #246 item lines showed `A12 Boiled Seasoned Egg` as `KITCHEN / QUICK BITES` and `Coca-Cola` as `KITCHEN / DRINK MENU`.
+- Defects found:
+  - Beverage routing is wrong: drink item is sent to Kitchen instead of Beverages.
+  - T05 has a stale/session-specific send failure despite appearing available and ready for order.
+  - Error copy is generic `Failed to fetch`, with no recovery guidance.
+- Improvements recommended:
+  - Map `Drink Menu` products to beverage station by default unless explicitly configured otherwise.
+  - Add a backend/frontend guard that detects stale zero-item/removed sessions and lets staff reset before sending.
+  - Replace generic fetch errors with actionable text: `Could not send this round. Refresh table session or reset empty order.`
+- Cleanup performed: T05 unsent cart cleared; T01/#246 was later served, terminal-paid, and closed in E2E-062 cleanup.
+- Launch decision: Not 10/10 for station routing. Beverage routing should be fixed before launch if drinks are operationally separated from kitchen.
+
+#### SKR-PRELAUNCH-20260725-E2E-062
+
+- Priority: P1
+- Roles simulated: Kitchen, cashier
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: T01/#246 was pending in Kitchen from E2E-061.
+- Test data: #246 with `A12 Boiled Seasoned Egg` and `Coca-Cola`.
+- Browser steps executed:
+  - Clicked `Start ticket` on #246.
+  - Verified #246 moved from Send to prep to Working now / Preparing.
+  - Clicked `Ready for pass`.
+  - Verified #246 moved to Hand off / Ready.
+  - Clicked the action button `Served / Delivered`.
+  - Verified served toast/countdown and board cleared.
+  - Returned to POS, terminal-paid #246 for `SGD 7.00`, and closed T01.
+  - Reopened POS board and verified T01 returned to Available.
+- Expected final state: Kitchen status persists after each transition, served feedback is visible, and the cashier can settle the served bill.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: Kitchen display, POS payment, close-table confirmation, table board.
+- Functional correctness: 9/10
+- UI/UX clarity: 8/10
+- Workflow speed: 9/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 8/10
+- Launch readiness: 8.5/10
+- Final score: 8.5
+- Status: PASS/PARTIAL
+- Evidence:
+  - `Start ticket` changed the ticket to `Preparing` and showed `#246 started (2 items).`
+  - `Ready for pass` changed the ticket to `Ready` and showed `#246 moved to ready (2 items).`
+  - `Served / Delivered` showed `Ticket #246 served`, `2 items delivered`, and a countdown.
+  - Kitchen refreshed to All `0`, Kitchen `0`, Beverages `0`.
+  - POS payment/close returned T01 to `Available`.
+- Defects found:
+  - Drink item still carried the wrong `KITCHEN / DRINK MENU` routing label inherited from E2E-061.
+  - The `Served / Delivered` phrase also appears in the service-flow legend, requiring precise button targeting in automation; human use is okay because the button is visually clear.
+- Improvements recommended:
+  - Fix beverage routing so status transitions happen in the correct station lane.
+  - Add explicit visible labels such as `Serve ticket #246` for screen readers and automation stability.
+- Cleanup performed: Terminal-paid and closed T01/#246.
+- Launch decision: Kitchen status progression is service-ready, pending station routing correction.
+
+#### SKR-PRELAUNCH-20260725-E2E-063
+
+- Priority: P1
+- Roles simulated: Kitchen, waiter, cashier
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Kitchen board clean after #246.
+- Test data:
+  - T02/#247 with `A12 Boiled Seasoned Egg`.
+  - T03/#248 with `A7 Edamame`.
+- Browser steps executed:
+  - Created T02 order close to T03 order.
+  - Created T03 order immediately after.
+  - Opened Kitchen display.
+  - Verified two active tickets with table labels: `#247 · T02` and `#248 · T03`.
+  - Started, readied, and served #247 only.
+  - Verified #248 remained visible and active on T03.
+  - Served #248 and refreshed Kitchen to confirm clean board.
+  - Terminal-paid and closed T02/T03.
+  - Reopened POS board to verify open bills returned to `0`.
+- Expected final state: Two close-together tickets remain visually distinct; serving one does not clear or mutate the other.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: POS, Kitchen backlog, table board.
+- Functional correctness: 9/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 8/10
+- Launch readiness: 8/10
+- Final score: 8.0
+- Status: PASS/PARTIAL
+- Evidence:
+  - Kitchen showed Send to prep `2`, with #247/T02 and #248/T03 as separate cards.
+  - Serving #247 showed `Ticket #247 served` and left #248/T03 as the only active ticket.
+  - Fresh board after payment/close showed `OPEN BILLS 0` and T02/T03 Available.
+- Defects found:
+  - After serving #248, the toast said served/cleared but the card stayed visible until a page refresh.
+  - Kitchen card ordering can change item order, but table/ticket labels stayed clear.
+- Improvements recommended:
+  - Immediately remove served cards from the visible lane without requiring refresh.
+  - Add a short `Ticket served and hidden` toast once the DOM card is actually removed.
+- Cleanup performed: Served, terminal-paid, and closed #247/T02 and #248/T03.
+- Launch decision: Table separation is good. The stale served-card display is the main Kitchen UX polish gap.
+
+#### SKR-PRELAUNCH-20260725-E2E-064
+
+- Priority: P1
+- Roles simulated: Beverage station, kitchen, cashier
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Kitchen board clean after E2E-063.
+- Test data: T07/#249 beverage-only ticket with `1x Coca-Cola`, total `SGD 5.00`.
+- Browser steps executed:
+  - Opened POS T07.
+  - Added `Coca-Cola`.
+  - Sent order, creating #249.
+  - Opened Kitchen & beverage display.
+  - Inspected station counts and ticket item labels.
+  - Progressed #249 through kitchen states and served it.
+  - Refreshed Kitchen to confirm clean board.
+  - Terminal-paid and closed T07.
+  - Reopened POS board to verify T07 Available and open bills `0`.
+- Expected final state: Beverage-only ticket appears in the Beverage lane with no Kitchen noise.
+- Actual final state: FAIL/PARTIAL.
+- Cross-module verification: POS, Kitchen & beverage display, table board.
+- Functional correctness: 5/10
+- UI/UX clarity: 5/10
+- Workflow speed: 7/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 6/10
+- Launch readiness: 5.5/10
+- Final score: 5.5
+- Status: FAIL/PARTIAL
+- Evidence:
+  - Kitchen display showed All `1`, Kitchen `1`, Beverages `0`.
+  - #249 item line showed `Coca-Cola`, `KITCHEN`, `DRINK MENU`, `Pending`.
+  - After serving, the toast said `Ticket #249 served`, but the card remained visible until refresh.
+  - After cleanup, POS board showed `OPEN BILLS 0`, T07 Available, and paid today updated.
+- Defects found:
+  - Beverage-only order does not route to the beverage lane.
+  - Beverage counter remains `0` even when a drink-only ticket is active.
+  - Served-card stale display repeats for drink-only tickets.
+- Improvements recommended:
+  - Treat `Drink Menu` category as beverage station in KDS routing.
+  - Add station-routing tests to prevent drinks being labelled Kitchen.
+  - Fix served-card removal immediately after the served action resolves.
+- Cleanup performed: Served, terminal-paid, and closed T07/#249.
+- Launch decision: Beverage lane is not launch-ready as a distinct operational lane until station routing is fixed.
+
+#### SKR-PRELAUNCH-20260725-E2E-065
+
+- Priority: P1
+- Roles simulated: Kitchen, waiter, cashier
+- Browser/device mode: Live browser; attempted iPad viewport overrides `1024×768` and `768×1024`
+- Live build: `2.1.6 cf39262f`
+- Starting state: Kitchen board clean after E2E-064.
+- Test data: T08/#250 long ticket, total `SGD 38.80`, with five items and notes:
+  - `A12 Boiled Seasoned Egg` — `less salt`
+  - `A7 Edamame` — `serve cold first`
+  - `C1 (2pcs)Deep Fried Chicken` — `extra crispy`
+  - `B1 Stir-Fried Bean Sprouts` — `no garlic`
+  - `Japanese-style Wafu Tonkotsu Ramen` — `firm noodles, less oil`
+- Browser steps executed:
+  - Opened POS T08.
+  - Added five items to the cart.
+  - Filled one kitchen-note input per line item.
+  - Sent order, creating #250.
+  - Opened Kitchen display.
+  - Attempted iPad landscape viewport override.
+  - Attempted iPad portrait viewport override.
+  - Verified Kitchen ticket content, note visibility, category labels, and scroll dimensions.
+  - Reset browser viewport override.
+  - Started, readied, and served #250.
+  - Refreshed Kitchen to confirm clean board.
+  - Terminal-paid and closed T08.
+  - Verified POS board showed `OPEN BILLS 0` and T08 Available.
+- Expected final state: Long multi-item ticket with notes remains scannable on kitchen iPad.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: POS cart/note fields, Kitchen ticket, viewport attempt, table board.
+- Functional correctness: 8/10
+- UI/UX clarity: 8/10
+- Workflow speed: 7/10
+- Layout/device stability: 6/10
+- Data/payment/session integrity: 8/10
+- Launch readiness: 7.5/10
+- Final score: 7.5
+- Status: PASS/PARTIAL
+- Evidence:
+  - Kitchen displayed all five item names with quantity, category, state, and notes.
+  - Notes were preserved exactly: `less salt`, `serve cold first`, `extra crispy`, `no garlic`, `firm noodles, less oil`.
+  - Browser viewport override attempts reported `innerWidth 1280`, `innerHeight 720`, body width `1272`, and body height `994`; the live browser did not actually shrink to iPad size.
+  - #250 became paid/closed and T08 returned Available.
+- Defects found:
+  - True iPad viewport validation could not be completed because the in-app browser stayed at 1280×720 despite override requests.
+  - Served-card stale display repeated: toast said #250 served/cleared, but the card remained visible until refresh.
+  - Beverages count remained `0` in the header; this case was food-only/mostly kitchen, but the broader routing defect is still visible.
+- Improvements recommended:
+  - Run a physical iPad or browser-devtools emulation pass outside the current in-app browser limitation before launch.
+  - Keep notes in a high-contrast style and preserve current item grouping because the desktop ticket is readable.
+  - Fix served-card immediate removal to avoid kitchen staff double-serving.
+- Cleanup performed: Served, terminal-paid, and closed T08/#250; board verified with `OPEN BILLS 0`.
+- Launch decision: Long-ticket content/notes are good. Physical iPad validation is still required because the current live browser did not honor the requested viewport override.

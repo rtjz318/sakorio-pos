@@ -864,6 +864,19 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                 </div>
               </header>
 
+              @if (!serviceTable.is_active) {
+                <div class="table-service-alert" role="status" style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap">
+                  <span><strong>{{ serviceTable.name }} QR ordering is closed.</strong> Open it when guests are seated so the fixed table QR accepts orders.</span>
+                  <button
+                    type="button"
+                    class="btn btn-primary btn-sm"
+                    (click)="openQuickTableForQrOrdering(serviceTable)"
+                    [disabled]="activatingTableId() === serviceTable.id || quickOrderSubmitting()">
+                    {{ activatingTableId() === serviceTable.id ? 'Opening QR...' : 'Open QR ordering' }}
+                  </button>
+                </div>
+              }
+
               <nav class="table-service-tabs" aria-label="Table service views">
                 <button type="button" [class.active]="quickOrderView() === 'menu'" (click)="quickOrderView.set('menu')">Add items</button>
                 <button type="button" [class.active]="quickOrderView() === 'orders'" (click)="quickOrderView.set('orders')">

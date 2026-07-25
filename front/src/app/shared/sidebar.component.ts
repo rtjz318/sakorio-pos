@@ -2,7 +2,7 @@ import { Component, inject, signal, OnInit, computed, AfterViewInit, OnDestroy, 
 import { CommonModule } from '@angular/common';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { filter } from 'rxjs/operators';
+import { filter, finalize } from 'rxjs/operators';
 import { ApiService, TenantUiModuleKey, User } from '../services/api.service';
 import { PermissionService, Permission } from '../services/permission.service';
 import { environment } from '../../environments/environment';
@@ -249,7 +249,7 @@ import { StaffLayoutService } from '../services/staff-layout.service';
               <span class="user-role">{{ getRoleDisplayName() }}</span>
             </div>
           }
-           <button class="logout-btn" (click)="logout()">
+           <button type="button" class="logout-btn" (click)="logout($event)">
              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
                <polyline points="16,17 21,12 16,7"/>
@@ -435,11 +435,17 @@ export class SidebarComponent implements OnInit, AfterViewInit, OnDestroy {
     this.inventoryOpen.update(v => !v);
   }
 
-  logout() {
-    this.api.logout().subscribe({
-      error: () => void this.router.navigateByUrl('/login'),
-      complete: () => void this.router.navigateByUrl('/login'),
-    });
-    void this.router.navigateByUrl('/login');
+  logout(event?: Event) {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.api.logout().pipe(
+      finalize(() => {
+        void this.router.navigateByUrl('/login', { replaceUrl: true }).finally(() => {
+          if (typeof window !== 'undefined') {
+            window.location.replace('/login?logged_out=1');
+          }
+        });
+      }),
+    ).subscribe();
   }
 }

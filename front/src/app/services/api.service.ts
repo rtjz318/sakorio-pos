@@ -1910,7 +1910,7 @@ export class ApiService {
     this.tenantUiModules.set({ ...DEFAULT_TENANT_UI_MODULES });
     this.tenantDisplayName.set(null);
     this.disconnectWebSocket();
-    return this.http.post(`${this.apiUrl}/logout`, {}).pipe(
+    return this.http.post(`${this.apiUrl}/logout`, {}, { withCredentials: !isCustomerPublicHost() }).pipe(
       catchError(() => of(undefined))
     );
   }

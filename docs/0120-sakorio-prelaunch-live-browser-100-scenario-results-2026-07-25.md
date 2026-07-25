@@ -2338,3 +2338,383 @@ Live build observed for this phase: `2.1.6 a7e24524`.
   - Keep using `SGD` prefix consistently across all surfaces.
 - Cleanup performed: None.
 - Launch decision: Currency formatting is launch-ready.
+
+### Phase I - Timetable, users, permissions, and staff operations
+
+#### SKR-PRELAUNCH-20260725-E2E-081
+
+- Priority: P1
+- Roles simulated: Manager, staff
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Manager logged in as `qa.manager@sakario.sg`; My Shift had QA staff profile selector but QA Manager had no current eligible shift.
+- Test data: QA Manager timetable shifts on 2026-07-26.
+- Browser steps executed:
+  - Opened `/working-plan`; confirmed the nav label is `Timetable` and the actual route is `/working-plan/calendar`.
+  - Opened `/my-shift`; selected/observed QA Manager profile.
+  - Confirmed clock-in was disabled when no eligible shift was scheduled.
+  - Added QA Manager shift for 2026-07-26, 09:00-22:00.
+  - Returned to My Shift; confirmed the shift appeared but was marked `Upcoming`.
+  - Checked browser clock: `Sun Jul 26 2026 02:37:25 GMT+0800`.
+  - Added a second QA Manager current-window shift, 02:00-04:00, using `Use any hour`.
+  - Returned to My Shift; confirmed current-window shift became selected and `Take photo and clock in` was enabled.
+  - Pressed `Take photo and clock in`.
+- Expected final state: Staff profile clock-in is clear and usable when a scheduled shift is eligible.
+- Actual final state: PARTIAL.
+- Cross-module verification: Timetable, My Shift, attendance proof modal.
+- Functional correctness: 8/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 8/10
+- Launch readiness: 7.5/10
+- Final score: 7.5
+- Status: PARTIAL
+- Evidence:
+  - Without a current shift, My Shift showed `No shift available to clock in`.
+  - After creating 02:00-04:00 QA shift, My Shift showed `Clock in now` and enabled `Take photo and clock in`.
+  - Clicking clock-in opened the live proof modal with `Clock-in photo`.
+  - The browser environment showed `Requested device not found`, so the final photo capture could not be completed on this desktop test session.
+- Defects found:
+  - Not an app logic failure, but launch-critical hardware dependency: clock-in cannot be fully certified without a real camera-equipped device.
+  - Current shift labels are good, but the system can accumulate QA shifts quickly; cleanup must be done before go-live.
+- Improvements recommended:
+  - Run final staff clock-in/out test on the actual iPad/phone camera that will be used in-store.
+  - Add a clearer fallback message: `Camera not found. Use a camera-enabled staff device or contact manager.`
+- Cleanup performed: QA MC cleanup was performed in E2E-084; QA shifts remain temporarily for later cleanup/final verification.
+- Launch decision: Clock-in workflow is understandable, but final hardware proof must be physically tested.
+
+#### SKR-PRELAUNCH-20260725-E2E-082
+
+- Priority: P1
+- Roles simulated: Staff, manager
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: E2E-081 reached camera proof modal but no camera device existed in this browser environment.
+- Test data: QA Manager current-window shift.
+- Browser steps executed:
+  - Attempted to start clock-in from My Shift.
+  - Observed the required camera proof modal.
+  - Verified no work session was opened because camera proof could not complete.
+  - Reviewed Timetable planned-vs-clocked comparison afterward.
+- Expected final state: Staff clocks out and manager reviews shift duration/attendance record.
+- Actual final state: BLOCKED BY DEVICE.
+- Cross-module verification: My Shift, Timetable planned-vs-clocked.
+- Functional correctness: 6/10
+- UI/UX clarity: 7/10
+- Workflow speed: 6/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 8/10
+- Launch readiness: 6.5/10
+- Final score: 6.5
+- Status: PARTIAL
+- Evidence:
+  - Clock-in requires live photo proof.
+  - Browser reported `Requested device not found`.
+  - Planned-vs-clocked table showed QA Manager planned hours but `0` clocked time, confirming no false attendance record was created.
+- Defects found:
+  - Cannot verify clock-out from this environment without completing clock-in first.
+- Improvements recommended:
+  - Final launch rehearsal must include real camera clock-in and clock-out.
+  - Consider a manager override path for emergency clock correction, clearly audited.
+- Cleanup performed: No attendance session created.
+- Launch decision: Attendance cannot be marked fully launch-ready until physical-device clock-in/out passes.
+
+#### SKR-PRELAUNCH-20260725-E2E-083
+
+- Priority: P1
+- Roles simulated: Manager
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Timetable open for July 2026.
+- Test data: QA Manager shifts on 2026-07-26.
+- Browser steps executed:
+  - Opened Timetable.
+  - Clicked `Add shift`.
+  - Selected QA Manager.
+  - Saved 09:00-22:00 shift.
+  - Added current-window 02:00-04:00 shift using `Use any hour`.
+  - Reloaded Timetable and observed saved shifts on 26 Jul 2026.
+- Expected final state: Scheduling changes persist.
+- Actual final state: PASS.
+- Cross-module verification: Timetable calendar, My Shift.
+- Functional correctness: 9/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 8.5/10
+- Final score: 8.5
+- Status: PASS
+- Evidence:
+  - Timetable scheduled shift count increased from 24 to 25, then 26.
+  - Selected day showed `QA Manager 02:00-04:00` and `QA Manager 09:00-22:00`.
+  - Employee roster changed QA Manager from `0 shifts` to `2 shifts · 15h`.
+- Defects found:
+  - Shift label entered in the modal did not visibly appear in the calendar row; the row showed staff/time/role only.
+- Improvements recommended:
+  - Show the custom shift label in calendar cards or the selected-day detail so managers can distinguish QA/service/training shifts.
+  - Add an explicit post-save link/action: `View in My Shift`.
+- Cleanup performed: None yet; QA shifts remain for the Phase J cleanup pass.
+- Launch decision: Timetable add/save/persist is launch-ready with minor labeling improvement.
+
+#### SKR-PRELAUNCH-20260725-E2E-084
+
+- Priority: P1
+- Roles simulated: Manager
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Timetable leave ledger had one existing Jason Tan annual leave record.
+- Test data: QA Host MC record, 2026-07-26, 1 day, note `QA E2E-084 MC test`.
+- Browser steps executed:
+  - Opened Timetable leave/MC ledger.
+  - Selected QA Host.
+  - Selected `MC / sick leave`.
+  - Entered from/to date `2026-07-26`, 1 deducted day, QA note.
+  - Clicked `Record leave / MC`.
+  - Verified MC counter increased to 1 day and row appeared.
+  - Deleted the QA MC row.
+  - Verified MC counter returned to 0 and QA note disappeared.
+- Expected final state: Leave tracking is understandable or unsupported safely.
+- Actual final state: PASS.
+- Cross-module verification: Timetable leave ledger and coverage panel.
+- Functional correctness: 9/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 8.5/10
+- Final score: 8.5
+- Status: PASS
+- Evidence:
+  - `MC / SICK LEAVE` changed from `0 day(s)` to `1 day(s)`.
+  - Row showed `QA Host`, date range, one day, and QA note.
+  - Delete removed the row and restored `MC / SICK LEAVE` to `0 day(s)`.
+- Defects found:
+  - Delete is immediate; no confirmation was shown for leave/MC deletion.
+- Improvements recommended:
+  - Add confirmation for deleting leave/MC records.
+  - Add small success toast for record/delete actions; current row/counter change works but could be clearer.
+- Cleanup performed: QA MC record deleted.
+- Launch decision: Leave/MC ledger is launch-ready with one safety polish.
+
+#### SKR-PRELAUNCH-20260725-E2E-085
+
+- Priority: P1
+- Roles simulated: Waiter, manager
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Manager session active; QA Waiter account exists in Users list.
+- Test data: QA Waiter profile displayed in Users and Timetable.
+- Browser steps executed:
+  - Opened Users and verified QA Waiter exists with Waiter role and profile-ready status.
+  - Opened Timetable and verified QA Waiter appears as schedule-eligible.
+  - Did not log out of the manager session because alternate-role credentials were not available in the live browser session.
+- Expected final state: Permission boundaries are correct for waiter role.
+- Actual final state: NOT FULLY EXECUTED.
+- Cross-module verification: Users, Timetable.
+- Functional correctness: 5/10
+- UI/UX clarity: 7/10
+- Workflow speed: 7/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 8/10
+- Launch readiness: 5.5/10
+- Final score: 5.5
+- Status: PARTIAL
+- Evidence:
+  - QA Waiter exists and is profile-ready.
+  - A true waiter login pass was not completed because no confirmed QA Waiter password was available.
+- Defects found:
+  - Role-permission launch certification still requires real alternate-role credentials.
+- Improvements recommended:
+  - Maintain documented QA credentials for `qa.waiter@sakario.sg`, `qa.host@sakario.sg`, `qa.kitchen@sakario.sg`, and `qa.manager@sakario.sg`.
+  - Run role matrix: POS, Tables, Kitchen, Reports, Users, Settings for each role.
+- Cleanup performed: None.
+- Launch decision: Not launch-certified for role permissions yet.
+
+#### SKR-PRELAUNCH-20260725-E2E-086
+
+- Priority: P2
+- Roles simulated: Manager
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Timetable calendar open.
+- Test data: July 2026 roster with QA Manager shifts.
+- Browser steps executed:
+  - Clicked `Week`.
+  - Returned to `Calendar`.
+  - Used next and previous month controls.
+  - Clicked `Today`.
+  - Clicked `Show planned vs clocked`.
+  - Reviewed comparison table and export button.
+- Expected final state: Calendar feels operational, not decorative.
+- Actual final state: PASS.
+- Cross-module verification: Timetable calendar/week navigation and planned-vs-clocked.
+- Functional correctness: 9/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 8.5/10
+- Final score: 8.5
+- Status: PASS
+- Evidence:
+  - Week view loaded and preserved staff/shift context.
+  - Next month navigation reached August 2026; previous/today returned to July/current day.
+  - Planned-vs-clocked comparison rendered rows and totals, including QA Manager planned 15h and 0 clocked.
+  - `Export comparison (Excel)` button was visible.
+- Defects found:
+  - Planned-vs-clocked table is text-dense on the page.
+- Improvements recommended:
+  - Add sticky table header or summary cards for planned/clocked/variance.
+  - Add filters by staff/date in comparison view.
+- Cleanup performed: None.
+- Launch decision: Timetable navigation is launch-ready.
+
+#### SKR-PRELAUNCH-20260725-E2E-087
+
+- Priority: P2
+- Roles simulated: Staff
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: QA Manager had no eligible shift first, then had current-window and upcoming shifts.
+- Test data: QA Manager 02:00-04:00 and 09:00-22:00 shifts.
+- Browser steps executed:
+  - Opened My Shift before current-window shift existed.
+  - Confirmed clock-in button was disabled and copy said no shift was available.
+  - Added current-window shift.
+  - Reopened My Shift.
+  - Confirmed eligible shift was selected and clock-in button enabled.
+  - Attempted clock-in until camera modal.
+- Expected final state: Rules and warnings are clear.
+- Actual final state: PARTIAL.
+- Cross-module verification: My Shift, Timetable.
+- Functional correctness: 8/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 7.5/10
+- Final score: 7.5
+- Status: PARTIAL
+- Evidence:
+  - No-shift state clearly said `No shift available to clock in`.
+  - Current shift showed `Clock in now`.
+  - Upcoming shift was visibly disabled.
+- Defects found:
+  - Camera hardware block prevents full proof of clock-in/out on this desktop session.
+- Improvements recommended:
+  - Add a test mode/device-readiness indicator for managers setting up clock-in stations.
+- Cleanup performed: None.
+- Launch decision: Rule clarity is good; physical device proof remains.
+
+#### SKR-PRELAUNCH-20260725-E2E-088
+
+- Priority: P2
+- Roles simulated: Manager
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Users page accessible to manager/admin.
+- Test data: Existing owner and QA user profiles.
+- Browser steps executed:
+  - Opened Users page.
+  - Verified QA Manager, QA Kitchen, QA Waiter, QA Host, Jason Tan, and owner user cards.
+  - Opened `Add User` modal without saving.
+  - Inspected required user creation fields.
+  - Cancelled without creating a user.
+- Expected final state: User management actions are clear and guarded.
+- Actual final state: PARTIAL.
+- Cross-module verification: Users, role/profile/payroll fields.
+- Functional correctness: 8/10
+- UI/UX clarity: 6/10
+- Workflow speed: 8/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 7/10
+- Launch readiness: 7/10
+- Final score: 7.0
+- Status: PARTIAL
+- Evidence:
+  - Users page shows role, job title/hourly pay/profile readiness.
+  - Add User modal has email, full name, role, job title, phone, hourly pay, start date, password, confirm password.
+- Defects found:
+  - User card edit/action buttons are icon-only/blank in text extraction, which is weak for accessibility and fast admin use.
+  - Browser autofill populated sensitive credential fields in the Add User modal; this creates accidental credential reuse risk on shared staff/admin browsers.
+- Improvements recommended:
+  - Add explicit labels/tooltips such as `Edit QA Waiter`, `Reset password`, `Deactivate user`.
+  - Add `autocomplete="new-password"` and related safeguards on new-user password fields.
+  - Require confirmation before high-risk user actions.
+- Cleanup performed: Add User modal cancelled; no user created.
+- Launch decision: User list is usable, but password autofill and icon-only actions should be fixed before final launch.
+
+#### SKR-PRELAUNCH-20260725-E2E-089
+
+- Priority: P2
+- Roles simulated: Manager
+- Browser/device mode: Simulated iPad landscape `1024x768` and portrait `768x1024`
+- Live build: `2.1.6 cf39262f`
+- Starting state: Timetable page with QA Manager shifts and planned-vs-clocked visible.
+- Test data: July 2026 Timetable.
+- Browser steps executed:
+  - Applied live browser viewport override to `1024x768`.
+  - Reloaded Timetable.
+  - Measured `innerWidth`, `innerHeight`, body width, and document scroll width.
+  - Applied viewport override to `768x1024`.
+  - Reloaded Timetable and measured again.
+  - Reset viewport override.
+- Expected final state: Scheduling UI avoids overlap and hidden actions on iPad.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: Timetable iPad simulated viewport.
+- Functional correctness: 9/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 8.5/10
+- Final score: 8.5
+- Status: PASS
+- Evidence:
+  - Landscape reported `innerWidth 1024`, `innerHeight 768`, body width `1016`, no horizontal overflow.
+  - Portrait reported `innerWidth 768`, `innerHeight 1024`, body width `760`, no horizontal overflow.
+  - Timetable controls remained available: Add shift, Week, Calendar, Today, Refresh, employee Schedule buttons, leave controls, planned-vs-clocked.
+- Defects found:
+  - Timetable is still vertically dense on portrait iPad, especially with planned-vs-clocked expanded.
+- Improvements recommended:
+  - Collapse planned-vs-clocked by default on tablets.
+  - Add sticky Timetable controls for long-scroll iPad use.
+- Cleanup performed: Viewport override reset.
+- Launch decision: Timetable iPad layout passes simulated viewport, with density polish recommended.
+
+#### SKR-PRELAUNCH-20260725-E2E-090
+
+- Priority: P2
+- Roles simulated: Owner/admin, alternate role
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Manager session active.
+- Test data: Existing QA role accounts visible in Users.
+- Browser steps executed:
+  - Verified admin session displayed current account/role in sidebar.
+  - Verified protected admin pages are accessible under current manager/admin session.
+  - Did not log out of the active session because confirmed alternate role login credentials were not available during this run.
+- Expected final state: Role switching is safe on shared tablets.
+- Actual final state: NOT FULLY EXECUTED.
+- Cross-module verification: Staff auth/sidebar, Users.
+- Functional correctness: 5/10
+- UI/UX clarity: 7/10
+- Workflow speed: 7/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 8/10
+- Launch readiness: 5.5/10
+- Final score: 5.5
+- Status: PARTIAL
+- Evidence:
+  - Sidebar shows current logged-in user and role.
+  - QA accounts exist, but passwords for role-switch testing were not verified.
+- Defects found:
+  - Shared-tablet role switching still needs a true logout/login/restricted-route test with known role credentials.
+- Improvements recommended:
+  - Prepare a launch QA credential sheet for waiter/host/kitchen/manager roles.
+  - Test protected pages after each login: Reports, Users, Settings should not leak to lower roles.
+  - Consider quick profile switch only if it is secured by PIN/password and auditable.
+- Cleanup performed: None; manager session preserved.
+- Launch decision: Role switching is not launch-certified yet.

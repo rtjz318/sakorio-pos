@@ -1309,6 +1309,24 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                       <div class="pos-service-outcome">
                         <strong>{{ checkoutOutcomeHeadline() }}</strong>
                         <small>{{ checkoutOutcomeSupport() }}</small>
+                        @if (lastCheckoutTable(); as checkoutOutcomeTable) {
+                          @if (isPendingClearTable(checkoutOutcomeTable)) {
+                            <div class="inline-hint inline-hint--warning inline-hint--compact" role="alert">
+                              <div class="inline-hint-copy">
+                                <strong>Final confirmation</strong>
+                                <small>Close {{ checkoutOutcomeTable.name }} and reset it for the next guest?</small>
+                              </div>
+                              <div class="action-row action-row--secondary">
+                                <button type="button" class="btn btn-secondary btn-sm" (click)="cancelClearTable()" [disabled]="pendingTableId() === checkoutOutcomeTable.id">
+                                  Keep open
+                                </button>
+                                <button type="button" class="btn btn-primary btn-sm" (click)="confirmClearTable()" [disabled]="pendingTableId() === checkoutOutcomeTable.id">
+                                  {{ pendingTableId() === checkoutOutcomeTable.id ? 'Closing...' : 'Yes, close table' }}
+                                </button>
+                              </div>
+                            </div>
+                          }
+                        }
                         <div class="pos-service-action-row">
                           @if (canClearLastCheckoutTable()) {
                             <button type="button" class="btn btn-primary btn-sm" style="min-height:2.45rem;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap" (click)="clearLastCheckoutTable()" [disabled]="pendingTableId() === lastCheckoutTableId()">
@@ -1322,9 +1340,21 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                       <div class="pos-service-empty pos-service-empty--checkout">
                         @if (canClearTable(serviceTable)) {
                           <strong>{{ serviceTable.name }} is ready to clear.</strong>
-                          <button type="button" class="btn btn-primary btn-sm" (click)="clearTable(serviceTable)" [disabled]="pendingTableId() === serviceTable.id">
-                            {{ pendingTableId() === serviceTable.id ? 'Closing...' : 'Close table' }}
-                          </button>
+                          @if (isPendingClearTable(serviceTable)) {
+                            <span>Final confirmation: close this table and reset it for the next guest?</span>
+                            <div class="action-row action-row--checkout-compact">
+                              <button type="button" class="btn btn-secondary btn-sm" (click)="cancelClearTable()" [disabled]="pendingTableId() === serviceTable.id">
+                                Keep open
+                              </button>
+                              <button type="button" class="btn btn-primary btn-sm" (click)="confirmClearTable()" [disabled]="pendingTableId() === serviceTable.id">
+                                {{ pendingTableId() === serviceTable.id ? 'Closing...' : 'Yes, close table' }}
+                              </button>
+                            </div>
+                          } @else {
+                            <button type="button" class="btn btn-primary btn-sm" (click)="clearTable(serviceTable)" [disabled]="pendingTableId() === serviceTable.id">
+                              {{ pendingTableId() === serviceTable.id ? 'Closing...' : 'Close table' }}
+                            </button>
+                          }
                         } @else {
                           <strong>No payable bill yet.</strong>
                           <button type="button" class="btn btn-primary btn-sm" (click)="setPosDrawerView('menu')">Add items</button>
@@ -7407,6 +7437,10 @@ export class CashierPosComponent {
   canClearLastCheckoutTable(): boolean {
     const table = this.lastCheckoutTable();
     return !!table && this.canClearTable(table);
+  }
+
+  isPendingClearTable(table: CanvasTable | null | undefined): boolean {
+    return !!table?.id && this.pendingClearTable()?.id === table.id;
   }
 
   clearLastCheckoutTable(): void {

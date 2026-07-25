@@ -4,7 +4,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, forkJoin, firstValueFrom, of } from 'rxjs';
-import { QRCodeComponent } from 'angularx-qrcode';
 import {
   ApiService,
   CanvasTable,
@@ -86,7 +85,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 @Component({
   selector: 'app-cashier-pos',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, QRCodeComponent, SidebarComponent, StaffPosToolbarComponent],
+  imports: [CommonModule, FormsModule, RouterLink, SidebarComponent, StaffPosToolbarComponent],
   template: `
     <app-sidebar>
       <div class="page-shell">
@@ -1023,17 +1022,6 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                     <span class="service-status" [class.service-status--live]="!!serviceTable.active_order_id">
                       {{ serviceTable.active_order_id ? 'Live order #' + serviceTable.active_order_id : getTableStateLabel(serviceTable) }}
                     </span>
-                    @if (customerMenuUrl(serviceTable)) {
-                      <span class="service-status service-status--qr">
-                        {{ serviceTable.is_active ? 'QR active' : 'QR opens on tap' }}
-                      </span>
-                      <button type="button" class="btn btn-secondary btn-sm" (click)="openCustomerMenu(serviceTable)">
-                        {{ pendingTableId() === serviceTable.id ? 'Opening QR...' : 'Open customer QR' }}
-                      </button>
-                      <button type="button" class="btn btn-ghost btn-sm" (click)="copyCustomerMenuLink(serviceTable)">
-                        {{ qrLinkCopiedTableId() === serviceTable.id ? 'QR copied' : 'Copy QR link' }}
-                      </button>
-                    }
                     <button type="button" class="pos-service-close" (click)="closeTableWorkspace()" aria-label="Close POS table service">x</button>
                   </div>
                 </header>
@@ -1042,31 +1030,6 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                   <div class="error-banner" role="alert">
                     {{ error() }}
                   </div>
-                }
-
-                @if (displayedCustomerQrUrl(serviceTable); as handoffUrl) {
-                    <section class="inline-hint inline-hint--info inline-hint--stack" aria-label="Customer QR handoff">
-                      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-                        <qrcode [qrdata]="handoffUrl" [width]="132" [errorCorrectionLevel]="'M'" cssClass="qr-code"></qrcode>
-                        <div class="inline-hint-copy" style="flex:1 1 18rem">
-                          <strong>{{ serviceTable.name }} QR is ready</strong>
-                          <p>
-                            @if (serviceTable.is_active) {
-                              Show this QR or send the link below. This visible link stays available even if the browser blocks popups or clipboard copy.
-                            } @else {
-                              This is the table QR link. Tap Open or Copy to activate the table before guests order.
-                            }
-                          </p>
-                          <a [href]="handoffUrl" target="_blank" rel="noopener noreferrer" style="overflow-wrap:anywhere">{{ handoffUrl }}</a>
-                        </div>
-                      </div>
-                      <div class="action-row">
-                        <button type="button" class="btn btn-primary btn-sm" (click)="openCustomerMenu(serviceTable)">Open</button>
-                        <button type="button" class="btn btn-secondary btn-sm" (click)="copyCustomerMenuLink(serviceTable)">
-                          {{ qrLinkCopiedTableId() === serviceTable.id ? 'Copied' : 'Copy link' }}
-                        </button>
-                      </div>
-                    </section>
                 }
 
                 <section class="pos-service-loop" aria-label="Selected table service loop">
@@ -1957,11 +1920,6 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       color: var(--color-primary-strong);
     }
 
-    .service-status--qr {
-      background: #ecfeff;
-      color: #0e7490;
-    }
-
     .pos-service-loop {
       display: grid;
       grid-template-columns: minmax(0, 1.1fr) minmax(14rem, 0.75fr) auto;
@@ -2107,19 +2065,19 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 
     .pos-service-product-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(8.2rem, 1fr));
-      gap: 0.52rem;
+      grid-template-columns: repeat(auto-fill, minmax(11.25rem, 1fr));
+      gap: 0.68rem;
     }
 
     .pos-service-product-card {
       position: relative;
       min-width: 0;
-      min-height: 5.65rem;
+      min-height: 7.05rem;
       display: grid;
-      grid-template-columns: 3.15rem minmax(0, 1fr);
-      gap: 0.55rem;
+      grid-template-columns: 4.1rem minmax(0, 1fr);
+      gap: 0.68rem;
       align-items: stretch;
-      padding: 0.52rem;
+      padding: 0.62rem;
       border: 1px solid color-mix(in srgb, var(--color-border) 78%, white);
       border-radius: 18px;
       background: white;
@@ -2135,7 +2093,7 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
     }
 
     .pos-service-product-media {
-      width: 3.15rem;
+      width: 4.1rem;
       min-height: 100%;
       overflow: hidden;
       border-radius: 14px;
@@ -2154,9 +2112,10 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 
     .pos-service-product-copy {
       min-width: 0;
-      display: grid;
-      gap: 0.12rem;
-      padding-right: 1.6rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.16rem;
+      padding-right: 1.75rem;
     }
 
     .pos-service-product-copy span,
@@ -2172,17 +2131,19 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
     .pos-service-product-copy strong {
       overflow: hidden;
       color: var(--color-text);
-      font-size: 0.86rem;
+      font-size: 0.9rem;
       font-weight: 900;
-      line-height: 1.16;
+      line-height: 1.18;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
     }
 
     .pos-service-product-copy b {
+      margin-top: auto;
       color: var(--color-primary-strong);
-      font-size: 0.88rem;
+      font-size: 0.94rem;
+      line-height: 1.1;
     }
 
     .pos-service-add-badge {

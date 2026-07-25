@@ -71,6 +71,7 @@ Current run note: execution started after the POS drawer QR removal/menu-card po
 | SKR-PRELAUNCH-20260725-E2E-053 | P1 | PASS/PARTIAL | 8.0 | Orders Active, Paid-awaiting-close and History can find live #242 and closed #241/#242; staff can complete the table workflow. | `Not Paid Yet` does not show active unpaid table bills, and exact history searches can include unrelated legacy rows. |
 | SKR-PRELAUNCH-20260725-E2E-054 | P1 | PARTIAL | 6.5 | Closed History row shows #242/T07/A12/SGD 2.00/Paid/date, but no detail drawer opens. | Manager audit lacks payment method, close timestamp, and a full paid-order detail view in closed History. |
 | SKR-PRELAUNCH-20260725-E2E-055 | P1 | PASS | 9.0 | T05/#243 was served in KDS but remained current/unpaid in Orders with Collect payment available, then terminal-paid/closed cleanly. | Served status correctly does not equal paid; minor copy `1 ready to close` can confuse before payment. |
+| SKR-PRELAUNCH-20260725-E2E-056 | P1 | PASS/PARTIAL | 8.0 | T07 has no active bill but 91 history records; POS shows Orders 0 / History 91 and Orders filters show no active/unpaid bills. | Full History is reachable, but closed paid rows can open an editable-looking order modal with Save/Remove/status controls. |
 
 ## Detailed execution notes
 
@@ -1266,3 +1267,52 @@ Live build observed for this phase: `2.1.6 a7e24524`.
   - Add semantic accessible labels to POS product cards.
 - Cleanup performed: #243 terminal-paid and closed; T05 reset to Available / Ready.
 - Launch decision: Served-but-unpaid order integrity is launch-ready; copy polish would bring this closer to 10/10.
+
+#### SKR-PRELAUNCH-20260725-E2E-056
+
+- Priority: P1
+- Roles simulated: Cashier, manager
+- Browser/device mode: Live desktop browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: T07 available; no active/open bill; 91 history records.
+- Test data: T07 history-heavy table, including recent closed #242.
+- Browser steps executed:
+  - Opened POS T07.
+  - Verified table board showed T07 Available / Ready for order.
+  - Verified POS drawer showed `Orders 0`, `History 91`, `SGD 0.00`, `No tickets yet`, and no payable/current bill.
+  - Opened in-drawer `History 91`.
+  - Verified previous sessions list showed closed paid orders with item lines, payment method, and totals.
+  - Verified historical cards did not show a payable state.
+  - Clicked `Full history page`.
+  - First click redirected to `/login`, revealing session expiry after long browser QA; after staff login, retried successfully.
+  - Verified full history page opened `/staff/orders?table=7`, showed `Showing orders for T07`, `Order History 91`, and paid T07 history rows.
+  - Clicked/landed on closed #242 detail/edit surface and observed available controls.
+  - Closed the modal and switched to `Active Orders` and `Not Paid Yet`.
+  - Verified both filters showed zero matching T07 tickets and no #242 leakage into current/unpaid.
+- Expected final state: History-heavy table remains clearly available, with History reachable but not confused as current bill.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: POS table drawer, POS in-drawer history, Orders table-filtered History, Orders Active/Not Paid filters.
+- Functional correctness: 8/10
+- UI/UX clarity: 7/10
+- Workflow speed: 8/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 8/10
+- Final score: 8.0
+- Status: PASS/PARTIAL
+- Evidence:
+  - POS T07 showed `Ready for a new order`, `No tickets yet`, `SGD 0.00`, `Orders 0`, `History 91`.
+  - In-drawer history showed `PREVIOUS SESSIONS`, `T07 history`, `Launch data review`, and paid rows such as `Order #242`, `Terminal`, `SGD 2.00`.
+  - Full history page showed `/staff/orders?table=7`, `Showing orders for T07`, `Order History 91`.
+  - Active Orders and Not Paid Yet for T07 both showed `0 matching tickets`; #242 did not appear as current/unpaid.
+- Defects found:
+  - After a long live QA session, `Full history page` first redirected to `/login`; after login, the same action worked. This is likely session expiry, but the redirect is abrupt for staff.
+  - Clicking a closed paid history row opened `Edit order — #242 T07` with item status controls, `Remove item`, `Save`, and `Print invoice`. For a closed paid bill this looks editable and risky, even if backend guards may still apply.
+  - Full History/detail behavior conflicts with E2E-054: row-level detail exists in this route/modal, but it is framed as `Edit order` instead of safe read-only audit.
+- Improvements recommended:
+  - For closed paid History, open a read-only `Order details` / `Invoice details` drawer by default.
+  - Hide or disable `Remove item`, item status controls, and `Save` for closed paid bills unless manager override/reopen is explicitly started.
+  - Add session-expiry recovery messaging: “Please sign in again to continue viewing history,” then return to intended `/staff/orders?table=7` route after login.
+  - Keep `Print invoice` visible but label payment method, paid time, and closed time clearly.
+- Cleanup performed: None needed; no new bill created.
+- Launch decision: Current/history separation is operationally safe, but closed-history edit framing should be fixed before calling audit/history 10/10.

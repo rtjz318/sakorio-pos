@@ -72,6 +72,7 @@ Current run note: execution started after the POS drawer QR removal/menu-card po
 | SKR-PRELAUNCH-20260725-E2E-054 | P1 | PARTIAL | 6.5 | Closed History row shows #242/T07/A12/SGD 2.00/Paid/date, but no detail drawer opens. | Manager audit lacks payment method, close timestamp, and a full paid-order detail view in closed History. |
 | SKR-PRELAUNCH-20260725-E2E-055 | P1 | PASS | 9.0 | T05/#243 was served in KDS but remained current/unpaid in Orders with Collect payment available, then terminal-paid/closed cleanly. | Served status correctly does not equal paid; minor copy `1 ready to close` can confuse before payment. |
 | SKR-PRELAUNCH-20260725-E2E-056 | P1 | PASS/PARTIAL | 8.0 | T07 has no active bill but 91 history records; POS shows Orders 0 / History 91 and Orders filters show no active/unpaid bills. | Full History is reachable, but closed paid rows can open an editable-looking order modal with Save/Remove/status controls. |
+| SKR-PRELAUNCH-20260725-E2E-057 | P2 | PARTIAL | 6.0 | Orders detail/history was tested at 1024×768 and 768×1024. Modal fits landscape, but grid columns/row actions are not tablet-ready. | Item text is squeezed to 36px, action/delete columns overflow offscreen, and closed paid detail is framed as editable. |
 
 ## Detailed execution notes
 
@@ -1316,3 +1317,55 @@ Live build observed for this phase: `2.1.6 a7e24524`.
   - Keep `Print invoice` visible but label payment method, paid time, and closed time clearly.
 - Cleanup performed: None needed; no new bill created.
 - Launch decision: Current/history separation is operationally safe, but closed-history edit framing should be fixed before calling audit/history 10/10.
+
+#### SKR-PRELAUNCH-20260725-E2E-057
+
+- Priority: P2
+- Roles simulated: Cashier, manager
+- Browser/device mode: Live browser with viewport overrides:
+  - iPad landscape: 1024×768
+  - iPad portrait: 768×1024
+- Live build: `2.1.6 cf39262f`
+- Starting state: T07 had no active bill and 91 history records.
+- Test data: T07 history-filtered Orders page, recent closed #242.
+- Browser steps executed:
+  - Applied 1024×768 viewport override.
+  - Opened `/staff/orders?table=7`.
+  - Verified page reported viewport `1024×768` and showed `Showing orders for T07`.
+  - Measured filter tabs, search, history policy note, grid rows, and action columns.
+  - Opened #242 edit/detail modal using the visible edit action.
+  - Verified modal fit within the 1024×768 viewport.
+  - Checked modal controls: item statuses, `Remove item`, `Close`, `Save`, `Print invoice`.
+  - Switched to 768×1024 portrait.
+  - Reopened `/staff/orders?table=7` and measured the grid rows/cells.
+  - Reset viewport override at the end of the test.
+- Expected final state: Order detail/history is usable on iPad with readable line wrapping and reachable controls.
+- Actual final state: PARTIAL.
+- Cross-module verification: Orders table-filtered History, History row actions, closed order edit/detail modal.
+- Functional correctness: 7/10
+- UI/UX clarity: 5/10
+- Workflow speed: 6/10
+- Layout/device stability: 5/10
+- Data/payment/session integrity: 7/10
+- Launch readiness: 6/10
+- Final score: 6.0
+- Status: PARTIAL
+- Evidence:
+  - Landscape 1024×768 showed no page-level horizontal scroll, but action/delete columns measured beyond viewport (`right=1042`).
+  - The item cell for `1x A12 Boiled Seasoned Egg` measured only `36px` wide, making the row visually cramped.
+  - Portrait 768×1024 showed the grid rows still rendered at `1024px` wide inside a `768px` viewport; date/action columns were offscreen.
+  - Closed #242 detail modal fit on landscape (`720px` wide, centered), with `Close`, `Save`, and `Print invoice` visible.
+- Defects found:
+  - Orders History grid is desktop-first and not responsive enough for iPad portrait.
+  - Item line text is squeezed into a tiny column instead of wrapping into a readable card/list layout.
+  - Row edit/delete icon columns overflow off the right side on tablet widths.
+  - Row action icons are effectively icon-only; accessible/visible labels are weak.
+  - Closed paid detail still appears as `Edit order — #242 T07` with status controls, `Remove item`, and `Save`, which is risky for closed bills.
+- Improvements recommended:
+  - Replace the grid with a responsive card/list layout under tablet width, or hide lower-priority columns behind an expandable detail row.
+  - On tablet, show order number, table, status, total, and top item summary in the visible row; move date/payment/detail controls into an expanded panel.
+  - Remove or hide delete/action columns for closed paid History unless manager override mode is explicitly enabled.
+  - Change closed paid modal title from `Edit order` to `Order details` / `Invoice details`; disable `Save`, item status edits, and `Remove item`.
+  - Add visible labels/tooltips for row actions.
+- Cleanup performed: Viewport override reset; no data changes made.
+- Launch decision: Not tablet/iPad-ready at 10/10 for Orders detail/history. Usable on landscape with care, but portrait and row-action behavior need polish before physical iPad go-live.

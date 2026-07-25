@@ -68,6 +68,7 @@ Current run note: execution started after the POS drawer QR removal/menu-card po
 | SKR-PRELAUNCH-20260725-E2E-050 | P2 | PARTIAL | 8.5 | POS layout remained usable at the available browser landscape size; payment lane stayed visible/reachable and no measured menu/cart overlap occurred. | In-app browser viewport override did not actually switch to 1024x768; true iPad device/browser test still required. |
 | SKR-PRELAUNCH-20260725-E2E-051 | P0 | PASS | 9.5 | T03 cashier order #240 stayed current until terminal payment and final close, then moved to History with T03 available. | Completed fix: desktop paid-close confirmation now exposes `Yes, close table`. |
 | SKR-PRELAUNCH-20260725-E2E-052 | P0 | PASS | 9.5 | T08 fixed QR opened, customer placed two QR rounds into the same #241 session, KDS processed both items, cashier terminal-paid and closed the table. | Completed fixes: fixed QR activation is visible above the fold, and customer product detail add-to-cart is reachable on 1280x720/tablet-landscape height. |
+| SKR-PRELAUNCH-20260725-E2E-053 | P1 | PASS/PARTIAL | 8.0 | Orders Active, Paid-awaiting-close and History can find live #242 and closed #241/#242; staff can complete the table workflow. | `Not Paid Yet` does not show active unpaid table bills, and exact history searches can include unrelated legacy rows. |
 
 ## Detailed execution notes
 
@@ -1125,3 +1126,53 @@ Live build observed for this phase: `2.1.6 a7e24524`.
 - Improvements completed: Added above-fold fixed QR activation in Tables; added customer QR inline add-to-cart and compact tablet/landscape product detail sheet.
 - Cleanup performed: #241 served in KDS, terminal-paid, closed; T08 reset to Available / Ready.
 - Launch decision: Fixed QR multi-round customer ordering is ready for launch at the tested landscape/browser size. True physical iPad pass remains useful before production go-live.
+
+#### SKR-PRELAUNCH-20260725-E2E-053
+
+- Priority: P1
+- Roles simulated: Cashier, manager
+- Browser/device mode: Live desktop browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: E2E-052 had just closed paid T08/#241. No unpaid Orders tickets were present, so a controlled T07 test bill was created for unpaid/current filtering.
+- Test data: T07, order #242, 1x A12 Boiled Seasoned Egg, SGD 2.00, terminal payment.
+- Browser steps executed:
+  - Opened live Orders and confirmed #241/T08 appeared in Order History with Paid status, SGD 8.00, A7 Edamame + A12 Boiled Seasoned Egg.
+  - Searched Order History for `241`.
+  - Searched Order History for `T08`.
+  - Switched to Active Orders and Not Paid Yet before creating a new unpaid order.
+  - Opened POS T07 and added A12 Boiled Seasoned Egg to the cart.
+  - Sent the order to kitchen/payment flow, creating Order #242.
+  - Returned to Orders and verified Active Orders showed T07, latest #242, SGD 2.00, 1 active ticket.
+  - Searched Active Orders for `242` and verified one matching T07 ticket.
+  - Switched to Not Paid Yet while #242 was still unpaid/current.
+  - Paid #242 by terminal from POS without closing the table.
+  - Switched to Paid - awaiting close and verified #242/T07 appeared with SGD 2.00, payment by card terminal, and close action.
+  - Closed T07 from POS using final confirmation.
+  - Searched Order History for `242` and verified #242/T07/A12/SGD 2.00/Paid was present.
+- Expected final state: Staff can quickly find the correct live, unpaid, paid-awaiting-close, and closed/history bill by table or order number.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: Orders filters/search, POS live bill creation, POS terminal payment, POS final close, History.
+- Functional correctness: 8/10
+- UI/UX clarity: 7/10
+- Workflow speed: 8/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 8/10
+- Final score: 8.0
+- Status: PASS/PARTIAL
+- Evidence:
+  - Active Orders showed `T07`, `Latest #242`, `SGD 2.00`, `#242 · 1x A12 Boiled Seasoned Egg`.
+  - Paid - awaiting close showed `T07`, `Latest #242`, `SETTLEMENT RECORDED`, `Paid by card terminal`, `Close table`.
+  - POS cleanup showed `T07 is clear and ready for the next cashier bill`.
+  - History search showed `#242`, `T07`, `1x A12 Boiled Seasoned Egg`, `SGD 2.00`, `Paid`.
+- Defects found:
+  - `Not Paid Yet` showed `All orders are paid` while #242 was still a live unpaid/current table bill in Active Orders.
+  - Exact history search for `241` and `242` returned the correct order at the top, but also unrelated legacy/history rows. This appears to match hidden metadata or broad fields and reduces cashier confidence.
+  - Staff POS product cards work visually, but the A12 card was not exposed as a semantic `Add A12...` button; automation had to click the visible card area.
+- Improvements recommended:
+  - Treat active unpaid table bills as `Not Paid Yet`, or rename the tab to clarify what it excludes.
+  - Add exact order-number mode or exact-match prioritization for `#241` / `241` / `242`, especially in History.
+  - Visually highlight exact order/table matches and optionally separate “other broad matches.”
+  - Improve staff POS product-card accessibility labels so every product has a unique `Add [item] to cart` control.
+- Cleanup performed: #242 terminal-paid and closed; T07 reset to Available / Ready.
+- Launch decision: Orders can be used operationally, but this is not yet a 10/10 cashier lookup experience. Fix search precision and Not Paid semantics before final production confidence.

@@ -86,11 +86,6 @@
           </svg>
           <span>{{ tableGreeting() }}</span>
         </div>
-        @if (!customerName()) {
-        <button type="button" class="guest-name-chip" (click)="promptName()" data-testid="menu-add-name">
-          {{ 'MENU.NAME_OPTIONAL' | translate }}
-        </button>
-        }
         @if (tenantPhone() || tenantWhatsapp()) {
         <div class="restaurant-contact">
           @if (tenantPhone()) {
@@ -314,8 +309,19 @@
         <span class="product-count">{{ filteredProducts().length }} {{ 'COMMON.ITEMS' | translate }}</span>
       </div>
 
-      <div class="products-grid">
-        @for (product of filteredProducts(); track getProductKey(product)) {
+      <div class="category-menu-stack">
+        @for (group of groupedFilteredProducts(); track group.category) {
+        <section class="menu-category-section" [attr.aria-label]="group.category">
+          <div class="menu-category-header">
+            <div>
+              <p class="menu-category-kicker">Category</p>
+              <h3 class="menu-category-title">{{ group.category }}</h3>
+            </div>
+            <span class="menu-category-count">{{ group.products.length }} {{ 'COMMON.ITEMS' | translate }}</span>
+          </div>
+
+          <div class="products-grid">
+        @for (product of group.products; track getProductKey(product)) {
         <article class="product-card" (click)="openProductDetail(product)"
           [class.in-cart]="isProductInMenuCart(product)" [class.just-added]="isProductJustAdded(product)">
           <!-- Product Image -->
@@ -419,6 +425,9 @@
             </svg>
           </button>
         </article>
+        }
+          </div>
+        </section>
         }
       </div>
 

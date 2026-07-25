@@ -31,6 +31,11 @@ interface PlacedOrder {
   status: string;
 }
 
+interface MenuCategoryGroup {
+  category: string;
+  products: Product[];
+}
+
 @Component({
   selector: 'app-menu',
   standalone: true,
@@ -169,6 +174,20 @@ export class MenuComponent implements OnInit, OnDestroy {
       .slice(0, 6);
   });
 
+  groupedFilteredProducts = computed<MenuCategoryGroup[]>(() => {
+    const groups = new Map<string, Product[]>();
+    for (const product of this.filteredProducts()) {
+      const category = product.category?.trim() || 'Menu';
+      const existing = groups.get(category);
+      if (existing) {
+        existing.push(product);
+      } else {
+        groups.set(category, [product]);
+      }
+    }
+    return Array.from(groups.entries()).map(([category, products]) => ({ category, products }));
+  });
+
   // Listen for scroll to update sticky nav state
   @HostListener('window:scroll')
   onScroll() {
@@ -203,10 +222,9 @@ export class MenuComponent implements OnInit, OnDestroy {
   // ============================================
   private initializeSession() {
     const sessionKey = `session_${this.tableToken}`;
-    const nameKey = `customer_name_${this.tableToken}`;
     this.hadStoredCustomerStateOnInit = Boolean(
       localStorage.getItem(sessionKey)
-      || localStorage.getItem(nameKey)
+      || localStorage.getItem(`customer_name_${this.tableToken}`)
       || localStorage.getItem(`orders_${this.tableToken}`)
       || localStorage.getItem(`active_order_${this.tableToken}`)
       || localStorage.getItem(`table_session_started_${this.tableToken}`)
@@ -219,12 +237,6 @@ export class MenuComponent implements OnInit, OnDestroy {
       localStorage.setItem(sessionKey, sessionId);
     }
     this.sessionId = sessionId;
-
-    const customerName = localStorage.getItem(nameKey);
-
-    if (customerName) {
-      this.customerName.set(customerName);
-    }
   }
 
   /**
@@ -1086,7 +1098,6 @@ export class MenuComponent implements OnInit, OnDestroy {
       notes: this.orderNotes || undefined,
       session_id: this.sessionId,
       idempotency_key: this.activeSubmissionKey || undefined,
-      customer_name: this.customerName() || undefined,
       staff_access: this.staffAccess ?? undefined,
       qr_access: this.qrAccess ?? undefined,
       latitude,
@@ -1097,11 +1108,6 @@ export class MenuComponent implements OnInit, OnDestroy {
 
         if (response.session_id && response.session_id !== this.sessionId) {
           console.warn('Session ID mismatch - order may belong to different session');
-        }
-
-        if (response.customer_name && response.customer_name !== this.customerName()) {
-          this.customerName.set(response.customer_name);
-          localStorage.setItem(`customer_name_${this.tableToken}`, response.customer_name);
         }
 
         this.cart.set([]);

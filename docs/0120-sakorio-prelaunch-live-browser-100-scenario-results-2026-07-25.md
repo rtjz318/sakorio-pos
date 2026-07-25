@@ -56,6 +56,16 @@ Current run note: execution started after the POS drawer QR removal/menu-card po
 | SKR-PRELAUNCH-20260725-E2E-038 | P2 | PARTIAL | 8.5 | Queue filters `Include closed` and `Show stale` were visible; active queue was clean after close. | Archive/stale cleanup action not run. |
 | SKR-PRELAUNCH-20260725-E2E-039 | P2 | PARTIAL | 8.5 | Queue page exposed `Turn queue into reservation` form with date/time/email/service/notes. | Conversion not submitted. |
 | SKR-PRELAUNCH-20260725-E2E-040 | P2 | PARTIAL | 8.5 | Queue notes displayed cleanly on desktop for `QA queue to seat to QR workflow`. | iPad note wrapping pending. |
+| SKR-PRELAUNCH-20260725-E2E-041 | P0 | PASS | 9.2 | Cashier selected T03, added A12, sent order #234, KDS received/started/readied/served it, terminal-paid SGD 2.00, and closed/reset T03. | POS board/drawer briefly showed stale paid/current state until reload after close; improve immediate refresh after terminal pay/close. |
+| SKR-PRELAUNCH-20260725-E2E-042 | P0 | PASS/PARTIAL | 8.8 | T04 fixed QR order #235 A7 SGD 6.00 plus cashier POS add-on A12 SGD 2.00 combined into one SGD 8.00 bill after reload; terminal-paid and closed/reset T04. | Add-on toast fired immediately, but drawer initially still showed 1 item/SGD 6.00 until reload. Need immediate bill refresh after add-on send. |
+| SKR-PRELAUNCH-20260725-E2E-043 | P0 | PASS/PARTIAL | 9.0 | T05 unpaid order #236 could not be directly closed from POS; after terminal payment, final close confirmation reset T05. | After initial send, drawer briefly reset to zero bill until reload; unpaid close guardrail worked. |
+| SKR-PRELAUNCH-20260725-E2E-044 | P0 | PASS | 9.8 | T07 QR order #237 redirected to HitPay sandbox, test card payment returned to Sakorio payment-success, staff POS showed paid/SGD 0 due, and T07 closed/reset. | None urgent. Payment modal copy is clear, but Pay Now opens a modal rather than direct redirect, so staff/customer training should mention the second tap. |
+| SKR-PRELAUNCH-20260725-E2E-045 | P0 | PASS/PARTIAL | 9.2 | T08 QR order #238 opened HitPay sandbox, no payment was submitted, and staff POS correctly kept the bill unpaid/open; terminal cleanup then closed/reset T08. | HitPay sandbox Back/browser-back did not return cleanly during abandon test; payment truth was correct. Consider clearer customer return/cancel guidance. |
+| SKR-PRELAUNCH-20260725-E2E-046 | P1 | PASS/PARTIAL | 8.8 | Unsent T01 cart stayed isolated from T02 and was still present on return to T01; T02 did not inherit T01 cart. Cart cleared after test. | After clearing/releasing an empty table, drawer copy stayed in release context while board said available. Refresh drawer state after release. |
+| SKR-PRELAUNCH-20260725-E2E-047 | P1 | PASS/PARTIAL | 9.0 | POS exact search found `Chita Highball` at SGD 13.00; keyboard-clearing search then category chip `Deep Fried Menu` showed 8 correct deep-fried items/prices. | Programmatic/fill clear did not update search during automation; real keyboard clear worked. Add visible clear-search `x` button for iPad/staff speed. |
+| SKR-PRELAUNCH-20260725-E2E-048 | P1 | PASS/PARTIAL | 8.5 | Wrong pre-send item `C1 (2pcs)Deep Fried Chicken` could be cleared before kitchen send/payment, returning T02 to SGD 0.00. | Post-send manager void/refund/correction path was not executed; needs dedicated manager-permission pass. |
+| SKR-PRELAUNCH-20260725-E2E-049 | P1 | PASS/PARTIAL | 8.8 | T08 History showed recently closed #238 with Paid state, A5 Chanja, Terminal, SGD 5.00. | Older legacy demo/test history entries remain visible with outdated item names; clean launch data or label demo history. Reopen/refund action not executed. |
+| SKR-PRELAUNCH-20260725-E2E-050 | P2 | PARTIAL | 8.5 | POS layout remained usable at the available browser landscape size; payment lane stayed visible/reachable and no measured menu/cart overlap occurred. | In-app browser viewport override did not actually switch to 1024x768; true iPad device/browser test still required. |
 
 ## Detailed execution notes
 
@@ -723,3 +733,316 @@ Current run note: execution started after the POS drawer QR removal/menu-card po
 - 038 PARTIAL 8.5: Include-closed/show-stale filters visible. Archive/stale cleanup not executed.
 - 039 PARTIAL 8.5: Queue-to-reservation form visible. Conversion not submitted.
 - 040 PARTIAL 8.5: Queue note displayed cleanly on desktop. iPad view pending.
+
+### Phase E - POS cashier table service and payments
+
+Live build observed for this phase: `2.1.6 a7e24524`.
+
+#### SKR-PRELAUNCH-20260725-E2E-041
+
+- Priority: P0
+- Roles simulated: Cashier, kitchen
+- Browser/device mode: Live desktop browser
+- Starting state: T03 available; open bills 0.
+- Test data: T03, order #234, A12 Boiled Seasoned Egg SGD 2.00.
+- Browser steps executed:
+  - Opened live POS and selected T03.
+  - Added A12 Boiled Seasoned Egg from POS product grid.
+  - Sent order #234 from POS.
+  - Opened Kitchen; confirmed `#234 · T03` appeared in New tickets.
+  - Advanced ticket through Start ticket, Ready for pass, and Served / Delivered.
+  - Returned to POS T03 and verified bill #234 payable SGD 2.00.
+  - Terminal-paid SGD 2.00.
+  - Clicked Close table and confirmed the final confirmation.
+  - Reloaded POS and confirmed T03 returned to Available / Ready for order.
+- Expected final state: POS table-first order reaches kitchen, can be paid, and table resets cleanly.
+- Actual final state: PASS with stale-state UX note.
+- Cross-module verification: POS, Kitchen, Tables board.
+- Functional correctness: 10/10
+- UI/UX clarity: 8.5/10
+- Workflow speed: 8.5/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 10/10
+- Launch readiness: 9.2/10
+- Final score: 9.2
+- Status: PASS
+- Evidence: `Order #234 sent for T03`; KDS `Ticket #234 served`; POS `Terminal payment recorded for T03`; final T03 board `Available / Ready for order`.
+- Defects found: KDS start needed reload before lane visually moved from Pending to Preparing. After POS close, success toast appeared immediately but table card fully reset after reload.
+- Improvements needed: Immediate refresh/reconcile after KDS status transition and table close.
+- Cleanup performed: T03 paid and closed/reset.
+- Launch decision: Core POS table-first service flow ready.
+
+#### SKR-PRELAUNCH-20260725-E2E-042
+
+- Priority: P0
+- Roles simulated: Customer, cashier
+- Browser/device mode: Live desktop browser
+- Starting state: T04 idle/available.
+- Test data: T04 QR order #235 A7 Edamame SGD 6.00; POS add-on A12 Boiled Seasoned Egg SGD 2.00.
+- Browser steps executed:
+  - Opened Tables, expanded T04 More / waiter / QR, activated T04.
+  - Used the new visible QR handoff fallback and opened fixed T04 QR URL.
+  - Customer QR placed A7 Edamame order #235 for SGD 6.00.
+  - Opened staff POS T04/#235 and verified live bill SGD 6.00.
+  - Added A12 Boiled Seasoned Egg in POS; cart showed 2 items / SGD 8.00 before sending.
+  - Sent POS add-on round.
+  - Reloaded POS T04 and confirmed bill updated to 2 items / SGD 8.00.
+  - Terminal-paid SGD 8.00 and closed/reset T04.
+- Expected final state: QR and cashier add-on entries remain one active bill until table close.
+- Actual final state: PASS/PARTIAL. Backend/bill truth correct after reload; immediate drawer state was stale.
+- Cross-module verification: Tables QR handoff, QR ordering, POS add-on, terminal payment, table close.
+- Functional correctness: 9/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 10/10
+- Launch readiness: 8.8/10
+- Final score: 8.8
+- Status: PASS/PARTIAL
+- Evidence: T04 QR fallback link visible; QR order #235; POS cart total SGD 8.00; after reload `T04 · 2 items · SGD 8.00`; `Terminal payment recorded for T04`.
+- Defects found: After `Add-on round sent to bill #235`, the drawer initially still displayed 1 item / SGD 6.00 until reload.
+- Improvements needed: Refresh active order/bill summary immediately after add-on send.
+- Cleanup performed: T04 terminal-paid and closed/reset.
+- Launch decision: Data integrity ready; UX refresh polish needed.
+
+#### SKR-PRELAUNCH-20260725-E2E-043
+
+- Priority: P0
+- Roles simulated: Cashier
+- Browser/device mode: Live desktop browser
+- Starting state: T05 available.
+- Test data: T05 order #236, A10 Cold Tofu SGD 5.00.
+- Browser steps executed:
+  - Selected T05 in POS.
+  - Added A10 Cold Tofu and sent order #236.
+  - Verified unpaid bill #236 after reload: 1 item / SGD 5.00.
+  - Checked POS workflow: unpaid table offered Open bill / Resume order / Pay bill, not direct close.
+  - Terminal-paid SGD 5.00.
+  - Verified final close confirmation and closed/reset T05.
+- Expected final state: Unpaid table cannot be closed; paid table close requires explicit confirmation.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: POS table drawer, payment guardrail, close confirmation.
+- Functional correctness: 10/10
+- UI/UX clarity: 8.5/10
+- Workflow speed: 8/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 10/10
+- Launch readiness: 9/10
+- Final score: 9.0
+- Status: PASS/PARTIAL
+- Evidence: `Bill #236 payable SGD 5.00`; unpaid state had no close action; after terminal payment final confirmation showed `Close T05?`.
+- Defects found: After order send, drawer briefly showed T05 as ready / SGD 0.00 until reload.
+- Improvements needed: Same immediate POS refresh issue after send.
+- Cleanup performed: T05 terminal-paid and closed/reset.
+- Launch decision: Payment/close guardrail ready.
+
+#### SKR-PRELAUNCH-20260725-E2E-044
+
+- Priority: P0
+- Roles simulated: Customer, cashier
+- Browser/device mode: Live desktop browser
+- Starting state: T07 available.
+- Test data: T07 QR order #237, A12 Boiled Seasoned Egg SGD 2.00, HitPay sandbox reference `a257f187-861d-4cb2-b1d1-1ecd0f58b886`.
+- Browser steps executed:
+  - Activated T07 from Tables and opened visible fixed QR handoff link.
+  - Customer placed QR order #237.
+  - Clicked Pay Now; modal offered Pay with HitPay and Pay with Card at Table.
+  - Clicked Pay with HitPay and landed on `checkout.sandbox.hit-pay.com`.
+  - Filled sandbox email and Stripe test card in HitPay/Stripe secure iframe.
+  - Submitted payment and observed Sakorio return URL `/payment-success?order_id=237&provider=hitpay&status=completed&reference=a257f187-861d-4cb2-b1d1-1ecd0f58b886`.
+  - Opened staff POS T07/#237 and verified paid state, SGD 0 due, close-table-only flow.
+  - Closed/reset T07.
+- Expected final state: HitPay success is truthful in Sakorio; staff sees paid, not payable.
+- Actual final state: PASS.
+- Cross-module verification: Tables fixed QR, QR checkout modal, HitPay sandbox, Sakorio payment return, staff POS close.
+- Functional correctness: 10/10
+- UI/UX clarity: 9.5/10
+- Workflow speed: 9.5/10
+- Layout/device stability: 10/10
+- Data/payment/session integrity: 10/10
+- Launch readiness: 9.8/10
+- Final score: 9.8
+- Status: PASS
+- Evidence: HitPay checkout for `Order #237 at Ajisen Ramen - T07`; Sakorio `Payment successful`; staff POS `Last bill #237 paid`.
+- Defects found: None urgent.
+- Improvements needed: Pay Now opens an intermediate payment-method modal; this is acceptable but should be expected in training.
+- Cleanup performed: T07 closed/reset.
+- Launch decision: HitPay success path ready.
+
+#### SKR-PRELAUNCH-20260725-E2E-045
+
+- Priority: P0
+- Roles simulated: Customer, cashier
+- Browser/device mode: Live desktop browser
+- Starting state: T08 available.
+- Test data: T08 QR order #238, A5 Chanja SGD 5.00, abandoned HitPay reference `a257f3ca-6eb0-4fa8-b0be-d50fb2e622d2`.
+- Browser steps executed:
+  - Activated T08 and opened visible fixed QR handoff link.
+  - Customer placed QR order #238.
+  - Clicked Pay Now, selected Pay with HitPay, and landed on HitPay sandbox checkout.
+  - Did not submit payment.
+  - Opened staff POS T08/#238 and verified bill remained open/unpaid at SGD 5.00.
+  - Terminal-paid and closed/reset T08 for cleanup.
+- Expected final state: Abandoned HitPay does not mark Sakorio bill as paid.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: QR, HitPay sandbox checkout, staff POS payment truth.
+- Functional correctness: 10/10
+- UI/UX clarity: 8.5/10
+- Workflow speed: 8.5/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 10/10
+- Launch readiness: 9.2/10
+- Final score: 9.2
+- Status: PASS/PARTIAL
+- Evidence: HitPay checkout opened for #238; staff POS still showed `Bill #238 payable SGD 5.00`; no false paid state.
+- Defects found: HitPay sandbox Back/browser-back did not return cleanly in this browser run.
+- Improvements needed: Add clearer customer cancel/return guidance if HitPay checkout is abandoned.
+- Cleanup performed: T08 terminal-paid and closed/reset.
+- Launch decision: Payment truth ready; abandon UX can be improved.
+
+#### SKR-PRELAUNCH-20260725-E2E-046
+
+- Priority: P1
+- Roles simulated: Cashier
+- Browser/device mode: Live desktop browser
+- Starting state: T01 and T02 available.
+- Test data: T01 unsent A12 cart; T02 blank.
+- Browser steps executed:
+  - Selected T01 and added A12 without sending.
+  - Switched back to floor and selected T02.
+  - Verified T02 did not inherit T01 cart.
+  - Returned to T01 and verified the unsent A12 cart was still present.
+  - Cleared T01 cart and released the empty seating.
+- Expected final state: Table carts/orders do not mix when cashier switches tables.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: POS table board and table drawer state.
+- Functional correctness: 9.5/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9.5/10
+- Launch readiness: 8.8/10
+- Final score: 8.8
+- Status: PASS/PARTIAL
+- Evidence: T01 cart showed A12/SGD 2.00; T02 cart empty; returning to T01 restored A12/SGD 2.00.
+- Defects found: After release, board said T01 available but drawer copy still showed release-table context until navigation/refresh.
+- Improvements needed: Refresh drawer state immediately after empty-table release.
+- Cleanup performed: T01 cart cleared and released.
+- Launch decision: Isolation ready; drawer stale-copy polish needed.
+
+#### SKR-PRELAUNCH-20260725-E2E-047
+
+- Priority: P1
+- Roles simulated: Cashier
+- Browser/device mode: Live desktop browser
+- Starting state: T02 drawer open; no sent order.
+- Test data: Search `Chita Highball`; category `Deep Fried Menu`.
+- Browser steps executed:
+  - Used POS menu search for `Chita Highball`.
+  - Verified result showed Drink Menu / Chita Highball / SGD 13.00.
+  - Cleared search with keyboard and clicked Deep Fried Menu category chip.
+  - Verified 8 Deep Fried items displayed, including add (1pcs)Deep Fried Gyoza SGD 2.00, C1 SGD 6.00, C1.5 SGD 11.00, C2 SGD 7.00, C2.5 SGD 12.00, C3 SGD 6.00, C4 SGD 16.00, C5 SGD 16.00.
+- Expected final state: Cashier can quickly find exact imported item and browse category with correct prices.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: POS imported menu/search/category filtering.
+- Functional correctness: 9.5/10
+- UI/UX clarity: 8.5/10
+- Workflow speed: 8.5/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 10/10
+- Launch readiness: 9/10
+- Final score: 9.0
+- Status: PASS/PARTIAL
+- Evidence: `Chita Highball SGD 13.00`; Deep Fried Menu list with 8 expected prices.
+- Defects found: Automation `fill('')` did not clear search; real keyboard select-all/backspace did clear it. This may indicate input event handling can be made more robust.
+- Improvements needed: Add a visible clear-search `x` button and ensure filter reset is obvious on iPad.
+- Cleanup performed: No sent order.
+- Launch decision: Search usable; clear-search polish recommended.
+
+#### SKR-PRELAUNCH-20260725-E2E-048
+
+- Priority: P1
+- Roles simulated: Cashier, manager
+- Browser/device mode: Live desktop browser
+- Starting state: T02 drawer open; no sent order.
+- Test data: Wrong item `C1 (2pcs)Deep Fried Chicken` SGD 6.00.
+- Browser steps executed:
+  - Added wrong item before kitchen send/payment.
+  - Verified cart showed C1 and SGD 6.00.
+  - Clicked Clear before send.
+  - Verified T02 returned to zero items / SGD 0.00 and no kitchen send occurred.
+- Expected final state: Wrong item can be corrected safely before send; manager void/correction is clear if already sent.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: POS cart correction.
+- Functional correctness: 9/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8.5/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 8.5/10
+- Final score: 8.5
+- Status: PASS/PARTIAL
+- Evidence: Cart before clear showed C1/SGD 6.00; after clear T02 showed ready/zero bill.
+- Defects found: Post-send manager void/refund/reopen path not executed in this case.
+- Improvements needed: Run dedicated manager correction pass for sent/paid bills.
+- Cleanup performed: T02 cart cleared; no order sent.
+- Launch decision: Pre-send correction ready; manager correction not signed off yet.
+
+#### SKR-PRELAUNCH-20260725-E2E-049
+
+- Priority: P1
+- Roles simulated: Manager, cashier
+- Browser/device mode: Live desktop browser
+- Starting state: T08 recently closed after #238.
+- Test data: T08 order #238, A5 Chanja SGD 5.00.
+- Browser steps executed:
+  - Opened POS T08.
+  - Clicked History.
+  - Verified Previous Sessions showed recent order #238, Paid, 1x A5 Chanja, Terminal, SGD 5.00.
+  - Confirmed current T08 had zero active orders and history count incremented to 18.
+- Expected final state: Recently closed bill is easy to review in History; reopen/refund policy is clear.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: POS table history.
+- Functional correctness: 9/10
+- UI/UX clarity: 8.5/10
+- Workflow speed: 9/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 8.8/10
+- Final score: 8.8
+- Status: PASS/PARTIAL
+- Evidence: `Order #238 Paid 1x A5 Chanja Terminal SGD 5.00`.
+- Defects found: Older historical demo/test entries remain visible with unrelated legacy item names.
+- Improvements needed: Clean launch/staging historical demo data or label archived demo data; run reopen/refund manager policy pass.
+- Cleanup performed: None needed.
+- Launch decision: History review usable; launch-data cleanup recommended.
+
+#### SKR-PRELAUNCH-20260725-E2E-050
+
+- Priority: P2
+- Roles simulated: Cashier
+- Browser/device mode: Attempted iPad landscape via in-app browser viewport capability.
+- Starting state: T02 available; no order sent.
+- Test data: Viewport target `1024x768`; observed browser remained `1280x720`.
+- Browser steps executed:
+  - Requested browser viewport override to 1024x768.
+  - Opened POS T02 in existing and fresh tabs.
+  - Measured reported viewport and POS drawer/menu/cart rectangles.
+  - Verified at the available landscape size the payment lane stayed visible and menu/cart did not overlap.
+  - Reset viewport override.
+- Expected final state: iPad landscape payment lane remains reachable with no overlap/scroll trap.
+- Actual final state: PARTIAL. Layout looked usable at available landscape size, but true 1024x768 could not be simulated because the in-app browser kept reporting 1280x720.
+- Cross-module verification: POS responsive layout sampling.
+- Functional correctness: 8.5/10
+- UI/UX clarity: 8.5/10
+- Workflow speed: 8.5/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 10/10
+- Launch readiness: 8.5/10
+- Final score: 8.5
+- Status: PARTIAL
+- Evidence: Reported viewport stayed `1280x720`; menu pane x=29/w=878, cart pane x=907/w=336, Pay button visible at y=712.
+- Defects found: Browser viewport override unavailable/ineffective for this run, so true iPad 1024x768 remains pending.
+- Improvements needed: Run a real iPad/Safari or Chrome devtools device-mode check before final launch signoff.
+- Cleanup performed: Viewport reset.
+- Launch decision: Needs true-device verification.

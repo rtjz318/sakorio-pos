@@ -73,6 +73,9 @@ Current run note: execution started after the POS drawer QR removal/menu-card po
 | SKR-PRELAUNCH-20260725-E2E-055 | P1 | PASS | 9.0 | T05/#243 was served in KDS but remained current/unpaid in Orders with Collect payment available, then terminal-paid/closed cleanly. | Served status correctly does not equal paid; minor copy `1 ready to close` can confuse before payment. |
 | SKR-PRELAUNCH-20260725-E2E-056 | P1 | PASS/PARTIAL | 8.0 | T07 has no active bill but 91 history records; POS shows Orders 0 / History 91 and Orders filters show no active/unpaid bills. | Full History is reachable, but closed paid rows can open an editable-looking order modal with Save/Remove/status controls. |
 | SKR-PRELAUNCH-20260725-E2E-057 | P2 | PARTIAL | 6.0 | Orders detail/history was tested at 1024×768 and 768×1024. Modal fits landscape, but grid columns/row actions are not tablet-ready. | Item text is squeezed to 36px, action/delete columns overflow offscreen, and closed paid detail is framed as editable. |
+| SKR-PRELAUNCH-20260725-E2E-058 | P1 | PASS/PARTIAL | 8.0 | Reports live page reconciled paid/closed activity: close-flow checklist showed 0 unpaid/open bills, 0 kitchen tickets, 0 clocked-in staff, 206 paid orders and SGD 2,388.00 collected. | Reports is useful for end-day, but it is summary-heavy; recent paid order drilldown/audit trail is still easier from Orders History than Reports. |
+| SKR-PRELAUNCH-20260725-E2E-059 | P1 | PARTIAL | 7.0 | Created unpaid #244 on T04, removed item through live Orders confirmation, and verified collected revenue stayed SGD 2,388.00 / 206 orders. | Removing the only unpaid item clears revenue impact but leaves an active/ghost session marker (`Live order #244`) and Reports active-table count increased. |
+| SKR-PRELAUNCH-20260725-E2E-060 | P1 | PASS/PARTIAL | 8.5 | Created T08/#245, refreshed Orders, added a second round, refreshed Orders again, then terminal-paid and closed table back to Available. | Live refresh works, but add-on button wording changed from `Send order` to `Send add-on round`, and Orders summary does not clearly show the full second-round line items without expanding. |
 
 ## Detailed execution notes
 
@@ -1369,3 +1372,141 @@ Live build observed for this phase: `2.1.6 a7e24524`.
   - Add visible labels/tooltips for row actions.
 - Cleanup performed: Viewport override reset; no data changes made.
 - Launch decision: Not tablet/iPad-ready at 10/10 for Orders detail/history. Usable on landscape with care, but portrait and row-action behavior need polish before physical iPad go-live.
+
+#### SKR-PRELAUNCH-20260725-E2E-058
+
+- Priority: P1
+- Roles simulated: Manager, cashier
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Recent paid/closed controlled orders existed from earlier pass, including #241, #242, and #243.
+- Test data: Reports page for Ajisen Ramen, current rolling report range `2026-06-26 - 2026-07-26`.
+- Browser steps executed:
+  - Opened `/staff/reports?qa=e2e058-reports-*` in the live browser.
+  - Verified authenticated staff shell, live build stamp, and Reports navigation.
+  - Reviewed the manager end-day checklist.
+  - Checked collected revenue, order count, payment-method breakdown, table revenue, reservation counts, queue counts, and attendance audit.
+  - Cross-checked the close-flow checklist against the recent Orders/POS state.
+- Expected final state: Paid orders appear in reports/end-day checklist after close, unpaid/kitchen/staff issues are flagged, and the manager can cash up.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: Reports, Orders summary, previous POS paid/closed test data.
+- Functional correctness: 9/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 8/10
+- Launch readiness: 8/10
+- Final score: 8.0
+- Status: PASS/PARTIAL
+- Evidence:
+  - Reports showed `COLLECTED SGD 2,388.00`, `206 orders in this range`, and `3 payment methods`.
+  - Manager end-day checklist showed `0 unpaid / open bills`, `0 kitchen tickets not settled`, and `0 staff still clocked in`.
+  - Sales by method showed HitPay, Terminal, and Cash totals separately.
+  - Product/category/table summaries loaded and included the new Ajisen menu products.
+- Defects found:
+  - Reports is strong for summary reconciliation but does not give an obvious recent-order drilldown from the top summary.
+  - End-day checklist table count can still be affected by ghost/active table sessions from unpaid item-removal edge cases, as seen later in E2E-059.
+  - Product category reporting still has a large `Uncategorized` block despite the menu now being category-rich in the ordering UI.
+- Improvements recommended:
+  - Add a `Recent paid orders` / `End-day audit trail` panel with order number, table, payment method, paid time, closed time, and invoice link.
+  - Add a one-click path from Reports checklist row `Orders` to the exact filtered Orders view.
+  - Reconcile product category attribution so Reports categories match live menu categories more consistently.
+- Cleanup performed: None; read-only report verification.
+- Launch decision: Reports is launch-usable for cash-up summary, but not 10/10 until recent-order drilldown and category reconciliation are clearer.
+
+#### SKR-PRELAUNCH-20260725-E2E-059
+
+- Priority: P1
+- Roles simulated: Cashier, manager
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: T04 was available with no open bill; Reports showed `SGD 2,388.00` collected and `206` paid orders.
+- Test data: T04 unpaid order #244 with `1x A12 Boiled Seasoned Egg` at `SGD 2.00`.
+- Browser steps executed:
+  - Opened `/staff/pos?tableId=4`.
+  - Added `A12 Boiled Seasoned Egg` to T04 cart.
+  - Sent the order to the kitchen/order session, creating #244.
+  - Opened full Orders page for T04.
+  - Expanded the active ticket using `View tickets`.
+  - Clicked `Remove item`.
+  - Verified confirmation modal: `Are you sure you want to remove this item?`, with `Cancel` and `Confirm`.
+  - Confirmed removal.
+  - Opened Reports again and verified collected revenue/order count stayed unchanged.
+  - Reopened POS T04 to check cleanup/session state.
+- Expected final state: Cancelled/voided/unpaid test order remains auditable, is not counted as paid revenue, and does not leave a live table dirty.
+- Actual final state: PARTIAL.
+- Cross-module verification: POS, Orders Active/History, Reports summary.
+- Functional correctness: 7/10
+- UI/UX clarity: 7/10
+- Workflow speed: 7/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 6/10
+- Launch readiness: 7/10
+- Final score: 7.0
+- Status: PARTIAL
+- Evidence:
+  - #244 appeared as an active T04 ticket with `1x A12 Boiled Seasoned Egg`, `SGD 2.00`, `Pending`, and `Remove item`.
+  - Removal required an explicit confirmation.
+  - After removal, Orders returned to T04 history with no active item due for payment.
+  - Reports stayed at `COLLECTED SGD 2,388.00` and `206 orders`, so the unpaid removed item did not leak into paid revenue.
+  - Reopening POS T04 showed `Ready for a new order`, `No tickets yet`, and `SGD 0.00`.
+- Defects found:
+  - T04 still displayed `Live order #244` after the only item was removed.
+  - Reports checklist active-table count increased after this removed/unpaid order edge case (`3 active` observed), even though T04 had no payable items.
+  - Once #244 was empty, there was no obvious `Close/reset empty session` button in the POS drawer.
+  - `Show Removed Items` was no longer visible after the page moved back to History, so the removed-line audit path was not obvious.
+- Improvements recommended:
+  - When the final unpaid line is removed, offer a clear `Reset empty table/session` action.
+  - Do not count a zero-item removed/unpaid order as an active table for the end-day checklist.
+  - Keep a visible `Removed items` / `Voids` audit toggle so managers can search #244-style removed events.
+  - Rename this workflow as `Void unpaid ticket` or `Remove unpaid item` with a manager/audit note, instead of treating it as ordinary item editing.
+- Cleanup performed: Removed the only unpaid item from #244. T04 remained with a ghost live-session marker and should be fixed by code; no paid bill was created.
+- Launch decision: Safe for revenue integrity, but not 10/10 for table/session cleanup. This should be fixed before a busy real service because it can pollute the end-day active-table checklist.
+
+#### SKR-PRELAUNCH-20260725-E2E-060
+
+- Priority: P1
+- Roles simulated: Cashier, waiter
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: T08 was available with no active bill.
+- Test data: T08 paid/closed order #245, first round `A12 Boiled Seasoned Egg`, add-on round one extra quick-bite item, terminal payment `SGD 6.00`.
+- Browser steps executed:
+  - Opened `/staff/pos?tableId=8`.
+  - Added `A12 Boiled Seasoned Egg` and sent the first round, creating #245.
+  - Opened `/staff/orders?tableId=8` in the live browser.
+  - Clicked `Refresh` and confirmed #245 remained visible.
+  - Returned to POS T08, clicked `Add items`, added a second item, and found the add-on action labelled `Send add-on round`.
+  - Sent the add-on round.
+  - Refreshed Orders again.
+  - Verified Orders summary showed `#245 · 1x A12 Boiled Seasoned Egg + 1 more` and total `SGD 6.00`.
+  - Returned to POS, paid via `charge terminal - SGD 6.00`.
+  - Used the visible `Close table` flow and confirmed `Yes, close table`.
+  - Verified T08 returned to `Available`, `Ready for order`, and history count increased to `Orders (20)`.
+- Expected final state: Orders refresh/live updates remain stable while a table bill changes across POS rounds; settlement and close reset the table cleanly.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: POS table drawer, Orders filtered table view, terminal payment, close-table confirmation, table board.
+- Functional correctness: 9/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 8.5/10
+- Final score: 8.5
+- Status: PASS/PARTIAL
+- Evidence:
+  - First refresh showed #245 active in Orders.
+  - After add-on, Orders showed `1x A12 Boiled Seasoned Egg + 1 more` and `SGD 6.00`.
+  - POS payment showed `Terminal settled - SGD 6.00`.
+  - Close confirmation clearly stated the table reset, QR session ending, and history move.
+  - After close, T08 card returned to `Available` / `Ready for order`.
+- Defects found:
+  - Add-on round CTA wording changes from the earlier expected `Send order` to `Send add-on round`; this is understandable, but staff training and automation need to know the distinction.
+  - Orders summary hides the second item behind `+ 1 more`; this is compact but less useful for a waiter/cashier glancing during service.
+  - The observed total after add-on was `SGD 6.00`; the UI should make clearer whether this is current bill total or add-on/cart total at every step.
+- Improvements recommended:
+  - Keep primary CTA wording consistent: e.g. `Send round` for first and add-on rounds, with subtitle `First round` / `Add-on round`.
+  - In Orders table cards, show the first 2-3 item lines before collapsing to `+ more`.
+  - Add a small `last refreshed` timestamp or toast after manual Refresh so staff know the view updated.
+- Cleanup performed: Terminal-paid #245 and closed T08; T08 returned to Available.
+- Launch decision: Live Orders refresh is operationally ready. Minor UX polish would improve confidence during rush periods.

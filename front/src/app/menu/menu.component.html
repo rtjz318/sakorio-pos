@@ -602,6 +602,14 @@
             <span class="detail-price">{{ formatPrice(selectedProduct()!.price_cents) }}</span>
           </div>
 
+          <button type="button" class="detail-add-btn detail-add-btn--inline" (click)="addToCartFromDetail()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            {{ 'MENU.ADD_TO_CART' | translate }} · {{ formatPrice(selectedProduct()!.price_cents) }}
+          </button>
+
           <!-- Tags row -->
           @if (selectedProduct()!.vintage || selectedProduct()!.winery || selectedProduct()!.grape_variety ||
           selectedProduct()!.wine_style) {
@@ -675,7 +683,7 @@
 
       <!-- Add to Cart sticky button -->
       <div class="detail-footer">
-        <button class="detail-add-btn" (click)="addToCartFromDetail()">
+        <button type="button" class="detail-add-btn" (click)="addToCartFromDetail()">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />

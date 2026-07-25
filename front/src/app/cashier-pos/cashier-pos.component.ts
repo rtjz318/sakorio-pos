@@ -645,6 +645,24 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                     <strong>{{ checkoutOutcomeHeadline() }}</strong>
                     <small>{{ checkoutOutcomeSupport() }}</small>
                   </div>
+                  @if (lastCheckoutTable(); as checkoutOutcomeTable) {
+                    @if (isPendingClearTable(checkoutOutcomeTable)) {
+                      <div class="inline-hint inline-hint--warning inline-hint--compact" role="alert">
+                        <div class="inline-hint-copy">
+                          <strong>Final confirmation</strong>
+                          <small>Close {{ checkoutOutcomeTable.name }} and reset it for the next guest?</small>
+                        </div>
+                        <div class="action-row action-row--secondary">
+                          <button type="button" class="btn btn-secondary btn-sm" (click)="cancelClearTable()" [disabled]="pendingTableId() === checkoutOutcomeTable.id">
+                            Keep open
+                          </button>
+                          <button type="button" class="btn btn-primary btn-sm" (click)="confirmClearTable()" [disabled]="pendingTableId() === checkoutOutcomeTable.id">
+                            {{ pendingTableId() === checkoutOutcomeTable.id ? 'Closing...' : 'Yes, close table' }}
+                          </button>
+                        </div>
+                      </div>
+                    }
+                  }
                   <div class="checkout-outcome-actions">
                     @if (canClearLastCheckoutTable()) {
                       <button
@@ -676,21 +694,33 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                     <div class="empty-card empty-card--compact empty-card--checkout">
                       <strong>Ready to clear {{ settledTable.name }}</strong>
                       <p class="checkout-empty-copy">This bill is finished.</p>
-                      <div class="action-row action-row--checkout-compact">
-                        <button
-                          type="button"
-                          class="btn btn-primary btn-sm"
-                          (click)="clearTable(settledTable)"
-                          [disabled]="pendingTableId() === settledTable.id">
-                          {{ pendingTableId() === settledTable.id ? 'Closing...' : 'Close table' }}
-                        </button>
-                        <button
-                          type="button"
-                          class="btn btn-secondary btn-sm"
-                          (click)="openOrdersForTable(settledTable)">
-                          {{ tableOrdersActionLabel(settledTable) }}
-                        </button>
-                      </div>
+                      @if (isPendingClearTable(settledTable)) {
+                        <p class="checkout-empty-copy">Final confirmation: close this table and reset it for the next guest?</p>
+                        <div class="action-row action-row--checkout-compact">
+                          <button type="button" class="btn btn-secondary btn-sm" (click)="cancelClearTable()" [disabled]="pendingTableId() === settledTable.id">
+                            Keep open
+                          </button>
+                          <button type="button" class="btn btn-primary btn-sm" (click)="confirmClearTable()" [disabled]="pendingTableId() === settledTable.id">
+                            {{ pendingTableId() === settledTable.id ? 'Closing...' : 'Yes, close table' }}
+                          </button>
+                        </div>
+                      } @else {
+                        <div class="action-row action-row--checkout-compact">
+                          <button
+                            type="button"
+                            class="btn btn-primary btn-sm"
+                            (click)="clearTable(settledTable)"
+                            [disabled]="pendingTableId() === settledTable.id">
+                            {{ pendingTableId() === settledTable.id ? 'Closing...' : 'Close table' }}
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-secondary btn-sm"
+                            (click)="openOrdersForTable(settledTable)">
+                            {{ tableOrdersActionLabel(settledTable) }}
+                          </button>
+                        </div>
+                      }
                     </div>
                   } @else {
                     <div class="empty-card empty-card--compact empty-card--checkout">

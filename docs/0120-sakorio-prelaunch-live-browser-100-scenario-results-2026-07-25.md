@@ -81,6 +81,11 @@ Current run note: execution started after the POS drawer QR removal/menu-card po
 | SKR-PRELAUNCH-20260725-E2E-063 | P1 | PASS/PARTIAL | 8.0 | T02/#247 and T03/#248 were submitted close together; Kitchen labels kept them distinct; serving #247 left #248 active. | Table labels prevent mix-ups, but served tickets can remain visually stale until refresh. |
 | SKR-PRELAUNCH-20260725-E2E-064 | P1 | FAIL/PARTIAL | 5.5 | Beverage-only T07/#249 appeared under Kitchen with Beverages count 0 and `Coca-Cola` labelled `KITCHEN / DRINK MENU`. | Drink lane is effectively non-functional for this beverage product; KDS stale-card behavior repeats after serve. |
 | SKR-PRELAUNCH-20260725-E2E-065 | P1 | PASS/PARTIAL | 7.5 | Long T08/#250 ticket with five items and notes was readable; all notes reached KDS. iPad override request did not apply and KDS body width stayed 1280px. | Notes are good, but true iPad viewport validation is blocked in the live browser tool; served-card stale display repeats. |
+| SKR-PRELAUNCH-20260725-E2E-066 | P1 | PASS/PARTIAL | 8.5 | Kitchen served T01/#251, cashier paid/closed immediately, Kitchen refresh showed no active orders and POS showed open bills 0. | Served/closed state clears safely after refresh; immediate post-action views may briefly show syncing/stale state. |
+| SKR-PRELAUNCH-20260725-E2E-067 | P2 | PASS | 9.0 | Live QR customer menu for T04 created #252 while Kitchen was open; customer saw current order and Kitchen showed the new ticket after live/manual refresh. | QR handoff is noticeable and table-labelled; the customer CTA correctly changes from Place order to Add to order after a session exists. |
+| SKR-PRELAUNCH-20260725-E2E-068 | P2 | PASS/PARTIAL | 8.0 | Kitchen route filters were tested: Beverages-only hid #252, Kitchen-only showed it, All restored it. | Filters do not lose context, but beverage routing defect makes Beverages-only falsely empty for drinks. |
+| SKR-PRELAUNCH-20260725-E2E-069 | P2 | PASS | 9.0 | QR add-on updated #252 to two items; Kitchen showed readable names/categories for A12 and C1 without relying on images. | KDS item content is robust even when product images are absent from the production board. |
+| SKR-PRELAUNCH-20260725-E2E-070 | P2 | PASS/PARTIAL | 8.5 | Waiter moved #252 to Ready/Served, POS showed bill #252 payable SGD 8.00, terminal payment and close reset T04. | Service-to-billing handoff works; one POS tab got stuck syncing and needed a fresh open. |
 
 ## Detailed execution notes
 
@@ -1749,3 +1754,208 @@ Live build observed for this phase: `2.1.6 a7e24524`.
   - Fix served-card immediate removal to avoid kitchen staff double-serving.
 - Cleanup performed: Served, terminal-paid, and closed T08/#250; board verified with `OPEN BILLS 0`.
 - Launch decision: Long-ticket content/notes are good. Physical iPad validation is still required because the current live browser did not honor the requested viewport override.
+
+#### SKR-PRELAUNCH-20260725-E2E-066
+
+- Priority: P1
+- Roles simulated: Kitchen, cashier
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: Staff session expired and was restored through live login before continuing; Kitchen was clean.
+- Test data: T01/#251 with `1x A12 Boiled Seasoned Egg`, terminal-paid after serve.
+- Browser steps executed:
+  - Reauthenticated as QA manager after live session expiry.
+  - Opened POS T01.
+  - Added `A12 Boiled Seasoned Egg` and sent the order.
+  - Opened Kitchen and verified #251 appeared under T01.
+  - Started, readied, and served #251.
+  - Immediately returned to POS, paid through terminal, and closed T01.
+  - Refreshed Kitchen and POS board.
+- Expected final state: Served/closed state clears safely from Kitchen and table board.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: POS, Kitchen, staff auth/session recovery.
+- Functional correctness: 9/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 8.5/10
+- Final score: 8.5
+- Status: PASS/PARTIAL
+- Evidence:
+  - Kitchen showed #251/T01 in Send to prep.
+  - Served action showed a served toast.
+  - After refresh, Kitchen showed All `0`, Kitchen `0`, Beverages `0`, and `No active orders`.
+  - POS board showed `OPEN BILLS 0`, `PAID TODAY SGD 78.80`, and T01 Available.
+- Defects found:
+  - Initial post-close reads can show `Syncing`; waiting/reopening produces the correct final state.
+  - Staff session expiry occurred mid-batch; re-login works but interrupts flow.
+- Improvements recommended:
+  - Add a smoother session-expiry return-to-route flow for long QA/service sessions.
+  - Add a small post-close refresh/settled toast so staff know the Kitchen/POS cleanup has propagated.
+- Cleanup performed: Terminal-paid and closed T01/#251.
+- Launch decision: Served/closed cleanup works after refresh and is launch-usable.
+
+#### SKR-PRELAUNCH-20260725-E2E-067
+
+- Priority: P2
+- Roles simulated: Customer via QR, kitchen
+- Browser/device mode: Desktop live browser, customer QR tab plus staff Kitchen tab
+- Live build: `2.1.6 cf39262f`
+- Starting state: Kitchen was open and clean; QR link identified `Ajisen Ramen` table `T04`.
+- Test data: Customer QR order #252, starting with `A12 Boiled Seasoned Egg`, `SGD 2.00`.
+- Browser steps executed:
+  - Opened live QR URL on `order.sakorio.com`.
+  - Verified QR page showed `T04`, no active order, category chips, category headers, and menu items.
+  - Left Kitchen display open on staff domain.
+  - Added `A12 Boiled Seasoned Egg` through the QR `Add ... to cart` button.
+  - Clicked `Place order`.
+  - Verified customer page changed to `Current order`, `Order # 252`, `Status: Pending`, `Pay Now`.
+  - Checked the already-open Kitchen tab and then manually refreshed Kitchen.
+  - Verified Kitchen showed #252/T04 as a pending ticket.
+- Expected final state: Staff can reliably notice a new QR-origin order.
+- Actual final state: PASS.
+- Cross-module verification: QR menu, Kitchen display.
+- Functional correctness: 9/10
+- UI/UX clarity: 9/10
+- Workflow speed: 9/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 9/10
+- Final score: 9.0
+- Status: PASS
+- Evidence:
+  - Customer QR page showed `Order # 252`, `Status: Pending`, item line, Cancel, and Pay Now.
+  - Kitchen displayed #252/T04 with `1x A12 Boiled Seasoned Egg`, `KITCHEN`, `QUICK BITES`, `Pending`.
+  - QR page no longer asks customer name for ordering, matching the latest UX decision.
+  - QR menu category headers are visible and reduce the “wall of menu” problem.
+- Defects found:
+  - None blocking for QR-to-Kitchen visibility.
+- Improvements recommended:
+  - Add an audible/visual new-ticket pulse if Kitchen is open and a QR order arrives.
+  - Keep QR category headers sticky or add a mini category jump bar for very long menus.
+- Cleanup performed: #252 remained active for E2E-068 to E2E-070, then was terminal-paid and closed.
+- Launch decision: QR-origin Kitchen handoff is launch-ready.
+
+#### SKR-PRELAUNCH-20260725-E2E-068
+
+- Priority: P2
+- Roles simulated: Kitchen
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: #252/T04 pending in Kitchen.
+- Test data: #252/T04 with `A12 Boiled Seasoned Egg`.
+- Browser steps executed:
+  - Inspected Kitchen route buttons and controls.
+  - Clicked `Beverages 0`.
+  - Verified #252 was hidden and the view changed to `Beverages only`.
+  - Clicked `Kitchen 1`.
+  - Verified #252 returned in `Kitchen only`.
+  - Clicked `All 1`.
+  - Verified #252 returned in `All production`.
+- Expected final state: Filters do not hide active tickets accidentally and reset safely.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: Kitchen filter controls.
+- Functional correctness: 8/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 8/10
+- Launch readiness: 8/10
+- Final score: 8.0
+- Status: PASS/PARTIAL
+- Evidence:
+  - Beverages-only showed no active tickets.
+  - Kitchen-only showed #252/T04.
+  - All restored #252/T04.
+- Defects found:
+  - Because drinks are incorrectly routed to Kitchen, `Beverages 0` can mislead staff even when drink orders exist.
+  - Route buttons have counts but no warning when the selected lane is empty because of routing configuration.
+- Improvements recommended:
+  - Fix drink routing first.
+  - Add a clear active filter badge and `Reset to All` button when a station filter hides tickets.
+- Cleanup performed: None; #252 remained active for following cases.
+- Launch decision: Filter mechanics work, but filter value depends on fixing station routing.
+
+#### SKR-PRELAUNCH-20260725-E2E-069
+
+- Priority: P2
+- Roles simulated: Customer via QR, kitchen
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: #252/T04 pending with one item.
+- Test data: QR add-on updated #252 to:
+  - `A12 Boiled Seasoned Egg` — `QUICK BITES`
+  - `C1 (2pcs)Deep Fried Chicken` — `DEEP FRIED MENU`
+- Browser steps executed:
+  - Added `C1 (2pcs)Deep Fried Chicken` from the QR menu.
+  - Observed existing-order CTA changed to `Add to order`.
+  - Submitted the add-on.
+  - Verified customer QR current order updated to `SGD 8.00` with both item lines.
+  - Refreshed Kitchen and verified #252 showed both item names and categories.
+- Expected final state: Kitchen can identify products by text/category and does not depend on images.
+- Actual final state: PASS.
+- Cross-module verification: QR add-on order, Kitchen ticket content.
+- Functional correctness: 9/10
+- UI/UX clarity: 9/10
+- Workflow speed: 9/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 9/10
+- Final score: 9.0
+- Status: PASS
+- Evidence:
+  - QR order #252 updated to `SGD 8.00`, `C1 (2pcs)Deep Fried Chicken`, and `A12 Boiled Seasoned Egg`.
+  - Kitchen showed #252/T04 with `2 items`, `A12 Boiled Seasoned Egg / QUICK BITES`, and `C1 (2pcs)Deep Fried Chicken / DEEP FRIED MENU`.
+  - KDS did not display product images, but the text/category labels were sufficient.
+- Defects found:
+  - None blocking for KDS readability without images.
+- Improvements recommended:
+  - Keep KDS text-first; images are optional and should not be required for kitchen identification.
+  - Consider showing modifiers/notes in a slightly larger/high-contrast style on iPad.
+- Cleanup performed: #252 remained active for E2E-070, then was paid/closed.
+- Launch decision: Kitchen item content is launch-ready for image/no-image products.
+
+#### SKR-PRELAUNCH-20260725-E2E-070
+
+- Priority: P2
+- Roles simulated: Waiter, cashier
+- Browser/device mode: Desktop live browser
+- Live build: `2.1.6 cf39262f`
+- Starting state: #252/T04 pending with two items.
+- Test data: #252/T04, total `SGD 8.00`.
+- Browser steps executed:
+  - Started #252 in Kitchen.
+  - Moved #252 to Ready pass.
+  - Verified the ticket showed `Ready`, T04, and both items.
+  - Marked #252 served/delivered.
+  - Opened POS T04 to verify bill handoff.
+  - First POS T04 tab stayed stuck on `Refreshing.../Syncing`.
+  - Opened a fresh POS T04 tab.
+  - Verified `Bill #252 ready to pay`, `T04 · 2 items · SGD 8.00`, and `Bill #252 payable`.
+  - Paid via terminal and closed T04.
+  - Verified POS board showed `OPEN BILLS 0`, T04 Available, and paid today `SGD 86.80`.
+- Expected final state: Service state supports billing handoff from Kitchen to POS.
+- Actual final state: PASS/PARTIAL.
+- Cross-module verification: Kitchen, POS payment, table board.
+- Functional correctness: 9/10
+- UI/UX clarity: 8/10
+- Workflow speed: 8/10
+- Layout/device stability: 8/10
+- Data/payment/session integrity: 9/10
+- Launch readiness: 8.5/10
+- Final score: 8.5
+- Status: PASS/PARTIAL
+- Evidence:
+  - Ready state showed `#252 moved to ready (2 items)`.
+  - Served action showed served toast.
+  - POS fresh tab showed payable bill #252 at `SGD 8.00`.
+  - Final board showed T04 Available and open bills `0`.
+- Defects found:
+  - One POS tab stayed on `Refreshing...` and `Syncing` until a fresh tab was opened.
+  - Served-card stale display remains a known repeated KDS issue from this phase.
+- Improvements recommended:
+  - Add retry/error state if POS board/table drawer stays in sync-loading longer than a few seconds.
+  - Preserve a manual `Refresh table session` action inside the POS drawer for stuck sync states.
+- Cleanup performed: Terminal-paid and closed T04/#252.
+- Launch decision: Service-to-billing handoff works, but stuck sync tabs need a polish fix for 10/10 confidence.

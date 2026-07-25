@@ -1136,6 +1136,26 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   <span class="table-service-eyebrow">Self-order QR</span>
                   <h3>{{ serviceTable.name }}</h3>
                   <p>Guests scan this code to open the table menu, order, and check out online.</p>
+                  @if (!serviceTable.is_active) {
+                    <div class="table-service-alert" role="status">
+                      <strong>{{ serviceTable.name }} QR is closed.</strong>
+                      <span>Open QR ordering when guests are seated so the fixed printed QR accepts orders.</span>
+                    </div>
+                    <div class="quick-qr-actions">
+                      <button
+                        type="button"
+                        class="btn btn-primary"
+                        (click)="openQuickTableForQrOrdering(serviceTable)"
+                        [disabled]="activatingTableId() === serviceTable.id || quickOrderSubmitting()">
+                        {{ activatingTableId() === serviceTable.id ? 'Opening QR...' : 'Open QR ordering' }}
+                      </button>
+                    </div>
+                  } @else {
+                    <div class="table-service-success" role="status">
+                      <strong>{{ serviceTable.name }} QR is open.</strong>
+                      <span>Guests can scan the fixed printed QR and add orders to this table session.</span>
+                    </div>
+                  }
                   <div class="quick-qr-card">
                     <qrcode [qrdata]="getMenuUrl(serviceTable)" [width]="260" [errorCorrectionLevel]="'M'" cssClass="qr-code"></qrcode>
                     <strong>{{ serviceTable.name }}</strong>

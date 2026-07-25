@@ -1046,3 +1046,39 @@ Live build observed for this phase: `2.1.6 a7e24524`.
 - Improvements needed: Run a real iPad/Safari or Chrome devtools device-mode check before final launch signoff.
 - Cleanup performed: Viewport reset.
 - Launch decision: Needs true-device verification.
+
+#### SKR-PRELAUNCH-20260725-E2E-051
+
+- Priority: P0
+- Roles simulated: Cashier, manager
+- Browser/device mode: Live desktop browser
+- Live build: `2.1.6 dd4aad50`
+- Starting state: T03 available; Orders history count 12; no active bill.
+- Test data: T03, order #240, 1x A7 Edamame, SGD 6.00, terminal payment.
+- Browser steps executed:
+  - Opened live POS and selected T03.
+  - Added A7 Edamame and sent the order to kitchen.
+  - Verified POS stayed on T03 with Bill #240, 1 current ticket, SGD 6.00.
+  - Opened Orders filtered for T03.
+  - Verified Orders current view showed 1 active ticket, latest #240, 1x A7 Edamame, SGD 6.00.
+  - Returned to POS, opened Bill / Pay, charged terminal for SGD 6.00.
+  - Pressed Close table and verified final confirmation appeared.
+  - Confirmed `Yes, close table`.
+  - Verified T03 reset to Available / Ready for order and stale #240 text disappeared from POS board.
+  - Reopened Orders filtered for T03 and verified Order History count 13 with #240, T03, 1x A7 Edamame, SGD 6.00, Paid.
+- Expected final state: Active table order appears in current Orders until payment/close; after close it moves to History.
+- Actual final state: PASS after one live-found fix.
+- Cross-module verification: POS table lifecycle, Orders current view, Orders history view.
+- Functional correctness: 10/10
+- UI/UX clarity: 9/10
+- Workflow speed: 9/10
+- Layout/device stability: 9/10
+- Data/payment/session integrity: 10/10
+- Launch readiness: 9.5/10
+- Final score: 9.5
+- Status: PASS
+- Evidence: Current Orders showed `Latest #240`, `1x A7 Edamame`, SGD 6.00; History showed `#240 T03 1x A7 Edamame SGD 6.00 Paid`.
+- Defects found: Initial live run exposed a desktop/landscape paid-close gap: after terminal payment, the desktop bill dock could show “ready to clear” without a clear inline `Yes, close table` action. This was fixed in commit `dd4aad50`.
+- Improvements completed: Added final confirmation to desktop checkout outcome and ready-to-clear bill dock branches, matching the POS drawer behavior.
+- Cleanup performed: T03 order #240 terminal-paid and closed; T03 reset to Available / Ready.
+- Launch decision: Current/history boundary is ready for launch for this flow.

@@ -5,6 +5,15 @@
 set -e
 BASE=/usr/share/nginx/html/sites
 
+emit_security_headers() {
+  indent="$1"
+  echo "${indent}add_header X-Content-Type-Options \"nosniff\" always;"
+  echo "${indent}add_header X-Frame-Options \"DENY\" always;"
+  echo "${indent}add_header Referrer-Policy \"strict-origin-when-cross-origin\" always;"
+  echo "${indent}add_header Permissions-Policy \"camera=(), microphone=(), geolocation=(), payment=()\" always;"
+  echo "${indent}add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always;"
+}
+
 if ! [ -d "$BASE" ]; then
   echo "# marketing: no $BASE"
   exit 0
@@ -24,10 +33,12 @@ for d in "$BASE"/*/; do
   echo "        root /usr/share/nginx/html/sites;"
   echo "        try_files \$uri \$uri/ /${slug}/index.html;"
   echo "        add_header Cache-Control \"no-cache, no-store, must-revalidate\";"
+  emit_security_headers "        "
   echo ""
   echo "        location ~* \\.(js|css|png|jpg|jpeg|gif|ico|svg)\$ {"
   echo "            expires 1y;"
   echo "            add_header Cache-Control \"public, no-transform\";"
+  emit_security_headers "            "
   echo "        }"
   echo "    }"
 done

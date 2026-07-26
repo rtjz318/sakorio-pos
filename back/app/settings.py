@@ -133,6 +133,15 @@ class Settings(BaseSettings):
     # Production mode (enables secure cookies, stricter CORS, etc.)
     is_production: bool = Field(default=False, validation_alias="PRODUCTION")
 
+    # Host allow-list for production. Comma-separated hostnames, for example:
+    # api.sakorio.com,staff.sakorio.com,order.sakorio.com
+    # Leave empty in development or when the platform already enforces host routing.
+    allowed_hosts: str = Field(default="", validation_alias="ALLOWED_HOSTS")
+
+    # Security response headers. Keep enabled in production; can be disabled only for
+    # emergency diagnostics behind a trusted private network.
+    security_headers_enabled: bool = Field(default=True, validation_alias="SECURITY_HEADERS_ENABLED")
+
     # When behind a reverse proxy that mounts the API at a subpath (e.g. /api), set this so
     # OpenAPI docs and spec URLs are correct (e.g. /api/docs, /api/openapi.json).
     root_path: str = Field(default="", validation_alias="ROOT_PATH")
@@ -202,6 +211,47 @@ class Settings(BaseSettings):
             self.rate_limit_reservation_delay_per_hour = 200
             self.rate_limit_guest_feedback_per_hour = 200
             self.rate_limit_password_reset_per_hour = 100
+        return self
+
+    @model_validator(mode="after")
+    def _validate_launch_security(self) -> "Settings":
+        """Fail fast on dangerous production security configuration."""
+        if not self.is_production:
+            return self
+
+        weak_secret_values = {
+            "",
+            "CHANGE_THIS_IN_PRODUCTION",
+            "CHANGE_THIS_TO_A_RANDOM_SECRET_KEY_IN_PRODUCTION",
+            "CHANGE_THIS_REFRESH_SECRET_IN_PRODUCTION",
+            "CHANGE_THIS_TO_ANOTHER_RANDOM_SECRET_IN_PRODUCTION",
+        }
+        if self.secret_key.strip() in weak_secret_values or len(self.secret_key.strip()) < 32:
+            raise ValueError(
+                "SECRET_KEY must be a unique random value of at least 32 characters when PRODUCTION=true"
+            )
+        if self.refresh_secret_key.strip() in weak_secret_values or len(self.refresh_secret_key.strip()) < 32:
+            raise ValueError(
+                "REFRESH_SECRET_KEY must be a unique random value of at least 32 characters when PRODUCTION=true"
+            )
+        if self.secret_key.strip() == self.refresh_secret_key.strip():
+            raise ValueError("SECRET_KEY and REFRESH_SECRET_KEY must be different in production")
+
+        origins = [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        if "*" in origins:
+            raise ValueError(
+                "CORS_ORIGINS cannot contain '*' when PRODUCTION=true and credential cookies are enabled; "
+                "set exact HTTPS origins such as https://staff.sakorio.com,https://order.sakorio.com"
+            )
+        insecure_origins = [
+            origin for origin in origins
+            if not origin.startswith("https://") and not origin.startswith("http://localhost") and not origin.startswith("http://127.0.0.1")
+        ]
+        if insecure_origins:
+            raise ValueError(
+                "CORS_ORIGINS must use HTTPS in production; invalid origins: "
+                + ", ".join(insecure_origins)
+            )
         return self
 
     @property

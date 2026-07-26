@@ -25,6 +25,7 @@ from PIL import Image, ImageOps
 import redis
 from fastapi import BackgroundTasks, Body, Depends, FastAPI, HTTPException, UploadFile, File, status, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
@@ -300,9 +301,18 @@ app = FastAPI(
 cors_origins_list = [
     origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()
 ]
+allowed_hosts_list = [
+    host.strip() for host in settings.allowed_hosts.split(",") if host.strip()
+]
 # Add wildcard for public menu access if not already present
 # if "*" not in cors_origins_list:
 #     cors_origins_list.append("*")
+
+if settings.is_production and allowed_hosts_list:
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=allowed_hosts_list,
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -314,6 +324,29 @@ app.add_middleware(
 
 register_rate_limit_exception_handler(app)
 register_websocket_routes(app)
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Apply baseline browser hardening headers to API responses."""
+    response = await call_next(request)
+    if not settings.security_headers_enabled:
+        return response
+
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Permissions-Policy",
+        "camera=(), microphone=(), geolocation=(), payment=()",
+    )
+    response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    if settings.is_production:
+        response.headers.setdefault(
+            "Strict-Transport-Security",
+            "max-age=31536000; includeSubDomains",
+        )
+    return response
 
 
 def _is_connection_or_pool_operational_failure(exc: BaseException) -> bool:

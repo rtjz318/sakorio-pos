@@ -284,6 +284,23 @@ class TestPaymentSecurity(PgClientTestCase):
         ]
         self.assertEqual(len(customer_receipts), 1)
 
+    def test_hitpay_webhook_unknown_request_id_is_generic_ignored(self):
+        payload = {
+            "id": "hp_req_unknown",
+            "status": "completed",
+            "amount": "100.00",
+            "currency": "SGD",
+        }
+        response = self.client.post(
+            "/payments/hitpay/webhook",
+            json=payload,
+            headers={"Hitpay-Signature": "invalid"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ignored"})
+        self.assertNotIn("Order not found", response.text)
+
     def test_public_menu_order_history_does_not_expose_previous_diners(self):
         old_order = models.Order(
             tenant_id=self.tenant.id,

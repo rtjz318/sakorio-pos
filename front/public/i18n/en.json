@@ -1352,7 +1352,7 @@
     "BUSINESS_PROFILE": "Business Profile",
     "LOGO": "Logo",
     "UPLOAD_LOGO": "Upload Logo",
-    "UPLOAD_LOGO_HINT": "Recommended: Square image, max 5MB (JPG, PNG, WebP, AVIF, SVG)",
+    "UPLOAD_LOGO_HINT": "Recommended: Square image, max 5MB (JPG, PNG, WebP, AVIF)",
     "REMOVE_LOGO": "Remove",
     "HEADER_BACKGROUND": "Header background image",
     "UPLOAD_HEADER_BACKGROUND": "Upload image",

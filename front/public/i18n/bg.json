@@ -1345,7 +1345,7 @@
     "BUSINESS_PROFILE": "Профил на дейностите",
     "LOGO": "Лого",
     "UPLOAD_LOGO": "Качване на лого",
-    "UPLOAD_LOGO_HINT": "Препоръчително: квадратно изображение, до 5 MB (JPG, PNG, WebP, AVIF, SVG)",
+    "UPLOAD_LOGO_HINT": "Препоръчително: квадратно изображение, до 5 MB (JPG, PNG, WebP, AVIF)",
     "REMOVE_LOGO": "Премахване",
     "HEADER_BACKGROUND": "Фоново изображение",
     "UPLOAD_HEADER_BACKGROUND": "Качване на изображение",

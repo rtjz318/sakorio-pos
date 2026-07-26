@@ -741,7 +741,7 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
                         <input
                           type="file"
                           id="logo-upload"
-                          accept="image/jpeg,image/png,image/webp,image/avif,image/svg+xml,.svg"
+                          accept="image/jpeg,image/png,image/webp,image/avif"
                           (change)="onLogoSelected($event)"
                           hidden
                         />
@@ -3940,10 +3940,16 @@ export class SettingsComponent implements OnInit, OnDestroy {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
       const file = input.files[0];
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/avif'].includes(file.type)) {
+        this.error.set('Please select a JPG, PNG, WebP or AVIF image.');
+        input.value = '';
+        return;
+      }
       if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
         this.error.set(
           this.translate.instant('COMMON.IMAGE_FILE_TOO_LARGE', { maxMb: MAX_IMAGE_UPLOAD_MB }),
         );
+        input.value = '';
         return;
       }
       this.logoFile = file;

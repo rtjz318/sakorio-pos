@@ -4573,9 +4573,10 @@ async def upload_tenant_logo(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    # Validate content type (logo allows SVG in addition to raster images)
-    # Some clients do not send Content-Type for multipart file; infer from filename
-    allowed_logo_types = ALLOWED_IMAGE_TYPES | {"image/svg+xml"}
+    # Validate content type. Launch hardening keeps tenant logos raster-only:
+    # raw SVG uploads can carry active content when opened directly.
+    # Some clients do not send Content-Type for multipart file; infer from filename.
+    allowed_logo_types = ALLOWED_IMAGE_TYPES
     content_type = file.content_type or _infer_content_type_from_filename(file.filename)
     if content_type not in allowed_logo_types:
         raise HTTPException(
@@ -4591,10 +4592,8 @@ async def upload_tenant_logo(
             detail=f"File too large. Max size: {MAX_IMAGE_SIZE // (1024 * 1024)}MB",
         )
 
-    is_svg = content_type == "image/svg+xml"
-    if not is_svg:
-        # Optimize raster image locally (SVG is stored as-is)
-        contents = optimize_image(contents, content_type)
+    # Optimize raster image locally.
+    contents = optimize_image(contents, content_type)
 
     # Create tenant logo directory
     tenant_dir = UPLOADS_DIR / str(current_user.tenant_id) / "logo"
@@ -4607,11 +4606,8 @@ async def upload_tenant_logo(
             old_path.unlink()
 
     # Generate unique filename
-    ext = Path(file.filename or ("logo.svg" if is_svg else "logo.jpg")).suffix.lower()
-    if is_svg:
-        if ext != ".svg":
-            ext = ".svg"
-    elif ext not in [".jpg", ".jpeg", ".png", ".webp", ".avif"]:
+    ext = Path(file.filename or "logo.jpg").suffix.lower()
+    if ext not in [".jpg", ".jpeg", ".png", ".webp", ".avif"]:
         ext = ".jpg"
     new_filename = f"{uuid4()}{ext}"
 
@@ -15516,7 +15512,9 @@ async def hitpay_webhook(
             order = session.get(models.Order, int(order_ref))
 
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found for HitPay webhook")
+        # Do not let unauthenticated webhook callers enumerate valid HitPay request IDs.
+        # A real HitPay retry for an unknown request is still safely ignored.
+        return {"status": "ignored"}
 
     tenant = session.get(models.Tenant, order.tenant_id)
     if not tenant:

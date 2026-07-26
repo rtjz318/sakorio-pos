@@ -1244,7 +1244,7 @@
     "BUSINESS_PROFILE": "Profil de l'établissement",
     "LOGO": "Logo",
     "UPLOAD_LOGO": "Télécharger un logo",
-    "UPLOAD_LOGO_HINT": "Recommandé : image carrée, max 5 Mo (JPG, PNG, WebP, AVIF, SVG)",
+    "UPLOAD_LOGO_HINT": "Recommandé : image carrée, max 5 Mo (JPG, PNG, WebP, AVIF)",
     "REMOVE_LOGO": "Supprimer",
     "HEADER_BACKGROUND": "Image de fond de l'en-tête",
     "UPLOAD_HEADER_BACKGROUND": "Télécharger une image",

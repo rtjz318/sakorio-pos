@@ -1365,7 +1365,7 @@
     "PUBLIC_PRIVACY_POLICY_HINT": "Opcional. Mismo criterio que los términos; respaldo: PUBLIC_PRIVACY_POLICY_URL en la configuración del servidor.",
     "LOGO": "Logo",
     "UPLOAD_LOGO": "Subir Logo",
-    "UPLOAD_LOGO_HINT": "Imagen cuadrada, máx 5MB (JPG, PNG, WebP, AVIF, SVG)",
+    "UPLOAD_LOGO_HINT": "Imagen cuadrada, máx 5MB (JPG, PNG, WebP, AVIF)",
     "REMOVE_LOGO": "Eliminar",
     "HEADER_BACKGROUND": "Imagen de fondo del encabezado",
     "UPLOAD_HEADER_BACKGROUND": "Subir imagen",

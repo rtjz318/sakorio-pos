@@ -47,6 +47,9 @@ RUN chmod +x /docker-gen-marketing.sh \
   && mkdir -p /etc/nginx/snippets \
   && /docker-gen-marketing.sh > /etc/nginx/snippets/marketing-sites.generated.conf
 
+# Shared security headers used by every nginx location that emits headers.
+COPY security-headers.nginx /etc/nginx/snippets/security-headers.conf
+
 # Copy custom Nginx configuration (includes marketing-sites.generated.conf)
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 

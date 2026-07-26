@@ -175,3 +175,31 @@ Before public launch, run:
 6. Physical iPad/phone QR rehearsal.
 7. HitPay sandbox-to-live decision sign-off.
 
+## Verification addendum - frontend header inheritance fix
+
+Date: 2026-07-26
+
+Finding:
+
+- `https://api.sakorio.com/health` returned the expected API security headers.
+- Customer QR ordering loaded successfully in the live browser with no visible customer-name prompt and no Cash payment option.
+- The frontend root pages initially missed the browser hardening headers because nginx does not inherit parent `add_header` directives inside child locations that define their own headers.
+
+Fix:
+
+- Added a shared nginx security-header snippet.
+- Included that snippet in the root SPA location, static asset location, health location, and generated marketing-site locations.
+- Verified the production Docker image with `nginx -t`.
+- Verified a locally running production image returns the headers on:
+  - `/`
+  - `/health`
+  - hashed JavaScript assets
+
+Expected live acceptance after redeploy:
+
+- `staff.sakorio.com`, `order.sakorio.com`, and static assets should all include:
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY`
+  - `Referrer-Policy: strict-origin-when-cross-origin`
+  - `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()`
+  - `Strict-Transport-Security: max-age=31536000; includeSubDomains`

@@ -7,11 +7,7 @@ BASE=/usr/share/nginx/html/sites
 
 emit_security_headers() {
   indent="$1"
-  echo "${indent}add_header X-Content-Type-Options \"nosniff\" always;"
-  echo "${indent}add_header X-Frame-Options \"DENY\" always;"
-  echo "${indent}add_header Referrer-Policy \"strict-origin-when-cross-origin\" always;"
-  echo "${indent}add_header Permissions-Policy \"camera=(), microphone=(), geolocation=(), payment=()\" always;"
-  echo "${indent}add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always;"
+  echo "${indent}include /etc/nginx/snippets/security-headers.conf;"
 }
 
 if ! [ -d "$BASE" ]; then

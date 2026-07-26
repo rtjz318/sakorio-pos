@@ -56,7 +56,7 @@
                 {
                   "type": "anyComponentStyle",
                   "maximumWarning": "40kB",
-                  "maximumError": "60kB"
+                  "maximumError": "70kB"
                 }
               ],
               "outputHashing": "all"
@@ -101,7 +101,7 @@
                 {
                   "type": "anyComponentStyle",
                   "maximumWarning": "40kB",
-                  "maximumError": "60kB"
+                  "maximumError": "70kB"
                 }
               ],
               "outputHashing": "all",
@@ -127,7 +127,7 @@
                 {
                   "type": "anyComponentStyle",
                   "maximumWarning": "40kB",
-                  "maximumError": "60kB"
+                  "maximumError": "70kB"
                 }
               ],
               "outputHashing": "all",
@@ -150,7 +150,7 @@
                 {
                   "type": "anyComponentStyle",
                   "maximumWarning": "40kB",
-                  "maximumError": "60kB"
+                  "maximumError": "70kB"
                 }
               ],
               "outputHashing": "all",

@@ -2,7 +2,8 @@
 
 Date: 2026-07-26  
 Environment: live Sakorio domains + local Docker regression checks  
-Commit under test before fixes: `4b4a98e7`
+Commit under test before fixes: `4b4a98e7`  
+Hardening commit verified live: `cc0ed9b`
 
 ## Scope
 
@@ -240,13 +241,23 @@ Notes:
    - Added unknown HitPay webhook test.
    - Added SVG logo rejection test.
 
+## Post-deploy live verification
+
+Deployment:
+
+- Render API service deployed `cc0ed9b`.
+- Staff frontend displayed `2.1.6 cc0ed9b` in the live browser.
+
+Verified after deploy:
+
+- API `/health` returned `200 OK` with security headers.
+- Spoofed unknown HitPay webhook returned generic `status: ignored`.
+- Settings > Business Profile logo upload hint now says: `JPG, PNG, WebP, AVIF`.
+- Settings logo file input now accepts only: `image/jpeg,image/png,image/webp,image/avif`.
+- Settings logo hint no longer mentions SVG.
+
 ## Remaining before 100% launch signoff
 
-1. Redeploy this security-hardening commit.
-2. Re-run live browser Settings check:
-   - Logo hint should no longer mention SVG.
-   - Logo file picker should no longer accept SVG.
-3. Re-run live HitPay spoof check:
-   - Unknown request should return generic ignored response.
-4. Run QA role matrix with known QA role password.
-5. Perform backup/restore rehearsal and physical iPad/QR/printer trial.
+1. Run QA role matrix with known QA role password.
+2. Perform backup/restore rehearsal.
+3. Complete physical iPad/phone QR/printer trial.

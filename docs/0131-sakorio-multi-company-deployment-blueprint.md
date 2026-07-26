@@ -756,3 +756,27 @@ The highest-value next improvement is a `company-onboarding` package:
 - `docs/render-company-deployment-checklist.md`
 
 That would turn company duplication from a manual checklist into a repeatable deployment machine.
+
+## Implemented onboarding utility
+
+The first backend onboarding utility now lives at:
+
+- `back/app/onboarding/company_onboarding.py`
+
+Operator guide:
+
+- `docs/company-onboarding-tools.md`
+
+Main command:
+
+```bash
+cd back
+python -m app.onboarding.company_onboarding --help
+```
+
+Available utilities:
+
+- `create-tenant`
+- `import-menu-csv`
+- `launch-check`
+- `render-env-template`

@@ -694,6 +694,59 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                 }
               </div>
 
+              <div
+                class="table-qr-strip"
+                [class.table-qr-strip--open]="table.is_active"
+                [class.table-qr-strip--closed]="!table.is_active"
+                [attr.data-testid]="'table-qr-strip-' + table.id"
+              >
+                <div class="table-qr-strip-copy">
+                  <span class="table-qr-state">{{ table.is_active ? 'Fixed QR open' : 'Fixed QR closed' }}</span>
+                  <small>
+                    {{
+                      table.is_active
+                        ? 'Guests can scan the printed QR and order now.'
+                        : 'Open this when guests are seated.'
+                    }}
+                  </small>
+                </div>
+                <div class="table-qr-strip-actions">
+                  @if (!table.is_active) {
+                    <button
+                      type="button"
+                      class="btn btn-success btn-sm"
+                      [attr.aria-label]="'Open QR ordering for ' + table.name"
+                      [attr.data-testid]="'open-qr-ordering-' + table.id"
+                      [disabled]="activatingTableId() === table.id"
+                      (click)="activateTableSession(table)"
+                    >
+                      {{ activatingTableId() === table.id ? 'Opening…' : 'Open QR' }}
+                    </button>
+                  } @else {
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-sm"
+                      [attr.aria-label]="'Open customer menu for ' + table.name"
+                      [attr.data-testid]="'open-customer-menu-' + table.id"
+                      [disabled]="staffMenuOpeningTableId() === table.id"
+                      (click)="openStaffMenu(table)"
+                    >
+                      Open menu
+                    </button>
+                  }
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm"
+                    [class.btn-copied]="copiedTableId() === table.id"
+                    [attr.aria-label]="'Copy fixed QR link for ' + table.name"
+                    [attr.data-testid]="'copy-fixed-qr-link-' + table.id"
+                    (click)="copyLink(table)"
+                  >
+                    {{ copiedTableId() === table.id ? 'Copied!' : 'Copy QR' }}
+                  </button>
+                </div>
+              </div>
+
               @if (canManageTableAssignments() || canManageFloors()) {
                 <details class="table-admin-panel">
                   <summary [attr.aria-label]="'More table controls for ' + table.name">
@@ -1767,6 +1820,52 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
       flex: 1 1 8.5rem;
       justify-content: center;
       min-width: 0;
+    }
+    .table-qr-strip {
+      display: grid;
+      gap: 0.65rem;
+      margin: 0 0 var(--space-3);
+      padding: 0.65rem;
+      border: 1px solid #dbe7dd;
+      border-radius: 14px;
+      background: #f8faf8;
+      text-align: left;
+    }
+    .table-qr-strip--open {
+      border-color: rgba(20, 184, 166, 0.32);
+      background: rgba(240, 253, 250, 0.82);
+    }
+    .table-qr-strip--closed {
+      border-color: rgba(245, 158, 11, 0.28);
+      background: rgba(255, 251, 235, 0.75);
+    }
+    .table-qr-strip-copy {
+      display: grid;
+      gap: 0.2rem;
+      min-width: 0;
+    }
+    .table-qr-state {
+      font-size: 0.76rem;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #0f766e;
+    }
+    .table-qr-strip--closed .table-qr-state { color: #b45309; }
+    .table-qr-strip-copy small {
+      color: #55635f;
+      line-height: 1.3;
+    }
+    .table-qr-strip-actions {
+      display: flex;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+    .table-qr-strip-actions .btn {
+      flex: 1 1 6.5rem;
+      justify-content: center;
+      min-height: 2.3rem;
+      white-space: nowrap;
     }
 
     .icon-btn { background: none; border: none; padding: var(--space-2); border-radius: var(--radius-sm); color: var(--color-text-muted); cursor: pointer; transition: all 0.15s ease; }
@@ -4004,11 +4103,20 @@ export class TablesComponent implements OnInit {
     this.activatingTableId.set(table.id);
     this.api.activateTable(table.id).subscribe({
       next: response => {
+        const activatedTable = {
+          ...table,
+          is_active: true,
+          order_pin: null,
+          active_order_id: response.active_order_id,
+          activated_at: response.activated_at,
+        };
         this.tables.update(tables => tables.map(t =>
           t.id === table.id
-            ? { ...t, is_active: true, order_pin: null, active_order_id: response.active_order_id, activated_at: response.activated_at }
+            ? activatedTable
             : t
         ));
+        this.setTableQrHandoff(activatedTable, this.getMenuUrl(activatedTable), false, false);
+        this.showToast(`${table.name} QR ordering is open. Guests can scan the printed table QR.`, 'success');
         this.activatingTableId.set(null);
       },
       error: err => {

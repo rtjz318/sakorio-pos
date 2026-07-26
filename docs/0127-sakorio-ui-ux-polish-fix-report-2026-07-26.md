@@ -324,3 +324,43 @@ Scope: next launch-rehearsal sequence after cleanup, focused on table QR service
 - Keep the customer order flow name-free unless a future CRM/loyalty requirement needs identification.
 - Consider improving the Tables card nested QR control reliability/labeling; the table-service drawer path works, but direct `Activate` on the tile was not automation-friendly.
 - Physical iPad/device rehearsal remains the next best launch-hardening step because the in-app browser did not actually resize to true iPad dimensions during this pass.
+
+## Tables QR activation UX fix
+
+Date/time: 2026-07-26  
+Scope: item 2 from the launch readiness list — make table QR activation clearer and less dependent on the hidden “More” table controls.
+
+### Change made
+
+- Added a visible `Fixed QR` strip to every table tile in the Tables tab.
+- Inactive tables now show:
+  - `Fixed QR closed`
+  - `Open QR`
+  - `Copy QR`
+- Active/open tables now show:
+  - `Fixed QR open`
+  - `Open menu`
+  - `Copy QR`
+- Added stable accessibility/test labels:
+  - `Open QR ordering for Txx`
+  - `Open customer menu for Txx`
+  - `Copy fixed QR link for Txx`
+- When table QR activation succeeds, the table card immediately exposes the fallback QR handoff link so staff can open/copy it even if popups or clipboard permissions fail.
+
+### Verification
+
+- Angular hot reload rebuilt `tables-component` successfully in Docker.
+- Front container logs showed `Application bundle generation complete` with no TypeScript or Angular compiler errors.
+- Local route smoke confirmed `/tables` loads to the expected authentication route without app crash.
+- Backend logs remained healthy during the smoke check.
+
+### Live QA pending
+
+This change needs staff.sakorio.com verification after Render deploy finishes:
+
+1. Open `https://staff.sakorio.com/tables`.
+2. Confirm each tile shows the visible `Fixed QR` strip.
+3. On an inactive table, click `Open QR`.
+4. Confirm the tile changes to `Fixed QR open` and the fallback QR link appears.
+5. Click `Open menu` and confirm the customer menu opens.
+6. Click `Copy QR` and confirm copied feedback appears.

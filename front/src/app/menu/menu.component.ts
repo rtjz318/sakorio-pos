@@ -66,6 +66,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   selectedSubcategory = signal<string | null>(null);
   availableCategories = signal<string[]>([]);
   availableSubcategories = signal<string[]>([]);
+  menuSearch = signal('');
 
   // Tenant info
   tenantName = signal('');
@@ -100,7 +101,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   // New UI state
   isScrolled = signal(false);
   cartExpanded = signal(false);
-  /** Product ids in cart â€” grid/featured cards get a light â€œin cartâ€ background. */
+  /** Product ids in cart — grid/featured cards get a light “in cart” background. */
   productIdsInCart = computed(() => {
     const ids = new Set<number>();
     for (const line of this.cart()) {
@@ -537,6 +538,20 @@ export class MenuComponent implements OnInit, OnDestroy {
     this.applyFilter(this.selectedCategory(), subcategoryCode);
   }
 
+  updateMenuSearch(value: string) {
+    this.menuSearch.set(value || '');
+    this.applyFilter(this.selectedCategory(), this.selectedSubcategory());
+  }
+
+  clearMenuSearch() {
+    this.menuSearch.set('');
+    this.applyFilter(this.selectedCategory(), this.selectedSubcategory());
+  }
+
+  scrollMenuToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   updateSubcategories(category: string | null) {
     if (!category) {
       this.availableSubcategories.set([]);
@@ -624,7 +639,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     if (wineType === 'Red Wine') return 'WINE_RED';
     if (wineType === 'White Wine') return 'WINE_WHITE';
     if (wineType === 'Sparkling Wine') return 'WINE_SPARKLING';
-    if (wineType === 'RosÃ© Wine') return 'WINE_ROSE';
+    if (wineType === 'Rosé Wine') return 'WINE_ROSE';
     if (wineType === 'Sweet Wine') return 'WINE_SWEET';
     if (wineType === 'Fortified Wine') return 'WINE_FORTIFIED';
     return null;
@@ -652,6 +667,27 @@ export class MenuComponent implements OnInit, OnDestroy {
           return wineTypeCode === subcategoryCode;
         });
       }
+    }
+
+    const query = this.menuSearch().trim().toLowerCase();
+    if (query) {
+      filtered = filtered.filter(p => {
+        const haystack = [
+          p.name,
+          p.category,
+          p.subcategory,
+          p.description,
+          p.detailed_description,
+          p.ingredients,
+          p.winery,
+          p.country,
+          p.region,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(query);
+      });
     }
 
     filtered = filtered.map(p => ({
@@ -761,7 +797,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     if (type.includes('red')) return 'red';
     if (type.includes('white')) return 'white';
     if (type.includes('sparkling')) return 'sparkling';
-    if (type.includes('rosÃ©') || type.includes('rose')) return 'rose';
+    if (type.includes('rosé') || type.includes('rose')) return 'rose';
     if (type.includes('sweet')) return 'sweet';
     if (type.includes('fortified')) return 'fortified';
     return 'other';
@@ -771,7 +807,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     if (wineType.includes('Red')) return 'Tinto';
     if (wineType.includes('White')) return 'Blanco';
     if (wineType.includes('Sparkling')) return 'Espumoso';
-    if (wineType.includes('RosÃ©') || wineType.includes('Rose')) return 'Rosado';
+    if (wineType.includes('Rosé') || wineType.includes('Rose')) return 'Rosado';
     if (wineType.includes('Sweet')) return 'Dulce';
     if (wineType.includes('Fortified')) return 'Generoso';
     return wineType;

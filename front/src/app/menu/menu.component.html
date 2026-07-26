@@ -110,6 +110,20 @@
 
   <!-- Sticky Category Navigation -->
   <nav class="category-nav" [class.scrolled]="isScrolled()">
+    <div class="menu-search-shell" role="search">
+      <label class="menu-search-field">
+        <span>Search menu</span>
+        <input
+          type="search"
+          [ngModel]="menuSearch()"
+          (ngModelChange)="updateMenuSearch($event)"
+          placeholder="Search ramen, gyoza, drinks..."
+          autocomplete="off" />
+      </label>
+      @if (menuSearch()) {
+      <button type="button" class="menu-search-clear" (click)="clearMenuSearch()">Clear</button>
+      }
+    </div>
     <div class="category-scroll-container">
       <button class="category-chip" [class.active]="selectedCategory() === null" (click)="selectCategory(null)">
         <span class="category-icon">🍽️</span>
@@ -306,7 +320,12 @@
     <section class="products-section">
       <div class="products-header">
         <h2 class="section-title">{{ selectedCategory() || ('MENU.TITLE' | translate) }}</h2>
-        <span class="product-count">{{ filteredProducts().length }} {{ 'COMMON.ITEMS' | translate }}</span>
+        <span class="product-count">
+          {{ filteredProducts().length }} {{ 'COMMON.ITEMS' | translate }}
+          @if (menuSearch()) {
+          · matching "{{ menuSearch() }}"
+          }
+        </span>
       </div>
 
       <div class="category-menu-stack">
@@ -443,6 +462,12 @@
       }
     </section>
   </main>
+
+  @if (isScrolled()) {
+  <button type="button" class="back-to-top-button" (click)="scrollMenuToTop()" aria-label="Back to top">
+    ↑ Top
+  </button>
+  }
 
   <!-- Bottom Sheet Cart -->
   @if (cart().length > 0) {

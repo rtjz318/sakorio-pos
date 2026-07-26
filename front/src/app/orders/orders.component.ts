@@ -78,7 +78,27 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
 
         <div class="content">
           @if (loading()) {
-            <div class="empty-state"><p>{{ 'ORDERS.LOADING' | translate }}</p></div>
+            <section class="orders-loading-board" role="status" aria-live="polite">
+              <div class="orders-loading-copy">
+                <span class="eyebrow">Syncing live orders</span>
+                <h2>Loading table tickets…</h2>
+                <p>Keeping the floor view ready while current bills and kitchen states refresh.</p>
+              </div>
+              <div class="orders-loading-grid" aria-hidden="true">
+                @for (_ of [1, 2, 3]; track _) {
+                  <article class="orders-loading-card">
+                    <span></span>
+                    <strong></strong>
+                    <p></p>
+                    <div>
+                      <b></b>
+                      <b></b>
+                      <b></b>
+                    </div>
+                  </article>
+                }
+              </div>
+            </section>
           } @else {
             @if (tableScopeId() != null) {
               <div class="orders-table-scope-banner" role="status">
@@ -1221,6 +1241,73 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
       font-size: 0.9375rem;
       font-weight: 500;
       color: var(--color-text);
+    }
+
+    .orders-loading-board {
+      display: grid;
+      gap: var(--space-4);
+      padding: var(--space-5);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-xl);
+      background: linear-gradient(135deg, var(--color-surface), color-mix(in srgb, var(--color-bg) 84%, white));
+      box-shadow: var(--shadow-sm);
+    }
+    .orders-loading-copy {
+      display: grid;
+      gap: 0.25rem;
+    }
+    .orders-loading-copy h2,
+    .orders-loading-copy p {
+      margin: 0;
+    }
+    .orders-loading-copy h2 {
+      color: var(--color-text);
+      font-size: 1.15rem;
+    }
+    .orders-loading-copy p {
+      color: var(--color-text-muted);
+      font-size: 0.92rem;
+    }
+    .orders-loading-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+      gap: var(--space-3);
+    }
+    .orders-loading-card {
+      display: grid;
+      gap: 0.72rem;
+      min-height: 8.5rem;
+      padding: var(--space-4);
+      border: 1px solid color-mix(in srgb, var(--color-border) 76%, white);
+      border-radius: var(--radius-lg);
+      background: white;
+      overflow: hidden;
+    }
+    .orders-loading-card span,
+    .orders-loading-card strong,
+    .orders-loading-card p,
+    .orders-loading-card b {
+      display: block;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 45%, #f8fafc 90%);
+      background-size: 220% 100%;
+      animation: orderSkeletonPulse 1.25s ease-in-out infinite;
+    }
+    .orders-loading-card span { width: 4.2rem; height: 0.65rem; }
+    .orders-loading-card strong { width: 8rem; height: 1.15rem; }
+    .orders-loading-card p { width: 100%; height: 0.82rem; }
+    .orders-loading-card div {
+      display: flex;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+    }
+    .orders-loading-card b {
+      width: 4.6rem;
+      height: 1.45rem;
+    }
+    @keyframes orderSkeletonPulse {
+      0% { background-position: 0% 50%; }
+      100% { background-position: -220% 50%; }
     }
 
     .filter-tabs {

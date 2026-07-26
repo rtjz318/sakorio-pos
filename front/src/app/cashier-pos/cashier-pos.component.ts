@@ -164,7 +164,10 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
             } @else {
               <div class="table-stack">
                 @for (table of sortedTables(); track table.id) {
-                  <article class="table-card" [class.table-card--selected]="selectedTableId() === table.id">
+                  <article
+                    class="table-card"
+                    [attr.data-table-state]="getTableState(table)"
+                    [class.table-card--selected]="selectedTableId() === table.id">
                     <button type="button" class="table-card-main" (click)="openTableWorkspace(table)">
                       <div class="table-card-top">
                         <div class="table-card-copy">
@@ -804,8 +807,8 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                     [class.mode-card--selected]="primaryCheckoutMode() === 'cash'"
                     (click)="selectSettlementMode('cash')"
                     [disabled]="processingCheckout()">
-                      <span class="micro-label">Staff cash</span>
-                      <strong>Cash (staff)</strong>
+                      <span class="micro-label">Counter cash</span>
+                      <strong>Counter cash — staff only</strong>
                       <small>Internal counter settlement</small>
                   </button>
                   <button
@@ -1446,8 +1449,8 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                           [class.mode-card--selected]="primaryCheckoutMode() === 'cash'"
                           (click)="selectSettlementMode('cash')"
                           [disabled]="processingCheckout()">
-                          <span class="micro-label">Staff cash</span>
-                          <strong>Cash (staff)</strong>
+                          <span class="micro-label">Counter cash</span>
+                          <strong>Counter cash — staff only</strong>
                           <small>Internal counter settlement</small>
                         </button>
                         <button
@@ -2050,6 +2053,16 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       box-shadow: 0 12px 24px color-mix(in srgb, var(--color-primary) 24%, transparent);
     }
 
+    .pos-service-tabs button:not(.active):has(span) {
+      background: color-mix(in srgb, var(--color-surface) 94%, white);
+    }
+
+    .pos-service-tabs button:not(.active):last-child {
+      color: color-mix(in srgb, var(--color-muted) 82%, white);
+      border-style: dashed;
+      background: color-mix(in srgb, var(--color-bg) 86%, white);
+    }
+
     .pos-service-tabs span {
       padding: 0.12rem 0.42rem;
       border-radius: 999px;
@@ -2162,6 +2175,13 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       text-align: left;
       box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
       cursor: pointer;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+
+    .pos-service-product-card:hover:not(:disabled) {
+      border-color: color-mix(in srgb, var(--color-primary) 34%, var(--color-border));
+      box-shadow: 0 12px 26px rgba(15, 23, 42, 0.1);
+      transform: translateY(-1px);
     }
 
     .pos-service-product-card:disabled {
@@ -2199,18 +2219,34 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
     .pos-service-product-copy small {
       overflow: hidden;
       color: var(--color-muted);
-      font-size: 0.72rem;
-      font-weight: 780;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .pos-service-product-copy span {
+      width: fit-content;
+      max-width: 100%;
+      padding: 0.14rem 0.42rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--color-primary-light) 18%, white);
+      color: var(--color-primary-strong);
+      font-size: 0.62rem;
+      font-weight: 900;
+      letter-spacing: 0.025em;
+      text-transform: uppercase;
+    }
+
+    .pos-service-product-copy small {
+      font-size: 0.68rem;
+      font-weight: 720;
     }
 
     .pos-service-product-copy strong {
       overflow: hidden;
       color: var(--color-text);
-      font-size: 0.9rem;
+      font-size: 0.94rem;
       font-weight: 900;
-      line-height: 1.18;
+      line-height: 1.14;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
@@ -2219,7 +2255,8 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
     .pos-service-product-copy b {
       margin-top: auto;
       color: var(--color-primary-strong);
-      font-size: 0.94rem;
+      font-size: 1rem;
+      font-weight: 950;
       line-height: 1.1;
     }
 
@@ -2823,6 +2860,34 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       display: flex;
       flex-direction: column;
       min-height: 0;
+      border-left-width: 5px;
+    }
+
+    .table-card[data-table-state='available'] {
+      border-left-color: var(--color-success);
+      background: linear-gradient(180deg, white, color-mix(in srgb, var(--color-success-light) 18%, white));
+    }
+
+    .table-card[data-table-state='occupied'],
+    .table-card[data-table-state='reserved'] {
+      border-left-color: var(--color-warning);
+      background: linear-gradient(180deg, white, color-mix(in srgb, var(--color-warning) 8%, white));
+    }
+
+    .table-card[data-table-state='open_order'] {
+      border-left-color: var(--color-primary);
+      background: linear-gradient(180deg, white, color-mix(in srgb, var(--color-primary-light) 18%, white));
+    }
+
+    .table-card[data-table-state='awaiting_clear'],
+    .table-card[data-table-state='ready_to_serve'] {
+      border-left-color: var(--color-success);
+      background: linear-gradient(180deg, white, color-mix(in srgb, var(--color-success-light) 24%, white));
+    }
+
+    .table-card[data-table-state='closed'] {
+      border-left-color: var(--color-text-muted);
+      opacity: 0.86;
     }
 
     .table-card-main,

@@ -1947,12 +1947,12 @@ def get_ws_token(
     return {"access_token": token}
 
 
-@app.get("/users/me", response_model=models.User | None)
+@app.get("/users/me", response_model=models.UserResponse | None)
 def read_users_me(
     current_user: Annotated[models.User | None, Depends(security.get_current_user_optional)],
-) -> models.User | None:
+) -> dict | None:
     """Current user when a valid session cookie is present; **200 with JSON `null`** when anonymous (no 401 noise for SPA bootstrap)."""
-    return current_user
+    return _staff_profile_dict(current_user) if current_user else None
 
 
 def _staff_profile_dict(user: models.User) -> dict:

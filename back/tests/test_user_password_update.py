@@ -102,6 +102,16 @@ class TestUserPasswordUpdate(PgClientTestCase):
         )
         self.assertEqual(r.status_code, 200, r.text)
 
+    def test_users_me_does_not_expose_hashed_password(self) -> None:
+        h = _bearer_headers(self.owner)
+        r = self.client.get("/users/me", headers=h)
+
+        self.assertEqual(r.status_code, 200, r.text)
+        body = r.json()
+        self.assertEqual(body["email"], self.owner.email)
+        self.assertNotIn("hashed_password", body)
+        self.assertNotIn("password", body)
+
     def test_admin_must_reauth_to_change_password(self) -> None:
         admin = models.User(
             email="pwd-admin@test.local",

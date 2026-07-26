@@ -212,3 +212,36 @@ Result:
 ### Remaining note
 
 The POS inline style block remains large and still triggers a non-blocking Angular warning. This is acceptable for launch deployment, but the long-term cleanup should be to move/refactor the POS inline styles into smaller component styles or shared CSS utilities.
+
+## Continuation live QA pass
+
+Date/time: 2026-07-26, follow-up pass after `3be035ba` deployment  
+Live staff build verified: `2.1.6 3be035ba`
+
+### Staff pages checked live
+
+| Area | URL | Result | Notes |
+| --- | --- | --- | --- |
+| Dashboard/login session | `https://staff.sakorio.com/dashboard?qa=continue-live-qa` | Pass | QA manager session remains authenticated; build hash visible. |
+| POS board | `https://staff.sakorio.com/pos?qa=continue-pass-pos` | Pass | 10 tables loaded, 1 open bill, no POS QR handoff card shown on the table-first board. |
+| Orders | `https://staff.sakorio.com/staff/orders` | Pass | Active order grouping shows T07 / order `#254`; no visible page error. |
+| Tables | `https://staff.sakorio.com/tables?qa=continue-pass-tables` | Pass | Table grid/list loads with T01-T10 and waiter/QR controls. |
+| Kitchen & beverages | `https://staff.sakorio.com/kitchen?qa=continue-pass-kitchen` | Pass with data note | Page loads and ticket lanes work. One old T07 ticket is still pending in the backlog/current lane. |
+
+### Customer QR checked live
+
+Checked active T07 QR:
+
+- Active table opens normally; it is not blocked by `Table Closed`.
+- No customer-name prompt appears.
+- Search menu is visible.
+- Category chips and category headers are visible.
+- Current order `#254` appears with `Pay Now`.
+- Cash is not shown to the customer.
+- Menu images are loading (`20` loaded in the immediately visible/observed image set, `96` image elements present on page).
+
+Result: `Pass`.
+
+### Follow-up item
+
+Clean or complete the old T07 kitchen ticket/order `#254` before a physical launch rehearsal, so the kitchen board starts from a clean real-service state.

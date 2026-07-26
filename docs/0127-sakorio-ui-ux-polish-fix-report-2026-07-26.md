@@ -286,3 +286,41 @@ Launch rehearsal status:
 - Kitchen board is clean.
 - T07 is reset for the next guest.
 - The old QR session correctly blocks ordering after table close.
+
+## Launch sequence rehearsal: fixed QR → customer order → kitchen → payment → close
+
+Date/time: 2026-07-26, live browser continuation pass  
+Live staff build verified: `2.1.6 3be035ba`  
+Scope: next launch-rehearsal sequence after cleanup, focused on table QR service loop and tablet UI sanity checks.
+
+### Sequence executed live
+
+| Step | Area | Live result | Notes |
+| --- | --- | --- | --- |
+| 1 | Pre-activation QR safety | Pass | Old T07 customer QR stayed blocked before opening service, showing `Table Closed` / not accepting orders. |
+| 2 | Staff QR activation | Pass with UX note | POS start-order path did not expose a customer QR block, matching the intended POS simplification. Tables workflow still exposes fixed QR controls. The nested table-card `Activate` control was not reliable in automation, but the table-service `Open QR ordering` path worked. |
+| 3 | Customer QR order | Pass | T07 fixed QR opened after activation. Customer placed order `#255` with `2× A7 Edamame`, total `SGD 12.00`. No customer-name prompt appeared. |
+| 4 | Kitchen & beverages | Pass | Kitchen received `#255 · T07`; ticket advanced through Pending → Preparing → Ready → Served / Delivered. Board returned to `All 0`, `Kitchen 0`, `Beverages 0`. |
+| 5 | Customer payment options | Pass | Customer `Pay Now` panel showed HitPay and Card/terminal options only. Cash was not shown to the customer. |
+| 6 | HitPay sandbox redirect | Pass | HitPay option redirected to sandbox checkout under `checkout.sandbox.hit-pay.com`, showing Sandbox Mode and `Order #255 at Ajisen Ramen - T07`. |
+| 7 | Staff terminal settlement | Pass | Staff POS bill panel recorded terminal payment for `SGD 12.00`; bill moved to complete/paid state with `OPEN BILLS 0`. |
+| 8 | Close table guardrail | Pass | POS showed final confirmation before close. Confirming `Yes, close table` reset T07 and ended the QR ordering session. |
+| 9 | Post-close QR safety | Pass | Reloaded T07 QR after close and it showed `Table Closed`; no menu/order/payment path was available. |
+| 10 | Downstream cleanup | Pass | Kitchen remained clean; Orders showed closed-session history, with no active T07/#255 live bill. |
+
+### Tablet / iPad UI sanity pass
+
+| Surface | Result | Observations |
+| --- | --- | --- |
+| Staff POS | Pass | POS loaded at the live browser’s tablet-like workspace size with table cards, metrics, and menu grid usable. No table QR card was shown at the top of POS. The only detected off-screen content was the intentionally hidden slide-out sidebar. |
+| Staff POS table menu | Pass | T09 menu grid showed category chips, category headers, item cards, prices, and add controls. Layout was much cleaner than the previous oversized/overlapping item state. |
+| Customer QR menu | Pass | Active fixed QR menu showed category chips, segmented category headings, 96 loaded product images, 118 add controls, and no customer-name prompt. |
+| Customer QR overflow | Acceptable | Horizontal overflow detected came from the intended Featured carousel/card rail. Main menu content remained readable and usable. |
+| Viewport simulation limitation | Note | The in-app browser viewport override was requested for iPad dimensions, then reset afterward, but the live browser continued reporting `1280×720`. Results are therefore a live responsive sanity check, not a strict physical iPad measurement. A physical iPad or Chrome device emulation pass is still recommended before launch signage is printed. |
+
+### Remaining launch notes from this sequence
+
+- Keep the fixed printed table QR model: POS should not show the large generated QR card during normal ordering.
+- Keep the customer order flow name-free unless a future CRM/loyalty requirement needs identification.
+- Consider improving the Tables card nested QR control reliability/labeling; the table-service drawer path works, but direct `Activate` on the tile was not automation-friendly.
+- Physical iPad/device rehearsal remains the next best launch-hardening step because the in-app browser did not actually resize to true iPad dimensions during this pass.

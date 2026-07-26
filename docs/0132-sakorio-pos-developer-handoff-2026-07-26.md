@@ -700,6 +700,7 @@ BASE_URL=http://127.0.0.1:4202 npm run test:landing-version
    - `docs/0129-sakorio-final-security-resilience-pass-2026-07-26.md`
    - `docs/0130-sakorio-role-matrix-and-backup-rehearsal-2026-07-26.md`
    - `docs/0131-sakorio-multi-company-deployment-blueprint.md`
+   - `docs/0133-sakorio-next-developer-access-pack.md`
 3. Run local Docker stack and smoke tests.
 4. Verify current live deployed commit/build in Render/staff footer.
 5. Run one live browser POS rehearsal:
@@ -742,4 +743,3 @@ Sakorio POS now has a coherent operating shape:
 Reservation or queue -> seat table -> fixed QR/customer or staff POS order -> kitchen/beverage prep -> payment -> close table -> history -> QR closed.
 
 The system is ready for a next developer to fine tune around real launch operations. The most valuable next work is physical-device/hardware rehearsal, network/security lockdown, and carefully selected UI polish from actual restaurant staff feedback.
-

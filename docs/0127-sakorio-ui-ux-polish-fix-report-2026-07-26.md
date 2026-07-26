@@ -245,3 +245,44 @@ Result: `Pass`.
 ### Follow-up item
 
 Clean or complete the old T07 kitchen ticket/order `#254` before a physical launch rehearsal, so the kitchen board starts from a clean real-service state.
+
+## T07 test-ticket cleanup completed
+
+Date/time: 2026-07-26, live browser cleanup pass  
+Scope: old T07 / order `#254` test ticket and table reset
+
+Actions completed live in browser:
+
+1. Opened Kitchen & beverages.
+2. Found old ticket `#254 · T07` with `1x A12 Boiled Seasoned Egg`.
+3. Advanced ticket through production:
+   - Pending → Preparing
+   - Preparing → Ready
+   - Ready → Served / Delivered
+4. Verified Kitchen board cleared:
+   - All: `0`
+   - Kitchen: `0`
+   - Beverages: `0`
+   - Page showed `No active tickets` / `No active orders`.
+5. Opened POS for T07.
+6. Settled bill `#254` by staff Terminal payment for `SGD 2.00`.
+7. Confirmed final close-table guardrail:
+   - `Final confirmation: close this table and reset it for the next guest?`
+   - Confirmed `Yes, close table`.
+8. Verified POS board:
+   - `OPEN BILLS 0`
+   - T07 state returned to `Available / Ready for order`.
+9. Verified Orders:
+   - T07/order `#254` no longer appears as active.
+   - Closed-session history count increased to `248`.
+10. Verified old T07 QR:
+    - Customer QR now shows `Table Closed`.
+    - `Pay Now` is no longer shown.
+
+Result: `Pass`.
+
+Launch rehearsal status:
+
+- Kitchen board is clean.
+- T07 is reset for the next guest.
+- The old QR session correctly blocks ordering after table close.

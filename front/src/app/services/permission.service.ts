@@ -60,16 +60,12 @@ export type Permission =
  * Role to permissions mapping (mirrors backend ROLE_PERMISSIONS)
  */
 const SMALL_OUTLET_OPERATOR_PERMISSIONS: Permission[] = [
-  'product:read',
-  'catalog:read',
   'table:read', 'table:activate',
   'reservation:read', 'reservation:write',
   'floor:read',
   'order:read', 'order:update_status', 'order:item_status',
   'order:mark_paid', 'order:remove_item',
   'billing_customer:read', 'billing_customer:write',
-  'schedule:read', 'schedule:write',
-  'staff_contract:read',
 ];
 
 const ROLE_PERMISSIONS: Record<UserRole, Set<Permission | '*'>> = {
@@ -94,19 +90,11 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<Permission | '*'>> = {
   ]),
 
   kitchen: new Set([
-    'product:read',
-    'catalog:read',
     'order:read', 'order:item_status',
-    'schedule:read', 'schedule:write',
-    'staff_contract:read',
   ]),
 
   bartender: new Set([
-    'product:read',
-    'catalog:read',
     'order:read', 'order:item_status',
-    'schedule:read', 'schedule:write',
-    'staff_contract:read',
   ]),
 
   waiter: new Set(SMALL_OUTLET_OPERATOR_PERMISSIONS),
@@ -123,8 +111,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<Permission | '*'>> = {
  */
 const ROUTE_ROLES: Record<string, UserRole[]> = {
   '/': ['owner', 'admin', 'kitchen', 'bartender', 'waiter', 'receptionist'],
-  '/products': ['owner', 'admin', 'kitchen', 'bartender', 'waiter', 'receptionist'],
-  '/catalog': ['owner', 'admin', 'kitchen', 'bartender', 'waiter', 'receptionist'],
+  '/products': ['owner', 'admin'],
+  '/catalog': ['owner', 'admin'],
   '/pos': ['owner', 'admin', 'waiter', 'receptionist'],
   '/tables': ['owner', 'admin', 'waiter', 'receptionist'],
   '/tables/canvas': ['owner', 'admin', 'waiter', 'receptionist'],
@@ -132,14 +120,14 @@ const ROUTE_ROLES: Record<string, UserRole[]> = {
   '/queue': ['owner', 'admin', 'waiter', 'receptionist'],
   '/staff/orders': ['owner', 'admin', 'kitchen', 'bartender', 'waiter', 'receptionist'],
   '/customers': ['owner', 'admin', 'waiter', 'receptionist'],
-  '/kitchen': ['owner', 'admin', 'kitchen', 'bartender', 'waiter', 'receptionist'],
+  '/kitchen': ['owner', 'admin', 'kitchen', 'bartender'],
   '/inventory': ['owner', 'admin'],
   '/reports': ['owner', 'admin'],
   '/settings': ['owner', 'admin'],
   '/users': ['owner', 'admin'],
-  '/working-plan': ['owner', 'admin', 'kitchen', 'bartender', 'waiter', 'receptionist'],
+  '/working-plan': ['owner', 'admin'],
   '/my-shift': ['owner', 'admin', 'kitchen', 'bartender', 'waiter', 'receptionist'],
-  '/contracts': ['owner', 'admin', 'kitchen', 'bartender', 'waiter', 'receptionist'],
+  '/contracts': ['owner', 'admin'],
 };
 
 @Injectable({

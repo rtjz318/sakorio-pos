@@ -115,7 +115,7 @@ import { StaffLayoutService } from '../services/staff-layout.service';
                <span>{{ 'NAV.TABLES' | translate }}</span>
              </a>
            }
-           @if (moduleEnabled('kitchen_bar')) {
+           @if (canViewKitchen() && moduleEnabled('kitchen_bar')) {
            <a routerLink="/kitchen" routerLinkActive="active" class="nav-link" (click)="closeSidebar()">
              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                <rect x="2" y="4" width="20" height="16" rx="2"/>
@@ -135,20 +135,22 @@ import { StaffLayoutService } from '../services/staff-layout.service';
                <span>{{ 'NAV.CUSTOMERS' | translate }}</span>
              </a>
            }
-           <a routerLink="/products" routerLinkActive="active" class="nav-link" (click)="closeSidebar()">
-             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-               <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
-             </svg>
-             <span>{{ 'NAV.PRODUCTS' | translate }}</span>
-           </a>
-           @if (moduleEnabled('providers')) {
-           <a routerLink="/catalog" routerLinkActive="active" class="nav-link" (click)="closeSidebar()">
-             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-               <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
-               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
-             </svg>
-             <span>{{ 'NAV.CATALOG' | translate }}</span>
-           </a>
+           @if (canViewProducts()) {
+             <a routerLink="/products" routerLinkActive="active" class="nav-link" (click)="closeSidebar()">
+               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                 <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+               </svg>
+               <span>{{ 'NAV.PRODUCTS' | translate }}</span>
+             </a>
+           }
+           @if (canViewCatalog() && moduleEnabled('providers')) {
+             <a routerLink="/catalog" routerLinkActive="active" class="nav-link" (click)="closeSidebar()">
+               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                 <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
+                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
+               </svg>
+               <span>{{ 'NAV.CATALOG' | translate }}</span>
+             </a>
            }
            @if (canViewReports()) {
              <a routerLink="/reports" routerLinkActive="active" class="nav-link" (click)="closeSidebar()">
@@ -292,12 +294,15 @@ export class SidebarComponent implements OnInit, AfterViewInit, OnDestroy {
   canViewTables = computed(() => this.permissions.canAccessRoute(this.user(), '/tables'));
   canViewReservations = computed(() => this.permissions.hasPermission(this.user(), 'reservation:read'));
   canViewCustomers = computed(() => this.permissions.canAccessRoute(this.user(), '/customers'));
+  canViewKitchen = computed(() => this.permissions.canAccessRoute(this.user(), '/kitchen'));
+  canViewProducts = computed(() => this.permissions.canAccessRoute(this.user(), '/products'));
+  canViewCatalog = computed(() => this.permissions.canAccessRoute(this.user(), '/catalog'));
   canViewSettings = computed(() => this.permissions.isAdmin(this.user()));
   canViewInventory = computed(() => this.permissions.isAdmin(this.user()));
   canViewReports = computed(() => this.permissions.isAdmin(this.user()));
-  canViewWorkingPlan = computed(() => this.permissions.hasPermission(this.user(), 'schedule:read'));
+  canViewWorkingPlan = computed(() => this.permissions.canAccessRoute(this.user(), '/working-plan'));
   canViewUsers = computed(() => this.permissions.isAdmin(this.user()));
-  canViewContracts = computed(() => this.permissions.hasPermission(this.user(), 'staff_contract:read'));
+  canViewContracts = computed(() => this.permissions.canAccessRoute(this.user(), '/contracts'));
   /** Tenant staff (not provider portal users). */
   canViewMyShift = computed(() => {
     const u = this.user();

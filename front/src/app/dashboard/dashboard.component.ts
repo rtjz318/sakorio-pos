@@ -141,7 +141,7 @@ type DashboardQueueHealth = NonNullable<SalesReport['queue']>;
             <span class="action-desc">{{ 'DASHBOARD.TABLES_DESC' | translate }}</span>
           </a>
           }
-          @if (moduleEnabled('kitchen_bar')) {
+          @if (canViewKitchen() && moduleEnabled('kitchen_bar')) {
           <a routerLink="/kitchen" class="action-card">
             <div class="action-icon">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -153,26 +153,28 @@ type DashboardQueueHealth = NonNullable<SalesReport['queue']>;
             <span class="action-desc">{{ 'DASHBOARD.KITCHEN_DESC' | translate }}</span>
           </a>
           }
-          <a routerLink="/products" class="action-card">
-            <div class="action-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
-              </svg>
-            </div>
-            <span class="action-label">{{ 'DASHBOARD.PRODUCTS_TITLE' | translate }}</span>
-            <span class="action-desc">{{ 'DASHBOARD.PRODUCTS_DESC' | translate }}</span>
-          </a>
-          @if (moduleEnabled('providers')) {
-          <a routerLink="/catalog" class="action-card">
-            <div class="action-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
-              </svg>
-            </div>
-            <span class="action-label">{{ 'DASHBOARD.CATALOG_TITLE' | translate }}</span>
-            <span class="action-desc">{{ 'DASHBOARD.CATALOG_DESC' | translate }}</span>
-          </a>
+          @if (canViewProducts()) {
+            <a routerLink="/products" class="action-card">
+              <div class="action-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                </svg>
+              </div>
+              <span class="action-label">{{ 'DASHBOARD.PRODUCTS_TITLE' | translate }}</span>
+              <span class="action-desc">{{ 'DASHBOARD.PRODUCTS_DESC' | translate }}</span>
+            </a>
+          }
+          @if (canViewCatalog() && moduleEnabled('providers')) {
+            <a routerLink="/catalog" class="action-card">
+              <div class="action-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
+                </svg>
+              </div>
+              <span class="action-label">{{ 'DASHBOARD.CATALOG_TITLE' | translate }}</span>
+              <span class="action-desc">{{ 'DASHBOARD.CATALOG_DESC' | translate }}</span>
+            </a>
           }
           @if (canViewCustomers()) {
           <a routerLink="/customers" class="action-card">
@@ -1047,6 +1049,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   user = signal(this.api.getCurrentUser());
   canShowAdminSections = computed(() => this.permissions.isAdmin(this.user()));
   canViewCustomers = computed(() => this.permissions.canAccessRoute(this.user(), '/customers'));
+  canViewKitchen = computed(() => this.permissions.canAccessRoute(this.user(), '/kitchen'));
+  canViewProducts = computed(() => this.permissions.canAccessRoute(this.user(), '/products'));
+  canViewCatalog = computed(() => this.permissions.canAccessRoute(this.user(), '/catalog'));
   canViewMyShift = computed(() => this.permissions.canAccessRoute(this.user(), '/my-shift'));
   canViewPos = computed(() => this.permissions.canAccessRoute(this.user(), '/pos'));
   canViewReports = computed(() => this.permissions.canAccessRoute(this.user(), '/reports'));

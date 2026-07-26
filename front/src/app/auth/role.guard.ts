@@ -75,9 +75,10 @@ export const tableAccessGuard: CanActivateFn = roleGuard(['owner', 'admin', 'wai
 export const orderAccessGuard: CanActivateFn = roleGuard(['owner', 'admin', 'kitchen', 'bartender', 'waiter', 'receptionist']);
 
 /**
- * Route guard that allows all staff who can add/edit the working plan (schedule)
+ * Route guard that allows managers to add/edit the working plan (schedule).
+ * Staff can still clock in/out from My Shift without accessing the manager timetable.
  */
-export const scheduleGuard: CanActivateFn = roleGuard(['owner', 'admin', 'kitchen', 'bartender', 'waiter', 'receptionist']);
+export const scheduleGuard: CanActivateFn = roleGuard(['owner', 'admin']);
 
 const WORKING_PLAN_VIEW_KEY = 'workingPlanView';
 const VALID_VIEWS = ['week', 'calendar'] as const;

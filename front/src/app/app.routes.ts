@@ -5,7 +5,6 @@ import { uiModuleGuard } from './auth/ui-module.guard';
 import { reservationAccessGuard } from './auth/reservation-access.guard';
 import { providerGuard } from './auth/provider.guard';
 import { courierGuard } from './auth/courier.guard';
-import { permissionGuard } from './auth/permission.guard';
 import { tablesCanvasCanDeactivate } from './tables/tables-canvas-deactivate.guard';
 import { ordersRouteGuard } from './auth/orders-route.guard';
 
@@ -57,9 +56,9 @@ export const routes: Routes = [
   { path: 'dashboard', canActivate: [authGuard], loadComponent: () => import('./dashboard/dashboard.component').then(m => m.DashboardComponent) },
   { path: 'my-shift', canActivate: [authGuard], loadComponent: () => import('./my-shift/my-shift.component').then(m => m.MyShiftComponent) },
 
-  // Products - all roles can view, but editing is handled in component
-  { path: 'products', canActivate: [authGuard], loadComponent: () => import('./products/products.component').then(m => m.ProductsComponent) },
-  { path: 'catalog', canActivate: [authGuard, uiModuleGuard('providers')], loadComponent: () => import('./catalog/catalog.component').then(m => m.CatalogComponent) },
+  // Back-office menu/catalog management
+  { path: 'products', canActivate: [authGuard, adminGuard], loadComponent: () => import('./products/products.component').then(m => m.ProductsComponent) },
+  { path: 'catalog', canActivate: [authGuard, adminGuard, uiModuleGuard('providers')], loadComponent: () => import('./catalog/catalog.component').then(m => m.CatalogComponent) },
 
   // Register `tables/canvas` before `tables` (prefix matching would otherwise match `/tables/canvas` as `/tables`).
   {
@@ -76,7 +75,7 @@ export const routes: Routes = [
   // Billing customers
   { path: 'customers', canActivate: [authGuard, orderAccessGuard], loadComponent: () => import('./customers/customers.component').then(m => m.CustomersComponent) },
   // One production display covers kitchen and beverage stations; keep /bar bookmarks working.
-  { path: 'kitchen', canActivate: [authGuard, uiModuleGuard('kitchen_bar'), orderAccessGuard], loadComponent: () => import('./kitchen-display/kitchen-display.component').then(m => m.KitchenDisplayComponent) },
+  { path: 'kitchen', canActivate: [authGuard, uiModuleGuard('kitchen_bar'), roleGuard(['owner', 'admin', 'kitchen', 'bartender'])], loadComponent: () => import('./kitchen-display/kitchen-display.component').then(m => m.KitchenDisplayComponent) },
   { path: 'bar', redirectTo: 'kitchen', pathMatch: 'full' },
 
   // Admin-only routes
@@ -85,7 +84,7 @@ export const routes: Routes = [
   { path: 'users', canActivate: [authGuard, adminGuard], loadComponent: () => import('./users/users.component').then(m => m.UsersComponent) },
   {
     path: 'contracts',
-    canActivate: [authGuard, permissionGuard('staff_contract:read')],
+    canActivate: [authGuard, adminGuard],
     loadComponent: () => import('./staff-contracts/staff-contracts.component').then(m => m.StaffContractsComponent),
   },
 
@@ -95,7 +94,7 @@ export const routes: Routes = [
   // Reports (sales / revenue) - owner & admin
   { path: 'reports', canActivate: [authGuard, adminGuard], loadComponent: () => import('./reports/reports.component').then(m => m.ReportsComponent) },
 
-  // Working plan (shift schedule) - all staff can add/edit; owner sees '*' when updated by others
+  // Working plan (manager timetable) - staff clock in/out from My Shift
   // pathMatch full + guard: redirect to /working-plan/week or /working-plan/calendar (guard runs first; loadComponent satisfies route config)
   { path: 'working-plan', pathMatch: 'full', canActivate: [authGuard, uiModuleGuard('working_plan'), scheduleGuard, workingPlanViewRedirectGuard], loadComponent: () => import('./working-plan/working-plan.component').then(m => m.WorkingPlanComponent) },
   { path: 'working-plan/:view', canActivate: [authGuard, uiModuleGuard('working_plan'), scheduleGuard], loadComponent: () => import('./working-plan/working-plan.component').then(m => m.WorkingPlanComponent) },

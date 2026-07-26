@@ -94,6 +94,22 @@ Once Render deploys this commit, verify live:
 4. POS payment panel shows `Counter cash — staff only`.
 5. Orders page skeleton appears during refresh/loading.
 
+## Post-push live QA status
+
+After pushing the fix commit, the live browser was opened against `https://staff.sakorio.com` and `https://order.sakorio.com`.
+
+Observed:
+
+- Staff web woke successfully and displayed the live login form.
+- Existing customer menu links that were already closed/expired correctly showed the closed or unavailable state.
+
+Blocked:
+
+- Staff-side live UI verification could not continue because the available QA/staff credentials were rejected by the live login form.
+- A fresh active customer QR could not be generated from the staff UI without a valid live staff session.
+
+No further login attempts were made after the documented credentials failed, to avoid tripping the live login limiter.
+
 ## Expected UI/UX score lift
 
 Previous audit score: `8.9 / 10`  

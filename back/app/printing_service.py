@@ -20,7 +20,7 @@ def enqueue_kitchen_receipts(
     order: models.Order,
     lines: list[dict],
 ) -> list[models.PrintJob]:
-    """Create one durable receipt per prep station for only the newly submitted lines."""
+    """Create one durable prep receipt per newly submitted item unit."""
     if not lines or order.id is None:
         return []
 
@@ -51,36 +51,42 @@ def enqueue_kitchen_receipts(
     batch_id = uuid4().hex
     created_at = datetime.now(timezone.utc)
     jobs: list[models.PrintJob] = []
-    for sequence, ((station_id, station_name, route), station_lines) in enumerate(grouped.items(), start=1):
-        job = models.PrintJob(
-            tenant_id=tenant.id,
-            order_id=order.id,
-            kitchen_station_id=station_id,
-            job_type="bar_receipt" if route == "bar" else "kitchen_receipt",
-            dedupe_key=f"order:{order.id}:batch:{batch_id}:station:{station_id or route}:{sequence}",
-            payload={
-                "receipt_type": "BAR" if route == "bar" else "KITCHEN",
-                "tenant_name": tenant.name,
-                "station_name": station_name,
-                "order_id": order.id,
-                "table_name": table.name,
-                "customer_name": order.customer_name,
-                "order_notes": order.notes,
-                "submitted_at": created_at.isoformat(),
-                "items": [
-                    {
-                        "quantity": int(line["quantity"]),
-                        "name": str(line["name"]),
-                        "notes": line.get("notes"),
-                        "customization": line.get("customization"),
-                        "modifiers": line.get("modifiers"),
-                    }
-                    for line in station_lines
-                ],
-            },
-        )
-        session.add(job)
-        jobs.append(job)
+    sequence = 0
+    for (station_id, station_name, route), station_lines in grouped.items():
+        for line in station_lines:
+            for _ in range(max(0, int(line["quantity"]))):
+                sequence += 1
+                job = models.PrintJob(
+                    tenant_id=tenant.id,
+                    order_id=order.id,
+                    kitchen_station_id=station_id,
+                    job_type="bar_receipt" if route == "bar" else "kitchen_receipt",
+                    dedupe_key=(
+                        f"order:{order.id}:batch:{batch_id}:"
+                        f"station:{station_id or route}:item:{sequence}"
+                    ),
+                    payload={
+                        "receipt_type": "BAR" if route == "bar" else "KITCHEN",
+                        "tenant_name": tenant.name,
+                        "station_name": station_name,
+                        "order_id": order.id,
+                        "table_name": table.name,
+                        "customer_name": order.customer_name,
+                        "order_notes": order.notes,
+                        "submitted_at": created_at.isoformat(),
+                        "items": [
+                            {
+                                "quantity": 1,
+                                "name": str(line["name"]),
+                                "notes": line.get("notes"),
+                                "customization": line.get("customization"),
+                                "modifiers": line.get("modifiers"),
+                            }
+                        ],
+                    },
+                )
+                session.add(job)
+                jobs.append(job)
     return jobs
 
 

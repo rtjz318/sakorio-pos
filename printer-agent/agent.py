@@ -1,8 +1,8 @@
 """Small on-premise bridge for durable Sakorio kitchen receipt jobs.
 
 The API is hosted publicly, while the receipt printer remains reachable only
-inside the restaurant Wi-Fi network. This process leases jobs from the API and
-sends ESC/POS bytes directly to a network printer.
+inside the restaurant. This process leases jobs from the API and sends ESC/POS
+bytes to a receipt printer through the configured local transport.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import logging
 import os
 import socket
 import time
+from importlib import import_module
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -25,9 +26,15 @@ logger = logging.getLogger("sakorio-printer-agent")
 
 API_BASE_URL = os.environ["API_BASE_URL"].rstrip("/")
 AGENT_TOKEN = os.environ["PRINTER_AGENT_TOKEN"]
+PRINTER_TRANSPORT = os.getenv("PRINTER_TRANSPORT", "network").strip().lower()
 PRINTER_HOST = os.getenv("PRINTER_HOST", "").strip()
 PRINTER_PORT = int(os.getenv("PRINTER_PORT", "9100"))
 PRINTER_ENCODING = os.getenv("PRINTER_ENCODING", "cp437")
+PRINTER_SERIAL_PORT = os.getenv("PRINTER_SERIAL_PORT", "").strip()
+PRINTER_SERIAL_BAUDRATE = int(os.getenv("PRINTER_SERIAL_BAUDRATE", "9600"))
+PRINTER_SERIAL_TIMEOUT_SECONDS = max(
+    1.0, float(os.getenv("PRINTER_SERIAL_TIMEOUT_SECONDS", "10"))
+)
 POLL_SECONDS = max(1.0, float(os.getenv("POLL_SECONDS", "3")))
 SOCKET_TIMEOUT_SECONDS = max(1.0, float(os.getenv("SOCKET_TIMEOUT_SECONDS", "10")))
 DRY_RUN = os.getenv("PRINTER_DRY_RUN", "false").lower() in {"1", "true", "yes", "on"}
@@ -134,6 +141,58 @@ def escpos_bytes(payload: dict) -> bytes:
     )
 
 
+def send_network(data: bytes) -> None:
+    if not PRINTER_HOST:
+        raise RuntimeError("PRINTER_HOST is required when PRINTER_TRANSPORT=network")
+    with socket.create_connection(
+        (PRINTER_HOST, PRINTER_PORT), timeout=SOCKET_TIMEOUT_SECONDS
+    ) as printer:
+        printer.sendall(data)
+
+
+def send_bluetooth_serial(data: bytes) -> None:
+    """Send ESC/POS bytes to a paired Bluetooth printer exposed as a serial port.
+
+    This covers Bluetooth Classic/SPP style printers after pairing them in the
+    OS. On Windows the port normally looks like COM5; on macOS/Linux it may be a
+    /dev/cu.* or /dev/rfcomm* device. pyserial is optional so Wi-Fi deployments
+    do not need the dependency.
+    """
+
+    if not PRINTER_SERIAL_PORT:
+        raise RuntimeError(
+            "PRINTER_SERIAL_PORT is required when PRINTER_TRANSPORT=bluetooth_serial"
+        )
+    try:
+        serial_module = import_module("serial")
+    except ImportError as exc:
+        raise RuntimeError(
+            "Bluetooth serial printing requires pyserial. Install it in the "
+            "printer-agent environment with: python -m pip install pyserial"
+        ) from exc
+
+    with serial_module.Serial(
+        PRINTER_SERIAL_PORT,
+        baudrate=PRINTER_SERIAL_BAUDRATE,
+        timeout=PRINTER_SERIAL_TIMEOUT_SECONDS,
+        write_timeout=PRINTER_SERIAL_TIMEOUT_SECONDS,
+    ) as printer:
+        printer.write(data)
+        printer.flush()
+
+
+def send_to_printer(data: bytes) -> None:
+    if PRINTER_TRANSPORT == "network":
+        send_network(data)
+        return
+    if PRINTER_TRANSPORT == "bluetooth_serial":
+        send_bluetooth_serial(data)
+        return
+    raise RuntimeError(
+        "Unsupported PRINTER_TRANSPORT. Use network or bluetooth_serial."
+    )
+
+
 def print_job(job: dict) -> None:
     data = escpos_bytes(job.get("payload") or {})
     if DRY_RUN:
@@ -142,12 +201,7 @@ def print_job(job: dict) -> None:
         target.write_bytes(data)
         logger.info("Dry-run receipt saved to %s", target.resolve())
         return
-    if not PRINTER_HOST:
-        raise RuntimeError("PRINTER_HOST is required unless PRINTER_DRY_RUN=true")
-    with socket.create_connection(
-        (PRINTER_HOST, PRINTER_PORT), timeout=SOCKET_TIMEOUT_SECONDS
-    ) as printer:
-        printer.sendall(data)
+    send_to_printer(data)
 
 
 def run_once() -> int:
@@ -177,7 +231,11 @@ def run_once() -> int:
 
 
 def main() -> None:
-    logger.info("Sakorio printer agent started (dry_run=%s)", DRY_RUN)
+    logger.info(
+        "Sakorio printer agent started (transport=%s, dry_run=%s)",
+        PRINTER_TRANSPORT,
+        DRY_RUN,
+    )
     while True:
         try:
             api_request("POST", "/printer-agent/heartbeat")

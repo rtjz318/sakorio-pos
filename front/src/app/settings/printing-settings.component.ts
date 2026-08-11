@@ -18,7 +18,7 @@ import {
         <div>
           <p class="eyebrow">Kitchen printing</p>
           <h2>Receipt delivery</h2>
-          <p class="lede">Connect the restaurant's local print agent, route tickets by station, and monitor every kitchen receipt.</p>
+          <p class="lede">Connect the restaurant's local print bridge, route tickets by station, and monitor every kitchen receipt.</p>
         </div>
         <button type="button" class="button secondary" [disabled]="loading()" (click)="reload()">
           {{ loading() ? 'Refreshing...' : 'Refresh status' }}
@@ -92,7 +92,7 @@ import {
             </div>
             <span class="step">1</span>
           </div>
-          <p class="muted">Install the lightweight agent on a Windows PC or mini PC connected to the restaurant Wi-Fi and printer.</p>
+          <p class="muted">Install the lightweight agent on a nearby bridge device connected to the restaurant printer by Wi-Fi/LAN or paired Bluetooth serial.</p>
           <label>
             <span>Device name</span>
             <input type="text" [(ngModel)]="agentName" maxlength="128" placeholder="Kitchen counter PC" />
@@ -114,7 +114,8 @@ import {
             <p class="eyebrow">On the restaurant device</p>
             <ol>
               <li>Download this repository's <code>printer-agent</code> folder.</li>
-              <li>Copy <code>.env.example</code> to <code>.env</code> and enter the API URL, token, and printer IP.</li>
+              <li>Copy <code>.env.example</code> to <code>.env</code> and enter the API URL, token, and printer transport.</li>
+              <li>For Wi-Fi/LAN use <code>PRINTER_TRANSPORT=network</code> with the printer IP. For paired Bluetooth use <code>PRINTER_TRANSPORT=bluetooth_serial</code> with the COM/serial port.</li>
               <li>Run <code>python agent.py</code>. The device should appear online here within 30 seconds.</li>
             </ol>
             <p class="tip">No printer yet? Set <code>PRINTER_DRY_RUN=true</code> to produce test receipt files safely.</p>

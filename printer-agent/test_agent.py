@@ -46,6 +46,127 @@ class PrinterAgentTransportTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "PRINTER_SERIAL_PORT is required"):
             agent.send_bluetooth_serial(b"receipt")
 
+    def test_unsupported_transport_fails_with_clear_message(self):
+        agent = load_agent({"PRINTER_TRANSPORT": "bluetooth"})
+
+        with self.assertRaisesRegex(RuntimeError, "Unsupported PRINTER_TRANSPORT"):
+            agent.send_to_printer(b"receipt")
+
+    def test_dry_run_writes_escpos_receipt_file(self):
+        output_dir = Path("tmp/printer-agent-test-output")
+        target = output_dir / "print-job-88.bin"
+        if target.exists():
+            target.unlink()
+        agent = load_agent(
+            {
+                "PRINTER_DRY_RUN": "true",
+                "PRINT_OUTPUT_DIR": str(output_dir),
+            }
+        )
+
+        agent.print_job(
+            {
+                "id": 88,
+                "payload": {
+                    "receipt_type": "CUSTOMER RECEIPT",
+                    "station_name": "Cashier",
+                    "order_id": 88,
+                    "table_name": "T09",
+                    "submitted_at": "2026-08-11T14:00:00+08:00",
+                    "currency_code": "SGD",
+                    "items": [
+                        {
+                            "quantity": 2,
+                            "name": "Gyoza",
+                            "line_total_cents": 1200,
+                            "notes": "No chilli",
+                        }
+                    ],
+                    "subtotal_cents": 1200,
+                    "total_cents": 1200,
+                    "payment_method": "terminal",
+                },
+            }
+        )
+
+        data = target.read_bytes()
+        self.assertTrue(data.startswith(b"\x1b\x40"))
+        self.assertIn(b"CUSTOMER RECEIPT", data)
+        self.assertIn(b"Gyoza", data)
+        self.assertIn(b"SGD 12.00", data)
+        self.assertTrue(data.endswith(b"\x1d\x56\x00"))
+
+    def test_run_once_completes_printed_bluetooth_job(self):
+        agent = load_agent({"PRINTER_TRANSPORT": "bluetooth_serial", "PRINTER_SERIAL_PORT": "COM5"})
+        calls = []
+
+        def fake_api_request(method, path, body=None):
+            calls.append((method, path, body))
+            if path.startswith("/printer-agent/jobs/lease"):
+                return [
+                    {
+                        "id": 101,
+                        "lease_token": "lease-token-101",
+                        "job_type": "kitchen_receipt",
+                        "order_id": 501,
+                        "kitchen_station_id": 1,
+                        "payload": {"order_id": 501, "items": [{"quantity": 1, "name": "Tea"}]},
+                    }
+                ]
+            return {"status": "ok"}
+
+        printed = []
+        agent.api_request = fake_api_request
+        agent.send_bluetooth_serial = lambda data: printed.append(data)
+
+        processed = agent.run_once()
+
+        self.assertEqual(processed, 1)
+        self.assertEqual(len(printed), 1)
+        self.assertIn(b"Tea", printed[0])
+        self.assertIn(
+            (
+                "POST",
+                "/printer-agent/jobs/101/complete",
+                {"lease_token": "lease-token-101"},
+            ),
+            calls,
+        )
+
+    def test_run_once_reports_failed_bluetooth_job_for_retry(self):
+        agent = load_agent({"PRINTER_TRANSPORT": "bluetooth_serial", "PRINTER_SERIAL_PORT": "COM5"})
+        calls = []
+
+        def fake_api_request(method, path, body=None):
+            calls.append((method, path, body))
+            if path.startswith("/printer-agent/jobs/lease"):
+                return [
+                    {
+                        "id": 102,
+                        "lease_token": "lease-token-102",
+                        "job_type": "customer_receipt",
+                        "order_id": 502,
+                        "kitchen_station_id": None,
+                        "payload": {"order_id": 502, "items": [{"quantity": 1, "name": "Ramen"}]},
+                    }
+                ]
+            return {"status": "ok"}
+
+        agent.api_request = fake_api_request
+
+        def fail_send(_data):
+            raise RuntimeError("Bluetooth printer disconnected")
+
+        agent.send_bluetooth_serial = fail_send
+
+        processed = agent.run_once()
+
+        self.assertEqual(processed, 1)
+        fail_calls = [call for call in calls if call[1] == "/printer-agent/jobs/102/fail"]
+        self.assertEqual(len(fail_calls), 1)
+        self.assertEqual(fail_calls[0][2]["lease_token"], "lease-token-102")
+        self.assertIn("Bluetooth printer disconnected", fail_calls[0][2]["error"])
+
 
 if __name__ == "__main__":
     unittest.main()

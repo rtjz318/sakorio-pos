@@ -22,6 +22,7 @@ requireFile('native/ios-secure-storage/SakorioSecureStoragePlugin.m');
 requireFile('src/app/services/xp80t-printer.service.ts');
 requireFile('src/app/services/ipad-printer-worker.service.ts');
 requireFile('src/app/services/native-secure-storage.service.ts');
+requireFile('scripts/apply-ios-native-scaffold.mjs');
 
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const dependencies = {

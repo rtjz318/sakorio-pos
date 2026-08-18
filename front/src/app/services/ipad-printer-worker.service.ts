@@ -2,20 +2,8 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
-import {
-  EscposReceiptPayload,
-  renderEscposReceipt,
-} from './escpos-receipt-renderer';
+import { LeasedPrintJob, runIpadPrintJob } from './ipad-printer-job-runner';
 import { Xp80tPrinterService } from './xp80t-printer.service';
-
-interface LeasedPrintJob {
-  id: number;
-  lease_token: string;
-  job_type: string;
-  order_id: number;
-  kitchen_station_id: number | null;
-  payload: EscposReceiptPayload;
-}
 
 export interface IpadPrinterWorkerStatus {
   running: boolean;
@@ -111,27 +99,29 @@ export class IpadPrinterWorkerService {
   }
 
   private async printJob(job: LeasedPrintJob): Promise<void> {
-    try {
-      const bytes = renderEscposReceipt(job.payload || {});
-      await this.xp80t.printEscPos(job.id, bytes);
-      await firstValueFrom(
-        this.http.post(
-          `${this.apiUrl}/printer-agent/jobs/${job.id}/complete`,
-          { lease_token: job.lease_token },
-          { headers: this.headers() },
-        ),
-      );
+    const result = await runIpadPrintJob(job, {
+      printEscPos: (jobId, bytes) => this.xp80t.printEscPos(jobId, bytes),
+      complete: (jobId, leaseToken) =>
+        firstValueFrom(
+          this.http.post(
+            `${this.apiUrl}/printer-agent/jobs/${jobId}/complete`,
+            { lease_token: leaseToken },
+            { headers: this.headers() },
+          ),
+        ).then(() => undefined),
+      fail: (jobId, leaseToken, error) =>
+        firstValueFrom(
+          this.http.post(
+            `${this.apiUrl}/printer-agent/jobs/${jobId}/fail`,
+            { lease_token: leaseToken, error },
+            { headers: this.headers() },
+          ),
+        ).then(() => undefined),
+    });
+    if (result.printed) {
       this.patchStatus({ lastPrintedJobId: job.id, lastError: null });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'XP-80T print failed.';
-      await firstValueFrom(
-        this.http.post(
-          `${this.apiUrl}/printer-agent/jobs/${job.id}/fail`,
-          { lease_token: job.lease_token, error: message },
-          { headers: this.headers() },
-        ),
-      );
-      this.patchStatus({ lastError: message });
+    } else {
+      this.patchStatus({ lastError: result.error });
     }
   }
 

@@ -1,0 +1,17 @@
+{
+  "appId": "com.sakorio.pos",
+  "appName": "Sakorio POS",
+  "webDir": "dist/front/browser",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#ffffff"
+    },
+    "Xp80tPrinter": {
+      "displayName": "XP-80T Receipt Printer"
+    }
+  }
+}

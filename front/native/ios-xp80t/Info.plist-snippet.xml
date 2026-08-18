@@ -1,0 +1,9 @@
+<!-- Add these keys to ios/App/App/Info.plist when the Capacitor iOS app is created. -->
+<key>NSBluetoothAlwaysUsageDescription</key>
+<string>Sakorio uses Bluetooth to connect to the restaurant XP-80T receipt printer.</string>
+
+<!-- Optional: only enable after foreground printing works and background behavior is explicitly required. -->
+<key>UIBackgroundModes</key>
+<array>
+  <string>bluetooth-central</string>
+</array>

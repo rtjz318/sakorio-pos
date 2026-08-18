@@ -49,6 +49,8 @@
     "test:capacitor-ios-readiness": "node scripts/check-capacitor-ios-readiness.mjs",
     "ios:apply-native-scaffold": "node scripts/apply-ios-native-scaffold.mjs",
     "ios:check-native-scaffold": "node scripts/apply-ios-native-scaffold.mjs --check-only",
+    "ios:prepare-xp80t": "node scripts/prepare-xp80t-ios-project.mjs",
+    "ios:prepare-xp80t:check": "node scripts/prepare-xp80t-ios-project.mjs --check-only",
     "capture-screenshots": "node scripts/capture-screenshots.mjs"
   },
   "prettier": {

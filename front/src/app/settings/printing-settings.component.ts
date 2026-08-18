@@ -7,11 +7,12 @@ import {
   PrintJob,
   PrinterAgent,
 } from '../services/api.service';
+import { Xp80tNativeSetupComponent } from './xp80t-native-setup.component';
 
 @Component({
   selector: 'app-printing-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, Xp80tNativeSetupComponent],
   template: `
     <section class="printing" data-testid="settings-printing-section">
       <header class="hero">
@@ -65,6 +66,8 @@ import {
           <li [class.done]="completedJobs() > 0">Run one dry-run or real receipt test</li>
         </ul>
       </article>
+
+      <app-xp80t-native-setup />
 
       @if (pairingToken()) {
         <div class="token-panel" role="status">

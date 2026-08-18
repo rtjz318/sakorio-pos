@@ -106,6 +106,22 @@ import {
               }
             </select>
           </label>
+          <label>
+            <span>Device type</span>
+            <select [(ngModel)]="deviceType">
+              <option value="local_agent">Local bridge / mini PC</option>
+              <option value="ipad_app">Sakorio iPad app</option>
+              <option value="xp80t">XP-80T printer client</option>
+            </select>
+          </label>
+          <label>
+            <span>Printer transport</span>
+            <select [(ngModel)]="transport">
+              <option value="network">Wi-Fi / LAN IP printer</option>
+              <option value="bluetooth_serial">Paired Bluetooth serial bridge</option>
+              <option value="ios_bluetooth">Native iPad Bluetooth</option>
+            </select>
+          </label>
           <button type="button" class="button primary wide" [disabled]="creating() || agentName.trim().length < 2" (click)="createAgent()">
             {{ creating() ? 'Creating...' : 'Create pairing token' }}
           </button>
@@ -143,6 +159,7 @@ import {
                   <div class="agent-main">
                     <strong>{{ agent.name }}</strong>
                     <span>{{ stationName(agent.kitchen_station_id) }}</span>
+                    <span>{{ agentDeviceLabel(agent) }}</span>
                     <small>{{ agentStatus(agent) }}</small>
                   </div>
                   @if (agent.active) {
@@ -347,6 +364,8 @@ export class PrintingSettingsComponent implements OnInit, OnDestroy {
   pairedAgentName = signal('');
   agentName = '';
   stationId: number | null = null;
+  deviceType: PrinterAgent['device_type'] = 'local_agent';
+  transport: PrinterAgent['transport'] = 'network';
 
   activeAgents = computed(() => this.agents().filter((agent) => agent.active));
   onlineAgents = computed(() => this.activeAgents().filter((agent) => this.isOnline(agent)).length);
@@ -396,12 +415,20 @@ export class PrintingSettingsComponent implements OnInit, OnDestroy {
     if (name.length < 2 || this.creating()) return;
     this.creating.set(true);
     this.error.set('');
-    this.api.createPrinterAgent({ name, kitchen_station_id: this.stationId }).subscribe({
+    this.api.createPrinterAgent({
+      name,
+      kitchen_station_id: this.stationId,
+      device_type: this.deviceType,
+      transport: this.transport,
+      app_version: null,
+    }).subscribe({
       next: (agent) => {
         this.pairingToken.set(agent.token);
         this.pairedAgentName.set(agent.name);
         this.agentName = '';
         this.stationId = null;
+        this.deviceType = 'local_agent';
+        this.transport = 'network';
         this.creating.set(false);
         this.reload(true);
       },
@@ -451,6 +478,22 @@ export class PrintingSettingsComponent implements OnInit, OnDestroy {
   stationName(stationId: number | null): string {
     if (stationId === null) return 'All stations';
     return this.stations().find((station) => station.id === stationId)?.name ?? `Station ${stationId}`;
+  }
+
+  agentDeviceLabel(agent: PrinterAgent): string {
+    const device =
+      agent.device_type === 'ipad_app'
+        ? 'iPad app'
+        : agent.device_type === 'xp80t'
+          ? 'XP-80T'
+          : 'Local bridge';
+    const transport =
+      agent.transport === 'ios_bluetooth'
+        ? 'native iPad Bluetooth'
+        : agent.transport === 'bluetooth_serial'
+          ? 'Bluetooth serial'
+          : 'Wi-Fi/LAN';
+    return `${device} · ${transport}${agent.app_version ? ` · ${agent.app_version}` : ''}`;
   }
 
   receiptLabel(type: string): string {

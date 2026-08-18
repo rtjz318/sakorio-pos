@@ -807,6 +807,9 @@ export interface PrinterAgent {
   id: number;
   name: string;
   kitchen_station_id: number | null;
+  device_type: 'local_agent' | 'ipad_app' | 'xp80t';
+  transport: 'network' | 'bluetooth_serial' | 'ios_bluetooth';
+  app_version: string | null;
   active: boolean;
   last_seen_at: string | null;
   created_at: string;
@@ -2922,7 +2925,13 @@ export class ApiService {
     return this.http.get<PrinterAgent[]>(`${this.apiUrl}/printing/agents`);
   }
 
-  createPrinterAgent(body: { name: string; kitchen_station_id: number | null }): Observable<PrinterAgentCreated> {
+  createPrinterAgent(body: {
+    name: string;
+    kitchen_station_id: number | null;
+    device_type?: PrinterAgent['device_type'];
+    transport?: PrinterAgent['transport'];
+    app_version?: string | null;
+  }): Observable<PrinterAgentCreated> {
     return this.http.post<PrinterAgentCreated>(`${this.apiUrl}/printing/agents`, body);
   }
 

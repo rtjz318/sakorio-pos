@@ -338,6 +338,9 @@ class PrinterAgent(SQLModel, table=True):
     kitchen_station_id: int | None = Field(
         default=None, foreign_key="kitchen_station.id", index=True
     )
+    device_type: str = Field(default="local_agent", max_length=32, index=True)
+    transport: str = Field(default="network", max_length=32, index=True)
+    app_version: str | None = Field(default=None, max_length=64)
     active: bool = Field(default=True, index=True)
     last_seen_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)

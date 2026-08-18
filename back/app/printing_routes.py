@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -22,6 +22,9 @@ router = APIRouter()
 class PrinterAgentCreate(BaseModel):
     name: str = Field(min_length=2, max_length=128)
     kitchen_station_id: int | None = None
+    device_type: Literal["local_agent", "ipad_app", "xp80t"] = "local_agent"
+    transport: Literal["network", "bluetooth_serial", "ios_bluetooth"] = "network"
+    app_version: str | None = Field(default=None, max_length=64)
 
 
 class PrintJobFailure(BaseModel):
@@ -42,6 +45,9 @@ def _agent_dict(agent: models.PrinterAgent) -> dict:
         "id": agent.id,
         "name": agent.name,
         "kitchen_station_id": agent.kitchen_station_id,
+        "device_type": agent.device_type,
+        "transport": agent.transport,
+        "app_version": agent.app_version,
         "active": agent.active,
         "last_seen_at": agent.last_seen_at.isoformat() if agent.last_seen_at else None,
         "created_at": agent.created_at.isoformat(),
@@ -93,6 +99,9 @@ def create_printer_agent(
         tenant_id=current_user.tenant_id,
         name=body.name.strip(),
         kitchen_station_id=body.kitchen_station_id,
+        device_type=body.device_type,
+        transport=body.transport,
+        app_version=body.app_version.strip() if body.app_version else None,
         token_hash=_hash_agent_token(raw_token),
     )
     session.add(agent)

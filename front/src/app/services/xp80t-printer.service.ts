@@ -26,9 +26,7 @@ declare global {
   interface Window {
     Capacitor?: {
       isNativePlatform?: () => boolean;
-      Plugins?: {
-        Xp80tPrinter?: Xp80tPrinterPlugin;
-      };
+      Plugins?: Record<string, unknown>;
     };
   }
 }
@@ -45,7 +43,8 @@ export class Xp80tPrinterService {
   }
 
   private get plugin(): Xp80tPrinterPlugin | undefined {
-    return window.Capacitor?.Plugins?.Xp80tPrinter;
+    return (window.Capacitor?.Plugins as { Xp80tPrinter?: Xp80tPrinterPlugin } | undefined)
+      ?.Xp80tPrinter;
   }
 
   async refreshStatus(): Promise<Xp80tPrinterStatus> {

@@ -8,6 +8,10 @@ const requiredFiles = [
   'native/ios-xp80t/Xp80tPrinterPlugin.m',
   'native/ios-xp80t/Info.plist-snippet.xml',
   'native/ios-xp80t/README.md',
+  'native/ios-secure-storage/SakorioSecureStoragePlugin.swift',
+  'native/ios-secure-storage/SakorioSecureStoragePlugin.m',
+  'native/ios-secure-storage/README.md',
+  'src/app/services/native-secure-storage.service.ts',
   'src/app/services/xp80t-printer.service.ts',
   'src/app/services/ipad-printer-worker.service.ts',
   'src/app/services/escpos-receipt-renderer.ts',
@@ -34,6 +38,17 @@ const swift = readFileSync(join(root, 'native/ios-xp80t/Xp80tPrinterPlugin.swift
 for (const marker of ['CoreBluetooth', 'writeEscPos', 'payloadBase64']) {
   if (!swift.includes(marker)) {
     console.error(`[xp80t-scaffold] Swift plugin missing marker: ${marker}`);
+    process.exit(1);
+  }
+}
+
+const secureStorage = readFileSync(
+  join(root, 'native/ios-secure-storage/SakorioSecureStoragePlugin.swift'),
+  'utf8',
+);
+for (const marker of ['Security', 'SecItemAdd', 'SecItemCopyMatching', 'ThisDeviceOnly']) {
+  if (!secureStorage.includes(marker)) {
+    console.error(`[xp80t-scaffold] Secure storage plugin missing marker: ${marker}`);
     process.exit(1);
   }
 }

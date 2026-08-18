@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { IpadPrinterWorkerService } from '../services/ipad-printer-worker.service';
+import { NativeSecureStorageService } from '../services/native-secure-storage.service';
 import {
   Xp80tPrinterDevice,
   Xp80tPrinterService,
@@ -41,6 +42,11 @@ import {
           <span>Last printed job</span>
           <strong>{{ workerStatus().lastPrintedJobId || '-' }}</strong>
           <small>{{ workerStatus().lastHeartbeatAt ? 'Heartbeat ' + (workerStatus().lastHeartbeatAt | date:'shortTime') : 'No heartbeat yet' }}</small>
+        </div>
+        <div>
+          <span>Secure token</span>
+          <strong>{{ secureStorageReady() ? 'Keychain ready' : 'Session only' }}</strong>
+          <small>{{ savedTokenLoaded() ? 'Saved token loaded' : secureStorageStatusCopy() }}</small>
         </div>
       </div>
 
@@ -83,6 +89,12 @@ import {
         <button type="button" class="button primary" [disabled]="token.trim().length < 12" (click)="configureWorker()">
           Configure worker
         </button>
+        <button type="button" class="button secondary" [disabled]="token.trim().length < 12 || !secureStorageReady()" (click)="saveToken()">
+          Save token
+        </button>
+        <button type="button" class="button secondary" [disabled]="!secureStorageReady()" (click)="clearSavedToken()">
+          Clear saved token
+        </button>
         <button type="button" class="button secondary" [disabled]="!workerStatus().configured" (click)="startWorker()">
           Start worker
         </button>
@@ -92,8 +104,8 @@ import {
       </div>
 
       <p class="footnote">
-        Security note: the production iPad app should store this token in iOS Keychain once the native shell is built.
-        This browser-safe scaffold does not persist the token.
+        Security note: native iPad builds store the printer token in iOS Keychain.
+        Browser mode remains session-only and does not persist the token.
       </p>
     </article>
   `,
@@ -140,7 +152,7 @@ import {
     .status-pill.warning { background: #fff3d9; color: #94630a; }
     .status-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: .75rem;
     }
     .status-grid > div {
@@ -229,18 +241,24 @@ import {
 export class Xp80tNativeSetupComponent implements OnInit {
   private readonly printer = inject(Xp80tPrinterService);
   private readonly worker = inject(IpadPrinterWorkerService);
+  private readonly secureStorage = inject(NativeSecureStorageService);
+  private readonly tokenStorageKey = 'sakorio.xp80t.printerAgentToken';
 
   readonly printerStatus = this.printer.status;
   readonly workerStatus = this.worker.status;
   readonly nativeReady = computed(() => this.printer.isNativeAvailable);
+  readonly secureStorageReady = this.secureStorage.available;
   readonly devices = signal<Xp80tPrinterDevice[]>([]);
   readonly busy = signal(false);
   readonly message = signal('');
   readonly messageType = signal<'info' | 'error'>('info');
+  readonly savedTokenLoaded = signal(false);
   token = '';
 
   ngOnInit(): void {
+    this.secureStorage.refreshAvailability();
     void this.refreshStatus();
+    void this.loadSavedToken();
   }
 
   async refreshStatus(): Promise<void> {
@@ -289,9 +307,42 @@ export class Xp80tNativeSetupComponent implements OnInit {
     }
   }
 
-  configureWorker(): void {
+  async configureWorker(): Promise<void> {
     this.worker.configure(this.token);
-    this.setMessage('Printer worker configured for this session. Start worker when XP-80T is connected.');
+    if (this.secureStorageReady()) {
+      await this.saveToken(false);
+    }
+    this.setMessage('Printer worker configured. Start worker when XP-80T is connected.');
+  }
+
+  async saveToken(showMessage = true): Promise<void> {
+    const token = this.token.trim();
+    if (token.length < 12) {
+      this.setMessage('Paste a valid printer-agent token before saving.', 'error');
+      return;
+    }
+    const saved = await this.secureStorage.set(this.tokenStorageKey, token);
+    this.savedTokenLoaded.set(saved);
+    if (showMessage) {
+      this.setMessage(
+        saved ? 'Printer token saved securely in iOS Keychain.' : this.secureStorage.lastError() || 'Token could not be saved.',
+        saved ? 'info' : 'error',
+      );
+    }
+  }
+
+  async clearSavedToken(): Promise<void> {
+    const removed = await this.secureStorage.remove(this.tokenStorageKey);
+    if (removed) {
+      this.token = '';
+      this.savedTokenLoaded.set(false);
+      this.worker.stop();
+      this.worker.configure('');
+    }
+    this.setMessage(
+      removed ? 'Saved printer token cleared from this iPad.' : this.secureStorage.lastError() || 'Saved token could not be cleared.',
+      removed ? 'info' : 'error',
+    );
   }
 
   startWorker(): void {
@@ -310,6 +361,21 @@ export class Xp80tNativeSetupComponent implements OnInit {
     if (!status.configured) return 'Paste a printer-agent token to configure.';
     if (!status.nativePrinterAvailable) return 'Native XP-80T plugin is required.';
     return status.lastHeartbeatAt ? 'Ready for print jobs' : 'Configured, no heartbeat yet';
+  }
+
+  secureStorageStatusCopy(): string {
+    if (this.secureStorageReady()) return 'Token can be saved securely';
+    return this.secureStorage.lastError() || 'Native Keychain plugin unavailable';
+  }
+
+  private async loadSavedToken(): Promise<void> {
+    if (!this.secureStorageReady()) return;
+    const token = await this.secureStorage.get(this.tokenStorageKey);
+    if (!token) return;
+    this.token = token;
+    this.savedTokenLoaded.set(true);
+    this.worker.configure(token);
+    this.setMessage('Saved printer token loaded from iOS Keychain.');
   }
 
   private setMessage(message: string, type: 'info' | 'error' = 'info'): void {

@@ -46,6 +46,7 @@
     "test:role-access-matrix": "node scripts/test-role-access-matrix.mjs",
     "test:ipad-viewports": "node scripts/test-ipad-viewports.mjs",
     "test:xp80t-native-scaffold": "node scripts/check-xp80t-native-scaffold.mjs",
+    "test:capacitor-ios-readiness": "node scripts/check-capacitor-ios-readiness.mjs",
     "capture-screenshots": "node scripts/capture-screenshots.mjs"
   },
   "prettier": {

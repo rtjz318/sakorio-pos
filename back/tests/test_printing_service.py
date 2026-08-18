@@ -1,7 +1,12 @@
 from datetime import datetime, timezone
 
 from app import models
-from app.printing_service import enqueue_customer_receipt, enqueue_kitchen_receipts
+from app.printing_service import (
+    MAX_RECEIPT_ITEMS,
+    enqueue_customer_receipt,
+    enqueue_kitchen_receipts,
+    validate_receipt_payload,
+)
 
 
 class _Rows:
@@ -258,3 +263,68 @@ def test_customer_receipt_is_idempotent():
 
     assert job is existing
     assert session.added == []
+
+
+def test_receipt_payload_contract_sanitizes_messy_printer_data():
+    payload = validate_receipt_payload(
+        {
+            "receipt_type": " CUSTOMER RECEIPT\x00 ",
+            "station_name": " Cashier\x00 ",
+            "table_name": "",
+            "customer_name": " Rick\x00 ",
+            "order_notes": "A" * 700,
+            "currency_code": "sgd",
+            "subtotal_cents": "1200",
+            "tip_cents": "-50",
+            "total_cents": "not-a-number",
+            "items": [
+                {
+                    "quantity": "2",
+                    "name": "  Dumpling\x00 ",
+                    "unit_price_cents": "600",
+                    "notes": " No chilli\x00 ",
+                },
+                {"quantity": 1, "name": "   "},
+                "bad row",
+            ],
+        }
+    )
+
+    assert payload["receipt_type"] == "CUSTOMER RECEIPT"
+    assert payload["station_name"] == "Cashier"
+    assert payload["table_name"] == "Counter"
+    assert payload["customer_name"] == "Rick"
+    assert len(payload["order_notes"]) == 500
+    assert payload["currency_code"] == "SGD"
+    assert payload["subtotal_cents"] == 1200
+    assert payload["tip_cents"] == 0
+    assert payload["total_cents"] == 0
+    assert payload["items"] == [
+        {
+            "quantity": 2,
+            "name": "Dumpling",
+            "notes": "No chilli",
+            "customization": None,
+            "modifiers": None,
+            "unit_price_cents": 600,
+            "line_total_cents": 1200,
+        }
+    ]
+
+
+def test_receipt_payload_contract_caps_items_for_printer_safety():
+    payload = validate_receipt_payload(
+        {
+            "items": [
+                {
+                    "quantity": 1,
+                    "name": f"Item {index}",
+                }
+                for index in range(MAX_RECEIPT_ITEMS + 5)
+            ]
+        }
+    )
+
+    assert len(payload["items"]) == MAX_RECEIPT_ITEMS
+    assert payload["items"][0]["name"] == "Item 0"
+    assert payload["items"][-1]["name"] == f"Item {MAX_RECEIPT_ITEMS - 1}"

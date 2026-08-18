@@ -3,6 +3,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { IpadPrinterWorkerService } from '../services/ipad-printer-worker.service';
 import { NativeSecureStorageService } from '../services/native-secure-storage.service';
+import { evaluateXp80tReadiness } from '../services/xp80t-printer-readiness';
 import {
   Xp80tPrinterDevice,
   Xp80tPrinterService,
@@ -53,6 +54,25 @@ import {
       @if (message()) {
         <p class="notice" [class.error]="messageType() === 'error'">{{ message() }}</p>
       }
+
+      <section class="readiness-card" [class.ready]="readiness().ready">
+        <div>
+          <p class="eyebrow">Launch readiness</p>
+          <h4>{{ readiness().label }} · {{ readiness().score }}%</h4>
+          <p class="muted">{{ readiness().nextAction }}</p>
+        </div>
+        <ul>
+          @for (item of readiness().items; track item.id) {
+            <li [class.ok]="item.ok">
+              <span>{{ item.ok ? '✓' : '!' }}</span>
+              <div>
+                <strong>{{ item.label }}</strong>
+                <small>{{ item.detail }}</small>
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
 
       <div class="actions">
         <button type="button" class="button secondary" (click)="refreshStatus()">Check app plugin</button>
@@ -181,6 +201,61 @@ import {
       background: #fff1ef;
       color: #a83220;
     }
+    .readiness-card {
+      display: grid;
+      gap: .85rem;
+      padding: .95rem;
+      border: 1px solid #f0d1c7;
+      border-radius: 15px;
+      background: #fff8f5;
+    }
+    .readiness-card.ready {
+      border-color: #b8e3d4;
+      background: #f1fbf7;
+    }
+    .readiness-card h4 {
+      margin: .15rem 0 .25rem;
+      font-size: 1rem;
+    }
+    .readiness-card ul {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .55rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .readiness-card li {
+      display: flex;
+      gap: .55rem;
+      align-items: flex-start;
+      padding: .65rem;
+      border: 1px solid #efd8d0;
+      border-radius: 12px;
+      background: #fff;
+    }
+    .readiness-card li.ok {
+      border-color: #c6e7da;
+    }
+    .readiness-card li > span {
+      display: grid;
+      place-items: center;
+      flex: 0 0 24px;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: #fff1ef;
+      color: #a83220;
+      font-weight: 900;
+    }
+    .readiness-card li.ok > span {
+      background: #dff4eb;
+      color: #157352;
+    }
+    .readiness-card li div {
+      display: grid;
+      gap: .12rem;
+    }
     .button {
       min-height: 40px;
       padding: .58rem .9rem;
@@ -233,6 +308,7 @@ import {
     .footnote { font-size: .86rem; line-height: 1.45; }
     @media (max-width: 760px) {
       .status-grid { grid-template-columns: 1fr; }
+      .readiness-card ul { grid-template-columns: 1fr; }
       header, .actions { align-items: stretch; flex-direction: column; }
       .button { width: 100%; }
     }
@@ -248,6 +324,20 @@ export class Xp80tNativeSetupComponent implements OnInit {
   readonly workerStatus = this.worker.status;
   readonly nativeReady = computed(() => this.printer.isNativeAvailable);
   readonly secureStorageReady = this.secureStorage.available;
+  readonly readiness = computed(() => {
+    const printer = this.printerStatus();
+    const worker = this.workerStatus();
+    return evaluateXp80tReadiness({
+      nativeReady: this.nativeReady(),
+      bluetoothConnected: printer.connected,
+      tokenConfigured: worker.configured,
+      workerRunning: worker.running,
+      lastHeartbeatAt: worker.lastHeartbeatAt,
+      lastPrintedJobId: worker.lastPrintedJobId,
+      lastError: worker.lastError,
+      secureStorageReady: this.secureStorageReady(),
+    });
+  });
   readonly devices = signal<Xp80tPrinterDevice[]>([]);
   readonly busy = signal(false);
   readonly message = signal('');

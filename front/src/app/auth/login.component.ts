@@ -8,6 +8,7 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
 import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { LegalLinksComponent } from '../shared/legal-links.component';
 import { isCustomerPublicHost } from '../shared/host-portal.util';
+import { isNativeShell } from '../shared/native-shell.util';
 
 @Component({
   selector: 'app-login',
@@ -115,22 +116,24 @@ import { isCustomerPublicHost } from '../shared/host-portal.util';
         </form>
         }
 
-        <div class="auth-actions-foot">
-          <span>{{ 'AUTH.DONT_HAVE_ACCOUNT' | translate }}</span>
-          <a routerLink="/register">{{ 'AUTH.CREATE_ACCOUNT' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">|</span>
-          <a routerLink="/provider/login" data-testid="login-provider-login">{{ 'LANDING.PROVIDER_LOGIN' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">|</span>
-          <a routerLink="/courier/login" data-testid="login-courier-login">{{ 'LANDING.COURIER_LOGIN' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">|</span>
-          <a routerLink="/provider/register" data-testid="login-provider-register">{{ 'LANDING.REGISTER_AS_PROVIDER' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">|</span>
-          <a href="mailto:sales@sakario.sg" data-testid="login-contact-us">{{ 'LANDING.CONTACT_US' | translate }}</a>
-          @if (legalTermsUrl() || legalPrivacyUrl()) {
+        @if (!nativeShell()) {
+          <div class="auth-actions-foot">
+            <span>{{ 'AUTH.DONT_HAVE_ACCOUNT' | translate }}</span>
+            <a routerLink="/register">{{ 'AUTH.CREATE_ACCOUNT' | translate }}</a>
             <span class="auth-foot-sep" aria-hidden="true">|</span>
-            <app-legal-links [inline]="true" [termsUrl]="legalTermsUrl()" [privacyUrl]="legalPrivacyUrl()" />
-          }
-        </div>
+            <a routerLink="/provider/login" data-testid="login-provider-login">{{ 'LANDING.PROVIDER_LOGIN' | translate }}</a>
+            <span class="auth-foot-sep" aria-hidden="true">|</span>
+            <a routerLink="/courier/login" data-testid="login-courier-login">{{ 'LANDING.COURIER_LOGIN' | translate }}</a>
+            <span class="auth-foot-sep" aria-hidden="true">|</span>
+            <a routerLink="/provider/register" data-testid="login-provider-register">{{ 'LANDING.REGISTER_AS_PROVIDER' | translate }}</a>
+            <span class="auth-foot-sep" aria-hidden="true">|</span>
+            <a href="mailto:sales@sakario.sg" data-testid="login-contact-us">{{ 'LANDING.CONTACT_US' | translate }}</a>
+            @if (legalTermsUrl() || legalPrivacyUrl()) {
+              <span class="auth-foot-sep" aria-hidden="true">|</span>
+              <app-legal-links [inline]="true" [termsUrl]="legalTermsUrl()" [privacyUrl]="legalPrivacyUrl()" />
+            }
+          </div>
+        }
       </div>
     </div>
   `,
@@ -366,6 +369,7 @@ export class LoginComponent implements OnInit {
   legalPrivacyUrl = signal<string | null>(null);
   selectedTenant = signal<TenantSummary | null>(null);
   selectedTenantLogoUrl = signal<string | null>(null);
+  nativeShell = signal(isNativeShell());
 
   ngOnInit(): void {
     this.api.getPublicLegalUrls().subscribe({

@@ -258,9 +258,11 @@ for ($attempt = 1; $attempt -le $OpenRetries; $attempt++) {
     $printer.DtrEnable = $true
     $printer.RtsEnable = $true
   }
+  $writeCompleted = $false
   try {
     $printer.Open()
     $printer.Write($bytes, 0, $bytes.Length)
+    $writeCompleted = $true
     return
   } catch {
     $lastError = $_
@@ -269,7 +271,13 @@ for ($attempt = 1; $attempt -le $OpenRetries; $attempt++) {
     }
   } finally {
     if ($printer.IsOpen) {
-      $printer.Close()
+      try {
+        $printer.Close()
+      } catch {
+        if (-not $writeCompleted) {
+          throw
+        }
+      }
     }
     $printer.Dispose()
   }

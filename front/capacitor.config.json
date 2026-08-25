@@ -3,6 +3,7 @@
   "appName": "Sakorio POS",
   "webDir": "dist/front/browser",
   "server": {
+    "hostname": "staff.sakorio.com",
     "androidScheme": "https"
   },
   "plugins": {

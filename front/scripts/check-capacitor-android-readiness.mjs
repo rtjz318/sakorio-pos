@@ -43,6 +43,9 @@ if (config.webDir !== 'dist/front/browser') {
 if (config.server?.androidScheme !== 'https') {
   failures.push(`Unexpected androidScheme: ${config.server?.androidScheme}`);
 }
+if (config.server?.hostname !== 'staff.sakorio.com') {
+  failures.push(`Unexpected native hostname: ${config.server?.hostname}`);
+}
 
 const java = readFileSync(join(root, 'native/android-xp80t/Xp80tPrinterPlugin.java'), 'utf8');
 for (const marker of [

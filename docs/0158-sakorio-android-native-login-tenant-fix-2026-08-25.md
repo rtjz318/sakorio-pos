@@ -12,6 +12,7 @@ The staff web login normally has enough browser/session/domain context to reach 
 - Native shell landing redirect now opens `/login?tenant=1`.
 - Native shell login falls back to tenant `1` when no tenant query parameter is present.
 - Forgot-password link also preserves tenant `1` inside the native shell.
+- Capacitor Android WebView hostname is now `staff.sakorio.com`, not the default local WebView host. This keeps the native app same-site with `api.sakorio.com` so staff auth cookies behave like the live staff browser flow.
 
 ## Expected behavior
 
@@ -34,10 +35,11 @@ Reinstall this APK on the Android tablet before retesting login.
 
 - Angular production-static build passed.
 - Capacitor Android sync passed.
+- Generated Android `capacitor.config.json` contains `server.hostname = staff.sakorio.com`.
 - Gradle debug APK build passed.
+- Capacitor Android readiness check passed.
 
 Known non-blocking build warnings remain unchanged:
 
 - Existing Angular SCSS budget warnings.
 - Existing CommonJS warning for `dijkstrajs` via `qrcode`.
-

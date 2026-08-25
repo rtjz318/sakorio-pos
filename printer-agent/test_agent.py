@@ -1,13 +1,16 @@
 import importlib.util
 import unittest
+import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import mock_open, patch
 
 
 def load_agent(env: dict[str, str] | None = None):
     base_env = {
         "API_BASE_URL": "https://api.sakorio.test",
         "PRINTER_AGENT_TOKEN": "test-token",
+        "PRINTER_TRANSPORT": "network",
+        "PRINTER_SERIAL_PORT": "",
     }
     if env:
         base_env.update(env)
@@ -95,6 +98,61 @@ class PrinterAgentTransportTests(unittest.TestCase):
         self.assertIn(b"Gyoza", data)
         self.assertIn(b"SGD 12.00", data)
         self.assertTrue(data.endswith(b"\x1d\x56\x00"))
+
+    def test_env_file_loader_does_not_override_existing_environment(self):
+        agent = load_agent()
+        with tempfile.TemporaryDirectory() as tmp:
+            env_path = Path(tmp) / ".env"
+            env_path.write_text(
+                "API_BASE_URL=https://from-file.test\n"
+                "PRINTER_AGENT_TOKEN=file-token\n"
+                "PRINTER_SERIAL_PORT=COM4\n",
+                encoding="utf-8",
+            )
+            with patch.dict(
+                "os.environ",
+                {"API_BASE_URL": "https://existing.test", "PRINTER_AGENT_TOKEN": "existing-token"},
+                clear=True,
+            ):
+                agent.load_env_file(env_path)
+                self.assertEqual(agent.os.environ["API_BASE_URL"], "https://existing.test")
+                self.assertEqual(agent.os.environ["PRINTER_AGENT_TOKEN"], "existing-token")
+                self.assertEqual(agent.os.environ["PRINTER_SERIAL_PORT"], "COM4")
+
+    def test_windows_serial_path_handles_com_ports(self):
+        agent = load_agent()
+
+        self.assertEqual(agent.windows_serial_path("COM4"), "\\\\.\\COM4")
+        self.assertEqual(agent.windows_serial_path("\\\\.\\COM7"), "\\\\.\\COM7")
+
+    def test_bluetooth_serial_falls_back_to_windows_com_writer_without_pyserial(self):
+        agent = load_agent(
+            {
+                "PRINTER_TRANSPORT": "bluetooth_serial",
+                "PRINTER_SERIAL_PORT": "COM4",
+                "PRINTER_SERIAL_BAUDRATE": "9600",
+            }
+        )
+        written = []
+
+        def missing_serial(_name):
+            raise ImportError("no pyserial")
+
+        file_handle = mock_open()
+        file_handle.return_value.write.side_effect = lambda data: written.append(data)
+
+        with (
+            patch.object(agent, "import_module", missing_serial),
+            patch.object(agent.os, "name", "nt"),
+            patch.object(agent.subprocess, "run") as run,
+            patch("builtins.open", file_handle),
+        ):
+            agent.send_bluetooth_serial(b"receipt")
+
+        run.assert_called_once()
+        self.assertIn("COM4:", run.call_args.args[0])
+        file_handle.assert_called_once_with("\\\\.\\COM4", "wb", buffering=0)
+        self.assertEqual(written, [b"receipt"])
 
     def test_run_once_completes_printed_bluetooth_job(self):
         agent = load_agent({"PRINTER_TRANSPORT": "bluetooth_serial", "PRINTER_SERIAL_PORT": "COM5"})

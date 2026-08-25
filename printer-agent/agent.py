@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import socket
+import subprocess
 import time
 from importlib import import_module
 from pathlib import Path
@@ -23,6 +24,28 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger("sakorio-printer-agent")
+
+
+def load_env_file(path: Path = Path(".env")) -> None:
+    """Load simple KEY=VALUE lines so `python agent.py` works from this folder.
+
+    Existing environment variables win over `.env` values. This keeps scheduled
+    tasks/services configurable without requiring python-dotenv.
+    """
+    if not path.exists():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+load_env_file(Path(__file__).with_name(".env"))
 
 API_BASE_URL = os.environ["API_BASE_URL"].rstrip("/")
 AGENT_TOKEN = os.environ["PRINTER_AGENT_TOKEN"]
@@ -166,9 +189,12 @@ def send_bluetooth_serial(data: bytes) -> None:
     try:
         serial_module = import_module("serial")
     except ImportError as exc:
+        if os.name == "nt":
+            send_windows_serial(data)
+            return
         raise RuntimeError(
-            "Bluetooth serial printing requires pyserial. Install it in the "
-            "printer-agent environment with: python -m pip install pyserial"
+            "Bluetooth serial printing requires pyserial on this operating system. "
+            "Install it in the printer-agent environment with: python -m pip install pyserial"
         ) from exc
 
     with serial_module.Serial(
@@ -179,6 +205,54 @@ def send_bluetooth_serial(data: bytes) -> None:
     ) as printer:
         printer.write(data)
         printer.flush()
+
+
+def windows_serial_path(port: str) -> str:
+    clean_port = port.strip()
+    if clean_port.startswith("\\\\.\\"):
+        return clean_port
+    return f"\\\\.\\{clean_port}"
+
+
+def send_windows_serial(data: bytes) -> None:
+    """Fallback Windows COM writer for Bluetooth SPP printers.
+
+    This avoids requiring pyserial on a shop PC. Windows' `mode` command applies
+    the serial settings, then the COM device can be opened as a binary file.
+    """
+    try:
+        subprocess.run(
+            [
+                "cmd",
+                "/c",
+                "mode",
+                f"{PRINTER_SERIAL_PORT}:",
+                f"BAUD={PRINTER_SERIAL_BAUDRATE}",
+                "PARITY=N",
+                "DATA=8",
+                "STOP=1",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stdout or exc.stderr or str(exc)).strip()
+        raise RuntimeError(
+            f"Windows could not configure {PRINTER_SERIAL_PORT}. "
+            "Confirm the printer is powered on, awake, close to this PC, paired, "
+            "and not connected to another device. "
+            f"Details: {detail}"
+        ) from exc
+    try:
+        with open(windows_serial_path(PRINTER_SERIAL_PORT), "wb", buffering=0) as printer:
+            printer.write(data)
+    except OSError as exc:
+        raise RuntimeError(
+            f"Windows could not open {PRINTER_SERIAL_PORT}. "
+            "If Bluetooth settings show the COM port but this still fails, remove and re-pair "
+            "the printer, then recreate the outgoing COM port."
+        ) from exc
 
 
 def send_to_printer(data: bytes) -> None:

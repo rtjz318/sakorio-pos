@@ -14,7 +14,7 @@ Supported transports:
 
 1. Create a printer agent in Sakorio's printing settings/API. Copy the token;
    it is shown only once.
-2. Copy `.env.example` values into machine environment variables.
+2. Copy `.env.example` to `.env` and fill in the token/printer settings.
 3. Set `PRINTER_TRANSPORT=network`.
 4. Set `PRINTER_HOST` to the printer's fixed LAN IP and confirm raw TCP port
    `9100` is enabled.
@@ -36,9 +36,7 @@ then the bridge writes ESC/POS bytes to the printer.
    - Windows: Device Manager → Ports, usually `COM5`, `COM6`, etc.
    - macOS: `/dev/cu.*`.
    - Linux/Raspberry Pi: `/dev/rfcomm*` after binding the device.
-3. Install the optional serial dependency in the agent environment:
-   `python -m pip install pyserial`.
-4. Configure:
+3. Configure:
 
    ```env
    PRINTER_TRANSPORT=bluetooth_serial
@@ -47,8 +45,20 @@ then the bridge writes ESC/POS bytes to the printer.
    PRINTER_DRY_RUN=false
    ```
 
-5. Start with `python agent.py`, create a test order, and confirm the delivery
+4. Start with `python agent.py`, create a test order, and confirm the delivery
    log changes from `pending` to `completed`.
+
+On Windows, paired Bluetooth COM ports can be used without installing
+`pyserial`; the agent applies the serial settings with the built-in `mode`
+command and writes directly to `COMx`. On macOS/Linux, install `pyserial` when
+using Bluetooth serial.
+
+If Windows shows an outgoing COM port but printing fails with `Device COMx is
+not currently available` or `semaphore timeout period has expired`, the printer
+is paired but the Bluetooth serial channel is not opening. Power-cycle the
+printer, keep it awake and near the PC, remove any phone/iPad connection to the
+printer, then remove/re-pair the printer in Windows and recreate the outgoing
+COM port.
 
 If the printer uses a vendor iOS SDK instead of Bluetooth serial, keep using
 the Sakorio print-job API but implement the Bluetooth delivery inside a native

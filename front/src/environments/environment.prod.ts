@@ -1,5 +1,14 @@
 import { commitHash, version } from './commit-hash';
 
+function isNativeShell(): boolean {
+  if (typeof window === 'undefined') return false;
+  const capacitor = (window as any).Capacitor;
+  if (typeof capacitor?.isNativePlatform === 'function' && capacitor.isNativePlatform()) {
+    return true;
+  }
+  return window.location.protocol === 'capacitor:';
+}
+
 const SAKORIO_FRONTEND_HOSTS = new Set([
   'staff.sakorio.com',
   'order.sakorio.com',
@@ -24,6 +33,7 @@ function isSameOriginApiFallback(raw: string, host: string): boolean {
 
 function getApiUrl(): string {
   if (typeof window === 'undefined') return '/api';
+  if (isNativeShell()) return 'https://api.sakorio.com';
   const raw = (window as any).__API_URL__;
   const sakorioApi = sakorioApiUrlFor(window.location.hostname || '');
   if (!raw) return sakorioApi ?? '/api';
@@ -33,6 +43,7 @@ function getApiUrl(): string {
 
 function getWsUrl(): string {
   if (typeof window === 'undefined') return '';
+  if (isNativeShell()) return 'wss://api.sakorio.com/ws';
   const raw = (window as any).__WS_URL__;
   const sakorioApi = sakorioApiUrlFor(window.location.hostname || '');
   const sakorioWs = sakorioApi ? sakorioApi.replace(/^http/, 'ws') + '/ws' : null;

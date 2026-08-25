@@ -8,6 +8,7 @@ import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { environment } from '../../environments/environment';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
 import { isCustomerPublicHost } from '../shared/host-portal.util';
+import { isNativeShell } from '../shared/native-shell.util';
 
 @Component({
   selector: 'app-landing',
@@ -779,6 +780,11 @@ export class LandingComponent implements OnInit {
   tableLookupChoices = signal<PublicTableLookupChoice[]>([]);
 
   ngOnInit(): void {
+    if (isNativeShell()) {
+      void this.router.navigate(['/login']);
+      return;
+    }
+
     // `ApiService` constructor already calls `checkAuth()` once; avoid a second `/users/me` (extra 401 noise).
     this.api.waitForInitialAuthCheck().subscribe(() => {
       const user = this.api.getCurrentUser();

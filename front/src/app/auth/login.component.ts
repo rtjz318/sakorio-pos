@@ -8,7 +8,7 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
 import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { LegalLinksComponent } from '../shared/legal-links.component';
 import { isCustomerPublicHost } from '../shared/host-portal.util';
-import { isNativeShell } from '../shared/native-shell.util';
+import { NATIVE_SAKORIO_TENANT_ID, isNativeShell } from '../shared/native-shell.util';
 
 @Component({
   selector: 'app-login',
@@ -397,12 +397,18 @@ export class LoginComponent implements OnInit {
   /** Preserve tenant picker query param on forgot-password link. */
   get forgotPasswordQueryParams(): Record<string, string> {
     const t = this.route.snapshot.queryParamMap.get('tenant');
-    return t ? { tenant: t } : {};
+    if (t) return { tenant: t };
+    return this.nativeShell() ? { tenant: String(NATIVE_SAKORIO_TENANT_ID) } : {};
   }
 
   private loadSelectedTenant(): void {
     const tenantParam = this.route.snapshot.queryParamMap.get('tenant');
-    const tenantId = tenantParam != null ? Number.parseInt(tenantParam, 10) : NaN;
+    const tenantId =
+      tenantParam != null
+        ? Number.parseInt(tenantParam, 10)
+        : this.nativeShell()
+          ? NATIVE_SAKORIO_TENANT_ID
+          : NaN;
     if (!Number.isInteger(tenantId) || tenantId <= 0) return;
 
     this.api.getPublicTenant(tenantId).subscribe({
@@ -444,7 +450,12 @@ export class LoginComponent implements OnInit {
     const username = this.form.get('username')?.value ?? '';
     const password = this.form.get('password')?.value ?? '';
     const tenantId = this.route.snapshot.queryParams['tenant'];
-    const id = tenantId != null ? parseInt(tenantId, 10) : undefined;
+    const id =
+      tenantId != null
+        ? parseInt(tenantId, 10)
+        : this.nativeShell()
+          ? NATIVE_SAKORIO_TENANT_ID
+          : undefined;
     this.api.login(username, password, isNaN(id as number) ? undefined : id).subscribe({
       next: () => {
         this.api.checkAuth().subscribe(user => {

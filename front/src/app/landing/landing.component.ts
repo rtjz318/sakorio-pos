@@ -8,7 +8,7 @@ import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { environment } from '../../environments/environment';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
 import { isCustomerPublicHost } from '../shared/host-portal.util';
-import { isNativeShell } from '../shared/native-shell.util';
+import { NATIVE_SAKORIO_TENANT_ID, isNativeShell } from '../shared/native-shell.util';
 
 @Component({
   selector: 'app-landing',
@@ -781,7 +781,7 @@ export class LandingComponent implements OnInit {
 
   ngOnInit(): void {
     if (isNativeShell()) {
-      void this.router.navigate(['/login']);
+      void this.router.navigate(['/login'], { queryParams: { tenant: NATIVE_SAKORIO_TENANT_ID } });
       return;
     }
 

@@ -12,6 +12,7 @@ import logging
 import os
 import socket
 import subprocess
+import tempfile
 import time
 from importlib import import_module
 from pathlib import Path
@@ -57,6 +58,15 @@ PRINTER_SERIAL_PORT = os.getenv("PRINTER_SERIAL_PORT", "").strip()
 PRINTER_SERIAL_BAUDRATE = int(os.getenv("PRINTER_SERIAL_BAUDRATE", "9600"))
 PRINTER_SERIAL_TIMEOUT_SECONDS = max(
     1.0, float(os.getenv("PRINTER_SERIAL_TIMEOUT_SECONDS", "10"))
+)
+PRINTER_SERIAL_DTR_RTS = os.getenv("PRINTER_SERIAL_DTR_RTS", "true").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+PRINTER_SERIAL_OPEN_RETRIES = max(
+    1, int(os.getenv("PRINTER_SERIAL_OPEN_RETRIES", "3"))
 )
 POLL_SECONDS = max(1.0, float(os.getenv("POLL_SECONDS", "3")))
 SOCKET_TIMEOUT_SECONDS = max(1.0, float(os.getenv("SOCKET_TIMEOUT_SECONDS", "10")))
@@ -203,6 +213,9 @@ def send_bluetooth_serial(data: bytes) -> None:
         timeout=PRINTER_SERIAL_TIMEOUT_SECONDS,
         write_timeout=PRINTER_SERIAL_TIMEOUT_SECONDS,
     ) as printer:
+        if PRINTER_SERIAL_DTR_RTS:
+            printer.dtr = True
+            printer.rts = True
         printer.write(data)
         printer.flush()
 
@@ -217,42 +230,105 @@ def windows_serial_path(port: str) -> str:
 def send_windows_serial(data: bytes) -> None:
     """Fallback Windows COM writer for Bluetooth SPP printers.
 
-    This avoids requiring pyserial on a shop PC. Windows' `mode` command applies
-    the serial settings, then the COM device can be opened as a binary file.
+    This avoids requiring pyserial on a shop PC. Many small Bluetooth receipt
+    printers expose an SPP COM port that only opens reliably through Windows'
+    SerialPort API with DTR/RTS asserted, so use PowerShell/.NET rather than
+    Python's raw file API.
     """
+    timeout_ms = int(max(PRINTER_SERIAL_TIMEOUT_SECONDS, 1.0) * 1000)
+    data_path: str | None = None
+    script_path: str | None = None
+    script = r"""
+param(
+  [string]$PortName,
+  [int]$BaudRate,
+  [int]$TimeoutMs,
+  [int]$UseDtrRts,
+  [int]$OpenRetries,
+  [string]$DataPath
+)
+$ErrorActionPreference = 'Stop'
+$bytes = [System.IO.File]::ReadAllBytes($DataPath)
+$lastError = $null
+for ($attempt = 1; $attempt -le $OpenRetries; $attempt++) {
+  $printer = New-Object System.IO.Ports.SerialPort $PortName,$BaudRate,'None',8,'One'
+  $printer.WriteTimeout = $TimeoutMs
+  $printer.ReadTimeout = $TimeoutMs
+  if ($UseDtrRts -eq 1) {
+    $printer.DtrEnable = $true
+    $printer.RtsEnable = $true
+  }
+  try {
+    $printer.Open()
+    $printer.Write($bytes, 0, $bytes.Length)
+    return
+  } catch {
+    $lastError = $_
+    if ($attempt -lt $OpenRetries) {
+      Start-Sleep -Seconds 2
+    }
+  } finally {
+    if ($printer.IsOpen) {
+      $printer.Close()
+    }
+    $printer.Dispose()
+  }
+}
+throw $lastError
+"""
     try:
-        subprocess.run(
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as data_file:
+            data_file.write(data)
+            data_path = data_file.name
+        with tempfile.NamedTemporaryFile(
+            delete=False, suffix=".ps1", mode="w", encoding="utf-8"
+        ) as script_file:
+            script_file.write(script)
+            script_path = script_file.name
+        result = subprocess.run(
             [
-                "cmd",
-                "/c",
-                "mode",
-                f"{PRINTER_SERIAL_PORT}:",
-                f"BAUD={PRINTER_SERIAL_BAUDRATE}",
-                "PARITY=N",
-                "DATA=8",
-                "STOP=1",
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                script_path,
+                "-PortName",
+                PRINTER_SERIAL_PORT,
+                "-BaudRate",
+                str(PRINTER_SERIAL_BAUDRATE),
+                "-TimeoutMs",
+                str(timeout_ms),
+                "-UseDtrRts",
+                "1" if PRINTER_SERIAL_DTR_RTS else "0",
+                "-OpenRetries",
+                str(PRINTER_SERIAL_OPEN_RETRIES),
+                "-DataPath",
+                data_path,
             ],
             check=True,
             capture_output=True,
             text=True,
         )
+        if result.stderr:
+            logger.debug("Windows serial stderr: %s", result.stderr.strip())
     except subprocess.CalledProcessError as exc:
-        detail = (exc.stdout or exc.stderr or str(exc)).strip()
-        raise RuntimeError(
-            f"Windows could not configure {PRINTER_SERIAL_PORT}. "
-            "Confirm the printer is powered on, awake, close to this PC, paired, "
-            "and not connected to another device. "
-            f"Details: {detail}"
-        ) from exc
-    try:
-        with open(windows_serial_path(PRINTER_SERIAL_PORT), "wb", buffering=0) as printer:
-            printer.write(data)
-    except OSError as exc:
+        detail = (exc.stderr or exc.stdout or str(exc)).strip()
         raise RuntimeError(
             f"Windows could not open {PRINTER_SERIAL_PORT}. "
-            "If Bluetooth settings show the COM port but this still fails, remove and re-pair "
-            "the printer, then recreate the outgoing COM port."
+            "Confirm the printer is powered on, awake, close to this PC, paired, "
+            "and not connected to another device. If Bluetooth settings show the "
+            "COM port but this still fails, remove and re-pair the printer, then "
+            "recreate the outgoing COM port. "
+            f"Details: {detail}"
         ) from exc
+    finally:
+        for path in (data_path, script_path):
+            if path:
+                try:
+                    Path(path).unlink(missing_ok=True)
+                except OSError:
+                    logger.debug("Could not delete temporary serial helper %s", path)
 
 
 def send_to_printer(data: bytes) -> None:

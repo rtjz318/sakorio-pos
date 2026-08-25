@@ -133,26 +133,25 @@ class PrinterAgentTransportTests(unittest.TestCase):
                 "PRINTER_SERIAL_BAUDRATE": "9600",
             }
         )
-        written = []
-
         def missing_serial(_name):
             raise ImportError("no pyserial")
-
-        file_handle = mock_open()
-        file_handle.return_value.write.side_effect = lambda data: written.append(data)
 
         with (
             patch.object(agent, "import_module", missing_serial),
             patch.object(agent.os, "name", "nt"),
             patch.object(agent.subprocess, "run") as run,
-            patch("builtins.open", file_handle),
         ):
             agent.send_bluetooth_serial(b"receipt")
 
         run.assert_called_once()
-        self.assertIn("COM4:", run.call_args.args[0])
-        file_handle.assert_called_once_with("\\\\.\\COM4", "wb", buffering=0)
-        self.assertEqual(written, [b"receipt"])
+        command = run.call_args.args[0]
+        self.assertIn("powershell", command[0])
+        self.assertIn("-PortName", command)
+        self.assertIn("COM4", command)
+        self.assertIn("-UseDtrRts", command)
+        self.assertIn("1", command)
+        self.assertIn("-OpenRetries", command)
+        self.assertIn("3", command)
 
     def test_run_once_completes_printed_bluetooth_job(self):
         agent = load_agent({"PRINTER_TRANSPORT": "bluetooth_serial", "PRINTER_SERIAL_PORT": "COM5"})

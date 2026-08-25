@@ -8,6 +8,7 @@ const requiredFiles = [
   'native/ios-xp80t/Xp80tPrinterPlugin.m',
   'native/ios-xp80t/Info.plist-snippet.xml',
   'native/ios-xp80t/README.md',
+  'native/ios-xp80t/SDK-INTEGRATION.md',
   'native/ios-secure-storage/SakorioSecureStoragePlugin.swift',
   'native/ios-secure-storage/SakorioSecureStoragePlugin.m',
   'native/ios-secure-storage/README.md',
@@ -35,7 +36,15 @@ if (config.webDir !== 'dist/front/browser') {
 }
 
 const swift = readFileSync(join(root, 'native/ios-xp80t/Xp80tPrinterPlugin.swift'), 'utf8');
-for (const marker of ['CoreBluetooth', 'writeEscPos', 'payloadBase64']) {
+for (const marker of [
+  'CoreBluetooth',
+  'writeEscPos',
+  'payloadBase64',
+  'TransportMode',
+  'xprinterSdk',
+  'scanWithXprinterSdkIfAvailable',
+  'printWithXprinterSdkIfConnected',
+]) {
   if (!swift.includes(marker)) {
     console.error(`[xp80t-scaffold] Swift plugin missing marker: ${marker}`);
     process.exit(1);

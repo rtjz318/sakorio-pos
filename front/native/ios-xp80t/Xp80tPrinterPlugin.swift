@@ -9,15 +9,32 @@ import Foundation
  * browser build does not depend on Capacitor/iOS packages yet. When the
  * Capacitor iOS project is created, copy this class into the iOS app target and
  * register it with the matching Objective-C bridge file.
+ *
+ * Implementation direction:
+ * 1. Prefer the official Xprinter iOS SDK for XP-80T Bluetooth if available.
+ * 2. Keep the JavaScript API below stable for Angular.
+ * 3. Use the CoreBluetooth code in this scaffold as the BLE fallback.
+ *
+ * Why SDK-first:
+ * XP-80T documents an iOS POS-app Bluetooth workflow. If the vendor SDK handles
+ * Classic/SPP-style printer transport internally, Sakorio should call that SDK
+ * rather than trying to emulate generic serial Bluetooth from iOS.
  */
 @objc(Xp80tPrinterPlugin)
 public class Xp80tPrinterPlugin: CAPPlugin, CBCentralManagerDelegate, CBPeripheralDelegate {
+    private enum TransportMode: String {
+        case xprinterSdk = "xprinterSdk"
+        case coreBluetoothBle = "coreBluetoothBle"
+        case notConnected = "notConnected"
+    }
+
     private var centralManager: CBCentralManager?
     private var discoveredPeripherals: [String: CBPeripheral] = [:]
     private var connectedPeripheral: CBPeripheral?
     private var writableCharacteristic: CBCharacteristic?
     private var pendingScanCall: CAPPluginCall?
     private var pendingConnectCall: CAPPluginCall?
+    private var activeTransportMode: TransportMode = .notConnected
 
     public override func load() {
         centralManager = CBCentralManager(delegate: self, queue: DispatchQueue.main)
@@ -32,6 +49,10 @@ public class Xp80tPrinterPlugin: CAPPlugin, CBCentralManagerDelegate, CBPeripher
     }
 
     @objc func scan(_ call: CAPPluginCall) {
+        if scanWithXprinterSdkIfAvailable(call) {
+            return
+        }
+
         guard let centralManager = centralManager else {
             call.reject("Bluetooth manager is not initialized")
             return
@@ -60,6 +81,11 @@ public class Xp80tPrinterPlugin: CAPPlugin, CBCentralManagerDelegate, CBPeripher
             call.reject("deviceId is required")
             return
         }
+
+        if connectWithXprinterSdkIfAvailable(call, deviceId: deviceId) {
+            return
+        }
+
         guard let peripheral = discoveredPeripherals[deviceId] else {
             call.reject("XP-80T printer was not found. Scan again before connecting.")
             return
@@ -71,11 +97,16 @@ public class Xp80tPrinterPlugin: CAPPlugin, CBCentralManagerDelegate, CBPeripher
     }
 
     @objc func disconnect(_ call: CAPPluginCall) {
+        if disconnectXprinterSdkIfConnected(call) {
+            return
+        }
+
         if let peripheral = connectedPeripheral {
             centralManager?.cancelPeripheralConnection(peripheral)
         }
         connectedPeripheral = nil
         writableCharacteristic = nil
+        activeTransportMode = .notConnected
         call.resolve()
     }
 
@@ -85,6 +116,11 @@ public class Xp80tPrinterPlugin: CAPPlugin, CBCentralManagerDelegate, CBPeripher
             call.reject("payloadBase64 is required")
             return
         }
+
+        if printWithXprinterSdkIfConnected(call, data: data) {
+            return
+        }
+
         guard let peripheral = connectedPeripheral,
               let characteristic = writableCharacteristic else {
             call.reject("XP-80T printer is not connected")
@@ -98,7 +134,8 @@ public class Xp80tPrinterPlugin: CAPPlugin, CBCentralManagerDelegate, CBPeripher
     @objc func getStatus(_ call: CAPPluginCall) {
         call.resolve([
             "connected": connectedPeripheral != nil && writableCharacteristic != nil,
-            "deviceName": connectedPeripheral?.name ?? NSNull()
+            "deviceName": connectedPeripheral?.name ?? NSNull(),
+            "transport": activeTransportMode.rawValue
         ])
     }
 
@@ -147,6 +184,7 @@ public class Xp80tPrinterPlugin: CAPPlugin, CBCentralManagerDelegate, CBPeripher
         if connectedPeripheral?.identifier == peripheral.identifier {
             connectedPeripheral = nil
             writableCharacteristic = nil
+            activeTransportMode = .notConnected
         }
         notifyListeners("printerDisconnected", data: [
             "deviceId": peripheral.identifier.uuidString,
@@ -180,9 +218,11 @@ public class Xp80tPrinterPlugin: CAPPlugin, CBCentralManagerDelegate, CBPeripher
             candidate.properties.contains(.writeWithoutResponse) || candidate.properties.contains(.write)
         }) {
             writableCharacteristic = characteristic
+            activeTransportMode = .coreBluetoothBle
             pendingConnectCall?.resolve([
                 "connected": true,
-                "deviceName": peripheral.name ?? "XP-80T"
+                "deviceName": peripheral.name ?? "XP-80T",
+                "transport": activeTransportMode.rawValue
             ])
             pendingConnectCall = nil
         }
@@ -230,5 +270,28 @@ public class Xp80tPrinterPlugin: CAPPlugin, CBCentralManagerDelegate, CBPeripher
             Thread.sleep(forTimeInterval: 0.02)
             offset = end
         }
+    }
+
+    /**
+     * Xprinter SDK integration seam.
+     *
+     * Replace these stubs after adding the official Xprinter iOS SDK/framework
+     * to the generated Capacitor iOS target. Keep method signatures and
+     * JavaScript responses stable so Angular can continue using one printer API.
+     */
+    private func scanWithXprinterSdkIfAvailable(_ call: CAPPluginCall) -> Bool {
+        return false
+    }
+
+    private func connectWithXprinterSdkIfAvailable(_ call: CAPPluginCall, deviceId: String) -> Bool {
+        return false
+    }
+
+    private func disconnectXprinterSdkIfConnected(_ call: CAPPluginCall) -> Bool {
+        return false
+    }
+
+    private func printWithXprinterSdkIfConnected(_ call: CAPPluginCall, data: Data) -> Bool {
+        return false
     }
 }

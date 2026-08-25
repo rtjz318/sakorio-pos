@@ -9,6 +9,9 @@ const requiredFiles = [
   'native/ios-xp80t/Info.plist-snippet.xml',
   'native/ios-xp80t/README.md',
   'native/ios-xp80t/SDK-INTEGRATION.md',
+  'native/android-xp80t/Xp80tPrinterPlugin.java',
+  'native/android-xp80t/AndroidManifest-snippet.xml',
+  'native/android-xp80t/README.md',
   'native/ios-secure-storage/SakorioSecureStoragePlugin.swift',
   'native/ios-secure-storage/SakorioSecureStoragePlugin.m',
   'native/ios-secure-storage/README.md',
@@ -47,6 +50,22 @@ for (const marker of [
 ]) {
   if (!swift.includes(marker)) {
     console.error(`[xp80t-scaffold] Swift plugin missing marker: ${marker}`);
+    process.exit(1);
+  }
+}
+
+const java = readFileSync(join(root, 'native/android-xp80t/Xp80tPrinterPlugin.java'), 'utf8');
+for (const marker of [
+  '@CapacitorPlugin(',
+  'name = "Xp80tPrinter"',
+  'PermissionCallback',
+  'BluetoothSocket',
+  'SPP_UUID',
+  'payloadBase64',
+  'androidBluetoothSpp',
+]) {
+  if (!java.includes(marker)) {
+    console.error(`[xp80t-scaffold] Android plugin missing marker: ${marker}`);
     process.exit(1);
   }
 }

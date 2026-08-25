@@ -50,6 +50,7 @@
     "test:xp80t-readiness": "node scripts/test-xp80t-readiness.mjs",
     "test:xp80t-native-scaffold": "node scripts/check-xp80t-native-scaffold.mjs",
     "test:capacitor-ios-readiness": "node scripts/check-capacitor-ios-readiness.mjs",
+    "test:capacitor-android-readiness": "node scripts/check-capacitor-android-readiness.mjs",
     "ios:apply-native-scaffold": "node scripts/apply-ios-native-scaffold.mjs",
     "ios:check-native-scaffold": "node scripts/apply-ios-native-scaffold.mjs --check-only",
     "ios:prepare-xp80t": "node scripts/prepare-xp80t-ios-project.mjs",

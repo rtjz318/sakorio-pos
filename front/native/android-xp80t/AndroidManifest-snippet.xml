@@ -1,0 +1,17 @@
+<!-- Add these permissions to the generated Android app manifest. -->
+
+<!-- Android 12+ runtime Bluetooth permissions -->
+<uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+<!-- Legacy Bluetooth permissions for older Android versions -->
+<uses-permission
+    android:name="android.permission.BLUETOOTH"
+    android:maxSdkVersion="30" />
+<uses-permission
+    android:name="android.permission.BLUETOOTH_ADMIN"
+    android:maxSdkVersion="30" />
+
+<!-- Only needed if the implementation later performs active discovery instead of paired-device scan. -->
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+

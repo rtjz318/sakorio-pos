@@ -120,13 +120,18 @@ def money(cents: object, currency_code: object) -> str:
 
 def receipt_text(payload: dict) -> str:
     width = 42
-    rows = [
-        str(payload.get("receipt_type") or "KITCHEN").center(width),
-        str(payload.get("station_name") or "Kitchen").center(width),
-        "=" * width,
-        f"ORDER #{payload.get('order_id')}",
-        f"TABLE: {payload.get('table_name') or 'Counter'}",
-    ]
+    rows = []
+    if payload.get("tenant_name"):
+        rows.append(str(payload["tenant_name"]).upper().center(width))
+    rows.extend(
+        [
+            str(payload.get("receipt_type") or "KITCHEN").center(width),
+            str(payload.get("station_name") or "Kitchen").center(width),
+            "=" * width,
+            f"ORDER #{payload.get('order_id')}",
+            f"TABLE: {payload.get('table_name') or 'Counter'}",
+        ]
+    )
     if payload.get("customer_name"):
         rows.append(f"GUEST: {payload['customer_name']}")
     rows.extend([f"TIME: {payload.get('submitted_at') or ''}", "-" * width])
@@ -135,7 +140,15 @@ def receipt_text(payload: dict) -> str:
     for item in payload.get("items") or []:
         item_label = f"{item.get('quantity', 1)} x {item.get('name')}"
         if is_customer:
-            line_total = money(item.get("line_total_cents"), payload.get("currency_code"))
+            line_total_cents = item.get("line_total_cents")
+            if line_total_cents is None and item.get("unit_price_cents") is not None:
+                try:
+                    line_total_cents = int(item.get("unit_price_cents") or 0) * int(
+                        item.get("quantity") or 1
+                    )
+                except (TypeError, ValueError):
+                    line_total_cents = 0
+            line_total = money(line_total_cents, payload.get("currency_code"))
             label_width = max(8, width - len(line_total) - 1)
             rows.append(f"{clipped(item_label, label_width):<{label_width}} {line_total}")
         else:

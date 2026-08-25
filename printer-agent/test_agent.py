@@ -72,6 +72,7 @@ class PrinterAgentTransportTests(unittest.TestCase):
                 "id": 88,
                 "payload": {
                     "receipt_type": "CUSTOMER RECEIPT",
+                    "tenant_name": "seow ting restaurant",
                     "station_name": "Cashier",
                     "order_id": 88,
                     "table_name": "T09",
@@ -81,7 +82,7 @@ class PrinterAgentTransportTests(unittest.TestCase):
                         {
                             "quantity": 2,
                             "name": "Gyoza",
-                            "line_total_cents": 1200,
+                            "unit_price_cents": 600,
                             "notes": "No chilli",
                         }
                     ],
@@ -94,6 +95,7 @@ class PrinterAgentTransportTests(unittest.TestCase):
 
         data = target.read_bytes()
         self.assertTrue(data.startswith(b"\x1b\x40"))
+        self.assertIn(b"SEOW TING RESTAURANT", data)
         self.assertIn(b"CUSTOMER RECEIPT", data)
         self.assertIn(b"Gyoza", data)
         self.assertIn(b"SGD 12.00", data)

@@ -98,22 +98,36 @@ Expected warnings:
 
 The deeper TypeScript-based printer simulation scripts could not be run in this local checkout because `node_modules/typescript` is not currently installed in the working directory and Docker Desktop was not running. This is an environment limitation, not a failed printer scaffold check.
 
-## 5. Critical iPad Bluetooth compatibility gate
+## 5. Updated XP-80T compatibility finding
 
-Windows shows the printer as a COM port, which usually means Bluetooth Classic SPP.
+After checking the referenced XP-80T product information, this exact printer model is a realistic target for Sakorio iPad-app printing.
+
+Confirmed / documented for XP-80T:
+
+- interface variants include USB, Ethernet/LAN, USB + Bluetooth, and USB + WiFi;
+- ESC/POS command support is listed/documented;
+- 80mm paper, 72mm print width, 203 DPI, auto-cutter/partial cut;
+- iOS POS-app Bluetooth workflow is documented as an in-app printer search flow, not a normal iPad Settings pairing flow;
+- Xprinter's download area lists Apple/iOS SDK documentation for receipt printer products covering 58/80 series printers.
+
+This means the implementation should now prioritize the Xprinter iOS SDK route first, while keeping CoreBluetooth direct BLE as a fallback if the SDK is unavailable or unnecessary.
+
+## 6. Remaining iPad Bluetooth compatibility gate
+
+Windows shows the printer as a COM port, which usually means Bluetooth Classic SPP on Windows.
 
 iPad apps normally cannot use generic Bluetooth Classic SPP unless the printer supports one of these iOS-compatible paths:
 
-1. BLE with a writable characteristic that accepts ESC/POS bytes.
-2. A vendor iOS SDK that talks to the printer.
+1. Xprinter iOS SDK that talks to the printer.
+2. BLE with a writable characteristic that accepts ESC/POS bytes.
 3. MFi / ExternalAccessory support.
 4. A network/cloud bridge instead of direct Bluetooth.
 
-The current native Swift scaffold assumes option 1: BLE writable characteristic.
+The current native Swift scaffold assumes BLE writable characteristic. If the Xprinter iOS SDK is used, keep the same JavaScript plugin surface but replace the Swift transport internals with SDK calls.
 
-Before committing to iPad-only Bluetooth launch, the physical iPad test must confirm that the XP-80T is discoverable and writable from the native iOS app. If the printer is Classic-SPP-only, Sakorio cannot print directly from iPad Bluetooth without a vendor SDK/MFi path or bridge device.
+Before committing to iPad-only Bluetooth launch, the physical iPad test must confirm that the XP-80T is discoverable and writable from the native iOS app. If the printer is Classic-SPP-only and the SDK/MFi route is not available, Sakorio cannot print directly from iPad Bluetooth without a bridge device.
 
-## 6. What must be done next
+## 7. What must be done next
 
 ### Phase A — Dependency and build prep
 
@@ -150,6 +164,13 @@ Then open the iOS project in Xcode and confirm:
 - app bundle id is correct.
 - signing team is configured.
 
+If using the Xprinter iOS SDK:
+
+- add the Xprinter SDK library/framework to the iOS target;
+- replace the placeholder BLE write internals in `Xp80tPrinterPlugin.swift`;
+- keep the existing JavaScript API unchanged so Angular does not need another large workflow rewrite;
+- confirm SDK connection, write, disconnect, and error callback behavior.
+
 ### Phase C — Physical iPad and XP-80T validation
 
 On the real iPad:
@@ -176,16 +197,20 @@ Before live use:
 - Label the physical printer and pair only one cashier iPad initially.
 - Run a paid/void/refund/close-table print regression before launch day.
 
-## 7. Recommendation
+## 8. Recommendation
 
-Proceed with the iPad app build, but do not assume direct iPad Bluetooth is guaranteed until the physical XP-80T passes the native iOS discovery/write test.
+Proceed with the iPad app build using XP-80T as the target printer.
 
-If the printer exposes BLE or has a working iOS SDK, Sakorio can be made Loyverse-like on iPad.
+Preferred implementation order:
 
-If the printer is Bluetooth Classic SPP only, the safest alternatives are:
+1. Xprinter iOS SDK route.
+2. Direct CoreBluetooth/BLE route.
+3. Bridge fallback if the final hardware cannot be written to directly from iPad.
 
-1. Use WiFi/LAN printer support.
-2. Keep a small local bridge device.
-3. Buy an iOS-certified/MFi/BLE-confirmed receipt printer.
-4. Use XPYUN/cloud if available and acceptable.
+The decision is now stronger than the previous "maybe supported" status because the XP-80T documentation includes iOS POS-app Bluetooth workflow and ESC/POS support. The final acceptance test is still physical: Sakorio iPad app must discover the printer, connect, print kitchen/customer receipts, cut paper, handle disconnects, and mark print jobs completed/failed correctly.
 
+## 9. Reference links checked
+
+- Official XP-80T product page: https://www.xprinter.net/product/733.html
+- Official Xprinter driver / SDK download area: https://www.xprinter.net/companyfile/1/
+- XP-80T user manual mirror checked for iOS Bluetooth workflow and ESC/POS notes: https://manuals.plus/m/b098c3bb1bb3bf4c3a0cdfca0faab61492ee4c0840ef59556182239389cfcbec

@@ -286,6 +286,27 @@ class TestTablesWithStatusOperational(PgClientTestCase):
         self.assertEqual(row["payment_summary"]["order_ids"], [order.id])
         self.assertEqual(row["payment_status"], "none")
 
+    def test_seated_queue_label_is_returned_on_assigned_table(self) -> None:
+        queue_entry = models.GuestQueueEntry(
+            tenant_id=self.tenant_id,
+            customer_name="Queue Party",
+            customer_phone="+6592000900",
+            party_size=3,
+            status=models.GuestQueueStatus.seated,
+            seated_table_id=self.table_id,
+            seated_at=datetime.now(timezone.utc),
+        )
+        self.session.add(queue_entry)
+        self.session.commit()
+        self.session.refresh(queue_entry)
+
+        row = self._row()
+
+        self.assertEqual(row["seated_queue_entry"]["id"], queue_entry.id)
+        self.assertEqual(row["seated_queue_entry"]["queue_label"], "Q001")
+        self.assertEqual(row["seated_queue_entry"]["customer_name"], "Queue Party")
+        self.assertEqual(row["seated_queue_entry"]["party_size"], 3)
+
     def test_hitpay_request_is_requested_until_verified(self) -> None:
         order = models.Order(
             table_id=self.table_id,

@@ -7,6 +7,7 @@ import { catchError, forkJoin, firstValueFrom, of } from 'rxjs';
 import {
   ApiService,
   CanvasTable,
+  GuestQueueEntry,
   Order,
   Product,
   ProductQuestion,
@@ -82,6 +83,7 @@ interface PosCheckoutOutcome {
 
 type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'cancelled' | 'failed';
 type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
+type QueueResolutionAction = 'cancelled' | 'no_show';
 
 @Component({
   selector: 'app-cashier-pos',
@@ -145,6 +147,114 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
               </div>
             </div>
 
+            <section class="guest-queue-rail" aria-label="Live guest queue">
+              <button
+                type="button"
+                class="guest-queue-toggle"
+                (click)="toggleQueueRail()"
+                [attr.aria-expanded]="queueRailOpen()">
+                <span>
+                  <span class="eyebrow">Live queue</span>
+                  <strong>{{ sortedGuestQueueEntries().length }} parties</strong>
+                </span>
+                <span class="guest-queue-toggle-summary">
+                  <span class="muted-pill">{{ queueWaitingCount() }} waiting</span>
+                  <span class="muted-pill muted-pill--accent">{{ queueNotifiedCount() }} pinged</span>
+                  <span class="guest-queue-chevron" aria-hidden="true">{{ queueRailOpen() ? '−' : '+' }}</span>
+                </span>
+              </button>
+
+              <div class="guest-queue-summary" aria-label="Queue summary">
+                <span><small>Next</small><strong>{{ nextQueueLabel() }}</strong></span>
+                <span><small>Longest wait</small><strong>{{ queueLongestWaitLabel() }}</strong></span>
+                <span><small>Guests</small><strong>{{ queueGuestCount() }}</strong></span>
+              </div>
+
+              @if (queueRailOpen()) {
+                <div class="guest-queue-list">
+                  @if (sortedGuestQueueEntries().length === 0) {
+                    <div class="guest-queue-empty">No waiting or pinged parties right now.</div>
+                  }
+                  @for (entry of sortedGuestQueueEntries(); track entry.id) {
+                    <article class="guest-queue-card" [class.guest-queue-card--notified]="entry.status === 'notified'">
+                      <div class="guest-queue-card-main">
+                        <strong class="guest-queue-number">{{ entry.queue_label }}</strong>
+                        <div class="guest-queue-party">
+                          <strong>{{ entry.customer_name }}</strong>
+                          <span>{{ entry.party_size }} pax · {{ queueWaitLabel(entry) }}</span>
+                          @if (entry.customer_phone) {
+                            <small>{{ entry.customer_phone }}</small>
+                          }
+                        </div>
+                        <span class="state-pill" [class.state-pill--ready]="entry.status === 'notified'">
+                          {{ entry.status === 'notified' ? 'Pinged' : 'Waiting' }}
+                        </span>
+                      </div>
+
+                      <div class="guest-queue-actions">
+                        @if (entry.status === 'waiting') {
+                          <button
+                            type="button"
+                            class="btn btn-secondary btn-sm"
+                            (click)="notifyQueueEntry(entry)"
+                            [disabled]="queueActionId() === entry.id">
+                            Ping
+                          </button>
+                        }
+                        <button
+                          type="button"
+                          class="btn btn-primary btn-sm"
+                          (click)="startQueueSeating(entry)"
+                          [disabled]="queueActionId() === entry.id">
+                          Assign table
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-ghost btn-sm"
+                          (click)="resolveQueueEntry(entry, 'no_show')"
+                          [disabled]="queueActionId() === entry.id">
+                          No show
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-ghost btn-sm"
+                          (click)="resolveQueueEntry(entry, 'cancelled')"
+                          [disabled]="queueActionId() === entry.id">
+                          Cancel
+                        </button>
+                      </div>
+
+                      @if (queueSeatEntry()?.id === entry.id) {
+                        <div class="guest-queue-seat-picker">
+                          <label [for]="'queue-seat-table-' + entry.id">Seat {{ entry.queue_label }} at</label>
+                          <select
+                            [id]="'queue-seat-table-' + entry.id"
+                            class="text-input"
+                            [ngModel]="queueSeatTargetId()"
+                            (ngModelChange)="queueSeatTargetId.set(+$event || null)">
+                            <option [ngValue]="null">Choose an available table</option>
+                            @for (table of queueEligibleTables(entry); track table.id) {
+                              <option [ngValue]="table.id">{{ table.name }} · {{ table.seat_count || 0 }} seats</option>
+                            }
+                          </select>
+                          <div class="guest-queue-seat-actions">
+                            <button type="button" class="btn btn-ghost btn-sm" (click)="cancelQueueSeating()">Back</button>
+                            <button
+                              type="button"
+                              class="btn btn-primary btn-sm"
+                              (click)="seatQueueEntry(entry)"
+                              [disabled]="!queueSeatTargetId() || queueActionId() === entry.id">
+                              {{ queueActionId() === entry.id ? 'Seating…' : 'Seat and open POS' }}
+                            </button>
+                          </div>
+                        </div>
+                      }
+                    </article>
+                  }
+                </div>
+              }
+            </section>
+
             @if (loading() && tables().length === 0) {
               <div class="empty-card loading-card">
                 <div class="loading-card-icon"></div>
@@ -176,6 +286,11 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                           <span class="table-meta">{{ table.seat_count || 0 }} seats</span>
                           @if (tableReservationHint(table)) {
                             <span class="table-reservation-inline">{{ tableReservationHint(table) }}</span>
+                          }
+                          @if (table.seated_queue_entry; as seatedQueue) {
+                            <span class="table-queue-inline">
+                              {{ seatedQueue.queue_label }} · {{ seatedQueue.customer_name }} · {{ seatedQueue.party_size }} pax
+                            </span>
                           }
                         </div>
                         <span class="state-pill" [class]="stateClass(getTableState(table))">
@@ -1057,6 +1172,11 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                     <span class="pos-service-eyebrow">POS table service</span>
                     <h2>{{ serviceTable.name }}</h2>
                     <p>{{ selectedTableSummary(serviceTable) }}</p>
+                    @if (serviceTable.seated_queue_entry; as seatedQueue) {
+                      <p class="pos-service-queue-context">
+                        <strong>{{ seatedQueue.queue_label }}</strong> · {{ seatedQueue.customer_name }} · {{ seatedQueue.party_size }} pax
+                      </p>
+                    }
                   </div>
                   <div class="pos-service-header-actions">
                     <span class="service-status" [class.service-status--live]="!!serviceTable.active_order_id">
@@ -5664,6 +5784,177 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       font-size: 0.78rem;
     }
 
+    .guest-queue-rail {
+      margin: 0 0 1rem;
+      border: 1px solid rgba(15, 118, 110, 0.22);
+      border-radius: 1rem;
+      background: linear-gradient(145deg, rgba(240, 253, 250, 0.96), rgba(255, 255, 255, 0.98));
+      overflow: hidden;
+    }
+
+    .guest-queue-toggle {
+      width: 100%;
+      min-height: 4.25rem;
+      padding: 0.85rem 1rem;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .guest-queue-toggle > span:first-child,
+    .guest-queue-toggle-summary {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      flex-wrap: wrap;
+    }
+
+    .guest-queue-toggle > span:first-child {
+      display: grid;
+      gap: 0.15rem;
+    }
+
+    .guest-queue-chevron {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 999px;
+      background: #0f766e;
+      color: white;
+      display: inline-grid;
+      place-items: center;
+      font-size: 1.25rem;
+      line-height: 1;
+    }
+
+    .guest-queue-summary {
+      padding: 0 1rem 0.85rem;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.55rem;
+    }
+
+    .guest-queue-summary > span {
+      min-width: 0;
+      padding: 0.65rem 0.7rem;
+      border: 1px solid rgba(15, 118, 110, 0.12);
+      border-radius: 0.75rem;
+      background: rgba(255, 255, 255, 0.86);
+      display: grid;
+      gap: 0.1rem;
+    }
+
+    .guest-queue-summary small {
+      color: #64748b;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .guest-queue-list {
+      max-height: min(48vh, 31rem);
+      overflow: auto;
+      padding: 0.15rem 0.8rem 0.85rem;
+      display: grid;
+      gap: 0.65rem;
+      border-top: 1px solid rgba(15, 118, 110, 0.12);
+    }
+
+    .guest-queue-card {
+      padding: 0.8rem;
+      border: 1px solid #e2e8f0;
+      border-left: 0.32rem solid #f59e0b;
+      border-radius: 0.85rem;
+      background: #fff;
+      display: grid;
+      gap: 0.7rem;
+    }
+
+    .guest-queue-card--notified {
+      border-left-color: #0f766e;
+      background: #f0fdfa;
+    }
+
+    .guest-queue-card-main {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .guest-queue-number {
+      min-width: 4.25rem;
+      font-size: 1.35rem;
+      color: #0f766e;
+      letter-spacing: 0.02em;
+    }
+
+    .guest-queue-party {
+      min-width: 0;
+      display: grid;
+      gap: 0.1rem;
+    }
+
+    .guest-queue-party span,
+    .guest-queue-party small {
+      color: #64748b;
+      overflow-wrap: anywhere;
+    }
+
+    .guest-queue-actions,
+    .guest-queue-seat-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+    }
+
+    .guest-queue-actions .btn {
+      min-height: 2.5rem;
+    }
+
+    .guest-queue-seat-picker {
+      padding: 0.7rem;
+      border-radius: 0.7rem;
+      background: #f8fafc;
+      display: grid;
+      grid-template-columns: minmax(8rem, 1fr) minmax(12rem, 2fr) auto;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .guest-queue-seat-picker label {
+      font-weight: 700;
+    }
+
+    .guest-queue-seat-actions {
+      justify-content: flex-end;
+    }
+
+    .guest-queue-empty {
+      padding: 1rem 0.2rem 0.25rem;
+      color: #64748b;
+      text-align: center;
+    }
+
+    .table-queue-inline,
+    .pos-service-queue-context {
+      color: #0f766e;
+      font-weight: 700;
+    }
+
+    .table-queue-inline {
+      font-size: 0.76rem;
+    }
+
+    .pos-service-queue-context {
+      margin-top: 0.3rem;
+    }
+
     @media (max-width: 920px) {
       .workspace-header-actions {
         justify-content: flex-start;
@@ -5677,6 +5968,46 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       #cashier-catalog,
       #payment-dock {
         scroll-margin-top: 9.35rem;
+      }
+
+      .guest-queue-seat-picker {
+        grid-template-columns: 1fr;
+      }
+
+      .guest-queue-seat-actions {
+        justify-content: stretch;
+      }
+
+      .guest-queue-seat-actions .btn {
+        flex: 1 1 10rem;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .guest-queue-toggle,
+      .guest-queue-card-main {
+        align-items: flex-start;
+      }
+
+      .guest-queue-toggle {
+        display: grid;
+      }
+
+      .guest-queue-summary {
+        grid-template-columns: 1fr;
+      }
+
+      .guest-queue-card-main {
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+
+      .guest-queue-card-main .state-pill {
+        grid-column: 1 / -1;
+        justify-self: start;
+      }
+
+      .guest-queue-actions .btn {
+        flex: 1 1 7.5rem;
       }
     }
 
@@ -5718,6 +6049,10 @@ export class CashierPosComponent {
   qrHandoffTableId = signal<number | null>(null);
   qrHandoffUrl = signal<string | null>(null);
   pendingClearTable = signal<CanvasTable | null>(null);
+  queueRailOpen = signal(false);
+  queueActionId = signal<number | null>(null);
+  queueSeatEntry = signal<GuestQueueEntry | null>(null);
+  queueSeatTargetId = signal<number | null>(null);
 
   /**
    * The POS now uses the table-service drawer as the single ordering/payment workflow.
@@ -5733,12 +6068,14 @@ export class CashierPosComponent {
   private showNextTableHintAfterReload = true;
   private processedHitPayReturnKey: string | null = null;
   private brokenProductImageKeys = signal<Record<string, true>>({});
+  private queueRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
   settings = signal<TenantSettings | null>(null);
   tables = signal<CanvasTable[]>([]);
   orders = signal<Order[]>([]);
   tenantProducts = signal<TenantProduct[]>([]);
   legacyProducts = signal<Product[]>([]);
+  guestQueueEntries = signal<GuestQueueEntry[]>([]);
 
   selectedTableId = signal<number | null>(null);
   selectedOrderId = signal<number | null>(null);
@@ -5774,6 +6111,32 @@ export class CashierPosComponent {
 
   activeTables = computed(() => this.tables().filter((table) => !!table.is_active));
   availableTargetTables = computed(() => this.sortedTables().filter((table) => this.canStartCashierBill(table)));
+  sortedGuestQueueEntries = computed(() =>
+    [...this.guestQueueEntries()]
+      .filter((entry) => entry.status === 'waiting' || entry.status === 'notified')
+      .sort((a, b) => {
+        if (a.status !== b.status) {
+          return a.status === 'notified' ? -1 : 1;
+        }
+        return a.queue_number - b.queue_number;
+      }),
+  );
+  queueWaitingCount = computed(
+    () => this.sortedGuestQueueEntries().filter((entry) => entry.status === 'waiting').length,
+  );
+  queueNotifiedCount = computed(
+    () => this.sortedGuestQueueEntries().filter((entry) => entry.status === 'notified').length,
+  );
+  queueGuestCount = computed(() =>
+    this.sortedGuestQueueEntries().reduce((sum, entry) => sum + entry.party_size, 0),
+  );
+  nextQueueLabel = computed(() => this.sortedGuestQueueEntries()[0]?.queue_label || '—');
+  queueLongestWaitLabel = computed(() => {
+    const oldest = this.sortedGuestQueueEntries()
+      .map((entry) => this.queueWaitMinutes(entry))
+      .reduce((maximum, value) => Math.max(maximum, value), 0);
+    return oldest > 0 ? `${oldest} min` : '—';
+  });
   openOrders = computed(() =>
     this.orders().filter(
       (order) =>
@@ -6453,6 +6816,16 @@ export class CashierPosComponent {
       }
     });
 
+    this.api.queueUpdates$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.scheduleQueueBoardRefresh());
+    this.api.connectWebSocket();
+    this.destroyRef.onDestroy(() => {
+      if (this.queueRefreshTimer) {
+        clearTimeout(this.queueRefreshTimer);
+      }
+    });
+
     this.loadData();
   }
 
@@ -6544,7 +6917,7 @@ export class CashierPosComponent {
     const loadWarnings: string[] = [];
 
     try {
-      const { settings, tables, orders, tenantProducts, legacyProducts } = await firstValueFrom(forkJoin({
+      const { settings, tables, orders, tenantProducts, legacyProducts, guestQueueEntries } = await firstValueFrom(forkJoin({
       settings: this.api.getTenantServiceSettings().pipe(catchError(() => of(null))),
       tables: this.api.getTablesWithStatus().pipe(
         catchError(() => {
@@ -6572,12 +6945,19 @@ export class CashierPosComponent {
           return of([]);
         }),
       ),
+      guestQueueEntries: this.api.getGuestQueue().pipe(
+        catchError(() => {
+          loadWarnings.push('guest queue');
+          return of([]);
+        }),
+      ),
       }));
       this.settings.set(settings);
       this.tables.set(tables);
       this.orders.set(orders);
       this.tenantProducts.set(tenantProducts);
       this.legacyProducts.set(legacyProducts);
+      this.guestQueueEntries.set(guestQueueEntries);
       if (setLoading) {
         this.loading.set(false);
       }
@@ -7904,6 +8284,144 @@ export class CashierPosComponent {
       );
     } finally {
       this.processingCheckout.set(false);
+    }
+  }
+
+  private scheduleQueueBoardRefresh(): void {
+    if (this.queueRefreshTimer) {
+      clearTimeout(this.queueRefreshTimer);
+    }
+    this.queueRefreshTimer = setTimeout(() => {
+      this.queueRefreshTimer = null;
+      void this.refreshQueueBoard();
+    }, 180);
+  }
+
+  toggleQueueRail(): void {
+    this.queueRailOpen.update((open) => !open);
+  }
+
+  private async refreshQueueBoard(): Promise<void> {
+    try {
+      const { guestQueueEntries, tables } = await firstValueFrom(
+        forkJoin({
+          guestQueueEntries: this.api.getGuestQueue(),
+          tables: this.api.getTablesWithStatus(),
+        }),
+      );
+      this.guestQueueEntries.set(guestQueueEntries);
+      this.tables.set(tables);
+    } catch (err) {
+      this.error.set(this.getErrorMessage(err, 'Unable to refresh the live guest queue.'));
+    }
+  }
+
+  queueWaitMinutes(entry: GuestQueueEntry): number {
+    const requestedAt = this.backendTimestamp(entry.requested_at);
+    if (!requestedAt) {
+      return 0;
+    }
+    return Math.max(0, Math.floor((Date.now() - requestedAt) / 60_000));
+  }
+
+  queueWaitLabel(entry: GuestQueueEntry): string {
+    const elapsed = this.queueWaitMinutes(entry);
+    if (elapsed < 1) {
+      return 'just joined';
+    }
+    return `${elapsed} min waiting`;
+  }
+
+  queueEligibleTables(entry: GuestQueueEntry): CanvasTable[] {
+    return this.sortedTables().filter(
+      (table) => this.canStartCashierBill(table) && (table.seat_count || 0) >= entry.party_size,
+    );
+  }
+
+  startQueueSeating(entry: GuestQueueEntry): void {
+    const eligible = this.queueEligibleTables(entry);
+    this.queueSeatEntry.set(entry);
+    this.queueSeatTargetId.set(eligible[0]?.id ?? null);
+    if (eligible.length === 0) {
+      this.notice.set(`No available table currently fits ${entry.queue_label} (${entry.party_size} pax).`);
+    }
+  }
+
+  cancelQueueSeating(): void {
+    this.queueSeatEntry.set(null);
+    this.queueSeatTargetId.set(null);
+  }
+
+  async notifyQueueEntry(entry: GuestQueueEntry): Promise<void> {
+    this.queueActionId.set(entry.id);
+    this.error.set(null);
+    try {
+      await firstValueFrom(this.api.updateGuestQueueStatus(entry.id, { status: 'notified' }));
+      this.notice.set(`${entry.queue_label} has been pinged. Their open queue page updates automatically.`);
+      await this.refreshQueueBoard();
+    } catch (err) {
+      this.error.set(this.getErrorMessage(err, `Unable to ping ${entry.queue_label}.`));
+    } finally {
+      this.queueActionId.set(null);
+    }
+  }
+
+  async resolveQueueEntry(entry: GuestQueueEntry, action: QueueResolutionAction): Promise<void> {
+    const label = action === 'no_show' ? 'mark as no show' : 'cancel';
+    if (!window.confirm(`${label.charAt(0).toUpperCase() + label.slice(1)} ${entry.queue_label} for ${entry.customer_name}?`)) {
+      return;
+    }
+
+    this.queueActionId.set(entry.id);
+    this.error.set(null);
+    try {
+      await firstValueFrom(
+        this.api.updateGuestQueueStatus(entry.id, {
+          status: action,
+          reason: action === 'no_show' ? 'Confirmed no show from POS' : 'Cancelled by staff from POS',
+        }),
+      );
+      this.notice.set(`${entry.queue_label} was ${action === 'no_show' ? 'marked no show' : 'cancelled'}.`);
+      if (this.queueSeatEntry()?.id === entry.id) {
+        this.cancelQueueSeating();
+      }
+      await this.refreshQueueBoard();
+    } catch (err) {
+      this.error.set(this.getErrorMessage(err, `Unable to ${label} ${entry.queue_label}.`));
+    } finally {
+      this.queueActionId.set(null);
+    }
+  }
+
+  async seatQueueEntry(entry: GuestQueueEntry): Promise<void> {
+    const tableId = this.queueSeatTargetId();
+    if (!tableId) {
+      this.error.set('Choose an available table before seating this party.');
+      return;
+    }
+
+    this.queueActionId.set(entry.id);
+    this.error.set(null);
+    try {
+      await firstValueFrom(this.api.seatGuestQueueEntry(entry.id, tableId));
+      this.queuePrefill.set({
+        queueEntryId: entry.id,
+        guestName: entry.customer_name,
+        phone: entry.customer_phone || null,
+        partySize: entry.party_size,
+        note: entry.notes || null,
+      });
+      this.cancelQueueSeating();
+      await this.refreshPosData({ setLoading: false, clearError: false, applyRouteFocus: false });
+      const table = this.tables().find((candidate) => candidate.id === tableId) ?? null;
+      if (table) {
+        this.openTableWorkspace(table);
+      }
+      this.notice.set(`${entry.queue_label} is seated. ${table?.name || 'The table'} is open for ordering.`);
+    } catch (err) {
+      this.error.set(this.getErrorMessage(err, `Unable to seat ${entry.queue_label}. Refresh and choose another table.`));
+    } finally {
+      this.queueActionId.set(null);
     }
   }
 

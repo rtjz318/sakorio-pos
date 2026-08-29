@@ -8175,8 +8175,18 @@ def list_tables_with_status(
                 models.Reservation.status == models.ReservationStatus.seated,
             )
         ).first()
+        seated_queue_here = session.exec(
+            select(models.GuestQueueEntry)
+            .where(
+                models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+                models.GuestQueueEntry.seated_table_id == table.id,
+                models.GuestQueueEntry.status == models.GuestQueueStatus.seated,
+            )
+            .order_by(models.GuestQueueEntry.seated_at.desc(), models.GuestQueueEntry.id.desc())
+        ).first()
         upcoming_reservation = None
         seated_reservation = None
+        seated_queue_entry = None
         payment_orders: list[models.Order] = []
         if table.is_active or active_order or seated_here:
             status = "occupied"
@@ -8196,6 +8206,19 @@ def list_tables_with_status(
                         "reservation_id": seated_here.id,
                         "customer_name": seated_here.customer_name or "",
                         "party_size": seated_here.party_size,
+                    }
+                if seated_queue_here:
+                    seated_queue_entry = {
+                        "id": seated_queue_here.id,
+                        "queue_number": seated_queue_here.queue_number,
+                        "queue_label": (
+                            f"Q{seated_queue_here.queue_number:03d}"
+                            if seated_queue_here.queue_number is not None
+                            else "Queue"
+                        ),
+                        "customer_name": seated_queue_here.customer_name or "",
+                        "party_size": seated_queue_here.party_size,
+                        "status": seated_queue_here.status.value,
                     }
         else:
             reserved_here = session.exec(
@@ -8305,6 +8328,8 @@ def list_tables_with_status(
             row["upcoming_reservation"] = upcoming_reservation
         if seated_reservation is not None:
             row["seated_reservation"] = seated_reservation
+        if seated_queue_entry is not None:
+            row["seated_queue_entry"] = seated_queue_entry
         _append_table_group_fields(session, current_user.tenant_id, table, row)
         result.append(row)
 
@@ -8332,6 +8357,8 @@ def list_tables_with_status(
         merged_up = next((u for u in upcoming_list if u), None)
         seated_list = [result[i].get("seated_reservation") for i in indices]
         merged_seated = next((r for r in seated_list if r), None)
+        seated_queue_list = [result[i].get("seated_queue_entry") for i in indices]
+        merged_seated_queue = next((entry for entry in seated_queue_list if entry), None)
         any_active = any(result[i].get("is_active") for i in indices)
         active_oid = next(
             (result[i].get("active_order_id") for i in indices if result[i].get("active_order_id")),
@@ -8353,6 +8380,10 @@ def list_tables_with_status(
                 result[i]["seated_reservation"] = merged_seated
             elif merged_op != "occupied":
                 result[i].pop("seated_reservation", None)
+            if merged_seated_queue is not None:
+                result[i]["seated_queue_entry"] = merged_seated_queue
+            elif merged_op != "occupied":
+                result[i].pop("seated_queue_entry", None)
 
     return result
 

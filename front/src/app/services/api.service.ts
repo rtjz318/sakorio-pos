@@ -1096,6 +1096,14 @@ export interface CanvasTable extends Table {
   effective_waiter_name?: string | null;
   upcoming_reservation?: UpcomingReservationOnTable | null;
   seated_reservation?: SeatedReservationOnTable | null;
+  seated_queue_entry?: {
+    id: number;
+    queue_number: number;
+    queue_label: string;
+    customer_name: string;
+    party_size: number;
+    status: 'seated';
+  } | null;
 }
 
 export interface OverbookingSlot {

@@ -4,6 +4,8 @@ from __future__ import annotations
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+import json
+from unittest.mock import patch
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -13,6 +15,8 @@ from sqlmodel import Session
 
 from app import models, security
 from app.db import engine
+from app.main import publish_queue_update
+from app.websocket_bridge import _validate_public_queue_token, public_queue_token_fingerprint
 
 
 def _bearer_headers(user: models.User) -> dict[str, str]:
@@ -95,6 +99,11 @@ class TestGuestQueueDailyNumbers(PgClientTestCase):
         self.assertEqual(body["position"], 1)
         self.assertNotIn("customer_phone", body)
 
+        status = self.client.post("/public/queue/status", json={"token": body["token"]})
+        self.assertEqual(status.status_code, 200, status.text)
+        self.assertEqual(status.json()["queue_label"], "Q001")
+        self.assertNotIn("customer_phone", status.json())
+
         repeated = self.client.post(
             f"/public/tenants/{self.tenant.id}/queue",
             json={
@@ -117,6 +126,59 @@ class TestGuestQueueDailyNumbers(PgClientTestCase):
         self.assertEqual(updated.status_code, 200, updated.text)
         self.assertGreater(updated.json()["status_version"], created["status_version"])
         self.assertEqual(updated.json()["queue_label"], created["queue_label"])
+
+    def test_private_realtime_event_is_token_scoped_and_contains_no_pii(self) -> None:
+        created = self._staff_join("Private Party", "+6592000005")
+        row = self.session.get(models.GuestQueueEntry, created["id"])
+        assert row is not None
+
+        published: list[tuple[str, str]] = []
+
+        class FakeRedis:
+            def publish(self, channel: str, payload: str) -> None:
+                published.append((channel, payload))
+
+        with patch("app.main.get_redis", return_value=FakeRedis()):
+            publish_queue_update(
+                self.tenant.id,
+                {
+                    "type": "queue_status",
+                    "queue_entry": {"customer_phone": row.customer_phone, "customer_name": row.customer_name},
+                },
+                row,
+            )
+
+        self.assertEqual(len(published), 2)
+        self.assertEqual(published[0][0], f"queue:tenant:{self.tenant.id}")
+        fingerprint = public_queue_token_fingerprint(row.public_token)
+        self.assertEqual(published[1][0], f"queue:public:{fingerprint}")
+        private_payload = json.loads(published[1][1])
+        self.assertEqual(private_payload["status_version"], row.status_version)
+        self.assertNotIn(row.public_token, published[1][0] + published[1][1])
+        self.assertNotIn(row.customer_phone or "missing-phone", published[1][1])
+        self.assertNotIn(row.customer_name, published[1][1])
+
+        with patch("app.websocket_bridge.engine", self.connection):
+            validated = _validate_public_queue_token(row.public_token)
+            self.assertEqual(validated["queue_entry_id"], row.id)
+            self.assertEqual(validated["fingerprint"], fingerprint)
+            self.assertIsNone(_validate_public_queue_token("invalid-token"))
+
+        bridge_validation = self.client.post(
+            "/internal/validate-public-queue",
+            json={"token": row.public_token},
+        )
+        self.assertEqual(bridge_validation.status_code, 200, bridge_validation.text)
+        self.assertEqual(
+            bridge_validation.json(),
+            {
+                "queue_entry_id": row.id,
+                "fingerprint": fingerprint,
+                "valid": True,
+            },
+        )
+        self.assertNotIn("customer_name", bridge_validation.json())
+        self.assertNotIn("customer_phone", bridge_validation.json())
 
 
 class TestGuestQueueConcurrentNumbers(unittest.TestCase):

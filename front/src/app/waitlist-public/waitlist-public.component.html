@@ -26,6 +26,12 @@
         <p class="eyebrow">Live queue status</p>
         <h1>{{ statusTitle() }}</h1>
         <p class="status-copy">{{ statusCopy() }}</p>
+        <div class="live-state" aria-live="polite">
+          <span class="live-dot" [class.live-dot--connected]="connectionState() === 'Live'"></span>
+          <strong>{{ connectionState() }}</strong>
+          <span>·</span>
+          <span>{{ lastUpdatedLabel() }}</span>
+        </div>
 
         @if (isActive()) {
           <div class="position-grid">

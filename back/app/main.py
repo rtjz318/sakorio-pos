@@ -99,6 +99,7 @@ from .opening_hours_effective import (
     opening_service_windows_for_date as _opening_service_windows_for_date,
 )
 from .websocket_bridge import (
+    public_queue_token_fingerprint,
     register_websocket_routes,
     start_websocket_bridge,
     stop_websocket_bridge,
@@ -690,12 +691,31 @@ def publish_reservation_update(tenant_id: int, reservation_data: dict) -> None:
             pass  # Fail silently if Redis unavailable
 
 
-def publish_queue_update(tenant_id: int, queue_data: dict) -> None:
-    """Publish guest queue / waitlist updates to Redis for the tenant."""
+def publish_queue_update(
+    tenant_id: int,
+    queue_data: dict,
+    queue_entry: models.GuestQueueEntry | None = None,
+) -> None:
+    """Publish staff invalidation plus a PII-free private customer queue event."""
     r = get_redis()
     if r:
         try:
             r.publish(f"queue:tenant:{tenant_id}", json.dumps(queue_data))
+            if queue_entry and queue_entry.public_token:
+                terminal_statuses = {
+                    models.GuestQueueStatus.completed,
+                    models.GuestQueueStatus.converted_to_reservation,
+                    models.GuestQueueStatus.cancelled,
+                    models.GuestQueueStatus.no_show,
+                    models.GuestQueueStatus.expired,
+                }
+                private_event = {
+                    "type": queue_data.get("type", "queue_updated"),
+                    "status_version": queue_entry.status_version,
+                    "terminal": queue_entry.status in terminal_statuses,
+                }
+                fingerprint = public_queue_token_fingerprint(queue_entry.public_token)
+                r.publish(f"queue:public:{fingerprint}", json.dumps(private_event))
         except Exception:
             pass
 
@@ -1176,39 +1196,25 @@ def join_public_queue(
     publish_queue_update(
         tenant_id,
         {"type": "queue_created", "queue_entry": _queue_entry_to_dict(queue_entry, session)},
+        queue_entry,
     )
     return public_out
 
 
-@app.get("/public/queue/{public_token}")
-@public_menu_ip_limit()
-def get_public_queue_status(
-    request: Request,
-    response: Response,
-    public_token: str,
-    session: Session = Depends(get_session),
-) -> dict:
+class PublicQueueTokenRequest(_BaseModel):
+    token: str = Field(min_length=16, max_length=64)
+
+
+def _public_queue_entry_by_token(public_token: str, session: Session) -> models.GuestQueueEntry:
     queue_entry = session.exec(
         select(models.GuestQueueEntry).where(models.GuestQueueEntry.public_token == public_token)
     ).first()
     if not queue_entry:
         raise HTTPException(status_code=404, detail="Queue entry not found")
-    return _public_queue_entry_to_dict(queue_entry, session)
+    return queue_entry
 
 
-@app.post("/public/queue/{public_token}/cancel")
-@public_menu_ip_limit()
-def cancel_public_queue_entry(
-    request: Request,
-    response: Response,
-    public_token: str,
-    session: Session = Depends(get_session),
-) -> dict:
-    queue_entry = session.exec(
-        select(models.GuestQueueEntry).where(models.GuestQueueEntry.public_token == public_token)
-    ).first()
-    if not queue_entry:
-        raise HTTPException(status_code=404, detail="Queue entry not found")
+def _cancel_public_queue(queue_entry: models.GuestQueueEntry, session: Session) -> dict:
     if queue_entry.status not in {models.GuestQueueStatus.waiting, models.GuestQueueStatus.notified}:
         return _public_queue_entry_to_dict(queue_entry, session)
 
@@ -1223,8 +1229,57 @@ def cancel_public_queue_entry(
     publish_queue_update(
         queue_entry.tenant_id,
         {"type": "queue_status", "queue_entry": _queue_entry_to_dict(queue_entry, session)},
+        queue_entry,
     )
     return _public_queue_entry_to_dict(queue_entry, session)
+
+
+@app.post("/public/queue/status")
+@public_menu_ip_limit()
+def post_public_queue_status(
+    request: Request,
+    response: Response,
+    body: PublicQueueTokenRequest,
+    session: Session = Depends(get_session),
+) -> dict:
+    """Preferred token-safe status endpoint; the capability stays in the request body."""
+
+    return _public_queue_entry_to_dict(_public_queue_entry_by_token(body.token, session), session)
+
+
+@app.post("/public/queue/cancel")
+@public_menu_ip_limit()
+def post_cancel_public_queue_entry(
+    request: Request,
+    response: Response,
+    body: PublicQueueTokenRequest,
+    session: Session = Depends(get_session),
+) -> dict:
+    return _cancel_public_queue(_public_queue_entry_by_token(body.token, session), session)
+
+
+@app.get("/public/queue/{public_token}")
+@public_menu_ip_limit()
+def get_public_queue_status(
+    request: Request,
+    response: Response,
+    public_token: str,
+    session: Session = Depends(get_session),
+) -> dict:
+    """Compatibility endpoint for previously issued links. New clients use POST /status."""
+
+    return _public_queue_entry_to_dict(_public_queue_entry_by_token(public_token, session), session)
+
+
+@app.post("/public/queue/{public_token}/cancel")
+@public_menu_ip_limit()
+def cancel_public_queue_entry(
+    request: Request,
+    response: Response,
+    public_token: str,
+    session: Session = Depends(get_session),
+) -> dict:
+    return _cancel_public_queue(_public_queue_entry_by_token(public_token, session), session)
 
 
 @app.get(
@@ -11342,7 +11397,11 @@ def create_guest_queue_entry(
     session.commit()
     session.refresh(queue_entry)
     out = _queue_entry_to_dict(queue_entry, session)
-    publish_queue_update(current_user.tenant_id, {"type": "queue_created", "queue_entry": out})
+    publish_queue_update(
+        current_user.tenant_id,
+        {"type": "queue_created", "queue_entry": out},
+        queue_entry,
+    )
     return out
 
 
@@ -11403,6 +11462,7 @@ def update_guest_queue_entry(
                     .where(
                         models.GuestQueueEntry.tenant_id == current_user.tenant_id,
                         models.GuestQueueEntry.id != queue_entry.id,
+                        models.GuestQueueEntry.service_date == queue_entry.service_date,
                         models.GuestQueueEntry.customer_phone == phone_e164,
                         models.GuestQueueEntry.status.in_(
                             [models.GuestQueueStatus.waiting, models.GuestQueueStatus.notified]
@@ -11415,7 +11475,8 @@ def update_guest_queue_entry(
                         status_code=409,
                         detail=(
                             f"{existing.customer_name} is already in the active queue as "
-                            f"#{existing.id} ({existing.status.value}). Update that entry instead."
+                            f"{_queue_entry_to_dict(existing)['queue_label']} "
+                            f"({existing.status.value}). Update that entry instead."
                         ),
                     )
         update_data["customer_phone"] = phone_e164
@@ -11429,7 +11490,11 @@ def update_guest_queue_entry(
     session.commit()
     session.refresh(queue_entry)
     out = _queue_entry_to_dict(queue_entry, session)
-    publish_queue_update(current_user.tenant_id, {"type": "queue_updated", "queue_entry": out})
+    publish_queue_update(
+        current_user.tenant_id,
+        {"type": "queue_updated", "queue_entry": out},
+        queue_entry,
+    )
     return out
 
 
@@ -11468,7 +11533,11 @@ def update_guest_queue_status(
     session.commit()
     session.refresh(queue_entry)
     out = _queue_entry_to_dict(queue_entry, session)
-    publish_queue_update(current_user.tenant_id, {"type": "queue_status", "queue_entry": out})
+    publish_queue_update(
+        current_user.tenant_id,
+        {"type": "queue_status", "queue_entry": out},
+        queue_entry,
+    )
     return out
 
 
@@ -11494,7 +11563,11 @@ def seat_guest_queue_entry(
     session.commit()
     session.refresh(queue_entry)
     out = _queue_entry_to_dict(queue_entry, session)
-    publish_queue_update(current_user.tenant_id, {"type": "queue_seated", "queue_entry": out})
+    publish_queue_update(
+        current_user.tenant_id,
+        {"type": "queue_seated", "queue_entry": out},
+        queue_entry,
+    )
     return out
 
 
@@ -11550,7 +11623,11 @@ def convert_guest_queue_to_reservation(
     session.refresh(reservation)
     queue_out = _queue_entry_to_dict(queue_entry, session)
     reservation_out = _reservation_to_dict(reservation, session, include_client_tech=True)
-    publish_queue_update(current_user.tenant_id, {"type": "queue_converted", "queue_entry": queue_out, "reservation": reservation_out})
+    publish_queue_update(
+        current_user.tenant_id,
+        {"type": "queue_converted", "queue_entry": queue_out, "reservation": reservation_out},
+        queue_entry,
+    )
     publish_reservation_update(current_user.tenant_id, {"type": "reservation_created", "reservation": reservation_out})
     return {"queue_entry": queue_out, "reservation": reservation_out}
 
@@ -11745,6 +11822,7 @@ def close_table(
             publish_queue_update(
                 current_user.tenant_id,
                 {"type": "queue_completed", "queue_entry": _queue_entry_to_dict(queue_entry, session)},
+                queue_entry,
             )
 
     # Notify connected customers via WebSocket that the table has been closed
@@ -11881,6 +11959,7 @@ def release_empty_table(
             publish_queue_update(
                 current_user.tenant_id,
                 {"type": "queue_completed", "queue_entry": _queue_entry_to_dict(queue_entry, session)},
+                queue_entry,
             )
 
     publish_order_update(
@@ -12092,6 +12171,7 @@ def move_table_bill(
             publish_queue_update(
                 current_user.tenant_id,
                 {"type": "queue_table_moved", "queue_entry": _queue_entry_to_dict(queue_entry, session)},
+                queue_entry,
             )
 
     return JSONResponse(
@@ -12187,6 +12267,34 @@ def get_staff_menu_token(
 
 
 # ============ INTERNAL VALIDATION (for ws-bridge) ============
+
+
+class InternalPublicQueueTokenValidation(_BaseModel):
+    token: str = Field(min_length=16, max_length=64)
+
+
+@app.post("/internal/validate-public-queue")
+@public_menu_ip_limit()
+def validate_public_queue_token_for_bridge(
+    request: Request,
+    response: Response,
+    body: InternalPublicQueueTokenValidation,
+    session: Session = Depends(get_session),
+) -> dict:
+    """Validate a queue capability for the WebSocket bridge without returning guest PII."""
+
+    queue_entry = session.exec(
+        select(models.GuestQueueEntry).where(
+            models.GuestQueueEntry.public_token == body.token
+        )
+    ).first()
+    if not queue_entry:
+        raise HTTPException(status_code=404, detail="Queue entry not found")
+    return {
+        "queue_entry_id": queue_entry.id,
+        "fingerprint": public_queue_token_fingerprint(body.token),
+        "valid": True,
+    }
 
 @app.get("/internal/validate-table/{table_token}")
 @public_menu_ip_limit()

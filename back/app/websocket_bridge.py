@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import logging
 from typing import Optional
@@ -18,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 table_connections: dict[int, set[WebSocket]] = {}
 tenant_connections: dict[int, set[WebSocket]] = {}
+public_queue_connections: dict[str, set[WebSocket]] = {}
+MAX_PUBLIC_QUEUE_CONNECTIONS_PER_TOKEN = 5
 
 
 def _validate_jwt_token(token: str) -> Optional[dict]:
@@ -39,6 +42,29 @@ def _validate_table_token(table_token: str) -> Optional[dict]:
         if not table:
             return None
         return {"table_id": table.id, "tenant_id": table.tenant_id}
+
+
+def public_queue_token_fingerprint(public_token: str) -> str:
+    """Return a non-reversible channel key; raw capability tokens never enter Redis channels."""
+
+    return hashlib.sha256(public_token.encode("utf-8")).hexdigest()[:32]
+
+
+def _validate_public_queue_token(public_token: str) -> Optional[dict]:
+    if not public_token or len(public_token) > 64:
+        return None
+    with Session(engine) as session:
+        entry = session.exec(
+            select(models.GuestQueueEntry).where(
+                models.GuestQueueEntry.public_token == public_token
+            )
+        ).first()
+        if not entry:
+            return None
+        return {
+            "queue_entry_id": entry.id,
+            "fingerprint": public_queue_token_fingerprint(public_token),
+        }
 
 
 def _get_ws_token(websocket: WebSocket) -> Optional[str]:
@@ -72,6 +98,8 @@ async def _redis_listener(stop_event: asyncio.Event) -> None:
                 "orders:table:*",
                 "orders:tenant:*",
                 "reservations:tenant:*",
+                "queue:tenant:*",
+                "queue:public:*",
             )
 
             while not stop_event.is_set():
@@ -93,10 +121,11 @@ async def _redis_listener(stop_event: asyncio.Event) -> None:
                     continue
 
                 channel_type = parts[1]
-                entity_id = int(parts[2])
+                entity_key = parts[2]
                 dead_connections: set[WebSocket] = set()
 
                 if channel_type == "table":
+                    entity_id = int(entity_key)
                     for ws in table_connections.get(entity_id, set()):
                         try:
                             await ws.send_text(data)
@@ -107,6 +136,7 @@ async def _redis_listener(stop_event: asyncio.Event) -> None:
                         if not table_connections[entity_id]:
                             del table_connections[entity_id]
                 elif channel_type == "tenant":
+                    entity_id = int(entity_key)
                     for ws in tenant_connections.get(entity_id, set()):
                         try:
                             await ws.send_text(data)
@@ -116,6 +146,24 @@ async def _redis_listener(stop_event: asyncio.Event) -> None:
                         tenant_connections[entity_id] -= dead_connections
                         if not tenant_connections[entity_id]:
                             del tenant_connections[entity_id]
+                elif channel_type == "public":
+                    is_terminal = False
+                    try:
+                        is_terminal = bool(json.loads(data).get("terminal"))
+                    except (TypeError, ValueError, json.JSONDecodeError):
+                        pass
+                    for ws in public_queue_connections.get(entity_key, set()):
+                        try:
+                            await ws.send_text(data)
+                            if is_terminal:
+                                await ws.close(code=1000, reason="Queue entry closed")
+                                dead_connections.add(ws)
+                        except Exception:
+                            dead_connections.add(ws)
+                    if entity_key in public_queue_connections:
+                        public_queue_connections[entity_key] -= dead_connections
+                        if not public_queue_connections[entity_key]:
+                            del public_queue_connections[entity_key]
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -213,15 +261,57 @@ def register_websocket_routes(app: FastAPI) -> None:
                 if not tenant_connections[tenant_id]:
                     del tenant_connections[tenant_id]
 
+    @app.websocket("/ws/public/queue")
+    @app.websocket("/public/queue")
+    async def websocket_public_queue_endpoint(websocket: WebSocket) -> None:
+        await websocket.accept()
+
+        try:
+            authentication = json.loads(
+                await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
+            )
+            public_token = authentication.get("token", "")
+        except (asyncio.TimeoutError, TypeError, ValueError, json.JSONDecodeError):
+            await websocket.close(code=1008, reason="Missing queue token")
+            return
+
+        queue_info = _validate_public_queue_token(public_token)
+        if not queue_info:
+            await websocket.close(code=1008, reason="Invalid queue token")
+            return
+
+        fingerprint = queue_info["fingerprint"]
+        connections = public_queue_connections.setdefault(fingerprint, set())
+        if len(connections) >= MAX_PUBLIC_QUEUE_CONNECTIONS_PER_TOKEN:
+            await websocket.close(code=1013, reason="Too many queue connections")
+            return
+        connections.add(websocket)
+        await websocket.send_text(json.dumps({"type": "queue_connected"}))
+
+        try:
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            pass
+        finally:
+            if fingerprint in public_queue_connections:
+                public_queue_connections[fingerprint].discard(websocket)
+                if not public_queue_connections[fingerprint]:
+                    del public_queue_connections[fingerprint]
+
     @app.get("/ws/health")
     def websocket_bridge_health() -> dict:
         table_count = sum(len(connections) for connections in table_connections.values())
         tenant_count = sum(
             len(connections) for connections in tenant_connections.values()
         )
+        public_queue_count = sum(
+            len(connections) for connections in public_queue_connections.values()
+        )
         return {
             "status": "ok",
             "table_connections": table_count,
             "tenant_connections": tenant_count,
-            "total_connections": table_count + tenant_count,
+            "public_queue_connections": public_queue_count,
+            "total_connections": table_count + tenant_count + public_queue_count,
         }

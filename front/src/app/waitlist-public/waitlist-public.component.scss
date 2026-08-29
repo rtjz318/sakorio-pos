@@ -223,6 +223,26 @@ textarea:focus {
 }
 
 .status-copy { margin-left: auto; margin-right: auto; }
+.live-state {
+  margin: 16px auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #756a61;
+  font-size: 0.82rem;
+}
+.live-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #d97706;
+  box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.12);
+}
+.live-dot--connected {
+  background: #15803d;
+  box-shadow: 0 0 0 4px rgba(21, 128, 61, 0.12);
+}
 .position-grid { margin-top: 28px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: left; }
 .status-actions { margin-top: 26px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
 

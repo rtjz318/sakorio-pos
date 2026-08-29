@@ -3154,13 +3154,18 @@ export class ApiService {
   }
 
   getPublicQueueStatus(token: string): Observable<PublicQueueStatus> {
-    return this.http.get<PublicQueueStatus>(`${this.apiUrl}/public/queue/${encodeURIComponent(token)}`);
+    return this.http.post<PublicQueueStatus>(`${this.apiUrl}/public/queue/status`, { token });
+  }
+
+  getPublicQueueWebSocketUrl(): string {
+    const base = this.normalizeWebSocketBaseUrl(this.wsUrl);
+    return `${base}/public/queue`;
   }
 
   cancelPublicQueue(token: string): Observable<PublicQueueStatus> {
     return this.http.post<PublicQueueStatus>(
-      `${this.apiUrl}/public/queue/${encodeURIComponent(token)}/cancel`,
-      {},
+      `${this.apiUrl}/public/queue/cancel`,
+      { token },
     );
   }
 

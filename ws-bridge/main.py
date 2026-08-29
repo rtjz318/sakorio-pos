@@ -7,6 +7,7 @@ Subscribes to Redis pub/sub channels and broadcasts messages to connected WebSoc
 - reservations:tenant:{tenant_id} (for restaurant owners - reservations)
 """
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -35,6 +36,8 @@ logger = logging.getLogger(__name__)
 # Key: "table:{table_id}" or "tenant:{tenant_id}"
 table_connections: dict[int, set[WebSocket]] = {}  # table_id -> set of WebSockets
 tenant_connections: dict[int, set[WebSocket]] = {}  # tenant_id -> set of WebSockets
+public_queue_connections: dict[str, set[WebSocket]] = {}
+MAX_PUBLIC_QUEUE_CONNECTIONS_PER_TOKEN = 5
 
 # Configuration
 SECRET_KEY = os.getenv("SECRET_KEY", "CHANGE_THIS_IN_PRODUCTION")
@@ -52,6 +55,33 @@ async def validate_table_token(table_token: str) -> Optional[dict]:
             return None
     except Exception as e:
         logger.error(f"Error validating table token {table_token}: {e}", exc_info=True)
+        return None
+
+
+def public_queue_token_fingerprint(public_token: str) -> str:
+    return hashlib.sha256(public_token.encode("utf-8")).hexdigest()[:32]
+
+
+async def validate_public_queue_token(public_token: str) -> Optional[dict]:
+    """Validate via the API without placing the raw capability token in access-log paths."""
+
+    if not public_token or len(public_token) > 64:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.post(
+                f"{API_URL}/internal/validate-public-queue",
+                json={"token": public_token},
+            )
+            if response.status_code != 200:
+                return None
+            payload = response.json()
+            expected = public_queue_token_fingerprint(public_token)
+            if payload.get("fingerprint") != expected:
+                return None
+            return payload
+    except Exception as exc:
+        logger.error("Error validating public queue token: %s", exc)
         return None
 
 
@@ -77,7 +107,13 @@ async def redis_listener():
             pubsub = r.pubsub()
             
             # Subscribe to orders and reservations channels
-            await pubsub.psubscribe("orders:table:*", "orders:tenant:*", "reservations:tenant:*")
+            await pubsub.psubscribe(
+                "orders:table:*",
+                "orders:tenant:*",
+                "reservations:tenant:*",
+                "queue:tenant:*",
+                "queue:public:*",
+            )
 
             async for message in pubsub.listen():
                 if message["type"] == "pmessage":
@@ -88,12 +124,13 @@ async def redis_listener():
                     parts = channel.split(":")
                     if len(parts) == 3:
                         channel_type = parts[1]  # "table" or "tenant"
-                        entity_id = int(parts[2])
+                        entity_key = parts[2]
                         # orders:tenant:* and reservations:tenant:* both use tenant_connections
 
                         dead_connections = set()
                         
                         if channel_type == "table":
+                            entity_id = int(entity_key)
                             # Broadcast to all clients connected to this table
                             if entity_id in table_connections:
                                 for ws in table_connections[entity_id]:
@@ -104,6 +141,7 @@ async def redis_listener():
                                 table_connections[entity_id] -= dead_connections
                         
                         elif channel_type == "tenant":
+                            entity_id = int(entity_key)
                             # Broadcast to all clients connected to this tenant
                             if entity_id in tenant_connections:
                                 for ws in tenant_connections[entity_id]:
@@ -112,6 +150,22 @@ async def redis_listener():
                                     except Exception:
                                         dead_connections.add(ws)
                                 tenant_connections[entity_id] -= dead_connections
+                        elif channel_type == "public":
+                            is_terminal = False
+                            try:
+                                is_terminal = bool(json.loads(data).get("terminal"))
+                            except (TypeError, ValueError, json.JSONDecodeError):
+                                pass
+                            if entity_key in public_queue_connections:
+                                for ws in public_queue_connections[entity_key]:
+                                    try:
+                                        await ws.send_text(data)
+                                        if is_terminal:
+                                            await ws.close(code=1000, reason="Queue entry closed")
+                                            dead_connections.add(ws)
+                                    except Exception:
+                                        dead_connections.add(ws)
+                                public_queue_connections[entity_key] -= dead_connections
                         
         except Exception as e:
             logger.error(f"Redis connection error: {e}", exc_info=True)
@@ -139,6 +193,13 @@ class ASGIRequestLoggingMiddleware:
     """
     def __init__(self, app: ASGIApp):
         self.app = app
+
+    @staticmethod
+    def _safe_path(path: str) -> str:
+        for marker in ("/public/queue/", "/ws/public/queue/"):
+            if marker in path:
+                return path.split(marker, 1)[0] + marker + "[redacted]"
+        return path
     
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
         # Log all incoming requests at ASGI level (catches malformed requests too)
@@ -146,7 +207,7 @@ class ASGIRequestLoggingMiddleware:
             if scope["type"] == "http":
                 client_host = scope.get("client", ("unknown", 0))[0] if scope.get("client") else "unknown"
                 method = scope.get("method", "UNKNOWN")
-                path = scope.get("path", "UNKNOWN")
+                path = self._safe_path(scope.get("path", "UNKNOWN"))
                 query_string = scope.get("query_string", b"").decode("utf-8", errors="replace")
                 headers = {k.decode("utf-8", errors="replace"): v.decode("utf-8", errors="replace") 
                           for k, v in scope.get("headers", [])}
@@ -163,7 +224,7 @@ class ASGIRequestLoggingMiddleware:
                 )
             elif scope["type"] == "websocket":
                 client_host = scope.get("client", ("unknown", 0))[0] if scope.get("client") else "unknown"
-                path = scope.get("path", "UNKNOWN")
+                path = self._safe_path(scope.get("path", "UNKNOWN"))
                 query_string = scope.get("query_string", b"").decode("utf-8", errors="replace")
                 headers = {k.decode("utf-8", errors="replace"): v.decode("utf-8", errors="replace") 
                           for k, v in scope.get("headers", [])}
@@ -273,11 +334,13 @@ async def method_not_allowed_handler(request: Request, exc):
 def health():
     table_count = sum(len(c) for c in table_connections.values())
     tenant_count = sum(len(c) for c in tenant_connections.values())
+    public_queue_count = sum(len(c) for c in public_queue_connections.values())
     return {
         "status": "ok",
         "table_connections": table_count,
         "tenant_connections": tenant_count,
-        "total_connections": table_count + tenant_count,
+        "public_queue_connections": public_queue_count,
+        "total_connections": table_count + tenant_count + public_queue_count,
         "config": {
             "api_url_configured": bool(API_URL),
             "secret_key_configured": bool(SECRET_KEY and SECRET_KEY != "CHANGE_THIS_IN_PRODUCTION"),
@@ -306,7 +369,8 @@ async def catch_all(request: Request, path: str):
             "available_endpoints": [
                 "/health",
                 "/ws/table/{table_token}",
-                "/ws/tenant/{tenant_id}?token=..."
+                "/ws/tenant/{tenant_id}?token=...",
+                "/ws/public/queue",
             ]
         }
     )
@@ -421,5 +485,48 @@ async def websocket_tenant_endpoint(websocket: WebSocket, tenant_id: int):
             tenant_connections[tenant_id].discard(websocket)
             if not tenant_connections[tenant_id]:
                 del tenant_connections[tenant_id]
+
+
+@app_base.websocket("/ws/public/queue")
+@app_base.websocket("/public/queue")
+async def websocket_public_queue_endpoint(websocket: WebSocket):
+    """Private guest queue stream; every connection is isolated by capability fingerprint."""
+
+    client_host = websocket.client.host if websocket.client else "unknown"
+    logger.info("Public queue WebSocket connection attempt from %s", client_host)
+    await websocket.accept()
+
+    try:
+        authentication = json.loads(
+            await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
+        )
+        public_token = authentication.get("token", "")
+    except (asyncio.TimeoutError, TypeError, ValueError, json.JSONDecodeError):
+        await websocket.close(code=1008, reason="Missing queue token")
+        return
+
+    queue_info = await validate_public_queue_token(public_token)
+    if not queue_info:
+        await websocket.close(code=1008, reason="Invalid queue token")
+        return
+
+    fingerprint = queue_info["fingerprint"]
+    connections = public_queue_connections.setdefault(fingerprint, set())
+    if len(connections) >= MAX_PUBLIC_QUEUE_CONNECTIONS_PER_TOKEN:
+        await websocket.close(code=1013, reason="Too many queue connections")
+        return
+    connections.add(websocket)
+    await websocket.send_text(json.dumps({"type": "queue_connected"}))
+
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if fingerprint in public_queue_connections:
+            public_queue_connections[fingerprint].discard(websocket)
+            if not public_queue_connections[fingerprint]:
+                del public_queue_connections[fingerprint]
 
 

@@ -147,7 +147,7 @@ class TestScheduleExport(PgClientTestCase):
         waiter = next(u for u in data if u["id"] == self.waiter.id)
         self.assertEqual(waiter["employee_number"], "SE-001")
         self.assertEqual(waiter["job_title"], "Senior Waiter")
-        self.assertEqual(waiter["hourly_rate_cents"], 2400)
+        self.assertNotIn("hourly_rate_cents", waiter)
         self.assertEqual(waiter["employment_start_date"], "2025-01-02")
         self.assertIsNotNone(waiter["profile_completed_at"])
 
@@ -156,6 +156,18 @@ class TestScheduleExport(PgClientTestCase):
         r = self.client.get("/schedule/plan-users", headers=h)
         self.assertEqual(r.status_code, 200, r.text)
         self.assertGreaterEqual(len(r.json()), 2)
+
+    def test_payroll_rate_is_private_outside_admin_user_directory(self) -> None:
+        waiter_headers = _bearer_headers(self.waiter)
+        me = self.client.get("/users/me", headers=waiter_headers)
+        self.assertEqual(me.status_code, 200, me.text)
+        self.assertNotIn("hourly_rate_cents", me.json())
+
+        admin_headers = _bearer_headers(self.admin)
+        directory = self.client.get("/users", headers=admin_headers)
+        self.assertEqual(directory.status_code, 200, directory.text)
+        waiter = next(row for row in directory.json() if row["id"] == self.waiter.id)
+        self.assertEqual(waiter["hourly_rate_cents"], 2400)
 
 
 if __name__ == "__main__":

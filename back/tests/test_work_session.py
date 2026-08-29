@@ -101,6 +101,8 @@ class TestWorkSession(PgClientTestCase):
         self.assertFalse(body.get("over_contract"))
         self.assertEqual(body.get("contract_threshold_minutes"), WORK_SESSION_CONTRACT_THRESHOLD_MINUTES)
         self.assertIsNotNone(body.get("open_duration_minutes"))
+        self.assertNotIn("hourly_rate_cents", body)
+        self.assertNotIn("estimated_pay_cents", body)
 
         r2 = self.client.post("/users/me/work-session/start", headers=wh, json=self._clock_payload())
         self.assertEqual(r2.status_code, 409, r2.text)
@@ -418,6 +420,22 @@ class TestWorkSession(PgClientTestCase):
         self.assertEqual(row["estimated_pay_cents"], 3600)
         self.assertEqual(row["missing_clock_in_photos"], 0)
         self.assertEqual(row["missing_clock_out_photos"], 0)
+
+        self_summary = self.client.get(
+            "/users/me/attendance-summary",
+            params={"from_date": today, "to_date": today},
+            headers=_bearer_headers(self.waiter),
+        )
+        self.assertEqual(self_summary.status_code, 200, self_summary.text)
+        self.assertNotIn("hourly_rate_cents", self_summary.json())
+        self.assertNotIn("estimated_pay_cents", self_summary.json())
+
+        denied = self.client.get(
+            "/reports/attendance-pay-summary",
+            params={"from_date": today, "to_date": today},
+            headers=_bearer_headers(self.waiter),
+        )
+        self.assertEqual(denied.status_code, 403, denied.text)
 
     def test_unfiltered_payroll_summary_excludes_administrative_accounts(self):
         now = datetime.now(timezone.utc).replace(second=0, microsecond=0)

@@ -17,7 +17,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { SidebarComponent } from '../shared/sidebar.component';
 import {
   ApiService,
-  AttendancePaySummary,
+  AttendanceSummary,
   ClockQrStatus,
   Shift,
   StaffProfile,
@@ -111,11 +111,7 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
                   <div><dt>Account</dt><dd>Administrative</dd></div>
                 }
                 <div><dt>Contact</dt><dd>{{ profile()?.phone || profile()?.email || '-' }}</dd></div>
-                @if (isPayrollEmployee()) {
-                  <div><dt>Rate</dt><dd>{{ formatMoney((profile()?.hourly_rate_cents || 0) / 100) }}/hr</dd></div>
-                } @else {
-                  <div><dt>Attendance</dt><dd>Shift eligible</dd></div>
-                }
+                <div><dt>Attendance</dt><dd>Shift eligible</dd></div>
               </dl>
             }
           </article>
@@ -217,7 +213,10 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
         <section class="metrics-grid">
           <article class="metric-card"><span>Hours this month</span><strong>{{ formatMinutes(summary()?.worked_minutes || 0) }}</strong></article>
           <article class="metric-card"><span>Completed shifts</span><strong>{{ summary()?.completed_sessions || 0 }}</strong></article>
-          <article class="metric-card"><span>Estimated pay</span><strong>{{ formatMoney((summary()?.estimated_pay_cents || 0) / 100) }}</strong></article>
+          <article class="metric-card">
+            <span>Missing proofs</span>
+            <strong>{{ (summary()?.missing_clock_in_photos || 0) + (summary()?.missing_clock_out_photos || 0) }}</strong>
+          </article>
           <article class="metric-card"><span>Open sessions</span><strong>{{ summary()?.open_sessions || 0 }}</strong></article>
         </section>
 
@@ -349,7 +348,7 @@ export class MyShiftComponent implements OnInit, OnDestroy {
   shifts = signal<Shift[]>([]);
   history = signal<WorkSession[]>([]);
   open = signal<WorkSession | null>(null);
-  summary = signal<AttendancePaySummary | null>(null);
+  summary = signal<AttendanceSummary | null>(null);
   clockStatus = signal<ClockQrStatus | null>(null);
   selectedShiftId = signal<number | null>(null);
   editingProfile = signal(false);
@@ -517,23 +516,20 @@ export class MyShiftComponent implements OnInit, OnDestroy {
       employee_number: user?.employee_number ?? null,
       job_title: user?.job_title ?? null,
       phone: user?.phone ?? null,
-      hourly_rate_cents: user?.hourly_rate_cents ?? 0,
       employment_start_date: user?.employment_start_date ?? null,
       profile_completed_at: user?.profile_completed_at ?? null,
     };
   }
 
-  private emptyAttendanceSummary(user: User | null, userId: number | null): AttendancePaySummary {
+  private emptyAttendanceSummary(user: User | null, userId: number | null): AttendanceSummary {
     return {
       user_id: userId ?? user?.id ?? 0,
       user_name: user?.full_name || user?.email || 'Selected staff',
       employee_number: user?.employee_number ?? null,
       job_title: user?.job_title ?? null,
-      hourly_rate_cents: user?.hourly_rate_cents ?? 0,
       completed_sessions: 0,
       open_sessions: 0,
       worked_minutes: 0,
-      estimated_pay_cents: 0,
       missing_clock_in_photos: 0,
       missing_clock_out_photos: 0,
     };

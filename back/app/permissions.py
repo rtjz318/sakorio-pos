@@ -66,6 +66,13 @@ class Permission(str, Enum):
     # Reports (revenue / sales analysis – owner & admin)
     REPORT_READ = "report:read"
 
+    # Payroll compensation data (owner/admin only). Keep separate from user,
+    # schedule, attendance, and report access so operational staff never receive
+    # hourly rates or calculated pay in otherwise-safe payloads.
+    PAYROLL_RATE_READ = "payroll:rate_read"
+    PAYROLL_RATE_WRITE = "payroll:rate_write"
+    PAYROLL_SUMMARY_READ = "payroll:summary_read"
+
     # Billing customers (for tax invoicing)
     BILLING_CUSTOMER_READ = "billing_customer:read"
     BILLING_CUSTOMER_WRITE = "billing_customer:write"
@@ -146,6 +153,10 @@ ROLE_PERMISSIONS: dict[UserRole, set[Permission]] = {
         Permission.TRANSLATION_WRITE,
         # Reports
         Permission.REPORT_READ,
+        # Payroll
+        Permission.PAYROLL_RATE_READ,
+        Permission.PAYROLL_RATE_WRITE,
+        Permission.PAYROLL_SUMMARY_READ,
         # Working plan
         Permission.SCHEDULE_READ,
         Permission.SCHEDULE_WRITE,

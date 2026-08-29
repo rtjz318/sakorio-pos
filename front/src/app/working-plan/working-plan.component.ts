@@ -402,17 +402,16 @@ function isValidView(v: string | null): v is ViewMode {
           <div class="staff-readiness-copy">
             <span class="staff-readiness-eyebrow">Attendance setup</span>
             @if (payrollStaffUsers().length) {
-              <strong>Payroll-ready staff before scheduling</strong>
-              <p>Employees clock in from their assigned timetable shift. Keep names, job titles, and hourly rates ready before service.</p>
+              <strong>Attendance-ready staff before scheduling</strong>
+              <p>Keep employee names and job titles complete so service and attendance records stay clear.</p>
             } @else {
-              <strong>Add hourly employees when the team is ready</strong>
-              <p>Owners and admins can still be scheduled, but only employee profiles contribute to payroll readiness.</p>
+              <strong>Add staff profiles when the team is ready</strong>
+              <p>Owners and admins can still be scheduled; complete staff profiles keep attendance records clear.</p>
             }
           </div>
           <div class="staff-readiness-stats">
-            <article><span>Hourly staff</span><strong>{{ payrollStaffUsers().length }}</strong></article>
-            <article><span>Payroll ready</span><strong>{{ payrollReadyUsers().length }}</strong></article>
-            <article [class.needs-attention]="missingRateUsers().length > 0"><span>No rate</span><strong>{{ missingRateUsers().length }}</strong></article>
+            <article><span>Staff profiles</span><strong>{{ payrollStaffUsers().length }}</strong></article>
+            <article><span>Profile ready</span><strong>{{ payrollReadyUsers().length }}</strong></article>
             <article [class.needs-attention]="incompleteProfileUsers().length > 0"><span>Profile gaps</span><strong>{{ incompleteProfileUsers().length }}</strong></article>
           </div>
           @if (staffSetupWarnings().length) {
@@ -1593,11 +1592,7 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
   );
 
   payrollReadyUsers = computed(() =>
-    this.payrollStaffUsers().filter((u) => !!u.full_name?.trim() && (u.hourly_rate_cents ?? 0) > 0),
-  );
-
-  missingRateUsers = computed(() =>
-    this.payrollStaffUsers().filter((u) => (u.hourly_rate_cents ?? 0) <= 0),
+    this.payrollStaffUsers().filter((u) => !!u.full_name?.trim() && !!u.profile_completed_at),
   );
 
   incompleteProfileUsers = computed(() =>
@@ -1606,11 +1601,7 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
 
   staffSetupWarnings = computed(() => {
     const warnings: string[] = [];
-    const missingRate = this.missingRateUsers();
     const incomplete = this.incompleteProfileUsers();
-    if (missingRate.length) {
-      warnings.push(`${missingRate.length} staff ${missingRate.length === 1 ? 'member has' : 'members have'} no hourly rate.`);
-    }
     if (incomplete.length) {
       warnings.push(`${incomplete.length} staff ${incomplete.length === 1 ? 'profile needs' : 'profiles need'} completion.`);
     }
@@ -1626,14 +1617,13 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
           (total, shift) => total + this.shiftDurationMinutes(shift.start_time, shift.end_time),
           0,
         );
-        const missingRate = user.role !== 'owner' && user.role !== 'admin' && (user.hourly_rate_cents ?? 0) <= 0;
         const incomplete = user.role !== 'owner' && user.role !== 'admin' && (!user.full_name?.trim() || !user.profile_completed_at);
         return {
           user,
           shiftCount: userShifts.length,
           plannedMinutes,
-          needsAttention: missingRate || incomplete,
-          attentionLabel: missingRate ? 'Missing hourly rate' : incomplete ? 'Profile incomplete' : '',
+          needsAttention: incomplete,
+          attentionLabel: incomplete ? 'Profile incomplete' : '',
         };
       })
       .sort((a, b) =>

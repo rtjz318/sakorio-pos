@@ -89,7 +89,6 @@ export interface UserUpdate {
 
 export interface StaffProfile extends User {
   id: number;
-  hourly_rate_cents: number;
 }
 
 export interface StaffProfileUpdate {
@@ -346,18 +345,22 @@ export interface WorkSession {
   estimated_pay_cents?: number;
 }
 
-export interface AttendancePaySummary {
+export interface AttendanceSummary {
   user_id: number;
   user_name: string;
   employee_number?: string | null;
   job_title?: string | null;
-  hourly_rate_cents: number;
   completed_sessions: number;
   open_sessions: number;
   worked_minutes: number;
-  estimated_pay_cents: number;
   missing_clock_in_photos: number;
   missing_clock_out_photos: number;
+}
+
+/** Owner/admin-only attendance response containing compensation values. */
+export interface AttendancePaySummary extends AttendanceSummary {
+  hourly_rate_cents: number;
+  estimated_pay_cents: number;
 }
 
 export interface ClockQrStatus {
@@ -3693,9 +3696,9 @@ export class ApiService {
     return this.http.get<Shift[]>(`${this.apiUrl}/users/me/shifts`, { params });
   }
 
-  getMyAttendanceSummary(fromDate: string, toDate: string): Observable<AttendancePaySummary> {
+  getMyAttendanceSummary(fromDate: string, toDate: string): Observable<AttendanceSummary> {
     const params = new HttpParams().set('from_date', fromDate).set('to_date', toDate);
-    return this.http.get<AttendancePaySummary>(`${this.apiUrl}/users/me/attendance-summary`, { params });
+    return this.http.get<AttendanceSummary>(`${this.apiUrl}/users/me/attendance-summary`, { params });
   }
 
   getAttendancePaySummary(

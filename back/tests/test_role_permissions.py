@@ -10,7 +10,7 @@ from app.permissions import (
 def _user(user_id: int, role: UserRole) -> User:
     return User(
         id=user_id,
-        email=f"{role.value}-{user_id}@example.com",
+        email=f"{role.value}-{user_id}@test.local",
         hashed_password="not-used",
         role=role,
         tenant_id=1,
@@ -90,8 +90,29 @@ def test_admin_and_owner_boundaries_are_preserved() -> None:
     assert has_permission(admin, Permission.REPORT_READ)
     assert has_permission(admin, Permission.INVENTORY_WRITE)
     assert has_permission(admin, Permission.USER_UPDATE)
+    assert has_permission(admin, Permission.PAYROLL_RATE_READ)
+    assert has_permission(admin, Permission.PAYROLL_RATE_WRITE)
+    assert has_permission(admin, Permission.PAYROLL_SUMMARY_READ)
     assert not has_permission(admin, Permission.SETTINGS_BILLING)
     assert not has_permission(admin, Permission.USER_DELETE)
+
+
+def test_compensation_permissions_are_admin_only() -> None:
+    payroll_permissions = (
+        Permission.PAYROLL_RATE_READ,
+        Permission.PAYROLL_RATE_WRITE,
+        Permission.PAYROLL_SUMMARY_READ,
+    )
+    for role in (
+        UserRole.waiter,
+        UserRole.receptionist,
+        UserRole.kitchen,
+        UserRole.bartender,
+        UserRole.courier,
+        UserRole.provider,
+    ):
+        user = _user(100 + list(UserRole).index(role), role)
+        assert all(not has_permission(user, permission) for permission in payroll_permissions)
 
 
 def test_user_management_hierarchy() -> None:

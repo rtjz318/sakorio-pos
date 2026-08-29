@@ -849,7 +849,10 @@ def export_report(
 def report_work_sessions(
     request: Request,
     response: Response,
-    current_user: Annotated[models.User, Depends(require_permission(Permission.REPORT_READ))],
+    current_user: Annotated[
+        models.User,
+        Depends(require_permission(Permission.REPORT_READ, Permission.PAYROLL_SUMMARY_READ)),
+    ],
     session: Session = Depends(get_session),
     from_date: str = Query(..., description="Start date YYYY-MM-DD (UTC day)"),
     to_date: str = Query(..., description="End date YYYY-MM-DD (UTC day, inclusive)"),
@@ -880,7 +883,7 @@ def report_work_sessions(
     for ws in rows:
         u = session.get(models.User, ws.user_id)
         name = (u.full_name or u.email or "") if u else ""
-        out.append(serialize_work_session(ws, name, session=session))
+        out.append(serialize_work_session(ws, name, session=session, include_payroll=True))
     return out
 
 

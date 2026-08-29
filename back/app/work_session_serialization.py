@@ -39,8 +39,9 @@ def serialize_work_session(
     *,
     now_utc: datetime | None = None,
     session: Session | None = None,
+    include_payroll: bool = False,
 ) -> dict:
-    """Build API dict. Open sessions include active work time (excluding breaks) and over-contract flag."""
+    """Build an attendance API dict, excluding payroll data unless explicitly authorised."""
     now = now_utc if now_utc is not None else datetime.now(timezone.utc)
     break_sec = _total_break_seconds(session, ws, now_utc=now)
 
@@ -61,7 +62,6 @@ def serialize_work_session(
         open_duration_minutes = open_work_minutes
         over_contract = open_work_minutes >= WORK_SESSION_CONTRACT_THRESHOLD_MINUTES
 
-    user = session.get(models.User, ws.user_id) if session is not None else None
     shift = session.get(models.Shift, ws.shift_id) if session is not None and ws.shift_id else None
     proof_types: set[str] = set()
     if session is not None and ws.id is not None:
@@ -71,15 +71,7 @@ def serialize_work_session(
                 select(models.WorkSessionPhoto).where(models.WorkSessionPhoto.work_session_id == ws.id)
             ).all()
         }
-    worked_minutes = duration_minutes if duration_minutes is not None else open_work_minutes
-    hourly_rate_cents = int(getattr(user, "hourly_rate_cents", 0) or 0)
-    estimated_pay_cents = (
-        (worked_minutes * hourly_rate_cents + 30) // 60
-        if worked_minutes is not None and hourly_rate_cents > 0
-        else 0
-    )
-
-    return {
+    result = {
         "id": ws.id,
         "tenant_id": ws.tenant_id,
         "user_id": ws.user_id,
@@ -102,9 +94,19 @@ def serialize_work_session(
         "break_seconds_total": break_sec,
         "clock_in_photo_present": "clock_in" in proof_types,
         "clock_out_photo_present": "clock_out" in proof_types,
-        "hourly_rate_cents": hourly_rate_cents,
-        "estimated_pay_cents": estimated_pay_cents,
     }
+    if include_payroll:
+        user = session.get(models.User, ws.user_id) if session is not None else None
+        worked_minutes = duration_minutes if duration_minutes is not None else open_work_minutes
+        hourly_rate_cents = int(getattr(user, "hourly_rate_cents", 0) or 0)
+        estimated_pay_cents = (
+            (worked_minutes * hourly_rate_cents + 30) // 60
+            if worked_minutes is not None and hourly_rate_cents > 0
+            else 0
+        )
+        result["hourly_rate_cents"] = hourly_rate_cents
+        result["estimated_pay_cents"] = estimated_pay_cents
+    return result
 
 
 def work_session_net_duration_minutes(ws: models.WorkSession, session: Session) -> int | None:

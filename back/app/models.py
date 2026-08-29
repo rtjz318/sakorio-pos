@@ -1030,7 +1030,7 @@ class UserUpdate(SQLModel):
 
 
 class UserResponse(SQLModel):
-    """Model for user response (without sensitive data)."""
+    """Operational staff response. Compensation fields must never be added here."""
     id: int
     email: str
     full_name: str | None = None
@@ -1040,9 +1040,14 @@ class UserResponse(SQLModel):
     employee_number: str | None = None
     job_title: str | None = None
     phone: str | None = None
-    hourly_rate_cents: int = 0
     employment_start_date: date | None = None
     profile_completed_at: datetime | None = None
+
+
+class PayrollUserResponse(UserResponse):
+    """Owner/admin-only staff response containing compensation data."""
+
+    hourly_rate_cents: int = 0
 
 
 class StaffProfileUpdate(SQLModel):

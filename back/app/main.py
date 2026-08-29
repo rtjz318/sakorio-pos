@@ -1966,9 +1966,16 @@ def _staff_profile_dict(user: models.User) -> dict:
         "employee_number": user.employee_number,
         "job_title": user.job_title,
         "phone": user.phone,
-        "hourly_rate_cents": user.hourly_rate_cents or 0,
         "employment_start_date": user.employment_start_date,
         "profile_completed_at": user.profile_completed_at,
+    }
+
+
+def _payroll_staff_profile_dict(user: models.User) -> dict:
+    """Compensation-bearing profile; call only from payroll-authorised endpoints."""
+    return {
+        **_staff_profile_dict(user),
+        "hourly_rate_cents": user.hourly_rate_cents or 0,
     }
 
 
@@ -2808,6 +2815,7 @@ def _attendance_pay_summary(
     to_date: date,
     *,
     user_id: int | None = None,
+    include_payroll: bool = False,
 ) -> list[dict]:
     start_utc, end_utc = _attendance_range_bounds(tenant, from_date, to_date)
     query = (
@@ -2846,22 +2854,26 @@ def _attendance_pay_summary(
                 "user_name": _work_session_user_name(user),
                 "employee_number": user.employee_number,
                 "job_title": user.job_title,
-                "hourly_rate_cents": int(user.hourly_rate_cents or 0),
                 "completed_sessions": 0,
                 "open_sessions": 0,
                 "worked_minutes": 0,
-                "estimated_pay_cents": 0,
                 "missing_clock_in_photos": 0,
                 "missing_clock_out_photos": 0,
             },
         )
+        if include_payroll:
+            item.setdefault("hourly_rate_cents", int(user.hourly_rate_cents or 0))
+            item.setdefault("estimated_pay_cents", 0)
         if row.ended_at is None:
             item["open_sessions"] += 1
             continue
         minutes = work_session_net_duration_minutes(row, session) or 0
         item["completed_sessions"] += 1
         item["worked_minutes"] += minutes
-        item["estimated_pay_cents"] += (minutes * item["hourly_rate_cents"] + 30) // 60
+        if include_payroll:
+            item["estimated_pay_cents"] += (
+                minutes * item["hourly_rate_cents"] + 30
+            ) // 60
         proof_types = {
             proof.proof_type
             for proof in session.exec(
@@ -2877,14 +2889,15 @@ def _attendance_pay_summary(
             "user_name": _work_session_user_name(user),
             "employee_number": user.employee_number,
             "job_title": user.job_title,
-            "hourly_rate_cents": int(user.hourly_rate_cents or 0),
             "completed_sessions": 0,
             "open_sessions": 0,
             "worked_minutes": 0,
-            "estimated_pay_cents": 0,
             "missing_clock_in_photos": 0,
             "missing_clock_out_photos": 0,
         }
+        if include_payroll:
+            grouped[user_id]["hourly_rate_cents"] = int(user.hourly_rate_cents or 0)
+            grouped[user_id]["estimated_pay_cents"] = 0
     return sorted(grouped.values(), key=lambda item: (item["user_name"].lower(), item["user_id"]))
 
 
@@ -2899,13 +2912,23 @@ def get_my_attendance_summary(
     tenant = session.get(models.Tenant, current_user.tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    rows = _attendance_pay_summary(session, tenant, from_date, to_date, user_id=current_user.id)
+    rows = _attendance_pay_summary(
+        session,
+        tenant,
+        from_date,
+        to_date,
+        user_id=current_user.id,
+        include_payroll=False,
+    )
     return rows[0]
 
 
 @app.get("/reports/attendance-pay-summary")
 def get_attendance_pay_summary(
-    current_user: Annotated[models.User, Depends(require_permission(Permission.REPORT_READ))],
+    current_user: Annotated[
+        models.User,
+        Depends(require_permission(Permission.REPORT_READ, Permission.PAYROLL_SUMMARY_READ)),
+    ],
     session: Session = Depends(get_session),
     from_date: date = Query(...),
     to_date: date = Query(...),
@@ -2918,7 +2941,14 @@ def get_attendance_pay_summary(
         raise HTTPException(status_code=404, detail="Tenant not found")
     if user_id is not None:
         _resolve_work_session_target_user(current_user, user_id, session)
-    return _attendance_pay_summary(session, tenant, from_date, to_date, user_id=user_id)
+    return _attendance_pay_summary(
+        session,
+        tenant,
+        from_date,
+        to_date,
+        user_id=user_id,
+        include_payroll=True,
+    )
 
 
 def _work_session_photo_response(
@@ -2976,15 +3006,18 @@ def get_user_work_session_photo(
 
 @app.get("/users")
 def list_users(
-    current_user: Annotated[models.User, Depends(require_permission(Permission.USER_READ))],
+    current_user: Annotated[
+        models.User,
+        Depends(require_permission(Permission.USER_READ, Permission.PAYROLL_RATE_READ)),
+    ],
     session: Session = Depends(get_session),
-) -> list[models.UserResponse]:
+) -> list[models.PayrollUserResponse]:
     """List all users in the tenant."""
     users = session.exec(
         select(models.User).where(models.User.tenant_id == current_user.tenant_id)
     ).all()
     return [
-        models.UserResponse(**_staff_profile_dict(u))
+        models.PayrollUserResponse(**_payroll_staff_profile_dict(u))
         for u in users
     ]
 
@@ -2992,9 +3025,12 @@ def list_users(
 @app.post("/users")
 def create_user(
     user_data: models.UserCreate,
-    current_user: Annotated[models.User, Depends(require_permission(Permission.USER_CREATE))],
+    current_user: Annotated[
+        models.User,
+        Depends(require_permission(Permission.USER_CREATE, Permission.PAYROLL_RATE_WRITE)),
+    ],
     session: Session = Depends(get_session),
-) -> models.UserResponse:
+) -> models.PayrollUserResponse:
     """Create a new user in the tenant."""
     from .permissions import can_manage_user
     
@@ -3044,17 +3080,20 @@ def create_user(
     session.commit()
     session.refresh(new_user)
     
-    return models.UserResponse(**_staff_profile_dict(new_user))
+    return models.PayrollUserResponse(**_payroll_staff_profile_dict(new_user))
 
 
 @app.put("/users/{user_id}")
 def update_user(
     user_id: int,
     user_data: models.UserUpdate,
-    current_user: Annotated[models.User, Depends(require_permission(Permission.USER_UPDATE))],
+    current_user: Annotated[
+        models.User,
+        Depends(require_permission(Permission.USER_UPDATE, Permission.PAYROLL_RATE_READ)),
+    ],
     session: Session = Depends(get_session),
     lang: str = Depends(_get_requested_language),
-) -> models.UserResponse:
+) -> models.PayrollUserResponse:
     """Update a user's details."""
     from .permissions import can_modify_user, can_manage_user
     
@@ -3124,6 +3163,11 @@ def update_user(
     if user_data.phone is not None:
         target_user.phone = user_data.phone.strip() or None
     if user_data.hourly_rate_cents is not None:
+        if not has_permission(current_user, Permission.PAYROLL_RATE_WRITE):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Administrator access is required to change hourly rates",
+            )
         target_user.hourly_rate_cents = user_data.hourly_rate_cents
     if user_data.employment_start_date is not None:
         target_user.employment_start_date = user_data.employment_start_date
@@ -3155,7 +3199,7 @@ def update_user(
     session.commit()
     session.refresh(target_user)
     
-    return models.UserResponse(**_staff_profile_dict(target_user))
+    return models.PayrollUserResponse(**_payroll_staff_profile_dict(target_user))
 
 
 @app.delete("/users/{user_id}")
@@ -7243,7 +7287,6 @@ def list_schedule_plan_users(
                     employee_number=u.employee_number,
                     job_title=u.job_title,
                     phone=u.phone,
-                    hourly_rate_cents=u.hourly_rate_cents,
                     employment_start_date=u.employment_start_date,
                     profile_completed_at=u.profile_completed_at,
                 )

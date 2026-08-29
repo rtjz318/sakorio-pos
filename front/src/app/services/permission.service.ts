@@ -46,6 +46,10 @@ export type Permission =
   | 'translation:write'
   // Reports (revenue analysis)
   | 'report:read'
+  // Payroll compensation (owner/admin only)
+  | 'payroll:rate_read'
+  | 'payroll:rate_write'
+  | 'payroll:summary_read'
   // Billing customers
   | 'billing_customer:read'
   | 'billing_customer:write'
@@ -85,6 +89,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<Permission | '*'>> = {
     'inventory:read', 'inventory:write',
     'translation:read', 'translation:write',
     'report:read',
+    'payroll:rate_read', 'payroll:rate_write', 'payroll:summary_read',
     'schedule:read', 'schedule:write',
     'staff_contract:read', 'staff_contract:manage',
   ]),

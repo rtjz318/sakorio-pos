@@ -8233,19 +8233,19 @@ def list_tables_with_status(
                         "customer_name": seated_here.customer_name or "",
                         "party_size": seated_here.party_size,
                     }
-                if seated_queue_here:
-                    seated_queue_entry = {
-                        "id": seated_queue_here.id,
-                        "queue_number": seated_queue_here.queue_number,
-                        "queue_label": (
-                            f"Q{seated_queue_here.queue_number:03d}"
-                            if seated_queue_here.queue_number is not None
-                            else "Queue"
-                        ),
-                        "customer_name": seated_queue_here.customer_name or "",
-                        "party_size": seated_queue_here.party_size,
-                        "status": seated_queue_here.status.value,
-                    }
+            if seated_queue_here:
+                seated_queue_entry = {
+                    "id": seated_queue_here.id,
+                    "queue_number": seated_queue_here.queue_number,
+                    "queue_label": (
+                        f"Q{seated_queue_here.queue_number:03d}"
+                        if seated_queue_here.queue_number is not None
+                        else "Queue"
+                    ),
+                    "customer_name": seated_queue_here.customer_name or "",
+                    "party_size": seated_queue_here.party_size,
+                    "status": seated_queue_here.status.value,
+                }
         else:
             reserved_here = session.exec(
                 select(models.Reservation).where(

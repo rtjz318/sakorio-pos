@@ -3261,6 +3261,7 @@ export class ApiService {
             'queue_status',
             'queue_seated',
             'queue_converted',
+            'queue_completed',
           ].includes(data.type);
           if (isReservation) {
             this.reservationUpdates.next(data);

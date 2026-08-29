@@ -300,6 +300,20 @@ class TestTablesWithStatusOperational(PgClientTestCase):
         self.session.commit()
         self.session.refresh(queue_entry)
 
+        active_order = models.Order(
+            tenant_id=self.tenant_id,
+            table_id=self.table_id,
+            status=models.OrderStatus.preparing,
+        )
+        self.session.add(active_order)
+        self.session.commit()
+        self.session.refresh(active_order)
+        table = self.session.get(models.Table, self.table_id)
+        assert table is not None
+        table.active_order_id = active_order.id
+        self.session.add(table)
+        self.session.commit()
+
         row = self._row()
 
         self.assertEqual(row["seated_queue_entry"]["id"], queue_entry.id)

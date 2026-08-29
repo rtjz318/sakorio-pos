@@ -13,6 +13,7 @@ import {
   StaffLeaveKind,
   StaffLeaveRecord,
   User,
+  WorkSession,
 } from '../services/api.service';
 import { SidebarComponent } from '../shared/sidebar.component';
 import { ConfirmationModalComponent } from '../shared/confirmation-modal.component';
@@ -267,6 +268,53 @@ function isValidView(v: string | null): v is ViewMode {
           <strong>{{ coverageStatusLabel() }}</strong>
           <small>{{ complianceWarnings().length ? 'Review warnings before service' : 'Opening-hours requirements are covered' }}</small>
         </article>
+      </section>
+
+      <section class="actual-attendance-panel" data-testid="timetable-actual-attendance">
+        <div class="actual-attendance-head">
+          <div>
+            <span class="staff-readiness-eyebrow">Actual attendance</span>
+            <h2>Clocked time appears here automatically</h2>
+            <p>Planned shifts are optional. Open sessions stay live until the employee clocks out.</p>
+          </div>
+          <div class="actual-attendance-metrics">
+            <span><small>Clocked in now</small><strong>{{ liveAttendanceCount() }}</strong></span>
+            <span><small>Records in view</small><strong>{{ filteredActualAttendance().length }}</strong></span>
+          </div>
+        </div>
+        @if (actualAttendanceDays().length === 0) {
+          <div class="actual-attendance-empty">No staff have clocked time in this timetable range yet.</div>
+        } @else {
+          <div class="actual-attendance-days">
+            @for (day of actualAttendanceDays(); track day.date) {
+              <article class="actual-attendance-day">
+                <header>
+                  <strong>{{ actualAttendanceDayLabel(day.date) }}</strong>
+                  <span>{{ day.sessions.length }} {{ day.sessions.length === 1 ? 'record' : 'records' }}</span>
+                </header>
+                <div class="actual-attendance-list">
+                  @for (session of day.sessions; track session.id) {
+                    <div class="actual-attendance-row" [class.actual-attendance-row--live]="!session.ended_at">
+                      <span class="actual-attendance-avatar" [style.--wp-shift-h]="shiftHue(session.user_id)">
+                        {{ attendanceInitials(session.user_name) }}
+                      </span>
+                      <div>
+                        <strong>{{ session.user_name }}</strong>
+                        <small>{{ session.shift_label || attendanceSourceLabel(session) }}</small>
+                      </div>
+                      <span class="actual-attendance-time">
+                        {{ actualAttendanceTime(session.started_at) }} → {{ session.ended_at ? actualAttendanceTime(session.ended_at) : 'Now' }}
+                      </span>
+                      <span class="actual-attendance-state" [class.actual-attendance-state--live]="!session.ended_at">
+                        {{ session.ended_at ? actualAttendanceDuration(session) : 'Live' }}
+                      </span>
+                    </div>
+                  }
+                </div>
+              </article>
+            }
+          </div>
+        }
       </section>
 
       @if (scheduleUsers().length) {
@@ -1491,6 +1539,100 @@ function isValidView(v: string | null): v is ViewMode {
     .pva-empty-filtered { font-size: 0.875rem; color: var(--text-muted, #666); margin: 0 0 0.5rem 0; }
     .pva-var-pos { color: var(--color-success, #16a34a); }
     .pva-var-neg { color: var(--danger, #dc2626); }
+    .actual-attendance-panel {
+      margin: 0 0 1.5rem;
+      padding: 1.15rem;
+      border: 1px solid rgba(15, 118, 110, 0.22);
+      border-radius: 1rem;
+      background: linear-gradient(145deg, rgba(240, 253, 250, 0.96), #fff);
+    }
+    .actual-attendance-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .actual-attendance-head h2,
+    .actual-attendance-head p { margin: 0.15rem 0; }
+    .actual-attendance-head p { color: var(--text-muted, #64748b); }
+    .actual-attendance-metrics { display: flex; gap: 0.55rem; flex-wrap: wrap; }
+    .actual-attendance-metrics > span {
+      min-width: 7.5rem;
+      padding: 0.65rem 0.75rem;
+      border-radius: 0.75rem;
+      background: #fff;
+      border: 1px solid rgba(15, 118, 110, 0.15);
+      display: grid;
+      gap: 0.1rem;
+    }
+    .actual-attendance-metrics small { color: var(--text-muted, #64748b); }
+    .actual-attendance-metrics strong { font-size: 1.35rem; color: #0f766e; }
+    .actual-attendance-days {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+      gap: 0.75rem;
+    }
+    .actual-attendance-day {
+      min-width: 0;
+      border: 1px solid #dbe4e1;
+      border-radius: 0.85rem;
+      background: #fff;
+      overflow: hidden;
+    }
+    .actual-attendance-day > header {
+      padding: 0.65rem 0.75rem;
+      background: #f8fafc;
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .actual-attendance-day > header span { color: var(--text-muted, #64748b); font-size: 0.8rem; }
+    .actual-attendance-list { display: grid; }
+    .actual-attendance-row {
+      padding: 0.68rem 0.75rem;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto auto;
+      align-items: center;
+      gap: 0.65rem;
+      border-top: 1px solid #edf2f0;
+    }
+    .actual-attendance-row--live { background: rgba(16, 185, 129, 0.06); }
+    .actual-attendance-avatar {
+      --wp-shift-h: 174;
+      width: 2.25rem;
+      height: 2.25rem;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: hsl(var(--wp-shift-h) 65% 91%);
+      color: hsl(var(--wp-shift-h) 60% 28%);
+      font-weight: 800;
+      font-size: 0.78rem;
+    }
+    .actual-attendance-row > div { min-width: 0; display: grid; gap: 0.08rem; }
+    .actual-attendance-row > div strong,
+    .actual-attendance-row > div small { overflow-wrap: anywhere; }
+    .actual-attendance-row > div small { color: var(--text-muted, #64748b); }
+    .actual-attendance-time { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+    .actual-attendance-state {
+      padding: 0.28rem 0.5rem;
+      border-radius: 999px;
+      background: #f1f5f9;
+      font-size: 0.76rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .actual-attendance-state--live { background: #dcfce7; color: #166534; }
+    .actual-attendance-empty { padding: 1rem; border-radius: 0.75rem; background: #fff; color: var(--text-muted, #64748b); text-align: center; }
+    @media (max-width: 760px) {
+      .actual-attendance-head { display: grid; }
+      .actual-attendance-metrics > span { flex: 1 1 8rem; }
+      .actual-attendance-days { grid-template-columns: 1fr; }
+      .actual-attendance-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+      .actual-attendance-time { grid-column: 2 / -1; white-space: normal; }
+      .actual-attendance-state { grid-column: 3; grid-row: 1; }
+    }
   `],
 })
 export class WorkingPlanComponent implements OnInit, OnDestroy {
@@ -1517,6 +1659,7 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
   shifts = signal<Shift[]>([]);
   /** Planned vs clocked rows for current date range (subset with activity). */
   plannedVsActualRows = signal<PlannedVsActualRow[]>([]);
+  actualAttendance = signal<WorkSession[]>([]);
   complianceWarnings = signal<ScheduleComplianceWarning[]>([]);
   leaveRecords = signal<StaffLeaveRecord[]>([]);
   leaveSaving = signal(false);
@@ -1555,6 +1698,7 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
   private toastTimeout?: ReturnType<typeof setTimeout>;
   /** Bumps when a new planned-vs-actual HTTP request starts; stale responses are ignored. */
   private plannedVsActualFetchGen = 0;
+  private attendanceRefreshTimer?: ReturnType<typeof setInterval>;
 
   formUserId: number | null = null;
   formDate = '';
@@ -1650,6 +1794,34 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
   timetableScopeLabel = computed(() =>
     this.viewMode() === 'calendar' ? this.calendarMonthLabel() : this.weekLabel(),
   );
+
+  filteredActualAttendance = computed(() => {
+    const userId = this.exportUserId();
+    const rows = userId == null
+      ? this.actualAttendance()
+      : this.actualAttendance().filter((session) => session.user_id === userId);
+    return [...rows].sort((a, b) => b.started_at.localeCompare(a.started_at));
+  });
+
+  liveAttendanceCount = computed(
+    () => this.filteredActualAttendance().filter((session) => !session.ended_at).length,
+  );
+
+  actualAttendanceDays = computed(() => {
+    const groups = new Map<string, WorkSession[]>();
+    for (const session of this.filteredActualAttendance()) {
+      const date = this.actualAttendanceDateKey(session.started_at);
+      const rows = groups.get(date) || [];
+      rows.push(session);
+      groups.set(date, rows);
+    }
+    return [...groups.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([date, sessions]) => ({
+        date,
+        sessions: sessions.sort((a, b) => a.started_at.localeCompare(b.started_at)),
+      }));
+  });
 
   leaveDaysByKind(kind: StaffLeaveKind): number {
     return this.leaveRecords()
@@ -1896,10 +2068,12 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
       next: (settings) => this.parseOpeningHours(settings.opening_hours),
       error: () => {},
     });
+    this.attendanceRefreshTimer = setInterval(() => this.fetchActualAttendance(), 15_000);
   }
 
   ngOnDestroy(): void {
     this.routeParamSub?.unsubscribe();
+    if (this.attendanceRefreshTimer) clearInterval(this.attendanceRefreshTimer);
   }
 
   private parseOpeningHours(json: string | null | undefined): void {
@@ -2435,6 +2609,7 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
     const range = this.planDateRange();
     this.leaveDraftFrom ||= range.from;
     this.leaveDraftTo ||= range.from;
+    this.fetchActualAttendance();
     this.api.getSchedule(range.from, range.to).subscribe({
       next: (data) => {
         this.shifts.set(data);
@@ -2461,6 +2636,50 @@ export class WorkingPlanComponent implements OnInit, OnDestroy {
         this.loading.set(false);
       },
     });
+  }
+
+  private fetchActualAttendance(): void {
+    const range = this.planDateRange();
+    this.api.getReportWorkSessions(range.from, range.to).subscribe({
+      next: (rows) => this.actualAttendance.set(rows),
+      error: () => this.actualAttendance.set([]),
+    });
+  }
+
+  private actualAttendanceDateKey(value: string): string {
+    const date = new Date(value);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+
+  actualAttendanceDayLabel(value: string): string {
+    return new Date(`${value}T12:00:00`).toLocaleDateString([], {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+
+  actualAttendanceTime(value: string): string {
+    return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+
+  actualAttendanceDuration(session: WorkSession): string {
+    return this.formatMinutes(session.duration_minutes || 0);
+  }
+
+  attendanceSourceLabel(session: WorkSession): string {
+    if (session.source === 'shared_kiosk') return 'Shared tablet clock-in';
+    if (session.source === 'self_clock') return 'Direct clock-in';
+    return 'Actual attendance';
+  }
+
+  attendanceInitials(name: string): string {
+    const value = (name || 'Staff').trim();
+    return value
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('');
   }
 
   createLeaveRecord(): void {

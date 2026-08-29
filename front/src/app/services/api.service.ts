@@ -339,6 +339,7 @@ export interface WorkSession {
   shift_start_time?: string | null;
   shift_end_time?: string | null;
   shift_label?: string | null;
+  source?: 'self_clock' | 'shared_kiosk' | 'manager_adjustment' | 'legacy_planned' | 'legacy_unscheduled' | string;
   clock_in_photo_present?: boolean;
   clock_out_photo_present?: boolean;
   hourly_rate_cents?: number;
@@ -375,6 +376,7 @@ export interface WorkSessionClockPayload {
   shift_id?: number | null;
   photo_data_url?: string | null;
   photo_captured_at?: string | null;
+  client_request_id?: string | null;
 }
 
 /** Net worked seconds from wall time minus server break total (keeps UI in sync between polls). */

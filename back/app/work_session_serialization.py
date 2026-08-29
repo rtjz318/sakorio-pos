@@ -81,6 +81,7 @@ def serialize_work_session(
         "shift_start_time": shift.start_time.isoformat() if shift else None,
         "shift_end_time": shift.end_time.isoformat() if shift else None,
         "shift_label": shift.label if shift else None,
+        "source": getattr(ws, "source", None) or ("legacy_planned" if ws.shift_id else "legacy_unscheduled"),
         "started_at": ws.started_at.isoformat() if ws.started_at else None,
         "ended_at": ws.ended_at.isoformat() if ws.ended_at else None,
         "duration_minutes": duration_minutes,

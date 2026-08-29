@@ -674,6 +674,8 @@ class WorkSession(TenantMixin, table=True):
     end_ip: str | None = Field(default=None, max_length=45)
     # When set (and session still open), staff is on break; active work timer pauses until break ends
     break_started_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
+    source: str = Field(default="self_clock", max_length=32, index=True)
+    client_request_id: str | None = Field(default=None, max_length=96)
 
 
 class WorkSessionPhoto(TenantMixin, table=True):

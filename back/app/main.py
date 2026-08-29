@@ -2155,7 +2155,7 @@ def otp_disable(
 
 
 class WorkSessionClockBody(_BaseModel):
-    """Scheduled shift and fresh camera proof, plus venue QR/GPS when configured."""
+    """Optional planned shift and fresh camera proof, plus venue QR/GPS when configured."""
 
     clock_qr: str | None = None
     latitude: float | None = None
@@ -2163,6 +2163,7 @@ class WorkSessionClockBody(_BaseModel):
     shift_id: int | None = None
     photo_data_url: str | None = None
     photo_captured_at: datetime | None = None
+    client_request_id: str | None = Field(default=None, min_length=8, max_length=96)
 
 
 _CLOCK_PHOTO_MAX_INPUT_BYTES = 1_500_000
@@ -2187,7 +2188,7 @@ def _shift_bounds(shift: models.Shift, tenant: models.Tenant) -> tuple[datetime,
     return start, end
 
 
-def _validate_scheduled_shift(
+def _resolve_optional_scheduled_shift(
     session: Session,
     tenant: models.Tenant,
     user: models.User,
@@ -2195,9 +2196,11 @@ def _validate_scheduled_shift(
     *,
     now_utc: datetime,
     open_session: models.WorkSession | None = None,
-) -> models.Shift:
+) -> models.Shift | None:
     if payload.shift_id is None:
-        raise HTTPException(status_code=400, detail="Select a scheduled shift before clocking")
+        if open_session is not None and open_session.shift_id is not None:
+            return session.get(models.Shift, open_session.shift_id)
+        return None
     shift = session.get(models.Shift, payload.shift_id)
     if not shift or shift.tenant_id != user.tenant_id or shift.user_id != user.id:
         raise HTTPException(status_code=404, detail="Scheduled shift not found for this employee")
@@ -2480,9 +2483,24 @@ def start_my_work_session(
         raise HTTPException(status_code=404, detail="Tenant not found")
     _verify_clock_qr_token(tenant, payload)
     _verify_clock_location_if_required(tenant, payload)
+    existing = session.exec(
+        select(models.WorkSession).where(
+            models.WorkSession.tenant_id == current_user.tenant_id,
+            models.WorkSession.user_id == current_user.id,
+            models.WorkSession.ended_at.is_(None),
+        )
+    ).first()
+    if existing:
+        name = current_user.full_name or current_user.email or ""
+        if payload.client_request_id and existing.client_request_id == payload.client_request_id:
+            return serialize_work_session(existing, name, session=session)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Already clocked in; clock out first",
+        )
     now = datetime.now(timezone.utc)
     clock_photo = _decode_clock_photo(payload, now_utc=now)
-    shift = _validate_scheduled_shift(
+    shift = _resolve_optional_scheduled_shift(
         session,
         tenant,
         current_user,
@@ -2490,22 +2508,13 @@ def start_my_work_session(
         now_utc=now,
     )
 
-    existing = session.exec(
-        select(models.WorkSession).where(
-            models.WorkSession.user_id == current_user.id,
-            models.WorkSession.ended_at.is_(None),
-        )
-    ).first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Already clocked in; clock out first",
-        )
     ip = _client_ip_from_request(request)
     ws = models.WorkSession(
         tenant_id=current_user.tenant_id,
         user_id=current_user.id,
-        shift_id=shift.id,
+        shift_id=shift.id if shift else None,
+        source="self_clock",
+        client_request_id=payload.client_request_id,
         started_at=now,
         start_ip=ip,
     )
@@ -2562,7 +2571,7 @@ def end_my_work_session(
         )
     now = datetime.now(timezone.utc)
     clock_photo = _decode_clock_photo(payload, now_utc=now)
-    _validate_scheduled_shift(
+    _resolve_optional_scheduled_shift(
         session,
         tenant,
         current_user,
@@ -2743,8 +2752,27 @@ def start_user_work_session(
         raise HTTPException(status_code=404, detail="Tenant not found")
     _verify_clock_qr_token(tenant, payload)
     _verify_clock_location_if_required(tenant, payload)
+    existing = session.exec(
+        select(models.WorkSession).where(
+            models.WorkSession.tenant_id == target_user.tenant_id,
+            models.WorkSession.user_id == target_user.id,
+            models.WorkSession.ended_at.is_(None),
+        )
+    ).first()
+    if existing:
+        if payload.client_request_id and existing.client_request_id == payload.client_request_id:
+            return serialize_work_session(
+                existing,
+                _work_session_user_name(target_user),
+                session=session,
+            )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Already clocked in; clock out first",
+        )
     now = datetime.now(timezone.utc)
-    shift = _validate_scheduled_shift(
+    clock_photo = _decode_clock_photo(payload, now_utc=now)
+    shift = _resolve_optional_scheduled_shift(
         session,
         tenant,
         target_user,
@@ -2752,28 +2780,26 @@ def start_user_work_session(
         now_utc=now,
     )
 
-    existing = session.exec(
-        select(models.WorkSession).where(
-            models.WorkSession.user_id == target_user.id,
-            models.WorkSession.ended_at.is_(None),
-        )
-    ).first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Already clocked in; clock out first",
-        )
     ws = models.WorkSession(
         tenant_id=target_user.tenant_id,
         user_id=target_user.id,
-        shift_id=shift.id,
+        shift_id=shift.id if shift else None,
+        source="shared_kiosk",
+        client_request_id=payload.client_request_id,
         started_at=now,
         start_ip=_client_ip_from_request(request),
     )
     session.add(ws)
     try:
         session.flush()
-        _store_work_session_photo(session, ws, payload, proof_type="clock_in", now_utc=now)
+        _store_work_session_photo(
+            session,
+            ws,
+            payload,
+            proof_type="clock_in",
+            now_utc=now,
+            decoded=clock_photo,
+        )
         session.commit()
     except IntegrityError:
         session.rollback()
@@ -2815,7 +2841,7 @@ def end_user_work_session(
             detail="No open work session to end",
         )
     now = datetime.now(timezone.utc)
-    _validate_scheduled_shift(
+    _resolve_optional_scheduled_shift(
         session,
         tenant,
         target_user,

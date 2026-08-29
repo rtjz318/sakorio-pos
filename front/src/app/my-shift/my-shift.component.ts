@@ -40,7 +40,7 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
           <div>
             <p class="eyebrow">Attendance</p>
             <h1>My shift</h1>
-            <p class="lede">Choose a staff profile, select the scheduled shift, take a live photo, and clock in.</p>
+            <p class="lede">Choose a staff profile, take a live photo, and clock in. A planned shift is optional.</p>
           </div>
           <div class="connection-pill" [class.ready]="!loading()">
             <span></span>{{ loading() ? 'Syncing' : 'Live' }}
@@ -56,7 +56,7 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
             <div>
               <p class="eyebrow">Staff profile</p>
               <h2>Who is clocking in?</h2>
-              <p class="status-copy">Pick the staff member first, then choose their scheduled shift below.</p>
+              <p class="status-copy">Pick the staff member who is clocking in on this shared tablet.</p>
             </div>
             <label class="profile-select">
               Profile
@@ -111,7 +111,7 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
                   <div><dt>Account</dt><dd>Administrative</dd></div>
                 }
                 <div><dt>Contact</dt><dd>{{ profile()?.phone || profile()?.email || '-' }}</dd></div>
-                <div><dt>Attendance</dt><dd>Shift eligible</dd></div>
+                <div><dt>Attendance</dt><dd>Ready to clock</dd></div>
               </dl>
             }
           </article>
@@ -127,7 +127,7 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
             @if (open(); as session) {
               <div class="active-time">{{ elapsedLabel() }}</div>
               <p class="status-copy">
-                {{ session.shift_label || 'Scheduled shift' }} | {{ formatDt(session.started_at) }}
+                {{ session.shift_label || 'Actual attendance' }} | {{ formatDt(session.started_at) }}
               </p>
               <div class="action-row">
                 @if (isSelfProfile()) {
@@ -149,15 +149,15 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
                   <span class="shift-window-state">{{ shiftStateLabel(shift) }}</span>
                 </div>
               } @else {
-                <p class="status-copy">No shift is currently open for attendance.</p>
+                <p class="status-copy">No planned shift selected. Clock-in will still be recorded on the Timetable.</p>
               }
               <button
                 class="primary-btn wide"
                 type="button"
                 (click)="requestCamera('clock_in')"
-                [disabled]="actionLoading() || !selectedShift() || !canClockShift(selectedShift()!)"
+                [disabled]="actionLoading()"
               >
-                {{ selectedShift() && canClockShift(selectedShift()!) ? 'Take photo and clock in' : 'No shift available to clock in' }}
+                {{ actionLoading() ? 'Recording…' : 'Take photo and clock in' }}
               </button>
             }
           </article>
@@ -167,7 +167,7 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
           <div class="panel-head timetable-head">
             <div>
               <p class="eyebrow">My timetable</p>
-              <h2>Scheduled shifts</h2>
+              <h2>Optional planned shifts</h2>
             </div>
             <div class="summary-chips">
               <span>{{ upcomingShifts().length }} upcoming</span>
@@ -176,8 +176,8 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
           </div>
           @if (shifts().length === 0) {
             <div class="empty-state">
-              <strong>No shifts scheduled</strong>
-              <span>Ask a manager to add your shift to the Timetable.</span>
+              <strong>No planned shifts</strong>
+              <span>You can clock in normally; actual attendance will appear on the Timetable.</span>
             </div>
           } @else {
             <div class="shift-list">
@@ -230,7 +230,7 @@ const QR_READER_ID = 'attendance-venue-qr-reader';
             <div class="history-list">
               @for (row of history(); track row.id) {
                 <article class="history-row">
-                  <div><strong>{{ row.shift_label || 'Scheduled shift' }}</strong><span>{{ row.shift_date || dateOnly(row.started_at) }}</span></div>
+                  <div><strong>{{ row.shift_label || 'Actual attendance' }}</strong><span>{{ row.shift_date || dateOnly(row.started_at) }}</span></div>
                   <div><small>In</small><strong>{{ timeOnly(row.started_at) }}</strong></div>
                   <div><small>Out</small><strong>{{ row.ended_at ? timeOnly(row.ended_at) : 'Active' }}</strong></div>
                   <div><small>Worked</small><strong>{{ formatMinutes(row.duration_minutes ?? row.open_duration_minutes ?? 0) }}</strong></div>
@@ -361,6 +361,7 @@ export class MyShiftComponent implements OnInit, OnDestroy {
   clockQrToken = signal<string | null>(null);
   tick = signal(0);
   private preferredShiftId: number | null = null;
+  private pendingClockRequestId: string | null = null;
   profileName = '';
   profilePhone = '';
   profileJob = '';
@@ -584,9 +585,8 @@ export class MyShiftComponent implements OnInit, OnDestroy {
   }
 
   requestCamera(action: 'clock_in' | 'clock_out'): void {
-    if (action === 'clock_in' && !this.selectedShift()) { this.error.set('Select a scheduled shift first.'); return; }
-    if (action === 'clock_in' && !this.canClockShift(this.selectedShift()!)) { this.error.set('This shift is not currently open for attendance.'); return; }
     if (this.clockStatus()?.clock_qr_required && !this.effectiveClockQr()) { this.openQrScanner(); return; }
+    this.pendingClockRequestId = action === 'clock_in' ? this.createClockRequestId() : null;
     this.pendingAction.set(action); this.cameraError.set(null); this.cameraReady.set(false); this.cameraOpen.set(true);
     setTimeout(() => void this.startCamera(), 0);
   }
@@ -613,11 +613,16 @@ export class MyShiftComponent implements OnInit, OnDestroy {
     context.translate(width, 0); context.scale(-1, 1); context.drawImage(video, 0, 0, width, height);
     const photo = canvas.toDataURL('image/jpeg', 0.68); const capturedAt = new Date().toISOString();
     const shiftId = this.pendingAction() === 'clock_out' ? this.open()?.shift_id : this.selectedShiftId();
-    if (!shiftId) { this.cameraError.set('Scheduled shift is missing. Refresh and try again.'); return; }
     this.actionLoading.set(true); this.error.set(null);
     this.buildVenuePayload().pipe(
       switchMap((payload) => {
-        const fullPayload = { ...payload, shift_id: shiftId, photo_data_url: photo, photo_captured_at: capturedAt };
+        const fullPayload = {
+          ...payload,
+          shift_id: shiftId || undefined,
+          client_request_id: this.pendingAction() === 'clock_in' ? this.pendingClockRequestId : undefined,
+          photo_data_url: photo,
+          photo_captured_at: capturedAt,
+        };
         const selectedUserId = this.selectedUserId();
         if (this.isSelfUserId(selectedUserId)) {
           return this.pendingAction() === 'clock_in' ? this.api.startMyWorkSession(fullPayload) : this.api.endMyWorkSession(fullPayload);
@@ -628,7 +633,7 @@ export class MyShiftComponent implements OnInit, OnDestroy {
           : this.api.endUserWorkSession(selectedUserId, fullPayload);
       }), finalize(() => this.actionLoading.set(false))
     ).subscribe({
-      next: () => { this.closeCamera(); this.loadAll(); },
+      next: () => { this.pendingClockRequestId = null; this.closeCamera(); this.loadAll(); },
       error: (err) => { this.cameraError.set(err?.error?.detail || 'Attendance could not be recorded.'); },
     });
   }
@@ -652,6 +657,10 @@ export class MyShiftComponent implements OnInit, OnDestroy {
   }
 
   private effectiveClockQr(): string | null { return (this.clockQrToken() || sessionStorage.getItem('attendance_clock_qr') || '').trim() || null; }
+  private createClockRequestId(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+    return `clock-${Date.now()}-${Math.random().toString(36).slice(2, 14)}`;
+  }
   openQrScanner(): void { this.scanOpen.set(true); this.scanError.set(null); setTimeout(() => void this.startQrReader(), 0); }
   closeQrScanner(): void { void this.stopQrReader(); this.scanOpen.set(false); }
   private async startQrReader(): Promise<void> {

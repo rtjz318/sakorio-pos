@@ -7,6 +7,7 @@ import unittest
 from datetime import date, datetime, time, timedelta, timezone
 
 from PIL import Image
+from sqlmodel import select
 
 from pg_client_mixin import PgClientTestCase
 
@@ -294,19 +295,31 @@ class TestWorkSession(PgClientTestCase):
         )
         self.assertEqual(r2.status_code, 200, r2.text)
 
-    def test_clock_in_requires_scheduled_shift_and_fresh_camera_photo(self):
+    def test_clock_in_allows_no_scheduled_shift_and_requires_fresh_camera_photo(self):
         wh = _bearer_headers(self.waiter)
 
-        missing_shift = self.client.post(
+        unscheduled = self.client.post(
             "/users/me/work-session/start",
+            headers=wh,
+            json={
+                "client_request_id": "unscheduled-clock-0001",
+                "photo_data_url": self._camera_data_url(),
+                "photo_captured_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        self.assertEqual(unscheduled.status_code, 200, unscheduled.text)
+        self.assertIsNone(unscheduled.json()["shift_id"])
+        self.assertEqual(unscheduled.json()["source"], "self_clock")
+
+        ended = self.client.post(
+            "/users/me/work-session/end",
             headers=wh,
             json={
                 "photo_data_url": self._camera_data_url(),
                 "photo_captured_at": datetime.now(timezone.utc).isoformat(),
             },
         )
-        self.assertEqual(missing_shift.status_code, 400, missing_shift.text)
-        self.assertIn("scheduled shift", missing_shift.json()["detail"].lower())
+        self.assertEqual(ended.status_code, 200, ended.text)
 
         missing_photo = self.client.post(
             "/users/me/work-session/start",
@@ -325,6 +338,25 @@ class TestWorkSession(PgClientTestCase):
         )
         self.assertEqual(stale_photo.status_code, 400, stale_photo.text)
         self.assertIn("expired", stale_photo.json()["detail"].lower())
+
+    def test_clock_in_client_request_id_is_idempotent(self):
+        wh = _bearer_headers(self.waiter)
+        payload = self._clock_payload(client_request_id="same-clock-request-0001")
+
+        first = self.client.post("/users/me/work-session/start", headers=wh, json=payload)
+        second = self.client.post("/users/me/work-session/start", headers=wh, json=payload)
+
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(second.status_code, 200, second.text)
+        self.assertEqual(first.json()["id"], second.json()["id"])
+        rows = self.session.exec(
+            select(models.WorkSession).where(
+                models.WorkSession.tenant_id == self.tenant_id,
+                models.WorkSession.user_id == self.waiter.id,
+                models.WorkSession.ended_at.is_(None),
+            )
+        ).all()
+        self.assertEqual(len(rows), 1)
 
     def test_clock_in_rejects_another_employees_shift(self):
         other_shift = models.Shift(

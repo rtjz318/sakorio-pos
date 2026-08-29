@@ -1068,15 +1068,28 @@ export type TableOperationalStatus =
   | 'open_order'
   | 'ready_to_serve';
 
-/** Payment/collection indicator for floor chip; separate from operational_status (service fill). */
-export type TablePaymentStatus = 'none' | 'pending' | 'paid';
+/** Canonical payment/collection state; separate from operational_status (service fill). */
+export type TablePaymentStatus = 'none' | 'unpaid' | 'requested' | 'paid';
+
+/** Temporary compatibility value returned while older clients are still deployed. */
+export type LegacyTablePaymentStatus = 'none' | 'pending' | 'paid';
+
+export interface TablePaymentSummary {
+  status: TablePaymentStatus;
+  method: 'hitpay' | 'terminal' | 'cash' | string | null;
+  requested_at: string | null;
+  paid_at: string | null;
+  order_ids: number[];
+}
 
 export interface CanvasTable extends Table {
   status?: 'available' | 'occupied' | 'reserved';
   /** Finer state for floor canvas (order pipeline vs seated without order). From GET /tables/with-status. */
   operational_status?: TableOperationalStatus;
-  /** Bill/payment vs paid chip; does not drive table fill color. */
-  payment_status?: TablePaymentStatus;
+  /** Compatibility field for clients that predate payment_summary. */
+  payment_status?: LegacyTablePaymentStatus;
+  /** Server-derived canonical state used by Tables and POS. */
+  payment_summary?: TablePaymentSummary;
   assigned_waiter_id?: number | null;
   assigned_waiter_name?: string | null;
   effective_waiter_id?: number | null;

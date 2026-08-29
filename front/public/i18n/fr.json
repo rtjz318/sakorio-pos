@@ -984,6 +984,8 @@
     "LEGEND_PAYMENT_PENDING": "Paiement en attente",
     "LEGEND_PAYMENT_PAID": "Payé",
     "PAYMENT_PENDING": "Paiement en attente",
+    "PAYMENT_UNPAID": "Impayé",
+    "PAYMENT_REQUESTED": "Paiement demandé",
     "PAID": "Payé",
     "FLOOR_PUBLIC_BOOKING": "Ouvert à la réservation en ligne",
     "FLOOR_SEATING_ZONE": "Zone de réservation",

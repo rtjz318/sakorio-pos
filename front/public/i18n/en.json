@@ -1016,6 +1016,8 @@
     "LEGEND_PAYMENT_PENDING": "Payment pending",
     "LEGEND_PAYMENT_PAID": "Paid",
     "PAYMENT_PENDING": "Payment pending",
+    "PAYMENT_UNPAID": "Unpaid",
+    "PAYMENT_REQUESTED": "Payment requested",
     "PAID": "Paid",
     "FLOOR_PUBLIC_BOOKING": "Open for online booking",
     "FLOOR_SEATING_ZONE": "Reservation seating",

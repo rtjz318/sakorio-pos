@@ -8108,7 +8108,7 @@ def list_tables_with_status(
         ).first()
         upcoming_reservation = None
         seated_reservation = None
-        payment_status = "none"
+        payment_orders: list[models.Order] = []
         if table.is_active or active_order or seated_here:
             status = "occupied"
             if active_order:
@@ -8120,8 +8120,6 @@ def list_tables_with_status(
                     operational_status = "ready_to_serve"
                 else:
                     operational_status = "open_order"
-                if active_order.bill_requested_at is not None:
-                    payment_status = "pending"
             else:
                 operational_status = "occupied"
                 if seated_here:
@@ -8151,17 +8149,6 @@ def list_tables_with_status(
                 }
         effective_waiter_id = table.assigned_waiter_id or floor_waiter_map.get(table.floor_id)
 
-        if payment_status == "none" and table.active_order_id:
-            linked = session.get(models.Order, table.active_order_id)
-            if linked and linked.tenant_id == current_user.tenant_id and linked.deleted_at is None:
-                if linked.status == models.OrderStatus.paid and linked.paid_at is not None:
-                    payment_status = "paid"
-                elif linked.bill_requested_at is not None and linked.status not in (
-                    models.OrderStatus.paid,
-                    models.OrderStatus.cancelled,
-                ):
-                    payment_status = "pending"
-
         if table.is_active:
             current_session_orders = session.exec(
                 select(models.Order).where(
@@ -8180,13 +8167,47 @@ def list_tables_with_status(
                 if any(_order_item_is_active(item) for item in session_items):
                     session_orders_with_items.append(session_order)
 
-            if session_orders_with_items:
-                if all(_order_is_settled(order) for order in session_orders_with_items):
-                    payment_status = "paid"
-                elif any(order.bill_requested_at is not None for order in session_orders_with_items):
-                    payment_status = "pending"
-                else:
-                    payment_status = "none"
+            payment_orders = session_orders_with_items
+
+        if active_order and not any(order.id == active_order.id for order in payment_orders):
+            active_order_items = session.exec(
+                select(models.OrderItem).where(models.OrderItem.order_id == active_order.id)
+            ).all()
+            if (
+                any(_order_item_is_active(item) for item in active_order_items)
+                or _order_is_settled(active_order)
+                or active_order.bill_requested_at is not None
+                or active_order.hitpay_payment_request_id is not None
+            ):
+                payment_orders.append(active_order)
+
+        if table.active_order_id and not any(
+            order.id == table.active_order_id for order in payment_orders
+        ):
+            linked_payment_order = session.get(models.Order, table.active_order_id)
+            if (
+                linked_payment_order
+                and linked_payment_order.tenant_id == current_user.tenant_id
+                and linked_payment_order.table_id == table.id
+                and linked_payment_order.deleted_at is None
+                and linked_payment_order.status != models.OrderStatus.cancelled
+            ):
+                linked_items = session.exec(
+                    select(models.OrderItem).where(
+                        models.OrderItem.order_id == linked_payment_order.id
+                    )
+                ).all()
+                has_active_items = any(_order_item_is_active(item) for item in linked_items)
+                if (
+                    has_active_items
+                    or _order_is_settled(linked_payment_order)
+                    or linked_payment_order.bill_requested_at is not None
+                    or linked_payment_order.hitpay_payment_request_id is not None
+                ):
+                    payment_orders.append(linked_payment_order)
+
+        payment_summary = _derive_table_payment_summary(payment_orders)
+        payment_status = _legacy_table_payment_status(payment_summary["status"])
 
         row = {
             "id": table.id,
@@ -8205,6 +8226,7 @@ def list_tables_with_status(
             "status": status,
             "operational_status": operational_status,
             "payment_status": payment_status,
+            "payment_summary": payment_summary,
             "is_active": table.is_active,
             "active_order_id": table.active_order_id,
             "assigned_waiter_id": table.assigned_waiter_id,
@@ -8231,10 +8253,14 @@ def list_tables_with_status(
             continue
         op_stats = [result[i]["operational_status"] for i in indices]
         st_stats = [result[i]["status"] for i in indices]
-        pay_stats = [result[i].get("payment_status", "none") for i in indices]
+        payment_summaries = [
+            result[i].get("payment_summary") or _derive_table_payment_summary([])
+            for i in indices
+        ]
         merged_op = _merge_operational_statuses(op_stats)
         merged_st = _merge_table_statuses(st_stats)
-        merged_pay = _merge_payment_statuses(pay_stats)
+        merged_payment_summary = _merge_table_payment_summaries(payment_summaries)
+        merged_pay = _legacy_table_payment_status(merged_payment_summary["status"])
         upcoming_list = [result[i].get("upcoming_reservation") for i in indices]
         merged_up = next((u for u in upcoming_list if u), None)
         seated_list = [result[i].get("seated_reservation") for i in indices]
@@ -8248,6 +8274,7 @@ def list_tables_with_status(
             result[i]["operational_status"] = merged_op
             result[i]["status"] = merged_st
             result[i]["payment_status"] = merged_pay
+            result[i]["payment_summary"] = merged_payment_summary
             result[i]["is_active"] = any_active
             if active_oid is not None:
                 result[i]["active_order_id"] = active_oid
@@ -9012,14 +9039,6 @@ _OP_STATUS_RANK = {
 }
 
 
-def _merge_payment_statuses(statuses: list[str]) -> str:
-    if any(s == "pending" for s in statuses):
-        return "pending"
-    if any(s == "paid" for s in statuses):
-        return "paid"
-    return "none"
-
-
 def _merge_operational_statuses(statuses: list[str]) -> str:
     best = "available"
     best_r = 0
@@ -9077,6 +9096,121 @@ def _order_item_is_active(item: models.OrderItem) -> bool:
 
 def _order_is_settled(order: models.Order) -> bool:
     return order.status == models.OrderStatus.paid or order.paid_at is not None
+
+
+_TABLE_PAYMENT_PRIORITY = {
+    "none": 0,
+    "paid": 1,
+    "requested": 2,
+    "unpaid": 3,
+}
+
+
+def _table_payment_method(order: models.Order) -> str | None:
+    if order.hitpay_payment_request_id:
+        return "hitpay"
+    value = (order.payment_method or "").strip().lower()
+    if value in {"card_terminal", "card", "paywave", "nets"}:
+        return "terminal"
+    if value in {"hitpay", "terminal", "cash"}:
+        return value
+    return value or None
+
+
+def _single_table_payment_method(orders: list[models.Order]) -> str | None:
+    methods = {_table_payment_method(order) for order in orders}
+    methods.discard(None)
+    return next(iter(methods)) if len(methods) == 1 else None
+
+
+def _derive_table_payment_summary(orders: list[models.Order]) -> dict[str, Any]:
+    """Derive collection state for billable orders in one open table visit.
+
+    Callers decide which orders belong to the current visit and have active items.
+    The helper is deliberately pure and safe-by-default so Tables, POS, and joined
+    table groups render the same server-authoritative payment state.
+    """
+    unique_orders = list({order.id: order for order in orders if order.id is not None}.values())
+    if not unique_orders:
+        return {
+            "status": "none",
+            "method": None,
+            "requested_at": None,
+            "paid_at": None,
+            "order_ids": [],
+        }
+
+    unsettled = [order for order in unique_orders if not _order_is_settled(order)]
+    requested = [
+        order
+        for order in unsettled
+        if order.bill_requested_at is not None or order.hitpay_payment_request_id is not None
+    ]
+
+    if not unsettled:
+        status = "paid"
+        method_orders = unique_orders
+    elif requested:
+        status = "requested"
+        method_orders = requested
+    else:
+        status = "unpaid"
+        method_orders = unsettled
+
+    requested_times = [order.bill_requested_at for order in requested if order.bill_requested_at]
+    paid_times = [order.paid_at for order in unique_orders if order.paid_at]
+    return {
+        "status": status,
+        "method": _single_table_payment_method(method_orders),
+        "requested_at": max(requested_times).isoformat() if requested_times else None,
+        "paid_at": max(paid_times).isoformat() if status == "paid" and paid_times else None,
+        "order_ids": sorted(order.id for order in unique_orders if order.id is not None),
+    }
+
+
+def _legacy_table_payment_status(status: str) -> str:
+    """Compatibility value for clients that predate the canonical summary."""
+    if status == "requested":
+        return "pending"
+    if status == "paid":
+        return "paid"
+    return "none"
+
+
+def _merge_table_payment_summaries(summaries: list[dict[str, Any]]) -> dict[str, Any]:
+    if not summaries:
+        return _derive_table_payment_summary([])
+
+    merged_status = max(
+        (str(summary.get("status") or "none") for summary in summaries),
+        key=lambda status: _TABLE_PAYMENT_PRIORITY.get(status, 0),
+    )
+    relevant = [summary for summary in summaries if summary.get("status") == merged_status]
+    methods = {summary.get("method") for summary in relevant if summary.get("method")}
+    requested_values = [
+        str(summary["requested_at"])
+        for summary in relevant
+        if summary.get("requested_at")
+    ]
+    paid_values = [
+        str(summary["paid_at"])
+        for summary in relevant
+        if summary.get("paid_at")
+    ]
+    order_ids = sorted(
+        {
+            int(order_id)
+            for summary in summaries
+            for order_id in summary.get("order_ids", [])
+        }
+    )
+    return {
+        "status": merged_status,
+        "method": next(iter(methods)) if len(methods) == 1 else None,
+        "requested_at": max(requested_values) if requested_values else None,
+        "paid_at": max(paid_values) if merged_status == "paid" and paid_values else None,
+        "order_ids": order_ids,
+    }
 
 
 def _slot_datetime_utc(res_date: date, slot_time: time, tenant: models.Tenant) -> datetime:

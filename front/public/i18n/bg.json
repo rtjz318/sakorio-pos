@@ -1010,6 +1010,8 @@
     "LEGEND_PAYMENT_PENDING": "Чакащо плащане",
     "LEGEND_PAYMENT_PAID": "Платено",
     "PAYMENT_PENDING": "Чакащо плащане",
+    "PAYMENT_UNPAID": "Неплатено",
+    "PAYMENT_REQUESTED": "Плащането е поискано",
     "PAID": "Платено",
     "FLOOR_PUBLIC_BOOKING": "Отворено за онлайн резервация",
     "FLOOR_SEATING_ZONE": "Зона за резервация",

@@ -10,6 +10,7 @@ import {
   Order,
   Product,
   ProductQuestion,
+  TablePaymentStatus,
   TenantProduct,
   TenantSettings,
 } from '../services/api.service';
@@ -184,7 +185,13 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
                       <div class="table-card-bottom">
                         <span class="table-card-summary">{{ getTableSaleSummary(table) }}</span>
                         @if (getPaymentStateLabel(table); as paymentLabel) {
-                          <span class="table-card-payment-pill">{{ paymentLabel }}</span>
+                          <span
+                            class="table-card-payment-pill"
+                            [class]="paymentStateClass(getTablePaymentState(table))"
+                          >
+                            <span aria-hidden="true">{{ paymentStateIcon(getTablePaymentState(table)) }}</span>
+                            {{ paymentLabel }}
+                          </span>
                         }
                       </div>
                     </button>
@@ -3198,6 +3205,9 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       justify-self: start;
       align-self: start;
       width: fit-content;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.28rem;
       border-radius: 999px;
       padding: 0.22rem 0.5rem;
       background: color-mix(in srgb, var(--color-bg) 72%, white);
@@ -3209,6 +3219,24 @@ type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
       text-transform: none;
       white-space: nowrap;
       flex-shrink: 0;
+    }
+
+    .table-card-payment-pill.payment-state--unpaid {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+
+    .table-card-payment-pill.payment-state--requested {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+
+    .table-card-payment-pill.payment-state--paid {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
     }
 
     .table-card .state-pill {
@@ -8524,27 +8552,34 @@ export class CashierPosComponent {
   }
 
   getPaymentStateLabel(table: CanvasTable): string | null {
+    const status = this.getTablePaymentState(table);
+    if (status === 'none') return null;
+    if (status === 'unpaid') return 'Unpaid';
+    if (status === 'requested') return 'Payment requested';
+
+    const method = table.payment_summary?.method;
+    if (method === 'hitpay') return 'Paid · Online';
+    if (method === 'terminal') return 'Paid · Terminal';
+    if (method === 'cash') return 'Paid · Cash';
+    return 'Paid';
+  }
+
+  getTablePaymentState(table: CanvasTable): TablePaymentStatus {
+    if (table.payment_summary?.status) return table.payment_summary.status;
+    if (table.payment_status === 'pending') return 'requested';
+    if (table.payment_status === 'paid') return 'paid';
     const currentOrder = this.tableServiceOrder(table);
-    if (!this.tableHasOpenService(table) && !table.active_order_id && !currentOrder) {
-      return null;
-    }
-    if (!this.tableHasOpenService(table) && String(table.payment_status || '').toLowerCase() === 'none') {
-      return null;
-    }
-    switch (table.payment_status) {
-      case 'paid':
-        return 'Paid';
-      case 'pending':
-        if (this.orderPaymentMethodNormalized(currentOrder) === 'terminal') {
-          return 'Bring terminal';
-        }
-        return 'Payment requested';
-      default:
-        if (table.active_order_id && currentOrder && this.isPaid(currentOrder)) {
-          return 'Paid';
-        }
-        return table.active_order_id || currentOrder ? 'Open bill' : null;
-    }
+    return table.active_order_id || currentOrder ? 'unpaid' : 'none';
+  }
+
+  paymentStateClass(status: TablePaymentStatus): string {
+    return status === 'none' ? '' : `payment-state--${status}`;
+  }
+
+  paymentStateIcon(status: TablePaymentStatus): string {
+    if (status === 'paid') return '✓';
+    if (status === 'requested') return '◷';
+    return '!';
   }
 
   private formatReservationTime(value: string): string {

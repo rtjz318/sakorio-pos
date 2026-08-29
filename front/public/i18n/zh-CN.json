@@ -846,6 +846,8 @@
     "LEGEND_PAYMENT_PENDING": "待付款",
     "LEGEND_PAYMENT_PAID": "已付款",
     "PAYMENT_PENDING": "待付款",
+    "PAYMENT_UNPAID": "未付款",
+    "PAYMENT_REQUESTED": "已请求付款",
     "PAID": "已付款",
     "FLOOR_PUBLIC_BOOKING": "开放在线预订",
     "FLOOR_SEATING_ZONE": "预订区域",

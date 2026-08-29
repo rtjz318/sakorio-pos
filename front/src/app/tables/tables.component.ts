@@ -2,7 +2,7 @@ import { afterNextRender, Component, effect, inject, signal, computed, OnInit } 
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { QRCodeComponent } from 'angularx-qrcode';
-import { ApiService, Table, CanvasTable, TenantSettings, Floor, User, GuestQueueSummary, GuestQueueEntry, Product, ProductQuestion, Order, OrderItemCreate } from '../services/api.service';
+import { ApiService, Table, CanvasTable, TablePaymentStatus, TenantSettings, Floor, User, GuestQueueSummary, GuestQueueEntry, Product, ProductQuestion, Order, OrderItemCreate } from '../services/api.service';
 import { PermissionService } from '../services/permission.service';
 import { SidebarComponent } from '../shared/sidebar.component';
 import { StaffPosToolbarComponent } from '../shared/staff-pos-toolbar.component';
@@ -295,11 +295,19 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                         <td>{{ getFloorName(row.floorId) }}</td>
                         <td>{{ row.seatTotal }}</td>
                         <td>
-                          @if (groupMembersHaveActiveSession(row.members)) {
-                            <span class="status-badge status-active status-inline"><span class="status-dot"></span>{{ 'TABLES.ACTIVE' | translate }}</span>
-                          } @else {
-                            <span class="status-badge status-inactive status-inline"><span class="status-dot"></span>{{ 'TABLES.INACTIVE' | translate }}</span>
-                          }
+                          <div class="status-stack">
+                            @if (groupMembersHaveActiveSession(row.members)) {
+                              <span class="status-badge status-active status-inline"><span class="status-dot"></span>{{ 'TABLES.ACTIVE' | translate }}</span>
+                            } @else {
+                              <span class="status-badge status-inactive status-inline"><span class="status-dot"></span>{{ 'TABLES.INACTIVE' | translate }}</span>
+                            }
+                            @if (row.members[0] && tablePaymentLabel(row.members[0]); as paymentLabel) {
+                              <span class="table-payment-chip" [class]="tablePaymentClass(row.members[0])">
+                                <span aria-hidden="true">{{ tablePaymentIcon(row.members[0]) }}</span>
+                                {{ paymentLabel }}
+                              </span>
+                            }
+                          </div>
                         </td>
                         <td>—</td>
                         <td class="td-actions">
@@ -350,18 +358,24 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                     </td>
                   }
                   <td>
-                    @if (table.active_order_id) {
-                      <span class="status-badge status-active status-inline"><span class="status-dot"></span>{{ 'TABLES.ACTIVE' | translate }}</span>
-                    } @else if (table.upcoming_reservation) {
-                      <div class="status-stack">
+                    <div class="status-stack">
+                      @if (table.active_order_id) {
+                        <span class="status-badge status-active status-inline"><span class="status-dot"></span>{{ 'TABLES.ACTIVE' | translate }}</span>
+                      } @else if (table.upcoming_reservation) {
                         <span class="status-badge status-warning status-inline"><span class="status-dot"></span>Reserved</span>
                         <span class="table-reservation-inline table-reservation-inline--status">{{ tableReservationBadge(table) }}</span>
-                      </div>
-                    } @else if (table.is_active) {
-                      <span class="status-badge status-active status-inline"><span class="status-dot"></span>{{ 'TABLES.ACTIVE' | translate }}</span>
-                    } @else {
-                      <span class="status-badge status-inactive status-inline"><span class="status-dot"></span>{{ 'TABLES.INACTIVE' | translate }}</span>
-                    }
+                      } @else if (table.is_active) {
+                        <span class="status-badge status-active status-inline"><span class="status-dot"></span>{{ 'TABLES.ACTIVE' | translate }}</span>
+                      } @else {
+                        <span class="status-badge status-inactive status-inline"><span class="status-dot"></span>{{ 'TABLES.INACTIVE' | translate }}</span>
+                      }
+                      @if (tablePaymentLabel(table); as paymentLabel) {
+                        <span class="table-payment-chip" [class]="tablePaymentClass(table)">
+                          <span aria-hidden="true">{{ tablePaymentIcon(table) }}</span>
+                          {{ paymentLabel }}
+                        </span>
+                      }
+                    </div>
                   </td>
                   <td>
                     @if (canManageTableAssignments()) {
@@ -606,13 +620,19 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                 <div class="status-section-top">
                   <div
                     class="status-badge"
-                    [class.status-warning]="tableIsPaid(table)"
-                    [class.status-active]="!tableIsPaid(table) && tableHasActiveSessionOrOpenOrder(table)"
-                    [class.status-inactive]="!tableIsPaid(table) && !tableHasActiveSessionOrOpenOrder(table)"
+                    [class.status-warning]="!tableHasActiveSessionOrOpenOrder(table) && !!table.upcoming_reservation"
+                    [class.status-active]="tableHasActiveSessionOrOpenOrder(table)"
+                    [class.status-inactive]="!tableHasActiveSessionOrOpenOrder(table) && !table.upcoming_reservation"
                   >
                     <span class="status-dot"></span>
                     {{ tableOperatorStateLabel(table) }}
                   </div>
+                  @if (tablePaymentLabel(table); as paymentLabel) {
+                    <span class="table-payment-chip" [class]="tablePaymentClass(table)">
+                      <span aria-hidden="true">{{ tablePaymentIcon(table) }}</span>
+                      {{ paymentLabel }}
+                    </span>
+                  }
                   @if (table.active_order_id) {
                     <span class="table-operator-chip">Bill #{{ table.active_order_id }}</span>
                   } @else if (tableReservationBadge(table)) {
@@ -1912,6 +1932,33 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     .table-operator-chip--reservation {
       background: rgba(245, 158, 11, 0.12);
       color: #b45309;
+    }
+    .table-payment-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.32rem;
+      min-height: 1.85rem;
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .table-payment-chip.payment-state--unpaid {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+    .table-payment-chip.payment-state--requested {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+    .table-payment-chip.payment-state--paid {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
     }
     .table-operator-summary {
       display: flex;
@@ -3402,12 +3449,8 @@ export class TablesComponent implements OnInit {
   }
 
   tableOperatorStateLabel(table: CanvasTable): string {
-    if (this.tableIsPaid(table)) {
-      return 'Ready to clear';
-    }
-    if (table.active_order_id) {
-      return 'Live order';
-    }
+    if (table.operational_status === 'ready_to_serve') return 'Ready to serve';
+    if (table.operational_status === 'open_order') return 'Open order';
     if (table.upcoming_reservation) {
       return 'Reserved soon';
     }
@@ -3419,6 +3462,37 @@ export class TablesComponent implements OnInit {
       return 'Seated · start order';
     }
     return 'Idle table';
+  }
+
+  tablePaymentState(table: CanvasTable): TablePaymentStatus {
+    if (table.payment_summary?.status) return table.payment_summary.status;
+    if (table.payment_status === 'pending') return 'requested';
+    if (table.payment_status === 'paid') return 'paid';
+    return table.active_order_id ? 'unpaid' : 'none';
+  }
+
+  tablePaymentLabel(table: CanvasTable): string | null {
+    const status = this.tablePaymentState(table);
+    if (status === 'none') return null;
+    if (status === 'unpaid') return 'Unpaid';
+    if (status === 'requested') return 'Payment requested';
+    const method = table.payment_summary?.method;
+    if (method === 'hitpay') return 'Paid · Online';
+    if (method === 'terminal') return 'Paid · Terminal';
+    if (method === 'cash') return 'Paid · Cash';
+    return 'Paid';
+  }
+
+  tablePaymentClass(table: CanvasTable): string {
+    const status = this.tablePaymentState(table);
+    return status === 'none' ? '' : `payment-state--${status}`;
+  }
+
+  tablePaymentIcon(table: CanvasTable): string {
+    const status = this.tablePaymentState(table);
+    if (status === 'paid') return '✓';
+    if (status === 'requested') return '◷';
+    return '!';
   }
 
   tableIsPaid(table: CanvasTable): boolean {

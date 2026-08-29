@@ -821,6 +821,8 @@
     "LEGEND_PAYMENT_PENDING": "Pagament pendent",
     "LEGEND_PAYMENT_PAID": "Pagat",
     "PAYMENT_PENDING": "Pagament pendent",
+    "PAYMENT_UNPAID": "Sense pagar",
+    "PAYMENT_REQUESTED": "Pagament sol·licitat",
     "PAID": "Pagat",
     "FLOOR_PUBLIC_BOOKING": "Obert a reserves en línia",
     "FLOOR_SEATING_ZONE": "Zona de reserva",

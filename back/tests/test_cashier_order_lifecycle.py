@@ -138,6 +138,8 @@ class TestCashierOrderLifecycle(PgClientTestCase):
         self.assertEqual(open_status["active_order_id"], order_id)
         self.assertEqual(open_status["operational_status"], "open_order")
         self.assertEqual(open_status["payment_status"], "none")
+        self.assertEqual(open_status["payment_summary"]["status"], "unpaid")
+        self.assertEqual(open_status["payment_summary"]["order_ids"], [order_id])
 
         paid = self.client.put(
             f"/orders/{order_id}/mark-paid",
@@ -149,6 +151,9 @@ class TestCashierOrderLifecycle(PgClientTestCase):
         paid_status = self._table_status()
         self.assertEqual(paid_status["active_order_id"], order_id)
         self.assertEqual(paid_status["payment_status"], "paid")
+        self.assertEqual(paid_status["payment_summary"]["status"], "paid")
+        self.assertEqual(paid_status["payment_summary"]["method"], "cash")
+        self.assertIsNotNone(paid_status["payment_summary"]["paid_at"])
 
         close = self.client.post(
             f"/tables/{self.table_id}/close",
@@ -161,6 +166,7 @@ class TestCashierOrderLifecycle(PgClientTestCase):
         self.assertFalse(available_status["is_active"])
         self.assertIsNone(available_status["active_order_id"])
         self.assertEqual(available_status["operational_status"], "available")
+        self.assertEqual(available_status["payment_summary"]["status"], "none")
 
         delivered_items = self.session.exec(
             select(models.OrderItem).where(models.OrderItem.order_id == order_id)

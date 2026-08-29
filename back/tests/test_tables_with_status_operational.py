@@ -47,6 +47,7 @@ class TestTablesWithStatusOperational(PgClientTestCase):
         self.session.add(floor)
         self.session.commit()
         self.session.refresh(floor)
+        self.floor_id = floor.id
 
         table = models.Table(
             name="T-op",
@@ -68,12 +69,36 @@ class TestTablesWithStatusOperational(PgClientTestCase):
         self.table_id = table.id
         self.tenant_id = tenant.id
 
+        product = models.Product(
+            name="Payment summary test item",
+            price_cents=1200,
+            tenant_id=tenant.id,
+        )
+        self.session.add(product)
+        self.session.commit()
+        self.session.refresh(product)
+        self.product_id = product.id
+
     def _row(self) -> dict:
         h = _bearer_headers(self.owner)
         r = self.client.get("/tables/with-status", headers=h)
         self.assertEqual(r.status_code, 200, r.text)
         rows = r.json()
         return next(x for x in rows if x["id"] == self.table_id)
+
+    def _add_item(self, order: models.Order) -> models.OrderItem:
+        assert order.id is not None
+        item = models.OrderItem(
+            order_id=order.id,
+            product_id=self.product_id,
+            product_name="Payment summary test item",
+            quantity=1,
+            price_cents=1200,
+        )
+        self.session.add(item)
+        self.session.commit()
+        self.session.refresh(item)
+        return item
 
     def test_open_order_when_preparing(self) -> None:
         order = models.Order(
@@ -106,12 +131,16 @@ class TestTablesWithStatusOperational(PgClientTestCase):
             tenant_id=self.tenant_id,
             status=models.OrderStatus.preparing,
             bill_requested_at=datetime.now(timezone.utc),
+            payment_method="terminal",
         )
         self.session.add(order)
         self.session.commit()
         row = self._row()
         self.assertEqual(row["operational_status"], "open_order")
         self.assertEqual(row["payment_status"], "pending")
+        self.assertEqual(row["payment_summary"]["status"], "requested")
+        self.assertEqual(row["payment_summary"]["method"], "terminal")
+        self.assertIsNotNone(row["payment_summary"]["requested_at"])
 
     def test_ready_to_serve_and_payment_pending_when_ready_and_bill_requested(self) -> None:
         order = models.Order(
@@ -231,6 +260,111 @@ class TestTablesWithStatusOperational(PgClientTestCase):
         row = self._row()
         self.assertEqual(row["operational_status"], "occupied")
         self.assertEqual(row["payment_status"], "paid")
+        self.assertEqual(row["payment_summary"]["status"], "paid")
+        self.assertEqual(row["payment_summary"]["order_ids"], [order.id])
+
+    def test_payment_summary_unpaid_with_billable_items(self) -> None:
+        order = models.Order(
+            table_id=self.table_id,
+            tenant_id=self.tenant_id,
+            status=models.OrderStatus.preparing,
+        )
+        self.session.add(order)
+        self.session.commit()
+        self.session.refresh(order)
+        self._add_item(order)
+
+        table = self.session.get(models.Table, self.table_id)
+        assert table is not None
+        table.active_order_id = order.id
+        self.session.add(table)
+        self.session.commit()
+
+        row = self._row()
+        self.assertEqual(row["payment_summary"]["status"], "unpaid")
+        self.assertIsNone(row["payment_summary"]["method"])
+        self.assertEqual(row["payment_summary"]["order_ids"], [order.id])
+        self.assertEqual(row["payment_status"], "none")
+
+    def test_hitpay_request_is_requested_until_verified(self) -> None:
+        order = models.Order(
+            table_id=self.table_id,
+            tenant_id=self.tenant_id,
+            status=models.OrderStatus.completed,
+            hitpay_payment_request_id=f"hp-{uuid4().hex}",
+        )
+        self.session.add(order)
+        self.session.commit()
+        self.session.refresh(order)
+        self._add_item(order)
+
+        table = self.session.get(models.Table, self.table_id)
+        assert table is not None
+        table.active_order_id = order.id
+        self.session.add(table)
+        self.session.commit()
+
+        row = self._row()
+        self.assertEqual(row["payment_summary"]["status"], "requested")
+        self.assertEqual(row["payment_summary"]["method"], "hitpay")
+        self.assertIsNone(row["payment_summary"]["paid_at"])
+        self.assertEqual(row["payment_status"], "pending")
+
+    def test_joined_group_unpaid_overrides_paid(self) -> None:
+        group = models.TableGroup(tenant_id=self.tenant_id)
+        self.session.add(group)
+        self.session.commit()
+        self.session.refresh(group)
+
+        first = self.session.get(models.Table, self.table_id)
+        assert first is not None
+        first.table_group_id = group.id
+
+        second = models.Table(
+            name="T-op-2",
+            token=f"tok-op-{uuid4().hex}",
+            floor_id=self.floor_id,
+            tenant_id=self.tenant_id,
+            table_group_id=group.id,
+            is_active=True,
+        )
+        self.session.add(first)
+        self.session.add(second)
+        self.session.commit()
+        self.session.refresh(second)
+
+        paid_order = models.Order(
+            table_id=first.id,
+            tenant_id=self.tenant_id,
+            status=models.OrderStatus.paid,
+            paid_at=datetime.now(timezone.utc),
+            payment_method="cash",
+        )
+        unpaid_order = models.Order(
+            table_id=second.id,
+            tenant_id=self.tenant_id,
+            status=models.OrderStatus.preparing,
+        )
+        self.session.add(paid_order)
+        self.session.add(unpaid_order)
+        self.session.commit()
+        self.session.refresh(paid_order)
+        self.session.refresh(unpaid_order)
+        self._add_item(paid_order)
+        self._add_item(unpaid_order)
+
+        first.active_order_id = paid_order.id
+        second.active_order_id = unpaid_order.id
+        self.session.add(first)
+        self.session.add(second)
+        self.session.commit()
+
+        row = self._row()
+        self.assertEqual(row["payment_summary"]["status"], "unpaid")
+        self.assertEqual(
+            row["payment_summary"]["order_ids"],
+            sorted([paid_order.id, unpaid_order.id]),
+        )
 
 
 if __name__ == "__main__":

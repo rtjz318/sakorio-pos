@@ -824,6 +824,8 @@
     "LEGEND_PAYMENT_PENDING": "Zahlung ausstehend",
     "LEGEND_PAYMENT_PAID": "Bezahlt",
     "PAYMENT_PENDING": "Zahlung ausstehend",
+    "PAYMENT_UNPAID": "Unbezahlt",
+    "PAYMENT_REQUESTED": "Zahlung angefordert",
     "PAID": "Bezahlt",
     "FLOOR_PUBLIC_BOOKING": "Online-Reservierung offen",
     "FLOOR_SEATING_ZONE": "Reservierung: Sitzbereich",

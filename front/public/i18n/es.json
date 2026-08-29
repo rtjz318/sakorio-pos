@@ -1009,6 +1009,8 @@
     "LEGEND_PAYMENT_PENDING": "Pago pendiente",
     "LEGEND_PAYMENT_PAID": "Pagado",
     "PAYMENT_PENDING": "Pago pendiente",
+    "PAYMENT_UNPAID": "Sin pagar",
+    "PAYMENT_REQUESTED": "Pago solicitado",
     "PAID": "Pagado",
     "FLOOR_PUBLIC_BOOKING": "Abierto para reserva online",
     "FLOOR_SEATING_ZONE": "Zona de reserva",

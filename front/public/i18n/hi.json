@@ -846,6 +846,8 @@
     "LEGEND_PAYMENT_PENDING": "भुगतान लंबित",
     "LEGEND_PAYMENT_PAID": "भुगतान किया गया",
     "PAYMENT_PENDING": "भुगतान लंबित",
+    "PAYMENT_UNPAID": "भुगतान बाकी",
+    "PAYMENT_REQUESTED": "भुगतान का अनुरोध किया गया",
     "PAID": "भुगतान किया गया",
     "FLOOR_PUBLIC_BOOKING": "ऑनलाइन बुकिंग खुला",
     "FLOOR_SEATING_ZONE": "आरक्षण क्षेत्र",

@@ -431,7 +431,7 @@ const STAFF_ORDERS_ROLES = new Set([
                           [attr.font-size]="paymentChipFontSize(table)"
                           font-weight="600"
                         >
-                          {{ paymentChipLabelKey(table) | translate }}
+                          {{ paymentChipIcon(table) }} {{ paymentChipLabelKey(table) | translate }}
                         </text>
                       </g>
                     }
@@ -515,9 +515,11 @@ const STAFF_ORDERS_ROLES = new Set([
                     @if (paymentStatusKey(selectedTable()!) !== 'none') {
                       <div
                         class="status-badge"
-                        [class.op-payment-pending]="paymentStatusKey(selectedTable()!) === 'pending'"
+                        [class.op-payment-unpaid]="paymentStatusKey(selectedTable()!) === 'unpaid'"
+                        [class.op-payment-requested]="paymentStatusKey(selectedTable()!) === 'requested'"
                         [class.op-paid]="paymentStatusKey(selectedTable()!) === 'paid'"
                       >
+                        <span aria-hidden="true">{{ paymentChipIcon(selectedTable()!) }}</span>
                         {{ paymentStatusLabelKey(selectedTable()!) | translate }}
                       </div>
                     }
@@ -814,9 +816,13 @@ const STAFF_ORDERS_ROLES = new Set([
       background: rgba(124, 58, 237, 0.28);
       color: #ddd6fe;
     }
-    .status-badge.op-payment-pending {
-      background: rgba(234, 88, 12, 0.28);
-      color: #fed7aa;
+    .status-badge.op-payment-unpaid {
+      background: rgba(185, 28, 28, 0.3);
+      color: #fecaca;
+    }
+    .status-badge.op-payment-requested {
+      background: rgba(217, 119, 6, 0.3);
+      color: #fde68a;
     }
     .status-badge.op-paid {
       background: rgba(5, 150, 105, 0.28);
@@ -2021,8 +2027,9 @@ export class TablesCanvasComponent implements OnInit, OnDestroy {
   ];
 
   /** Bottom chip on floor SVG (payment / collection), separate from table fill. */
-  readonly floorPaymentLegendItems: { key: 'pending' | 'paid'; swatch: string; labelKey: string }[] = [
-    { key: 'pending', swatch: '#ea580c', labelKey: 'TABLES.LEGEND_PAYMENT_PENDING' },
+  readonly floorPaymentLegendItems: { key: Exclude<TablePaymentStatus, 'none'>; swatch: string; labelKey: string }[] = [
+    { key: 'unpaid', swatch: '#b91c1c', labelKey: 'TABLES.PAYMENT_UNPAID' },
+    { key: 'requested', swatch: '#d97706', labelKey: 'TABLES.PAYMENT_REQUESTED' },
     { key: 'paid', swatch: '#059669', labelKey: 'TABLES.LEGEND_PAYMENT_PAID' },
   ];
 
@@ -2048,20 +2055,23 @@ export class TablesCanvasComponent implements OnInit, OnDestroy {
   }
 
   paymentStatusKey(table: CanvasTable): TablePaymentStatus {
-    return table.payment_status ?? 'none';
+    if (table.payment_summary?.status) return table.payment_summary.status;
+    if (table.payment_status === 'pending') return 'requested';
+    if (table.payment_status === 'paid') return 'paid';
+    return 'none';
   }
 
   paymentStatusLabelKey(table: CanvasTable): string {
     const p = this.paymentStatusKey(table);
-    if (p === 'pending') return 'TABLES.PAYMENT_PENDING';
+    if (p === 'unpaid') return 'TABLES.PAYMENT_UNPAID';
+    if (p === 'requested') return 'TABLES.PAYMENT_REQUESTED';
     if (p === 'paid') return 'TABLES.PAID';
     return '';
   }
 
   /** Show bottom payment chip when API signals bill/payment or paid-linked session. */
   showPaymentChip(table: CanvasTable): boolean {
-    const p = this.paymentStatusKey(table);
-    return p === 'pending' || p === 'paid';
+    return this.paymentStatusKey(table) !== 'none';
   }
 
   private tableShapeWidthForChip(table: CanvasTable): number {
@@ -2115,11 +2125,21 @@ export class TablesCanvasComponent implements OnInit, OnDestroy {
   }
 
   paymentChipFill(table: CanvasTable): string {
-    return this.paymentStatusKey(table) === 'paid' ? '#059669' : '#ea580c';
+    const status = this.paymentStatusKey(table);
+    if (status === 'paid') return '#059669';
+    if (status === 'requested') return '#d97706';
+    return '#b91c1c';
   }
 
   paymentChipLabelKey(table: CanvasTable): string {
-    return this.paymentStatusKey(table) === 'paid' ? 'TABLES.PAID' : 'TABLES.PAYMENT_PENDING';
+    return this.paymentStatusLabelKey(table);
+  }
+
+  paymentChipIcon(table: CanvasTable): string {
+    const status = this.paymentStatusKey(table);
+    if (status === 'paid') return '✓';
+    if (status === 'requested') return '◷';
+    return '!';
   }
 
   private opColors(key: TableOperationalStatus): { fill: string; stroke: string } {
@@ -2153,7 +2173,7 @@ export class TablesCanvasComponent implements OnInit, OnDestroy {
   tableCaptionName(table: CanvasTable): string {
     const raw = (table.name || '').trim();
     if (raw.length <= 14) return raw || '?';
-    return raw.slice(0, 12) + '�';
+    return raw.slice(0, 12) + '…';
   }
 
   tableSeatLabel(table: CanvasTable): string {

@@ -1011,6 +1011,8 @@
     "LEGEND_PAYMENT_PENDING": "ادائیگی زیر التواء",
     "LEGEND_PAYMENT_PAID": "ادا شدہ",
     "PAYMENT_PENDING": "ادائیگی زیر التواء",
+    "PAYMENT_UNPAID": "غیر ادا شدہ",
+    "PAYMENT_REQUESTED": "ادائیگی کی درخواست کی گئی",
     "PAID": "ادا شدہ",
     "FLOOR_PUBLIC_BOOKING": "کھولیں کے لیے آن لائن بکنگ",
     "FLOOR_SEATING_ZONE": "بکنگ نشست",

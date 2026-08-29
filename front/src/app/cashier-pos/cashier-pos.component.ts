@@ -8427,6 +8427,7 @@ export class CashierPosComponent {
 
   private applyPaidOrderLocally(orderId: number, tableId: number, mode: PosCheckoutMode): void {
     const paidAt = new Date().toISOString();
+    const canonicalMethod = mode === 'card_terminal' ? 'terminal' : mode;
     this.orders.update((orders) =>
       orders.map((order) =>
         order.id === orderId
@@ -8442,11 +8443,25 @@ export class CashierPosComponent {
     this.tables.update((tables) =>
       tables.map((table) =>
         table.id === tableId
-          ? {
-              ...table,
-              payment_status: 'paid',
-              active_order_id: orderId,
-            }
+          ? (() => {
+              const summaryOrderIds = table.payment_summary?.order_ids ?? [];
+              const onlySettledOrder =
+                summaryOrderIds.length === 0 || summaryOrderIds.every((id) => id === orderId);
+              return {
+                ...table,
+                payment_status: onlySettledOrder ? ('paid' as const) : table.payment_status,
+                payment_summary: onlySettledOrder
+                  ? {
+                      status: 'paid' as const,
+                      method: canonicalMethod,
+                      requested_at: table.payment_summary?.requested_at ?? null,
+                      paid_at: paidAt,
+                      order_ids: [orderId],
+                    }
+                  : table.payment_summary,
+                active_order_id: orderId,
+              };
+            })()
           : table,
       ),
     );

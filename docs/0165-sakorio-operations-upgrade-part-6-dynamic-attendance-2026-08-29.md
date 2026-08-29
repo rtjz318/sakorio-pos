@@ -89,4 +89,5 @@ The dedicated revocable attendance-station token described as a future hardened 
 | One open session per employee | Passed database constraint |
 | Planned history remains readable | Passed |
 | Timetable contains no wage data | Passed contract/code review |
-| Live deployment and authenticated tablet visual check | Awaiting Render rollout checkpoint |
+| Live deployment contains dynamic-attendance commit | Passed — live footer displayed `156708df` |
+| Authenticated tablet visual check | Pending a signed-in browser session |

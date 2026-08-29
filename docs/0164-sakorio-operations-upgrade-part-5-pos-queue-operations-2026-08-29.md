@@ -81,6 +81,7 @@ The POS subscribes to the existing tenant queue WebSocket. Queue events are coal
 | No-show/cancel require confirmation | Passed |
 | Seated label remains until table close | Passed |
 | Tablet controls wrap without overlap | Passed build/layout implementation; live authenticated visual checkpoint pending |
+| Live deployment contains POS queue commit | Passed — live footer reached descendant `156708df` |
 
 ## 8. Next phase
 

@@ -78,7 +78,7 @@ Connection abuse is bounded to five simultaneous public sockets per token. Legac
 | WebSocket event excludes PII and raw token | Passed |
 | Current queue is tenant-local-day scoped | Passed |
 | Live deployment contains daily-number commit | Passed |
-| Live deployment contains real-time commit | Awaiting Render rollout checkpoint |
+| Live deployment contains real-time commit | Passed — live footer reached descendant `156708df` |
 
 ## 8. Next phase
 

@@ -82,13 +82,13 @@ Final combined regression after the live-review corrections:
 - local HAProxy application smoke: HTTP `200`;
 - backend health: HTTP `200`;
 - live public waitlist: loaded successfully against the migrated API;
-- live staff landing version reached `2.1.6 156708df`, proving Parts 1–6 were deployed before the final queue-handoff correction.
+- live staff landing version reached `2.1.6 45aa755d`, proving Parts 1–6 and the final seated-queue handoff correction are deployed.
 
 Known build warnings are unchanged and non-blocking: menu/POS stylesheet budgets and the QR library's CommonJS dependency.
 
 ## 5. Live browser evidence
 
-The live public waitlist displayed:
+After the final `45aa755d` rollout, the live public waitlist displayed:
 
 - current queue estimate;
 - join form and party-size controls;

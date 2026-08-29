@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import unittest
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from uuid import uuid4
 
 from pg_client_mixin import PgClientTestCase
@@ -88,6 +88,35 @@ class TestSeatingActivatesTable(PgClientTestCase):
         self.assertIsNotNone(table.activated_at)
 
     def test_queue_seating_activates_table_and_clears_stale_order(self) -> None:
+        stale_product = models.Product(
+            tenant_id=self.tenant_id,
+            name="Stale completed item",
+            price_cents=100,
+        )
+        self.session.add(stale_product)
+        self.session.commit()
+        self.session.refresh(stale_product)
+        stale_order = models.Order(
+            tenant_id=self.tenant_id,
+            table_id=self.table_id,
+            status=models.OrderStatus.completed,
+            created_at=datetime.now(timezone.utc) - timedelta(days=1),
+        )
+        self.session.add(stale_order)
+        self.session.commit()
+        self.session.refresh(stale_order)
+        self.session.add(
+            models.OrderItem(
+                order_id=stale_order.id,
+                product_id=stale_product.id,
+                product_name="Stale completed item",
+                quantity=1,
+                price_cents=100,
+                status=models.OrderItemStatus.delivered,
+            )
+        )
+        self.session.commit()
+
         entry = models.GuestQueueEntry(
             tenant_id=self.tenant_id,
             customer_name="Walk-in Party",
@@ -108,6 +137,14 @@ class TestSeatingActivatesTable(PgClientTestCase):
         self.assertEqual(response.json()["status"], "seated")
         self.assertEqual(response.json()["seated_table_id"], self.table_id)
         self._assert_clean_active_session()
+
+        table_status_response = self.client.get("/tables/with-status", headers=self.headers)
+        self.assertEqual(table_status_response.status_code, 200, table_status_response.text)
+        table_status = next(
+            item for item in table_status_response.json() if item["id"] == self.table_id
+        )
+        self.assertEqual(table_status["payment_summary"]["status"], "none")
+        self.assertIsNone(table_status["active_order_id"])
 
     def test_reservation_seating_activates_table_and_clears_stale_order(self) -> None:
         reservation = models.Reservation(

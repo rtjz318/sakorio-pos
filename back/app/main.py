@@ -8186,7 +8186,7 @@ def list_tables_with_status(
             ):
                 active_order = cand
         if active_order is None:
-            active_order = session.exec(
+            active_order_candidates = session.exec(
                 select(models.Order)
                 .where(
                     models.Order.table_id == table.id,
@@ -8194,7 +8194,19 @@ def list_tables_with_status(
                     models.Order.status.in_(_in_flight_order_statuses),
                 )
                 .order_by(models.Order.id.desc())
-            ).first()
+            ).all()
+            active_order = next(
+                (
+                    candidate
+                    for candidate in active_order_candidates
+                    if table.is_active
+                    and (
+                        table.activated_at is None
+                        or _is_order_in_current_table_session(candidate, table)
+                    )
+                ),
+                None,
+            )
         seated_here = session.exec(
             select(models.Reservation).where(
                 models.Reservation.table_id == table.id,

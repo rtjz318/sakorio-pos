@@ -8508,12 +8508,12 @@ export class CashierPosComponent {
   }
 
   isReadyForCashier(table: CanvasTable | null | undefined): boolean {
-    if (!table?.id || table.is_active === false) {
+    if (!table?.id || this.getTableState(table) !== 'available') {
       return false;
     }
 
     const serviceOrder = this.tableServiceOrder(table);
-    return !serviceOrder || this.isPaid(serviceOrder) || this.isCancelledOrder(serviceOrder);
+    return !serviceOrder || this.isCancelledOrder(serviceOrder);
   }
 
   canStartCashierBill(table: CanvasTable | null | undefined): boolean {

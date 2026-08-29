@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import unittest
-from datetime import date, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from pg_client_mixin import PgClientTestCase
 
@@ -26,9 +27,16 @@ def _bearer_headers(user: models.User) -> dict[str, str]:
 class TestReservationTableAssignment(PgClientTestCase):
     def setUp(self) -> None:
         super().setUp()
+        now_utc = datetime.now(timezone.utc)
+        timezone_name = next(
+            name
+            for name in ("Pacific/Pago_Pago", "Pacific/Kiritimati")
+            if now_utc.astimezone(ZoneInfo(name)).date() != now_utc.date()
+        )
         tenant = models.Tenant(
             name=f"Assignment Tenant {uuid4().hex[:8]}",
             reservation_average_table_turn_minutes=90,
+            timezone=timezone_name,
         )
         self.session.add(tenant)
         self.session.commit()
@@ -65,7 +73,9 @@ class TestReservationTableAssignment(PgClientTestCase):
 
         self.tenant_id = tenant.id
         self.table_id = table.id
-        self.booking_date = date.today() + timedelta(days=1)
+        self.local_today = now_utc.astimezone(ZoneInfo(timezone_name)).date()
+        self.assertNotEqual(self.local_today, now_utc.date())
+        self.booking_date = self.local_today + timedelta(days=1)
 
     def _reservation(self, at: time, name: str) -> models.Reservation:
         reservation = models.Reservation(
@@ -90,6 +100,11 @@ class TestReservationTableAssignment(PgClientTestCase):
             json={"table_id": self.table_id},
         )
 
+    def _table_status(self) -> dict:
+        response = self.client.get("/tables/with-status", headers=self.headers)
+        self.assertEqual(response.status_code, 200, response.text)
+        return next(row for row in response.json() if row["id"] == self.table_id)
+
     def test_assignment_keeps_future_booking_and_table_inactive(self) -> None:
         reservation = self._reservation(time(18, 0), "Future Party")
 
@@ -105,12 +120,39 @@ class TestReservationTableAssignment(PgClientTestCase):
         assert table is not None
         self.assertFalse(table.is_active)
 
-        table_status = self.client.get("/tables/with-status", headers=self.headers)
-        self.assertEqual(table_status.status_code, 200, table_status.text)
-        table_row = next(row for row in table_status.json() if row["id"] == self.table_id)
+        table_row = self._table_status()
+        self.assertEqual(table_row["status"], "available")
+        self.assertNotIn("upcoming_reservation", table_row)
+
+        listed = self.client.get(
+            f"/reservations?reservation_date={self.booking_date.isoformat()}",
+            headers=self.headers,
+        )
+        self.assertEqual(listed.status_code, 200, listed.text)
+        listed_reservation = next(row for row in listed.json() if row["id"] == reservation.id)
+        self.assertEqual(listed_reservation["table_id"], self.table_id)
+
+    def test_only_assigned_local_today_booking_appears_on_table(self) -> None:
+        self.booking_date = self.local_today
+        reservation = self._reservation(time(0, 1), "Today Party")
+
+        before_assignment = self._table_status()
+        self.assertEqual(before_assignment["status"], "available")
+        self.assertNotIn("upcoming_reservation", before_assignment)
+
+        response = self._assign(reservation)
+        self.assertEqual(response.status_code, 200, response.text)
+
+        after_assignment = self._table_status()
+        self.assertEqual(after_assignment["status"], "reserved")
         self.assertEqual(
-            table_row["upcoming_reservation"]["reservation_date"],
-            self.booking_date.isoformat(),
+            after_assignment["upcoming_reservation"],
+            {
+                "reservation_id": reservation.id,
+                "reservation_date": self.local_today.isoformat(),
+                "reservation_time": "00:01",
+                "customer_name": "Today Party",
+            },
         )
 
     def test_overlapping_assignment_is_rejected(self) -> None:

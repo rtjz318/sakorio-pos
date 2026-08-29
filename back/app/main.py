@@ -8035,13 +8035,16 @@ def list_tables_with_status(
     Payment/collection is separate: ``payment_status`` is ``none``, ``pending`` (bill or
     payment requested on the active order), or ``paid`` (table still links to a paid order
     while staff clears the session — chip only; often absent once the table is released).
-    Reserved tables may include ``upcoming_reservation`` when the booking is still in the future.
+    Reserved tables include ``upcoming_reservation`` only for assigned bookings on the
+    tenant's current local service date. Future bookings remain in Reservations.
     """
     tables = session.exec(
         select(models.Table).where(models.Table.tenant_id == current_user.tenant_id)
     ).all()
-    today_utc = datetime.now(timezone.utc).date()
-    now_utc = datetime.now(timezone.utc).time()
+    tenant = session.get(models.Tenant, current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    tenant_today = datetime.now(timezone.utc).astimezone(_tenant_timezone(tenant)).date()
 
     waiter_ids = set()
     floor_ids = set()
@@ -8133,14 +8136,12 @@ def list_tables_with_status(
                 select(models.Reservation).where(
                     models.Reservation.table_id == table.id,
                     models.Reservation.status == models.ReservationStatus.booked,
-                    models.Reservation.reservation_date >= today_utc,
-                )
+                    models.Reservation.reservation_date == tenant_today,
+                ).order_by(models.Reservation.reservation_time)
             ).first()
             status = "reserved" if reserved_here else "available"
             operational_status = "reserved" if reserved_here else "available"
-            if reserved_here and (
-                reserved_here.reservation_date > today_utc or reserved_here.reservation_time > now_utc
-            ):
+            if reserved_here:
                 upcoming_reservation = {
                     "reservation_id": reserved_here.id,
                     "reservation_date": reserved_here.reservation_date.isoformat(),

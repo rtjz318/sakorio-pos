@@ -1069,6 +1069,12 @@ def _is_stale_queue_entry(entry: models.GuestQueueEntry) -> bool:
     return requested_at <= stale_cutoff
 
 
+def _guest_queue_service_date(tenant: models.Tenant) -> date:
+    """Return the restaurant's current local service date for queue allocation/filtering."""
+
+    return datetime.now(timezone.utc).astimezone(_tenant_timezone(tenant)).date()
+
+
 @app.get("/public/tenants/{tenant_id}/queue")
 @public_menu_ip_limit()
 def get_public_queue_info(
@@ -1081,10 +1087,12 @@ def get_public_queue_info(
     if not tenant:
         raise HTTPException(status_code=404, detail="Restaurant not found")
 
+    service_date = _guest_queue_service_date(tenant)
     active_statuses = [models.GuestQueueStatus.waiting, models.GuestQueueStatus.notified]
     active_rows = session.exec(
         select(models.GuestQueueEntry).where(
             models.GuestQueueEntry.tenant_id == tenant_id,
+            models.GuestQueueEntry.service_date == service_date,
             models.GuestQueueEntry.status.in_(active_statuses),
         )
     ).all()
@@ -1134,11 +1142,13 @@ def join_public_queue(
         if not floor:
             raise HTTPException(status_code=404, detail="Preferred seating area not found")
 
+    service_date = _guest_queue_service_date(tenant)
     active_statuses = [models.GuestQueueStatus.waiting, models.GuestQueueStatus.notified]
     existing = session.exec(
         select(models.GuestQueueEntry)
         .where(
             models.GuestQueueEntry.tenant_id == tenant_id,
+            models.GuestQueueEntry.service_date == service_date,
             models.GuestQueueEntry.customer_phone == phone,
             models.GuestQueueEntry.status.in_(active_statuses),
         )
@@ -1149,6 +1159,7 @@ def join_public_queue(
 
     queue_entry = models.GuestQueueEntry(
         tenant_id=tenant_id,
+        service_date=service_date,
         customer_name=body.customer_name.replace("\x00", "").strip(),
         customer_phone=phone,
         party_size=body.party_size,
@@ -8803,9 +8814,14 @@ def _queue_utc_iso(value: datetime | None) -> str | None:
 
 
 def _queue_entry_to_dict(q: models.GuestQueueEntry, session: Session | None = None) -> dict:
+    queue_label = f"Q{q.queue_number:03d}" if q.queue_number is not None else "Queue"
     out = {
         "id": q.id,
         "tenant_id": q.tenant_id,
+        "service_date": q.service_date.isoformat() if q.service_date else None,
+        "queue_number": q.queue_number,
+        "queue_label": queue_label,
+        "status_version": q.status_version,
         "customer_name": q.customer_name,
         "customer_phone": q.customer_phone,
         "party_size": q.party_size,
@@ -8848,17 +8864,23 @@ def _public_queue_entry_to_dict(q: models.GuestQueueEntry, session: Session) -> 
             select(models.GuestQueueEntry)
             .where(
                 models.GuestQueueEntry.tenant_id == q.tenant_id,
+                models.GuestQueueEntry.service_date == q.service_date,
                 models.GuestQueueEntry.status.in_(active_statuses),
             )
-            .order_by(models.GuestQueueEntry.requested_at.asc(), models.GuestQueueEntry.id.asc())
+            .order_by(models.GuestQueueEntry.queue_number.asc(), models.GuestQueueEntry.id.asc())
         ).all()
         active_rows = [row for row in active_rows if not _is_stale_queue_entry(row)]
         position = next((index + 1 for index, row in enumerate(active_rows) if row.id == q.id), None)
 
     tenant = session.get(models.Tenant, q.tenant_id)
+    queue_label = f"Q{q.queue_number:03d}" if q.queue_number is not None else "Queue"
     return {
         "token": q.public_token,
-        "reference": f"Q{q.id:04d}" if q.id is not None else "Queue",
+        "reference": queue_label,
+        "queue_number": q.queue_number,
+        "queue_label": queue_label,
+        "service_date": q.service_date.isoformat() if q.service_date else None,
+        "status_version": q.status_version,
         "tenant_id": q.tenant_id,
         "tenant_name": tenant.name if tenant else "Restaurant",
         "customer_name": q.customer_name,
@@ -11168,7 +11190,11 @@ def list_guest_queue(
 ) -> list[dict]:
     stmt = select(models.GuestQueueEntry).where(models.GuestQueueEntry.tenant_id == current_user.tenant_id)
     if not include_closed:
+        tenant = session.get(models.Tenant, current_user.tenant_id)
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
         stmt = stmt.where(
+            models.GuestQueueEntry.service_date == _guest_queue_service_date(tenant),
             models.GuestQueueEntry.status.in_(
                 [
                     models.GuestQueueStatus.waiting,
@@ -11177,7 +11203,13 @@ def list_guest_queue(
                 ]
             )
         )
-    rows = session.exec(stmt.order_by(models.GuestQueueEntry.requested_at.asc())).all()
+    rows = session.exec(
+        stmt.order_by(
+            models.GuestQueueEntry.service_date.desc(),
+            models.GuestQueueEntry.queue_number.asc(),
+            models.GuestQueueEntry.id.asc(),
+        )
+    ).all()
     return [_queue_entry_to_dict(row, session) for row in rows]
 
 
@@ -11186,8 +11218,14 @@ def guest_queue_summary(
     current_user: models.User = Depends(require_permission(Permission.RESERVATION_READ)),
     session: Session = Depends(get_session),
 ) -> dict:
+    tenant = session.get(models.Tenant, current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
     rows = session.exec(
-        select(models.GuestQueueEntry).where(models.GuestQueueEntry.tenant_id == current_user.tenant_id)
+        select(models.GuestQueueEntry).where(
+            models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+            models.GuestQueueEntry.service_date == _guest_queue_service_date(tenant),
+        )
     ).all()
     live_rows = [row for row in rows if not _is_stale_queue_entry(row)]
     counts = {status.value: 0 for status in models.GuestQueueStatus}
@@ -11213,6 +11251,10 @@ def create_guest_queue_entry(
     current_user: models.User = Depends(require_permission(Permission.RESERVATION_WRITE)),
     session: Session = Depends(get_session),
 ) -> dict:
+    tenant = session.get(models.Tenant, current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    service_date = _guest_queue_service_date(tenant)
     phone_e164: str | None = None
     if isinstance(body.customer_phone, str) and body.customer_phone.strip():
         try:
@@ -11244,6 +11286,7 @@ def create_guest_queue_entry(
             select(models.GuestQueueEntry)
             .where(
                 models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+                models.GuestQueueEntry.service_date == service_date,
                 models.GuestQueueEntry.customer_phone == phone_e164,
                 models.GuestQueueEntry.status.in_(active_statuses),
             )
@@ -11254,7 +11297,8 @@ def create_guest_queue_entry(
                 status_code=409,
                 detail=(
                     f"{existing.customer_name} is already in the active queue as "
-                    f"#{existing.id} ({existing.status.value}). Update that entry instead."
+                    f"{_queue_entry_to_dict(existing)['queue_label']} "
+                    f"({existing.status.value}). Update that entry instead."
                 ),
             )
     if body.linked_reservation_id is not None:
@@ -11262,6 +11306,7 @@ def create_guest_queue_entry(
             select(models.GuestQueueEntry)
             .where(
                 models.GuestQueueEntry.tenant_id == current_user.tenant_id,
+                models.GuestQueueEntry.service_date == service_date,
                 models.GuestQueueEntry.linked_reservation_id == body.linked_reservation_id,
                 models.GuestQueueEntry.status.in_(active_statuses),
             )
@@ -11272,12 +11317,14 @@ def create_guest_queue_entry(
                 status_code=409,
                 detail=(
                     f"This reservation is already in the active queue as "
-                    f"#{existing_link.id} ({existing_link.status.value}). Seat or update that entry instead."
+                    f"{_queue_entry_to_dict(existing_link)['queue_label']} "
+                    f"({existing_link.status.value}). Seat or update that entry instead."
                 ),
             )
     now_utc = datetime.now(timezone.utc)
     queue_entry = models.GuestQueueEntry(
         tenant_id=current_user.tenant_id,
+        service_date=service_date,
         customer_name=body.customer_name.strip(),
         customer_phone=phone_e164,
         party_size=body.party_size,

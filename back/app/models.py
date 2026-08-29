@@ -805,8 +805,22 @@ class GuestQueueEntry(TenantMixin, table=True):
     """Walk-in or waitlist entry that can later be seated or converted to a reservation."""
 
     __tablename__ = "guest_queue_entry"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "service_date",
+            "queue_number",
+            name="uq_guest_queue_tenant_service_number",
+        ),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
+    service_date: date | None = Field(
+        default=None,
+        sa_column=Column(Date, nullable=True, index=True),
+    )
+    queue_number: int | None = Field(default=None, ge=1, index=True)
+    status_version: int = Field(default=1, ge=1)
     public_token: str = Field(
         default_factory=lambda: secrets.token_urlsafe(24),
         max_length=64,
@@ -833,6 +847,20 @@ class GuestQueueEntry(TenantMixin, table=True):
     cancel_reason: str | None = Field(default=None)
     created_by_user_id: int | None = Field(default=None, foreign_key="user.id", index=True)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class GuestQueueCounter(SQLModel, table=True):
+    """Atomic tenant-local daily counter used to allocate restaurant queue numbers."""
+
+    __tablename__ = "guest_queue_counter"
+
+    tenant_id: int = Field(foreign_key="tenant.id", primary_key=True)
+    service_date: date = Field(sa_column=Column(Date, primary_key=True, nullable=False))
+    next_number: int = Field(default=1, ge=1)
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
 
 class GuestFeedback(TenantMixin, table=True):

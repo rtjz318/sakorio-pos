@@ -464,6 +464,7 @@ const QUEUE_STALE_MINUTES = 12 * 60;
                       (click)="selectEntry(entry)">
                       <div class="queue-card-top">
                         <div class="queue-card-title">
+                          <span class="queue-card-number">{{ entry.queue_label }}</span>
                           <strong>{{ entry.customer_name }}</strong>
                           <span class="queue-card-subtitle">{{ queueSourceLabel(entry.source) }}</span>
                         </div>
@@ -526,7 +527,7 @@ const QUEUE_STALE_MINUTES = 12 * 60;
           @if (selectedEntry(); as entry) {
             <div class="card-head">
               <div>
-                <p class="eyebrow">Selected guest</p>
+                <p class="eyebrow">Selected guest · {{ entry.queue_label }}</p>
                 <h2>{{ entry.customer_name }}</h2>
               </div>
               <div class="chips">
@@ -1420,6 +1421,15 @@ const QUEUE_STALE_MINUTES = 12 * 60;
     .queue-card-title {
       display: grid;
       gap: 0.18rem;
+    }
+
+    .queue-card-number {
+      color: #9a3412;
+      font-size: 1.35rem;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
     }
 
     .queue-card-subtitle {

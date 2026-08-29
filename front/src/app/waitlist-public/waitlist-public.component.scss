@@ -190,10 +190,28 @@ textarea:focus {
 .restaurant-name { color: #302923; }
 .reference { font-variant-numeric: tabular-nums; }
 
+.queue-number-label {
+  margin: 30px 0 6px;
+  color: #756a61;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.queue-number {
+  color: #231f1b;
+  font-size: clamp(3.8rem, 16vw, 7rem);
+  font-weight: 1000;
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+  font-variant-numeric: tabular-nums;
+}
+
 .status-icon {
   width: 104px;
   height: 104px;
-  margin: 32px auto 24px;
+  margin: 24px auto;
   display: grid;
   place-items: center;
   border-radius: 32px;

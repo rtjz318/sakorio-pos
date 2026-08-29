@@ -1208,6 +1208,10 @@ export type GuestQueueSource =
 export interface GuestQueueEntry {
   id: number;
   tenant_id: number;
+  service_date: string;
+  queue_number: number;
+  queue_label: string;
+  status_version: number;
   customer_name: string;
   customer_phone?: string | null;
   party_size: number;
@@ -1265,6 +1269,10 @@ export interface PublicQueueCreate {
 export interface PublicQueueStatus {
   token: string;
   reference: string;
+  queue_number: number;
+  queue_label: string;
+  service_date: string;
+  status_version: number;
   tenant_id: number;
   tenant_name: string;
   customer_name: string;

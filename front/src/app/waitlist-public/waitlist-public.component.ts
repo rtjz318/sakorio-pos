@@ -19,6 +19,7 @@ import {
   styleUrl: './waitlist-public.component.scss',
 })
 export class WaitlistPublicComponent implements OnInit {
+  readonly Math = Math;
   private readonly api = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);

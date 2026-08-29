@@ -14,7 +14,11 @@
       <section class="status-card" [class.status-card--alert]="current.status === 'notified'">
         <div class="status-topline">
           <span class="restaurant-name">{{ current.tenant_name }}</span>
-          <span class="reference">{{ current.reference }}</span>
+          <span class="reference">{{ current.service_date }}</span>
+        </div>
+        <p class="queue-number-label">Your queue number</p>
+        <div class="queue-number" aria-label="Queue number {{ current.queue_label }}">
+          {{ current.queue_label }}
         </div>
         <div class="status-icon" aria-hidden="true">
           @if (current.status === 'notified') { ! } @else if (current.status === 'seated') { ✓ } @else { {{ current.position ?? '•' }} }
@@ -26,8 +30,8 @@
         @if (isActive()) {
           <div class="position-grid">
             <div>
-              <span>Position</span>
-              <strong>{{ current.position ?? 'Updating' }}</strong>
+              <span>Ahead of you</span>
+              <strong>{{ current.position != null ? Math.max(current.position - 1, 0) : 'Updating' }}</strong>
             </div>
             <div>
               <span>Party</span>

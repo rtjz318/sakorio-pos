@@ -471,13 +471,19 @@
 
   <!-- Bottom Sheet Cart -->
   @if (cart().length > 0) {
-  <div class="cart-sheet" [class.expanded]="cartExpanded()">
-    <div class="cart-handle" (click)="cartExpanded.set(!cartExpanded())">
+  <div class="cart-sheet" [class.expanded]="cartExpanded()" role="region" aria-label="Current cart">
+    <div class="cart-handle" aria-hidden="true">
       <span class="handle-bar"></span>
     </div>
 
     <!-- Collapsed state -->
-    <div class="cart-summary" (click)="cartExpanded.set(!cartExpanded())">
+    <button
+      type="button"
+      class="cart-summary"
+      (click)="cartExpanded.set(!cartExpanded())"
+      [attr.aria-expanded]="cartExpanded()"
+      [attr.aria-label]="cartExpanded() ? 'Collapse current cart' : 'Review current cart'"
+    >
       <div class="cart-summary-left">
         <div class="cart-icon-badge">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -494,7 +500,7 @@
         stroke="currentColor" stroke-width="2">
         <polyline points="18,15 12,9 6,15" />
       </svg>
-    </div>
+    </button>
 
     <!-- Expanded state -->
     @if (cartExpanded()) {

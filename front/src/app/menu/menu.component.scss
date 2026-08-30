@@ -1660,7 +1660,6 @@ $cart-expanded-max: 60vh;
   display: flex;
   justify-content: center;
   padding: var(--space-2) 0;
-  cursor: pointer;
 }
 
 .handle-bar {
@@ -1673,7 +1672,13 @@ $cart-expanded-max: 60vh;
 .cart-summary {
   display: flex;
   align-items: center;
+  width: 100%;
   padding: var(--space-2) var(--space-4) var(--space-3);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 

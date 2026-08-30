@@ -892,10 +892,6 @@ export class MenuComponent implements OnInit, OnDestroy {
       return [...items, { product, quantity: 1, notes: '', customization_answers: customizationAnswers }];
     });
     this.flashProductAdded(product, productKey);
-    // Auto-expand cart when adding first item
-    if (this.cart().length === 1) {
-      this.cartExpanded.set(true);
-    }
   }
 
   /** Open questions modal for a product that has customization questions. */

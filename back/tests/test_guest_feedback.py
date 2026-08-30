@@ -175,8 +175,9 @@ class TestGuestFeedback(PgClientTestCase):
         )
         self.assertEqual(r.status_code, 400, r.text)
         detail = r.json().get("detail")
-        self.assertIsInstance(detail, str)
-        self.assertIn("Reservierungslink", detail)
+        self.assertIsInstance(detail, dict)
+        self.assertEqual(detail.get("code"), "invalid_reservation_token")
+        self.assertIn("Reservierungslink", detail.get("message", ""))
 
     def test_get_public_tenant_404_localized_de(self):
         missing_id = self.tenant_id + 9_999_999
@@ -186,8 +187,9 @@ class TestGuestFeedback(PgClientTestCase):
         )
         self.assertEqual(r.status_code, 404, r.text)
         detail = r.json().get("detail")
-        self.assertIsInstance(detail, str)
-        self.assertIn("Mandant", detail)
+        self.assertIsInstance(detail, dict)
+        self.assertEqual(detail.get("code"), "tenant_not_found")
+        self.assertIn("Mandant", detail.get("message", ""))
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ Usage:
 
 import sys
 from collections import defaultdict
+from contextlib import nullcontext
 from datetime import date, time, timedelta, timezone
 from typing import Optional
 
@@ -59,15 +60,15 @@ def demand_for_slot(
     return (reserved_guests, len(reservations))
 
 
-def create_test_scenario(session: Session, slot_date: date) -> list[int]:
+def create_test_scenario(session: Session, slot_date: date, tenant_id: int = DEMO_TENANT_ID) -> list[int]:
     """Create N-1 seated reservations for the test slot. Returns created reservation IDs."""
-    total_seats, total_tables = capacity_for_tenant(session, DEMO_TENANT_ID)
+    total_seats, total_tables = capacity_for_tenant(session, tenant_id)
     n = total_tables - 1
     if n < 1:
         return []
 
     tables = session.exec(
-        select(Table).where(Table.tenant_id == DEMO_TENANT_ID).order_by(Table.id)
+        select(Table).where(Table.tenant_id == tenant_id).order_by(Table.id)
     ).all()
     if len(tables) < n:
         return []
@@ -76,7 +77,7 @@ def create_test_scenario(session: Session, slot_date: date) -> list[int]:
     created_ids = []
     for i, tid in enumerate(table_ids):
         r = Reservation(
-            tenant_id=DEMO_TENANT_ID,
+            tenant_id=tenant_id,
             customer_name=TEST_CUSTOMER_NAME,
             customer_phone="+49000000000",
             customer_email=None,
@@ -94,13 +95,15 @@ def create_test_scenario(session: Session, slot_date: date) -> list[int]:
     return created_ids
 
 
-def create_full_slot_scenario(session: Session, slot_date: date) -> list[int]:
+def create_full_slot_scenario(
+    session: Session, slot_date: date, tenant_id: int = DEMO_TENANT_ID
+) -> list[int]:
     """Create N seated reservations (full slot). Returns created reservation IDs."""
-    total_seats, total_tables = capacity_for_tenant(session, DEMO_TENANT_ID)
+    total_seats, total_tables = capacity_for_tenant(session, tenant_id)
     if total_tables < 1:
         return []
     tables = session.exec(
-        select(Table).where(Table.tenant_id == DEMO_TENANT_ID).order_by(Table.id)
+        select(Table).where(Table.tenant_id == tenant_id).order_by(Table.id)
     ).all()
     if len(tables) < total_tables:
         return []
@@ -108,7 +111,7 @@ def create_full_slot_scenario(session: Session, slot_date: date) -> list[int]:
     created_ids = []
     for i, tid in enumerate(table_ids):
         r = Reservation(
-            tenant_id=DEMO_TENANT_ID,
+            tenant_id=tenant_id,
             customer_name=TEST_CUSTOMER_NAME,
             customer_phone="+49000000001",
             customer_email=None,
@@ -127,12 +130,15 @@ def create_full_slot_scenario(session: Session, slot_date: date) -> list[int]:
 
 
 def delete_test_scenario(
-    session: Session, slot_date: date, slot_time: time = TEST_SLOT_TIME
+    session: Session,
+    slot_date: date,
+    slot_time: time = TEST_SLOT_TIME,
+    tenant_id: int = DEMO_TENANT_ID,
 ) -> None:
     """Remove reservations created by create_test_scenario or create_full_slot_scenario."""
     to_delete = session.exec(
         select(Reservation).where(
-            Reservation.tenant_id == DEMO_TENANT_ID,
+            Reservation.tenant_id == tenant_id,
             Reservation.customer_name == TEST_CUSTOMER_NAME,
             Reservation.reservation_date == slot_date,
             Reservation.reservation_time == slot_time,
@@ -143,17 +149,20 @@ def delete_test_scenario(
     session.commit()
 
 
-def run() -> int:
-    with Session(engine) as session:
-        total_seats, total_tables = capacity_for_tenant(session, DEMO_TENANT_ID)
+def run(tenant_id: int = DEMO_TENANT_ID, session: Session | None = None) -> int:
+    session_context = nullcontext(session) if session is not None else Session(engine)
+    with session_context as active_session:
+        assert active_session is not None
+        session = active_session
+        total_seats, total_tables = capacity_for_tenant(session, tenant_id)
         if total_tables == 0:
-            print("No tables for tenant 1. Run seed_demo_tables first.")
+            print(f"No tables for tenant {tenant_id}. Run seed_demo_tables first.")
             return 1
 
         # All active reservations for tenant, grouped by (date, time)
         reservations = session.exec(
             select(Reservation).where(
-                Reservation.tenant_id == DEMO_TENANT_ID,
+                Reservation.tenant_id == tenant_id,
                 Reservation.status.in_([ReservationStatus.booked, ReservationStatus.seated]),
             )
         ).all()
@@ -175,7 +184,7 @@ def run() -> int:
             # Create test scenario: tomorrow 20:00, N-1 seated reservations
             from datetime import datetime as dt
             slot_date = dt.now(timezone.utc).date() + timedelta(days=1)
-            ids = create_test_scenario(session, slot_date)
+            ids = create_test_scenario(session, slot_date, tenant_id)
             if not ids:
                 print("Could not create test scenario (not enough tables?).")
                 return 1
@@ -184,7 +193,7 @@ def run() -> int:
 
         slot_date, slot_time = candidate_slot
         reserved_guests, reserved_parties = demand_for_slot(
-            session, DEMO_TENANT_ID, slot_date, slot_time
+            session, tenant_id, slot_date, slot_time
         )
 
         if created_test_data:
@@ -203,7 +212,7 @@ def run() -> int:
                         print(f"  FAIL: {e}")
                     return 1
             finally:
-                delete_test_scenario(session, slot_date, slot_time)
+                delete_test_scenario(session, slot_date, slot_time, tenant_id)
         else:
             errors = _run_assertions(
                 slot_date,
@@ -222,13 +231,13 @@ def run() -> int:
         # Scenario 2: full slot (N reservations) -> tables_left=0, one more would be over
         from datetime import datetime as dt
         slot_date_2 = dt.now(timezone.utc).date() + timedelta(days=1)
-        ids_full = create_full_slot_scenario(session, slot_date_2)
+        ids_full = create_full_slot_scenario(session, slot_date_2, tenant_id)
         if not ids_full:
             print("Scenario 2: Could not create full-slot scenario.")
             return 1
         try:
             rg2, rp2 = demand_for_slot(
-                session, DEMO_TENANT_ID, slot_date_2, TEST_SLOT_TIME_FULL
+                session, tenant_id, slot_date_2, TEST_SLOT_TIME_FULL
             )
             err2 = _run_assertions_full_slot(
                 slot_date_2, TEST_SLOT_TIME_FULL, total_seats, total_tables, rg2, rp2
@@ -239,7 +248,7 @@ def run() -> int:
                     print(f"  FAIL: {e}")
                 return 1
         finally:
-            delete_test_scenario(session, slot_date_2, TEST_SLOT_TIME_FULL)
+            delete_test_scenario(session, slot_date_2, TEST_SLOT_TIME_FULL, tenant_id)
 
     return 0
 

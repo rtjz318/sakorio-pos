@@ -22,17 +22,36 @@ if _repo_root and _repo_root not in sys.path and os.path.basename(_back_dir) == 
     sys.path.insert(0, _repo_root)
 try:
     from back.app.seeds.check_overbooking_0025 import run as run_overbooking_check
+    from back.app import models
+    from back.tests.pg_client_mixin import PgClientTestCase
 except ImportError:
     from app.seeds.check_overbooking_0025 import run as run_overbooking_check
+    from app import models
+    from tests.pg_client_mixin import PgClientTestCase
 
 
-class TestOverbooking0025(unittest.TestCase):
+class TestOverbooking0025(PgClientTestCase):
     """Scenario 1: slot with N-1 parties has tables_left=1; 10th allowed, 11th over.
     Scenario 2: slot with N parties has tables_left=0; next would be over."""
 
     def test_one_empty_table_and_full_slot(self):
-        exit_code = run_overbooking_check()
-        self.assertEqual(exit_code, 0, "run seed_demo_tables if missing tenant/tables")
+        tenant = models.Tenant(name="Overbooking 0025", timezone="UTC")
+        self.session.add(tenant)
+        self.session.commit()
+        self.session.refresh(tenant)
+        for index in range(1, 4):
+            self.session.add(
+                models.Table(
+                    tenant_id=tenant.id,
+                    name=f"OB-{index}",
+                    seat_count=4,
+                    is_active=False,
+                )
+            )
+        self.session.commit()
+
+        exit_code = run_overbooking_check(tenant.id, self.session)
+        self.assertEqual(exit_code, 0)
 
 
 if __name__ == "__main__":

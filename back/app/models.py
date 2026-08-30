@@ -4,9 +4,14 @@ import secrets
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, Date, DateTime, Enum as SAEnum, LargeBinary, Text, Time, UniqueConstraint
+from sqlalchemy import JSON, Column, Date, DateTime, Enum as SAEnum, LargeBinary, Text, Time, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlmodel import Field, Relationship, SQLModel
+
+
+def _json_column(*, nullable: bool = True) -> Column:
+    """Use JSONB on PostgreSQL while keeping focused SQLite unit tests portable."""
+    return Column(JSON().with_variant(JSONB(), "postgresql"), nullable=nullable)
 
 
 # ============ TAX / GST ============
@@ -189,7 +194,7 @@ class Tenant(SQLModel, table=True):
     kitchen_display_timer_red_minutes: int | None = Field(default=15)
 
     # POS checkout: up to 4 tip percentages (e.g. 5,10,15,20); empty list disables tips; null = legacy default in API
-    tip_preset_percents: list | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    tip_preset_percents: list | None = Field(default=None, sa_column=_json_column())
     # Tax/GST rate (0-100) applied to tip amount for invoice breakdown.
     tip_tax_rate_percent: int | None = Field(default=0)
     # POS: "preset" = tip from tip_preset_percents; "overpayment" = staff enters amount paid, tip = difference (see OrderMarkPaid)
@@ -207,11 +212,11 @@ class Tenant(SQLModel, table=True):
     )
 
     # Staff app: JSONB stores only disabled module keys; see tenant_ui_modules.resolve_tenant_ui_modules
-    ui_modules: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    ui_modules: dict | None = Field(default=None, sa_column=_json_column())
 
     # Tenant-defined subcategory names per category (merged into GET /catalog/categories)
     custom_subcategories: dict | None = Field(
-        default=None, sa_column=Column(JSONB, nullable=True)
+        default=None, sa_column=_json_column()
     )
 
     # Staff clock-in: venue QR secret (hex digest of HMAC-SHA256); null = QR not required for clock actions
@@ -363,7 +368,7 @@ class PrintJob(SQLModel, table=True):
     )
     job_type: str = Field(default="kitchen_receipt", max_length=32, index=True)
     dedupe_key: str = Field(max_length=160, unique=True, index=True)
-    payload: dict = Field(default_factory=dict, sa_column=Column(JSONB, nullable=False))
+    payload: dict = Field(default_factory=dict, sa_column=_json_column(nullable=False))
     status: PrintJobStatus = Field(
         default=PrintJobStatus.pending,
         sa_column=Column(
@@ -444,7 +449,7 @@ class ProductQuestion(TenantMixin, table=True):
     type: ProductQuestionType = Field(index=True)
     label: str = Field(max_length=256)  # e.g. "How would you like your meat?"
     # JSON: choice = list of strings OR {"choices": [...], "multi": bool}; scale = {"min", "max"}; text = null
-    options: dict | list | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    options: dict | list | None = Field(default=None, sa_column=_json_column())
     sort_order: int = Field(default=0)
     required: bool = Field(default=False)
 
@@ -912,8 +917,8 @@ class FiscalInvoice(SQLModel, table=True):
     mode: str = Field(max_length=16)
     status: str = Field(default="issued", max_length=32)
     issued_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    request_payload: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
-    response_payload: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    request_payload: dict | None = Field(default=None, sa_column=_json_column())
+    response_payload: dict | None = Field(default=None, sa_column=_json_column())
     verification_qr_content: str = Field(default="", sa_column=Column(Text, nullable=False))
     verification_text: str = Field(default="", sa_column=Column(Text, nullable=False))
 
@@ -990,11 +995,11 @@ class OrderItem(SQLModel, table=True):
     cost_cents: int | None = None  # Snapshot of cost at order time for profit
     notes: str | None = None  # Item-specific notes (e.g., "no onions")
     # Structured answers to product questions: {"question_id": value} (value: str for choice/text, int for scale, list[str] for multi choice)
-    customization_answers: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    customization_answers: dict | None = Field(default=None, sa_column=_json_column())
     # Human-readable snapshot at order time: "Q1: A · Q2: B, C" (kitchen / invoices)
     customization_summary: str | None = Field(default=None, max_length=1024)
     # Pizza-style modifiers: {"remove": [...], "add": [...], "substitute": [{"from","to"}, ...]}
-    line_modifiers: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    line_modifiers: dict | None = Field(default=None, sa_column=_json_column())
     line_modifiers_summary: str | None = Field(default=None, max_length=1024)
     # Tax snapshot at order time for invoice breakdown
     tax_id: int | None = Field(default=None, foreign_key="tax.id", index=True)
@@ -2019,7 +2024,7 @@ class DeliveryIntegrationEventLog(SQLModel, table=True):
     provider_key: str = Field(max_length=64)
     event_type: str = Field(max_length=64)
     summary: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
-    detail: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    detail: dict | None = Field(default=None, sa_column=_json_column())
     success: bool = Field(default=True)
     error_message: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Post-commit: comment on GitHub issue(s) linked from agents2 task files in the commit.
 # Usage: ./scripts/link-commit-to-github-issues.sh [commit_sha]
-# Env: AGENT_GH_REPO (default tanjunnan0101/pos), GH_TOKEN or gh auth.
+# Env: AGENT_GH_REPO (default rtjz318/sakorio-pos), GH_TOKEN or gh auth.
 # Compatible with macOS /bin/bash 3.2 (no associative arrays).
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SHA="${1:-HEAD}"
-GH_REPO="${AGENT_GH_REPO:-tanjunnan0101/pos}"
+GH_REPO="${AGENT_GH_REPO:-rtjz318/sakorio-pos}"
 _ISSUE_LIST=""
 
 if ! command -v gh >/dev/null 2>&1; then

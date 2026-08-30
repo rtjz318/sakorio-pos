@@ -352,7 +352,7 @@ def download_and_store_image(
     try:
         # Download image (identify client; some hosts expect a real User-Agent)
         headers = {
-            "User-Agent": "Mozilla/5.0 (compatible; POS-System/1.0; +https://github.com/tanjunnan0101/pos)"
+            "User-Agent": "Mozilla/5.0 (compatible; POS-System/1.0; +https://github.com/rtjz318/sakorio-pos)"
         }
         response = requests.get(image_url, headers=headers, timeout=30, stream=True)
         response.raise_for_status()

@@ -3,8 +3,8 @@
 ![POS2 — Restaurant POS and ordering](docs/banner.svg)
 
 
-[![version](https://img.shields.io/github/v/release/tanjunnan0101/pos?style=flat-square&label=version)](https://github.com/tanjunnan0101/pos/releases)
-[![build](https://img.shields.io/github/check-runs/tanjunnan0101/pos/master?style=flat-square&label=build)](https://github.com/tanjunnan0101/pos/actions)
+[![version](https://img.shields.io/github/v/release/rtjz318/sakorio-pos?style=flat-square&label=version)](https://github.com/rtjz318/sakorio-pos/releases)
+[![build](https://img.shields.io/github/check-runs/rtjz318/sakorio-pos/master?style=flat-square&label=build)](https://github.com/rtjz318/sakorio-pos/actions)
 
 **Restaurant POS and ordering infrastructure — self-hosted, multi-tenant, real-time.**
 
@@ -86,7 +86,7 @@ The quickest way to try POS out is to head over to [https://sakario.sg/](https:/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/tanjunnan0101/pos
+   git clone https://github.com/rtjz318/sakorio-pos
    cd pos
    ```
 

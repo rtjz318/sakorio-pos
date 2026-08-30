@@ -28,7 +28,7 @@ def has_task_file(issue_num):
     return False
 
 
-GH_REPO = 'tanjunnan0101/pos'
+GH_REPO = 'rtjz318/sakorio-pos'
 
 
 def get_open_issues():

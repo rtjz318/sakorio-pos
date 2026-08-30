@@ -184,7 +184,7 @@ import { NATIVE_SAKORIO_TENANT_ID, isNativeShell } from '../shared/native-shell.
             >{{ version || '0.0.0' }} <span class="landing-commit">{{ commitHash || '' }}</span></span
           >
           <a
-            href="https://github.com/tanjunnan0101/pos/"
+            href="https://github.com/rtjz318/sakorio-pos/"
             target="_blank"
             rel="noopener noreferrer"
             class="landing-version-github"

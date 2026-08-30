@@ -4113,7 +4113,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
   private getInvoiceOssLine(): string {
     const prefix = this.translate.instant('ORDERS.INVOICE_OSS_PREFIX');
-    const repoUrl = 'https://github.com/tanjunnan0101/pos';
+    const repoUrl = 'https://github.com/rtjz318/sakorio-pos';
     const version = environment.version || '0.0.0';
     const commit = environment.commitHash || '';
     return `${this.escapeHtml(prefix)} | ${this.escapeHtml(repoUrl)} | v${this.escapeHtml(version)}${commit ? ` (${this.escapeHtml(commit)})` : ''}`;

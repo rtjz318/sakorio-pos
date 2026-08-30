@@ -24,6 +24,7 @@ This pass converts the actionable low-scoring browser findings into guarded, tes
 | QA-168-13 / E2E-089: unreliable export feedback/download | CSV, sales Excel and attendance Excel downloads now attach the browser anchor before clicking and delay object-URL cleanup; sales exports keep explicit success/error feedback. | Improves browser download reliability and visibility. |
 | QA-168-15: staff login clutter | Create Account, Provider/Courier links, provider registration and Contact Us are removed from the staff login. Legal links remain when configured. | Keeps the login task focused. |
 | Public order mutation security | Order placement and payment requests now require either the signed permanent-QR credential or a valid staff-access credential. | Rejects forged submissions that only know a table UUID. |
+| Repository ownership references | Live Source/Help links, README clone/badges, deployment origin checks, automation defaults and import user-agents now point to `rtjz318/sakorio-pos`. Historical closed-task evidence is retained unchanged. | Prevents future developers and automation from returning to the obsolete repository. |
 
 ## Existing safeguards confirmed in code
 

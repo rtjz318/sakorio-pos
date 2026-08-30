@@ -1,6 +1,6 @@
 # Deploy to amvara9 only when the production branch is pushed (this repo: `master`).
 # Pushes to `development` do not run this workflow (merge to `master` to deploy). Use workflow_dispatch for manual runs.
-# Repository: https://github.com/tanjunnan0101/pos — workflow must run from tanjunnan0101/pos; server clone must have origin = tanjunnan0101/pos.
+# Repository: https://github.com/rtjz318/sakorio-pos — workflow and server clone must use rtjz318/sakorio-pos.
 # Requires repository secret: SSH_PRIVATE_KEY_AMVARA9 (private key for root@amvara9; raw PEM or base64).
 # Optional: DEPLOY_HOST (default 167.235.138.59), DEPLOY_USER (default root), DEPLOY_PATH (default /development/pos).
 # Marketing sites under /<slug>/ (see config/marketing-sites.json): optional GUSTAZO_ARTIFACT_TOKEN / MARKETING_ARTIFACT_TOKEN (PAT with Actions read on each repo). CI rsync runs after git reset so bundles are not wiped.

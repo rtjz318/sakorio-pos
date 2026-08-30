@@ -12,7 +12,7 @@
 # env vars on the server to override.
 #
 # Optional env (GitHub #49):
-#   SKIP_ORIGIN_CHECK=1  — do not require git remote origin to match tanjunnan0101/pos.
+#   SKIP_ORIGIN_CHECK=1  — do not require git remote origin to match rtjz318/sakorio-pos.
 #   DEPLOY_FULL_DOWN=1   — use docker compose down instead of stopping app-tier only.
 # Optional env (GitHub #73):
 #   SKIP_BUILDX_PRUNE=1  — skip docker buildx prune after image builds (disk vs cache trade-off).
@@ -56,11 +56,11 @@ if [ "${SKIP_ORIGIN_CHECK:-0}" != "1" ]; then
   ORIGIN_URL=$(git remote get-url origin 2>/dev/null || true)
   if [ -n "$ORIGIN_URL" ]; then
     case "$ORIGIN_URL" in
-      *tanjunnan0101/pos*)
+      *rtjz318/sakorio-pos*)
         echo "Git origin OK: $ORIGIN_URL"
         ;;
       *)
-        echo "::error::Git origin is not tanjunnan0101/pos: $ORIGIN_URL"
+        echo "::error::Git origin is not rtjz318/sakorio-pos: $ORIGIN_URL"
         echo "Set SKIP_ORIGIN_CHECK=1 to bypass (forks / mirrors)."
         exit 1
         ;;

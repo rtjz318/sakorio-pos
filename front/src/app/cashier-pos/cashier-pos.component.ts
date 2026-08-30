@@ -680,6 +680,14 @@ type QueueResolutionAction = 'cancelled' | 'no_show';
                         <span class="muted-pill muted-pill--accent">{{ formatPrice(liveBill.total_cents || 0) }}</span>
                       </div>
                     </div>
+                    @if (customerPaymentNote(liveBill); as paymentNote) {
+                      <div class="inline-hint inline-hint--warning inline-hint--compact" role="alert">
+                        <div class="inline-hint-copy">
+                          <strong>Customer payment note</strong>
+                          <small>{{ paymentNote }}</small>
+                        </div>
+                      </div>
+                    }
                     <div class="action-row action-row--secondary action-row--live-bill">
                       <button type="button" class="btn btn-secondary btn-sm" (click)="focusLiveBillForItems()">Add items</button>
                       <button type="button" class="btn btn-primary btn-sm" (click)="focusLiveBillForSettlement()">Pay now</button>
@@ -1371,6 +1379,14 @@ type QueueResolutionAction = 'cancelled' | 'no_show';
                             </div>
                             <small class="pos-service-live-bill-hint">Tap menu items on the left, then send the add-on round to the same bill.</small>
                           </div>
+                          @if (customerPaymentNote(liveBill); as paymentNote) {
+                            <div class="inline-hint inline-hint--warning inline-hint--compact" role="alert">
+                              <div class="inline-hint-copy">
+                                <strong>Customer payment note</strong>
+                                <small>{{ paymentNote }}</small>
+                              </div>
+                            </div>
+                          }
                           <div class="pos-service-cart-lines pos-service-cart-lines--readonly">
                             @for (item of liveBill.items; track $index) {
                               <article class="pos-service-cart-line">
@@ -9189,6 +9205,19 @@ export class CashierPosComponent {
       return normalized || 'Paid';
     }
     return normalized || 'Awaiting payment';
+  }
+
+  customerPaymentNote(order: Order | null | undefined): string | null {
+    const notes = String(order?.notes || '');
+    const marker = '[CUSTOMER NOTE]';
+    const markedLines = notes
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith(marker));
+    if (markedLines.length === 0) {
+      return null;
+    }
+    return markedLines.at(-1)?.slice(marker.length).trim() || null;
   }
 
   private orderPaymentMethodNormalized(order: Order | null | undefined): string | null {

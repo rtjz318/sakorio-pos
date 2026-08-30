@@ -1976,6 +1976,7 @@ export class QueueComponent implements OnInit {
 
   ngOnInit(): void {
     this.configurePublicQueueUrl();
+    this.api.connectWebSocket();
     this.reload();
     this.route.queryParamMap
       .pipe(takeUntilDestroyed(this.destroyRef))

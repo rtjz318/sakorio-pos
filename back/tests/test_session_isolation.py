@@ -3,7 +3,7 @@ import unittest
 from pg_client_mixin import PgClientTestCase
 from sqlmodel import select
 
-from app import models
+from app import main, models
 
 
 class TestSessionIsolation(PgClientTestCase):
@@ -48,6 +48,7 @@ class TestSessionIsolation(PgClientTestCase):
             json={
                 "items": [{"product_id": self.product.id, "quantity": 1}],
                 "session_id": session_id_owner,
+                "qr_access": main._sign_public_table_qr_access(self.table.token),
             },
         )
         self.assertEqual(response.status_code, 200)
@@ -104,6 +105,7 @@ class TestSessionIsolation(PgClientTestCase):
             json={
                 "items": [{"product_id": self.product.id, "quantity": 1}],
                 "session_id": session_id,
+                "qr_access": main._sign_public_table_qr_access(self.table.token),
             },
         )
         self.assertEqual(response.status_code, 200)
@@ -121,6 +123,7 @@ class TestSessionIsolation(PgClientTestCase):
             json={
                 "items": [{"product_id": self.product.id, "quantity": 1}],
                 "session_id": session_id,
+                "qr_access": main._sign_public_table_qr_access(self.table.token),
             },
         )
         self.assertEqual(response.status_code, 200)

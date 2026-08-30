@@ -18,6 +18,7 @@ import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { forkJoin } from 'rxjs';
 import { SidebarComponent } from '../shared/sidebar.component';
 import {
   ApiService,
@@ -343,22 +344,20 @@ export class ReportsComponent implements OnInit {
   loadCloseoutSnapshot(): void {
     this.closeoutLoading.set(true);
     this.closeoutError.set(null);
-    this.api.getTablesWithStatus().subscribe({
-      next: (rows) => {
-        this.closeoutTables.set(rows);
+    forkJoin({
+      tables: this.api.getTablesWithStatus(),
+      orders: this.api.getOrders(false),
+    }).subscribe({
+      next: ({ tables, orders }) => {
+        this.closeoutTables.set(tables);
+        this.closeoutOrders.set(orders);
         this.closeoutLoading.set(false);
       },
       error: () => {
         this.closeoutTables.set([]);
-        this.closeoutLoading.set(false);
-        this.closeoutError.set('Could not load table closeout state.');
-      },
-    });
-    this.api.getOrders(false).subscribe({
-      next: (rows) => this.closeoutOrders.set(rows),
-      error: () => {
         this.closeoutOrders.set([]);
-        this.closeoutError.set('Could not load order closeout state.');
+        this.closeoutLoading.set(false);
+        this.closeoutError.set('Could not load the live table and bill closeout state. Refresh before cash-up.');
       },
     });
   }
@@ -370,8 +369,7 @@ export class ReportsComponent implements OnInit {
   closeoutOrderUnpaid(order: Order): boolean {
     const status = String(order.status || '').toLowerCase();
     if (this.closeoutOrderPaid(order) || status.includes('cancel')) return false;
-    if (!this.closeoutOrderBelongsToCurrentService(order)) return false;
-    return ['pending', 'preparing', 'ready', 'partially_delivered', 'completed'].includes(status);
+    return this.closeoutOrderBelongsToCurrentService(order);
   }
 
   closeoutOrderBelongsToCurrentService(order: Order): boolean {
@@ -464,8 +462,10 @@ export class ReportsComponent implements OnInit {
         const a = document.createElement('a');
         a.href = url;
         a.download = `attendance_${year}_${String(month).padStart(2, '0')}.xlsx`;
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
         this.attendanceExcelExporting.set(false);
       },
       error: (err: HttpErrorResponse) => {
@@ -523,8 +523,10 @@ export class ReportsComponent implements OnInit {
         const a = document.createElement('a');
         a.href = url;
         a.download = `registro_horario_${year}_${String(month).padStart(2, '0')}.xlsx`;
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
         this.attendanceRegistroExporting.set(false);
       },
       error: (err: HttpErrorResponse) => {
@@ -1031,8 +1033,10 @@ export class ReportsComponent implements OnInit {
         const a = document.createElement('a');
         a.href = url;
         a.download = `pos2-sales-${from}-${to}.xlsx`;
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
         this.exporting.set(false);
         this.exportFeedback.set({
           type: 'success',
@@ -1064,8 +1068,10 @@ export class ReportsComponent implements OnInit {
         const a = document.createElement('a');
         a.href = url;
         a.download = `pos2-sales-${report}-${from}-${to}.csv`;
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
         this.exporting.set(false);
         this.exportFeedback.set({
           type: 'success',

@@ -2758,9 +2758,14 @@ export class QueueComponent implements OnInit {
   }
 
   private mergeEntry(updated: GuestQueueEntry): void {
-    const next = this.queue().map((entry) => (entry.id === updated.id ? updated : entry));
+    const activeStatuses = new Set<GuestQueueStatus>(['waiting', 'notified', 'seated']);
+    const shouldRemainVisible = this.includeClosed || activeStatuses.has(updated.status);
+    const next = shouldRemainVisible
+      ? this.queue().map((entry) => (entry.id === updated.id ? updated : entry))
+      : this.queue().filter((entry) => entry.id !== updated.id);
     this.queue.set(next);
-    this.selectedQueueEntryId.set(updated.id);
+    this.selectedQueueEntryId.set(shouldRemainVisible ? updated.id : null);
+    this.ensureSelection();
     this.syncSelectionWithVisibleBoard();
     this.reloadSummary();
     this.reloadTables();

@@ -9,7 +9,7 @@ from sqlmodel import select
 
 from pg_client_mixin import PgClientTestCase
 
-from app import models, security
+from app import main, models, security
 
 
 def _bearer_headers(user: models.User) -> dict[str, str]:
@@ -254,6 +254,7 @@ class TestCashierOrderLifecycle(PgClientTestCase):
             ],
             "session_id": "browser-session-1",
             "idempotency_key": "submit-key-1",
+            "qr_access": main._sign_public_table_qr_access(table.token),
         }
         first = self.client.post(f"/menu/{table.token}/order", json=payload)
         self.assertEqual(first.status_code, 200, first.text)

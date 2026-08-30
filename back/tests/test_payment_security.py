@@ -60,6 +60,7 @@ class TestPaymentSecurity(PgClientTestCase):
             json={
                 "items": [{"product_id": self.product.id, "quantity": 1}],
                 "notes": "Expensive Order",
+                "qr_access": main._sign_public_table_qr_access(self.table.token),
             },
         )
         self.assertEqual(response.status_code, 200)
@@ -76,6 +77,59 @@ class TestPaymentSecurity(PgClientTestCase):
         self.session.add(order)
         self.session.commit()
         return order_id
+
+    def test_public_order_requires_fixed_qr_or_staff_credential(self):
+        response = self.client.post(
+            f"/menu/{self.table.token}/order",
+            json={"items": [{"product_id": self.product.id, "quantity": 1}]},
+        )
+
+        self.assertEqual(response.status_code, 403, response.text)
+        self.assertEqual(response.json()["detail"]["code"], "TABLE_ACCESS_REQUIRED")
+
+    def test_add_on_withdraws_terminal_payment_request_and_refreshes_total(self):
+        order_id = self._create_order()
+        qr_access = main._sign_public_table_qr_access(self.table.token)
+        payment = self.client.post(
+            f"/menu/{self.table.token}/order/{order_id}/request-payment",
+            json={"payment_method": "card_terminal", "qr_access": qr_access},
+        )
+        self.assertEqual(payment.status_code, 200, payment.text)
+
+        add_on = self.client.post(
+            f"/menu/{self.table.token}/order",
+            json={
+                "items": [{"product_id": self.product.id, "quantity": 1}],
+                "qr_access": qr_access,
+            },
+        )
+
+        self.assertEqual(add_on.status_code, 200, add_on.text)
+        self.assertTrue(add_on.json()["payment_request_withdrawn"])
+        self.session.expire_all()
+        order = self.session.get(models.Order, order_id)
+        self.assertIsNone(order.bill_requested_at)
+        self.assertIsNone(order.payment_method)
+
+    def test_stale_public_session_is_locked_but_staff_can_review(self):
+        from datetime import timedelta
+
+        self.table.activated_at = datetime.now(timezone.utc) - timedelta(hours=25)
+        self.session.add(self.table)
+        self.session.commit()
+
+        blocked = self.client.get(
+            f"/menu/{self.table.token}",
+            params={"qr_access": main._sign_public_table_qr_access(self.table.token)},
+        )
+        self.assertEqual(blocked.status_code, 409, blocked.text)
+        self.assertEqual(blocked.json()["detail"]["code"], "TABLE_SESSION_STALE")
+
+        staff = self.client.get(
+            f"/menu/{self.table.token}",
+            params={"staff_access": main._sign_staff_menu_token(self.table.token)},
+        )
+        self.assertEqual(staff.status_code, 200, staff.text)
 
     def test_hitpay_create_posts_form_payload(self):
         order_id = self._create_order()
@@ -334,7 +388,11 @@ class TestPaymentSecurity(PgClientTestCase):
         self.session.add(self.table)
         self.session.commit()
 
-        response = self.client.get(f"/menu/{self.table.token}")
+        staff_access = main._sign_staff_menu_token(self.table.token)
+        response = self.client.get(
+            f"/menu/{self.table.token}",
+            params={"staff_access": staff_access},
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
@@ -347,7 +405,11 @@ class TestPaymentSecurity(PgClientTestCase):
 
         response = self.client.post(
             f"/menu/{self.table.token}/order/{order_id}/request-payment",
-            json={"payment_method": "cash", "message": "cash please"},
+            json={
+                "payment_method": "cash",
+                "message": "cash please",
+                "qr_access": main._sign_public_table_qr_access(self.table.token),
+            },
         )
 
         self.assertEqual(response.status_code, 400)
@@ -358,7 +420,11 @@ class TestPaymentSecurity(PgClientTestCase):
 
         response = self.client.post(
             f"/menu/{self.table.token}/order/{order_id}/request-payment",
-            json={"payment_method": "card_terminal", "message": "terminal please"},
+            json={
+                "payment_method": "card_terminal",
+                "message": "terminal please",
+                "qr_access": main._sign_public_table_qr_access(self.table.token),
+            },
         )
 
         self.assertEqual(response.status_code, 200)

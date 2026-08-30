@@ -4,7 +4,7 @@ import unittest
 from fastapi import HTTPException
 from pg_client_mixin import PgClientTestCase
 
-from app import models
+from app import main, models
 from app.line_modifiers import line_modifiers_equal, validate_and_normalize_line_modifiers
 
 
@@ -69,14 +69,20 @@ class TestLineModifiersOrderMerge(PgClientTestCase):
 
     def test_merge_same_modifiers_increments_quantity(self):
         lm = {"remove": ["pepperoni"], "add": ["extra cheese"]}
-        p1 = {"items": [{"product_id": self.product.id, "quantity": 1, "line_modifiers": lm}]}
+        p1 = {
+            "items": [{"product_id": self.product.id, "quantity": 1, "line_modifiers": lm}],
+            "qr_access": main._sign_public_table_qr_access(self.table.token),
+        }
         r1 = self.client.post(f"/menu/{self.table.token}/order", json=p1)
         self.assertEqual(r1.status_code, 200, r1.text)
         oid = r1.json()["order_id"]
 
         r2 = self.client.post(
             f"/menu/{self.table.token}/order",
-            json={"items": [{"product_id": self.product.id, "quantity": 2, "line_modifiers": lm}]},
+            json={
+                "items": [{"product_id": self.product.id, "quantity": 2, "line_modifiers": lm}],
+                "qr_access": main._sign_public_table_qr_access(self.table.token),
+            },
         )
         self.assertEqual(r2.status_code, 200, r2.text)
         self.assertEqual(r2.json()["order_id"], oid)
@@ -93,12 +99,18 @@ class TestLineModifiersOrderMerge(PgClientTestCase):
     def test_different_modifiers_separate_lines(self):
         r1 = self.client.post(
             f"/menu/{self.table.token}/order",
-            json={"items": [{"product_id": self.product.id, "quantity": 1, "line_modifiers": {"remove": ["a"]}}]},
+            json={
+                "items": [{"product_id": self.product.id, "quantity": 1, "line_modifiers": {"remove": ["a"]}}],
+                "qr_access": main._sign_public_table_qr_access(self.table.token),
+            },
         )
         self.assertEqual(r1.status_code, 200, r1.text)
         r2 = self.client.post(
             f"/menu/{self.table.token}/order",
-            json={"items": [{"product_id": self.product.id, "quantity": 1, "line_modifiers": {"remove": ["b"]}}]},
+            json={
+                "items": [{"product_id": self.product.id, "quantity": 1, "line_modifiers": {"remove": ["b"]}}],
+                "qr_access": main._sign_public_table_qr_access(self.table.token),
+            },
         )
         self.assertEqual(r2.status_code, 200, r2.text)
         r3 = self.client.get(f"/menu/{self.table.token}/order")

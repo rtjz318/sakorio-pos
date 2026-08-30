@@ -818,6 +818,7 @@ def _is_take_away_table(table) -> bool:
 # Staff menu link: time-limited signed token so staff can open the public menu.
 STAFF_MENU_TOKEN_EXPIRY = 3600  # 1 hour
 PUBLIC_TABLE_QR_PURPOSE = "table-order-qr-v1"
+PUBLIC_TABLE_SESSION_MAX_HOURS = 24
 
 
 def _sign_staff_menu_token(table_token: str) -> str:
@@ -892,6 +893,19 @@ def _verify_public_table_qr_access(table_token: str, token: str) -> bool:
         return hmac.compare_digest(supplied, expected)
     except Exception:
         return False
+
+
+def _has_valid_table_access(
+    table_token: str,
+    *,
+    staff_access: str | None = None,
+    qr_access: str | None = None,
+) -> bool:
+    """Return true for either supported credential on a permanent table link."""
+    return bool(
+        (staff_access and _verify_staff_menu_token(table_token, staff_access))
+        or (qr_access and _verify_public_table_qr_access(table_token, qr_access))
+    )
 
 
 def _take_away_table_token(session: Session, tenant_id: int) -> str | None:
@@ -1812,7 +1826,10 @@ def login_with_otp(
 
 @app.post("/logout")
 def logout():
-    response = JSONResponse(content={"status": "success", "message": "Logged out"})
+    response = JSONResponse(
+        content={"status": "success", "message": "Logged out"},
+        headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"},
+    )
     # Clear both access and refresh tokens
     response.delete_cookie(
         key="access_token",
@@ -8356,6 +8373,8 @@ def list_tables_with_status(
             "payment_status": payment_status,
             "payment_summary": payment_summary,
             "is_active": table.is_active,
+            "activated_at": table.activated_at.isoformat() if table.activated_at else None,
+            "public_session_stale": _table_public_session_is_stale(table),
             "active_order_id": table.active_order_id,
             "assigned_waiter_id": table.assigned_waiter_id,
             "assigned_waiter_name": waiter_map.get(table.assigned_waiter_id) if table.assigned_waiter_id else None,
@@ -9209,6 +9228,19 @@ def _ensure_aware_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
+
+
+def _table_public_session_is_stale(table: models.Table | object) -> bool:
+    """Protect a permanent QR from exposing an abandoned previous visit."""
+    if not getattr(table, "is_active", False):
+        return False
+    activated_at = getattr(table, "activated_at", None)
+    if activated_at is None:
+        # Legacy active rows may predate activation timestamps; flag them in a
+        # later data migration rather than unexpectedly locking a live table.
+        return False
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=PUBLIC_TABLE_SESSION_MAX_HOURS)
+    return _ensure_aware_utc(activated_at) < cutoff
 
 
 def _is_order_in_current_table_session(
@@ -12402,7 +12434,8 @@ def get_menu(
     session: Session = Depends(get_session),
 ) -> dict:
     """Public endpoint - get menu for a table by its token."""
-    if staff_access and not _verify_staff_menu_token(table_token, staff_access):
+    valid_staff_access = bool(staff_access and _verify_staff_menu_token(table_token, staff_access))
+    if staff_access and not valid_staff_access:
         logger.warning("Menu staff_access token invalid or expired for table_token=%s", table_token[:8] + "...")
     if qr_access and not _verify_public_table_qr_access(table_token, qr_access):
         logger.warning("Menu qr_access token invalid for table_token=%s", table_token[:8] + "...")
@@ -12463,6 +12496,19 @@ def get_menu(
         table_row[6],
         table_row[7],
     )
+
+    if _table_public_session_is_stale(table) and not valid_staff_access:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "TABLE_SESSION_STALE",
+                "message": (
+                    "This table visit has been open for more than 24 hours. "
+                    "Please ask staff to close and reset the table before ordering."
+                ),
+                "table_name": table.name,
+            },
+        )
 
     if not table.is_active:
         # Return tenant/table info so the frontend can show a branded "table closed" page
@@ -12956,6 +13002,8 @@ def get_current_order(
     request: Request,
     table_token: str,
     session_id: str | None = Query(None, description="Session identifier for order isolation"),
+    staff_access: str | None = Query(None),
+    qr_access: str | None = Query(None),
     session: Session = Depends(get_session),
 ) -> dict:
     """Public endpoint - get current active order for a table (if any)."""
@@ -12965,6 +13013,17 @@ def get_current_order(
 
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
+
+    if _table_public_session_is_stale(table) and not (
+        staff_access and _verify_staff_menu_token(table_token, staff_access)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "TABLE_SESSION_STALE",
+                "message": "Please ask staff to close and reset this table before ordering.",
+            },
+        )
 
     active_order = None
 
@@ -13246,6 +13305,30 @@ def create_order(
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
 
+    if not _has_valid_table_access(
+        table_token,
+        staff_access=order_data.staff_access,
+        qr_access=order_data.qr_access,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "TABLE_ACCESS_REQUIRED",
+                "message": "Scan the printed table QR again before placing an order.",
+            },
+        )
+
+    if _table_public_session_is_stale(table) and not (
+        order_data.staff_access and _verify_staff_menu_token(table_token, order_data.staff_access)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "TABLE_SESSION_STALE",
+                "message": "Please ask staff to close and reset this table before ordering.",
+            },
+        )
+
     if not order_data.items:
         raise HTTPException(status_code=400, detail="Order must have at least one item")
 
@@ -13311,6 +13394,24 @@ def create_order(
         is_new_order = True
     else:
         is_new_order = False
+
+    payment_request_withdrawn = False
+    if order.hitpay_payment_request_id:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "ONLINE_CHECKOUT_ALREADY_CREATED",
+                "message": (
+                    "Online checkout has already started. Ask staff to cancel or finish "
+                    "that payment before adding more items."
+                ),
+            },
+        )
+    if order.bill_requested_at is not None:
+        order.bill_requested_at = None
+        order.payment_method = None
+        payment_request_withdrawn = True
+        session.add(order)
 
     logger.debug(
         "POST /menu/.../order table_id=%s name=%s active=%s order_id=%s new=%s",
@@ -13611,7 +13712,8 @@ def create_order(
         "order_id": order.id,
         "table_name": table.name,
         "status": order.status.value,
-        "created_at": order.created_at.isoformat()
+        "created_at": order.created_at.isoformat(),
+        "payment_request_withdrawn": payment_request_withdrawn,
     }, table_id=table.id)
 
     return JSONResponse(content={
@@ -13619,6 +13721,7 @@ def create_order(
         "order_id": order.id,
         "session_id": order.session_id,
         "customer_name": order.customer_name,
+        "payment_request_withdrawn": payment_request_withdrawn,
     })
 
 
@@ -13666,6 +13769,8 @@ def create_staff_order(
 class PaymentRequest(_BaseModel):
     payment_method: str  # Customer QR payment request: 'card_terminal' only. HitPay uses its own endpoint.
     message: str | None = None  # Optional message/observation from customer
+    staff_access: str | None = None
+    qr_access: str | None = None
 
 
 def _normalize_order_payment_method(raw: str | None) -> str:
@@ -13701,6 +13806,25 @@ def request_payment(
 
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
+
+    if not _has_valid_table_access(
+        table_token,
+        staff_access=payment_request.staff_access,
+        qr_access=payment_request.qr_access,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Scan the printed table QR again before requesting payment.",
+        )
+
+    if _table_public_session_is_stale(table) and not (
+        payment_request.staff_access
+        and _verify_staff_menu_token(table_token, payment_request.staff_access)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Please ask staff to review this older table session.",
+        )
 
     if not table.is_active:
         raise HTTPException(status_code=403, detail="Table is not active.")

@@ -3,7 +3,7 @@ import unittest
 
 from pg_client_mixin import PgClientTestCase
 
-from app import models
+from app import main, models
 
 
 class TestPublicMenuOrderResponse(PgClientTestCase):
@@ -41,6 +41,7 @@ class TestPublicMenuOrderResponse(PgClientTestCase):
     def test_first_order_created_second_updated_same_order_id(self):
         payload = {
             "items": [{"product_id": self.product.id, "quantity": 1}],
+            "qr_access": main._sign_public_table_qr_access(self.table.token),
         }
         r1 = self.client.post(f"/menu/{self.table.token}/order", json=payload)
         self.assertEqual(r1.status_code, 200, r1.text)
@@ -50,7 +51,10 @@ class TestPublicMenuOrderResponse(PgClientTestCase):
 
         r2 = self.client.post(
             f"/menu/{self.table.token}/order",
-            json={"items": [{"product_id": self.product.id, "quantity": 1}]},
+            json={
+                "items": [{"product_id": self.product.id, "quantity": 1}],
+                "qr_access": main._sign_public_table_qr_access(self.table.token),
+            },
         )
         self.assertEqual(r2.status_code, 200, r2.text)
         b2 = r2.json()

@@ -117,22 +117,11 @@ import { NATIVE_SAKORIO_TENANT_ID, isNativeShell } from '../shared/native-shell.
         }
 
         @if (!nativeShell()) {
-          <div class="auth-actions-foot">
-            <span>{{ 'AUTH.DONT_HAVE_ACCOUNT' | translate }}</span>
-            <a routerLink="/register">{{ 'AUTH.CREATE_ACCOUNT' | translate }}</a>
-            <span class="auth-foot-sep" aria-hidden="true">|</span>
-            <a routerLink="/provider/login" data-testid="login-provider-login">{{ 'LANDING.PROVIDER_LOGIN' | translate }}</a>
-            <span class="auth-foot-sep" aria-hidden="true">|</span>
-            <a routerLink="/courier/login" data-testid="login-courier-login">{{ 'LANDING.COURIER_LOGIN' | translate }}</a>
-            <span class="auth-foot-sep" aria-hidden="true">|</span>
-            <a routerLink="/provider/register" data-testid="login-provider-register">{{ 'LANDING.REGISTER_AS_PROVIDER' | translate }}</a>
-            <span class="auth-foot-sep" aria-hidden="true">|</span>
-            <a href="mailto:sales@sakario.sg" data-testid="login-contact-us">{{ 'LANDING.CONTACT_US' | translate }}</a>
-            @if (legalTermsUrl() || legalPrivacyUrl()) {
-              <span class="auth-foot-sep" aria-hidden="true">|</span>
+          @if (legalTermsUrl() || legalPrivacyUrl()) {
+            <div class="auth-actions-foot auth-actions-foot--legal">
               <app-legal-links [inline]="true" [termsUrl]="legalTermsUrl()" [privacyUrl]="legalPrivacyUrl()" />
-            }
-          </div>
+            </div>
+          }
         }
       </div>
     </div>

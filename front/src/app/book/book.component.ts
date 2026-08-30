@@ -59,6 +59,7 @@ export class BookComponent implements OnInit {
   formPhone = '';
   formEmail = '';
   formClientNotes = '';
+  phoneTouched = signal(false);
   /** Public book zones (2+ → show selector; 1 → set automatically; 0 → venue-wide). */
   bookZones = signal<ReservationBookZone[]>([]);
   formFloorId: number | null = null;
@@ -258,6 +259,7 @@ export class BookComponent implements OnInit {
 
   submit() {
     this.error.set(null);
+    this.phoneTouched.set(true);
     const tid = this.tenantId();
     if (!tid) {
       this.error.set(this.translate.instant('BOOK.ERROR_INVALID_LINK'));
@@ -343,6 +345,19 @@ export class BookComponent implements OnInit {
   private publicReservationPhoneValid(): boolean {
     const phone = this.formPhone.trim();
     return phone.startsWith('+') && contactPhoneValid(phone);
+  }
+
+  phoneIsInvalid(): boolean {
+    return this.phoneTouched() && !this.publicReservationPhoneValid();
+  }
+
+  bookingFormReady(): boolean {
+    if (!this.formName.trim() || !this.publicReservationPhoneValid()) return false;
+    if (!this.formDate.trim() || !this.formTime.trim()) return false;
+    if (this.formPartySize < 1 || this.formPartySize > this.maxPartySize()) return false;
+    if (this.bookZones().length >= 1 && this.bookZonesForSeating().length === 0) return false;
+    if (this.bookZonesForSeating().length >= 2 && this.formFloorId == null) return false;
+    return true;
   }
 
   private setPhoneValidationError(message?: string): void {

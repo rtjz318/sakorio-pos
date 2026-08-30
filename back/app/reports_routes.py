@@ -9,6 +9,7 @@ from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
 from io import BytesIO, StringIO
 from typing import Annotated
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
@@ -56,11 +57,33 @@ def _order_counts_as_revenue(order: models.Order) -> bool:
     return order.deleted_at is None and (order.status == models.OrderStatus.paid or order.paid_at is not None)
 
 
-def _in_range(d: datetime | None, from_date: date, to_date: date) -> bool:
-    if not d:
+def _tenant_report_timezone(session: Session, tenant_id: int):
+    tenant = session.get(models.Tenant, tenant_id)
+    timezone_name = (tenant.timezone or "UTC").strip() if tenant else "UTC"
+    try:
+        return ZoneInfo(timezone_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return timezone.utc
+
+
+def _local_report_date(value: datetime | date | None, report_timezone) -> date | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return _as_utc(value).astimezone(report_timezone).date()
+    return value
+
+
+def _in_range(
+    value: datetime | date | None,
+    from_date: date,
+    to_date: date,
+    report_timezone,
+) -> bool:
+    local_date = _local_report_date(value, report_timezone)
+    if local_date is None:
         return False
-    d_date = d.date() if hasattr(d, "date") else d
-    return from_date <= d_date <= to_date
+    return from_date <= local_date <= to_date
 
 
 def _waiter_name_for_order_tips(session: Session, order: models.Order) -> str:
@@ -99,6 +122,7 @@ def _get_revenue_items(
     tenant_id: int,
     from_date: date,
     to_date: date,
+    report_timezone,
 ):
     """Load orders and items that count toward revenue in the date range."""
     orders = session.exec(
@@ -113,7 +137,7 @@ def _get_revenue_items(
         if not _order_counts_as_revenue(order):
             continue
         rev_date = _revenue_date(order)
-        if not _in_range(rev_date, from_date, to_date):
+        if not _in_range(rev_date, from_date, to_date, report_timezone):
             continue
         items = session.exec(
             select(models.OrderItem)
@@ -165,7 +189,14 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
     """Build full report dict for a tenant and date range."""
     if from_date > to_date:
         from_date, to_date = to_date, from_date
-    rows = _get_revenue_items(session, tenant_id, from_date, to_date)
+    report_timezone = _tenant_report_timezone(session, tenant_id)
+    rows = _get_revenue_items(
+        session,
+        tenant_id,
+        from_date,
+        to_date,
+        report_timezone,
+    )
 
     tips_by_day: dict[str, int] = defaultdict(int)
     tips_by_waiter: dict[str, int] = defaultdict(int)
@@ -180,7 +211,7 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
         if not _order_counts_as_revenue(order):
             continue
         rev_date = _revenue_date(order)
-        if not _in_range(rev_date, from_date, to_date):
+        if not _in_range(rev_date, from_date, to_date, report_timezone):
             continue
         order_items = session.exec(
             select(models.OrderItem)
@@ -202,7 +233,7 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
         if tip <= 0:
             continue
         total_tips_cents += tip
-        day = rev_date.strftime("%Y-%m-%d") if hasattr(rev_date, "strftime") else str(rev_date)[:10]
+        day = _local_report_date(rev_date, report_timezone).isoformat()
         tips_by_day[day] += tip
         wn = _waiter_name_for_order_tips(session, order)
         tips_by_waiter[wn] += tip
@@ -212,7 +243,7 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
         lambda: {"revenue_cents": 0, "cost_cents": 0, "profit_cents": 0, "order_count": set()}
     )
     for r in rows:
-        day = r["date"].strftime("%Y-%m-%d") if hasattr(r["date"], "strftime") else str(r["date"])[:10]
+        day = _local_report_date(r["date"], report_timezone).isoformat()
         by_day_agg[day]["revenue_cents"] += r["revenue_cents"]
         by_day_agg[day]["cost_cents"] += r["cost_cents"]
         by_day_agg[day]["profit_cents"] += r["profit_cents"]
@@ -404,11 +435,7 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
     queue_entries = [
         entry
         for entry in queue_entries
-        if _in_range(
-            (_as_utc(entry.requested_at).date() if entry.requested_at else None),
-            from_date,
-            to_date,
-        )
+        if _in_range(entry.requested_at, from_date, to_date, report_timezone)
     ]
     queue_total = len(queue_entries)
     queue_by_source: dict[str, int] = defaultdict(int)
@@ -422,7 +449,7 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
         queue_by_source[source_key] += 1
         queue_by_status[status_key] += 1
         if entry.requested_at:
-            day_key = _as_utc(entry.requested_at).strftime("%Y-%m-%d")
+            day_key = _local_report_date(entry.requested_at, report_timezone).isoformat()
             queue_daily[day_key]["count"] += 1
             if status_key == models.GuestQueueStatus.seated.value:
                 queue_daily[day_key]["seated_count"] += 1

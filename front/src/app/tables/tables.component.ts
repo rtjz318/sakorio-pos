@@ -336,6 +336,12 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                         @if (tableReservationHint(table)) {
                           <span class="table-reservation-inline">{{ tableReservationHint(table) }}</span>
                         }
+                        @if (tableCapacityAlert(table); as capacityAlert) {
+                          <span class="table-capacity-alert" role="alert">{{ capacityAlert }}</span>
+                        }
+                        @if (table.public_session_stale) {
+                          <span class="table-capacity-alert" role="alert">Open over 24h — review bill, then close/reset</span>
+                        }
                       </div>
                     }
                   </td>
@@ -646,6 +652,12 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   }
                   @if (tableReservationHint(table)) {
                     <span>{{ tableReservationHint(table) }}</span>
+                  }
+                  @if (tableCapacityAlert(table); as capacityAlert) {
+                    <span class="table-capacity-alert" role="alert">{{ capacityAlert }}</span>
+                  }
+                  @if (table.public_session_stale) {
+                    <span class="table-capacity-alert" role="alert">Open over 24h — guest QR locked until close/reset</span>
                   }
                 </div>
               </div>
@@ -2034,6 +2046,19 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     .table-reservation-inline--status {
       font-size: 0.7rem;
       letter-spacing: 0.01em;
+    }
+    .table-capacity-alert {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      padding: 0.2rem 0.45rem;
+      border: 1px solid #fca5a5;
+      border-radius: 999px;
+      background: #fef2f2;
+      color: #991b1b;
+      font-size: 0.74rem;
+      font-weight: 800;
+      line-height: 1.2;
     }
     @keyframes pulse {
       0%, 100% { opacity: 1; }
@@ -3537,6 +3562,13 @@ export class TablesComponent implements OnInit {
     if (guest) return guest;
     if (time) return `Reserved ${time}`;
     return 'Upcoming reservation';
+  }
+
+  tableCapacityAlert(table: CanvasTable): string | null {
+    const partySize = Number(table.seated_reservation?.party_size || 0);
+    const seats = Number(table.seat_count || 0);
+    if (partySize <= 0 || seats <= 0 || partySize <= seats) return null;
+    return `Capacity alert: ${partySize} guests / ${seats} seats`;
   }
 
   private formatReservationTime(value: string): string {

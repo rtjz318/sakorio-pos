@@ -2,7 +2,7 @@ import { Component, inject, signal, OnInit, computed, AfterViewInit, OnDestroy, 
 import { CommonModule } from '@angular/common';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { filter, finalize } from 'rxjs/operators';
+import { filter, finalize, timeout } from 'rxjs/operators';
 import { ApiService, TenantUiModuleKey, User } from '../services/api.service';
 import { PermissionService, Permission } from '../services/permission.service';
 import { environment } from '../../environments/environment';
@@ -444,6 +444,7 @@ export class SidebarComponent implements OnInit, AfterViewInit, OnDestroy {
     event?.preventDefault();
     event?.stopPropagation();
     this.api.logout().pipe(
+      timeout(2000),
       finalize(() => {
         void this.router.navigateByUrl('/login', { replaceUrl: true }).finally(() => {
           if (typeof window !== 'undefined') {
@@ -451,6 +452,6 @@ export class SidebarComponent implements OnInit, AfterViewInit, OnDestroy {
           }
         });
       }),
-    ).subscribe();
+    ).subscribe({ error: () => {} });
   }
 }

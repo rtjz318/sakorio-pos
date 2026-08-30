@@ -285,11 +285,18 @@
                     autocomplete="tel"
                     inputmode="tel"
                     placeholder="+65 9123 4567"
-                    aria-describedby="book-phone-hint"
+                    aria-describedby="book-phone-hint book-phone-error"
+                    [attr.aria-invalid]="phoneIsInvalid()"
+                    (blur)="phoneTouched.set(true)"
                     required />
                   <small id="book-phone-hint" class="phone-format-hint">
                     Use international format, for example +65 9123 4567. Singapore local numbers should include +65.
                   </small>
+                  @if (phoneIsInvalid()) {
+                    <small id="book-phone-error" class="form-error phone-inline-error" role="alert">
+                      Enter a valid international phone number, for example +65 9123 4567.
+                    </small>
+                  }
                 </div>
                 <div class="form-group guest-details-wide">
                   <label for="book-email">{{ 'RESERVATIONS.CUSTOMER_EMAIL' | translate }}</label>
@@ -305,7 +312,7 @@
               <div class="form-error">{{ error() }}</div>
             }
             <div class="booking-submit-dock">
-              <button type="submit" class="btn btn-primary" [disabled]="submitting()">
+              <button type="submit" class="btn btn-primary" [disabled]="submitting() || !bookingFormReady()">
                 {{ submitting() ? ('BOOK.SUBMITTING' | translate) : ('BOOK.SUBMIT' | translate) }}
               </button>
             </div>

@@ -1242,7 +1242,12 @@ export class MenuComponent implements OnInit, OnDestroy {
     // Fetch the table's active shared order from the backend.
     // The backend returns the order linked to table.active_order_id,
     // which is the single shared order for the current table session.
-    this.api.getCurrentOrder(this.tableToken, this.sessionId).subscribe({
+    this.api.getCurrentOrder(
+      this.tableToken,
+      this.sessionId,
+      this.staffAccess ?? undefined,
+      this.qrAccess ?? undefined,
+    ).subscribe({
       next: (response) => {
         if (response.order && response.order.items?.length > 0) {
           const activeItems = response.order.items.filter((item: any) => !item.removed_by_customer);
@@ -1428,7 +1433,14 @@ export class MenuComponent implements OnInit, OnDestroy {
     }
     this.paymentRequestSending.set(true);
 
-    this.api.requestPayment(this.tableToken, this.currentOrderId, target, message).subscribe({
+    this.api.requestPayment(
+      this.tableToken,
+      this.currentOrderId,
+      target,
+      message,
+      this.staffAccess ?? undefined,
+      this.qrAccess ?? undefined,
+    ).subscribe({
       next: () => {
         this.paymentRequestSending.set(false);
         this.paymentOptionsStep.set('success');

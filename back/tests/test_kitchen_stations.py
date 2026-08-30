@@ -3,7 +3,11 @@
 import unittest
 
 from app import models
-from app.kitchen_stations_util import normalize_display_route, resolve_order_item_kds
+from app.kitchen_stations_util import (
+    normalize_display_route,
+    product_uses_bar_route,
+    resolve_order_item_kds,
+)
 
 
 class TestKitchenStationResolve(unittest.TestCase):
@@ -53,6 +57,36 @@ class TestKitchenStationResolve(unittest.TestCase):
         self.assertEqual(
             resolve_order_item_kds(p, self.tenant, self.by_id),
             (None, None, "bar"),
+        )
+
+    def test_imported_drink_menu_routes_to_bar(self) -> None:
+        self.tenant.default_bar_station_id = 20
+        p = models.Product(
+            id=1,
+            tenant_id=1,
+            name="Green Tea (Hot or Cold)",
+            price_cents=500,
+            category="Drink Menu",
+        )
+        self.assertTrue(product_uses_bar_route(p))
+        self.assertEqual(
+            resolve_order_item_kds(p, self.tenant, self.by_id),
+            (20, "Bar tap", "bar"),
+        )
+
+    def test_food_category_with_drink_word_in_name_stays_kitchen(self) -> None:
+        self.tenant.default_kitchen_station_id = 10
+        p = models.Product(
+            id=1,
+            tenant_id=1,
+            name="Green Tea Ramen",
+            price_cents=1280,
+            category="Noodle & Rice Menu",
+        )
+        self.assertFalse(product_uses_bar_route(p))
+        self.assertEqual(
+            resolve_order_item_kds(p, self.tenant, self.by_id),
+            (10, "Grill", "kitchen"),
         )
 
     def test_normalize_display_route(self) -> None:

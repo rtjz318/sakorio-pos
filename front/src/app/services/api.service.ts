@@ -1024,6 +1024,8 @@ export interface Table {
   is_active?: boolean;
   active_order_id?: number | null;
   activated_at?: string | null;
+  /** True when the table was left open beyond the public QR safety window. */
+  public_session_stale?: boolean;
   // Waiter assignment
   assigned_waiter_id?: number | null;
   assigned_waiter_name?: string | null;
@@ -2774,11 +2776,18 @@ export class ApiService {
     return this.http.post(`${this.apiUrl}/orders/staff`, order);
   }
 
-  getCurrentOrder(tableToken: string, sessionId?: string): Observable<any> {
+  getCurrentOrder(
+    tableToken: string,
+    sessionId?: string,
+    staffAccess?: string,
+    qrAccess?: string,
+  ): Observable<any> {
     let params = new HttpParams();
     if (sessionId) {
       params = params.set('session_id', sessionId);
     }
+    if (staffAccess) params = params.set('staff_access', staffAccess);
+    if (qrAccess) params = params.set('qr_access', qrAccess);
     return this.http.get(`${this.apiUrl}/menu/${tableToken}/order`, { params });
   }
 
@@ -2813,10 +2822,14 @@ export class ApiService {
     orderId: number,
     paymentMethod: 'card_terminal',
     message?: string,
+    staffAccess?: string,
+    qrAccess?: string,
   ): Observable<any> {
     return this.http.post(`${this.apiUrl}/menu/${tableToken}/order/${orderId}/request-payment`, {
       payment_method: paymentMethod,
       message: message || null,
+      staff_access: staffAccess || null,
+      qr_access: qrAccess || null,
     });
   }
 

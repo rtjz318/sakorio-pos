@@ -64,3 +64,15 @@ These remain operational acceptance items, not unimplemented software fixes:
 
 The automated code baseline and the no-hardware Android printer path are green. Sakorio should not be described as 100% physically launch-accepted until the six operational gates above are completed on the actual tablet, printer, HitPay sandbox, and staff accounts. No financial record or historical restaurant record was altered during this continuation.
 
+## Hosted browser verification after deployment
+
+The customer deployment exposed commit `08bee0f2` in its live footer and the following flows were inspected in the hosted browser:
+
+- Staff login rendered the minimal sign-in form with password recovery and legal links; the removed provider/courier/register shortcuts did not reappear on the staff login page.
+- Public booking for tenant 1 loaded the current local date, available time slots, seating choices, international-phone guidance, and a disabled submit action until the required fields are valid.
+- Public menu browsing loaded the full categorized Ajisen Ramen catalogue with collapsible category headers, SGD prices, and the available product images.
+- A closed-table signed QR rendered a clear `Table Closed` state and did not expose an order or permit ordering.
+- A deliberately invalid waitlist status token recovered to the join form, showed zero parties ahead, kept the join action disabled until required fields are supplied, and produced no browser console errors.
+- A previously seated queue session rendered its large queue number and final seated state. Automatic refresh remains implemented with WebSocket delivery and a 20-second polling fallback; the observed completed session correctly displayed the fallback state because terminal queue sessions stop realtime updates.
+
+No live reservation, queue entry, order, payment, attendance record, or other restaurant data was created or changed in this read-only hosted pass.

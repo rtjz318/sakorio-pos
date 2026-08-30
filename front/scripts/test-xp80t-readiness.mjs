@@ -36,8 +36,8 @@ const browserMode = evaluateXp80tReadiness({
 assert(browserMode.ready === false, 'browser mode should not be ready');
 assert(browserMode.score === 13, `browser mode score should be 13, got ${browserMode.score}`);
 assert(
-  browserMode.nextAction.includes('native iPad app'),
-  'browser mode next action should tell operator to use native app',
+  browserMode.nextAction.includes('native Android tablet app'),
+  'browser mode next action should tell operator to use the Android tablet app',
 );
 
 const connectedButNotRunning = evaluateXp80tReadiness({

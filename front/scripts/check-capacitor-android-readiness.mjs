@@ -18,6 +18,8 @@ requireFile('capacitor.config.json');
 requireFile('native/android-xp80t/Xp80tPrinterPlugin.java');
 requireFile('native/android-xp80t/AndroidManifest-snippet.xml');
 requireFile('native/android-xp80t/README.md');
+requireFile('native/android-secure-storage/SakorioSecureStoragePlugin.java');
+requireFile('native/android-secure-storage/README.md');
 requireFile('src/app/services/xp80t-printer.service.ts');
 requireFile('src/app/services/ipad-printer-worker.service.ts');
 requireFile('src/app/services/escpos-receipt-renderer.ts');
@@ -59,6 +61,31 @@ for (const marker of [
 ]) {
   if (!java.includes(marker)) {
     failures.push(`Android plugin missing marker: ${marker}`);
+  }
+}
+
+const secureStorage = readFileSync(
+  join(root, 'native/android-secure-storage/SakorioSecureStoragePlugin.java'),
+  'utf8',
+);
+for (const marker of [
+  'name = "SakorioSecureStorage"',
+  'AndroidKeyStore',
+  'AES/GCM/NoPadding',
+  'SharedPreferences',
+]) {
+  if (!secureStorage.includes(marker)) {
+    failures.push(`Android secure storage plugin missing marker: ${marker}`);
+  }
+}
+
+if (existsSync(join(root, 'android/app/src/main/java/com/sakorio/pos/MainActivity.java'))) {
+  const activity = readFileSync(
+    join(root, 'android/app/src/main/java/com/sakorio/pos/MainActivity.java'),
+    'utf8',
+  );
+  if (!activity.includes('registerPlugin(SakorioSecureStoragePlugin.class)')) {
+    failures.push('Generated Android app does not register SakorioSecureStoragePlugin.');
   }
 }
 

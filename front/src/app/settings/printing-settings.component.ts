@@ -113,7 +113,7 @@ import { Xp80tNativeSetupComponent } from './xp80t-native-setup.component';
             <span>Device type</span>
             <select [(ngModel)]="deviceType">
               <option value="local_agent">Local bridge / mini PC</option>
-              <option value="ipad_app">Sakorio iPad app</option>
+              <option value="ipad_app">Sakorio tablet app</option>
               <option value="xp80t">XP-80T printer client</option>
             </select>
           </label>
@@ -122,7 +122,7 @@ import { Xp80tNativeSetupComponent } from './xp80t-native-setup.component';
             <select [(ngModel)]="transport">
               <option value="network">Wi-Fi / LAN IP printer</option>
               <option value="bluetooth_serial">Paired Bluetooth serial bridge</option>
-              <option value="ios_bluetooth">Native iPad Bluetooth</option>
+              <option value="ios_bluetooth">Native tablet Bluetooth</option>
             </select>
           </label>
           <button type="button" class="button primary wide" [disabled]="creating() || agentName.trim().length < 2" (click)="createAgent()">

@@ -28,11 +28,11 @@ export function evaluateXp80tReadiness(input: Xp80tReadinessInput): Xp80tReadine
   const items: Xp80tReadinessItem[] = [
     {
       id: 'native-plugin',
-      label: 'iPad app plugin',
+      label: 'Tablet app plugin',
       ok: input.nativeReady,
       detail: input.nativeReady
         ? 'Native XP-80T plugin detected.'
-        : 'Open Sakorio through the native iPad app build, not Safari/browser mode.',
+        : 'Open Sakorio through the native Android tablet app, not browser mode.',
     },
     {
       id: 'bluetooth',
@@ -55,8 +55,8 @@ export function evaluateXp80tReadiness(input: Xp80tReadinessInput): Xp80tReadine
       label: 'Secure token storage',
       ok: input.secureStorageReady,
       detail: input.secureStorageReady
-        ? 'iOS Keychain is available for this iPad.'
-        : 'Token will only live in the current session until the Keychain plugin is available.',
+        ? 'Android Keystore is available for encrypted token storage.'
+        : 'Token will only live in the current session until secure app storage is available.',
     },
     {
       id: 'worker',
@@ -72,7 +72,7 @@ export function evaluateXp80tReadiness(input: Xp80tReadinessInput): Xp80tReadine
       ok: Boolean(input.lastHeartbeatAt),
       detail: input.lastHeartbeatAt
         ? `Last heartbeat: ${input.lastHeartbeatAt}`
-        : 'No backend heartbeat yet. Start the worker and keep the iPad online.',
+        : 'No backend heartbeat yet. Start the worker and keep the tablet online.',
     },
     {
       id: 'last-print',

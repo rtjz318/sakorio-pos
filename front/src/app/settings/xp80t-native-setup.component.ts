@@ -17,10 +17,10 @@ import {
     <article class="xp80t-panel" data-testid="xp80t-native-setup">
       <header>
         <div>
-          <p class="eyebrow">XP-80T iPad app</p>
+          <p class="eyebrow">XP-80T tablet app</p>
           <h3>Native Bluetooth printer setup</h3>
           <p class="muted">
-            Use this when Sakorio is running as the iPad app. Browser mode stays safe and will show this as unavailable.
+            Use this in the native Sakorio Android tablet app. Browser mode stays safe and will show this as unavailable.
           </p>
         </div>
         <span class="status-pill" [class.online]="nativeReady()" [class.warning]="!nativeReady()">
@@ -124,7 +124,7 @@ import {
       </div>
 
       <p class="footnote">
-        Security note: native iPad builds store the printer token in iOS Keychain.
+        Security note: the Android app stores the printer token encrypted by Android Keystore.
         Browser mode remains session-only and does not persist the token.
       </p>
     </article>

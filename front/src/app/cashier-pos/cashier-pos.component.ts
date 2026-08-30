@@ -8274,7 +8274,7 @@ export class CashierPosComponent {
           ? `Add-on round sent to bill #${orderId} for ${table.name}. Current orders stay active until the table is closed.`
           : `Order #${orderId} sent for ${table.name}. Review the bill, add another round, or collect payment.`,
       );
-      await this.refreshPosData({ setLoading: false, clearError: false });
+      await this.refreshCreatedOrder(orderId);
     } catch (err) {
       this.error.set(
         this.getRecoverableCashierErrorMessage(
@@ -8285,6 +8285,24 @@ export class CashierPosComponent {
     } finally {
       this.processingCheckout.set(false);
     }
+  }
+
+  private async refreshCreatedOrder(orderId: number): Promise<void> {
+    const refreshOptions = {
+      setLoading: false,
+      clearError: false,
+      processHitPayReturn: false,
+    };
+    await this.refreshPosData(refreshOptions);
+    if (this.orders().some((order) => order.id === orderId)) {
+      return;
+    }
+
+    // The write is committed before this call returns, but a busy hosted API can briefly serve
+    // the immediately preceding order list. One bounded retry keeps the new bill visible without
+    // asking the cashier to reload or creating an indefinite polling loop.
+    await new Promise<void>((resolve) => setTimeout(resolve, 450));
+    await this.refreshPosData(refreshOptions);
   }
 
   private scheduleQueueBoardRefresh(): void {

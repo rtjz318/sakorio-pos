@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(Xp80tPrinterPlugin.class);
+        registerPlugin(SakorioSecureStoragePlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

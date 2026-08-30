@@ -12,6 +12,8 @@ const requiredFiles = [
   'native/android-xp80t/Xp80tPrinterPlugin.java',
   'native/android-xp80t/AndroidManifest-snippet.xml',
   'native/android-xp80t/README.md',
+  'native/android-secure-storage/SakorioSecureStoragePlugin.java',
+  'native/android-secure-storage/README.md',
   'native/ios-secure-storage/SakorioSecureStoragePlugin.swift',
   'native/ios-secure-storage/SakorioSecureStoragePlugin.m',
   'native/ios-secure-storage/README.md',
@@ -77,6 +79,17 @@ const secureStorage = readFileSync(
 for (const marker of ['Security', 'SecItemAdd', 'SecItemCopyMatching', 'ThisDeviceOnly']) {
   if (!secureStorage.includes(marker)) {
     console.error(`[xp80t-scaffold] Secure storage plugin missing marker: ${marker}`);
+    process.exit(1);
+  }
+}
+
+const androidSecureStorage = readFileSync(
+  join(root, 'native/android-secure-storage/SakorioSecureStoragePlugin.java'),
+  'utf8',
+);
+for (const marker of ['AndroidKeyStore', 'AES/GCM/NoPadding', 'SharedPreferences']) {
+  if (!androidSecureStorage.includes(marker)) {
+    console.error(`[xp80t-scaffold] Android secure storage plugin missing marker: ${marker}`);
     process.exit(1);
   }
 }

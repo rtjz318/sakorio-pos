@@ -122,6 +122,14 @@ Known non-blocking build warnings remain: the existing Angular component-style b
 
 The landing Puppeteer script completed its reachability probe but could not launch because its container was configured with a macOS Chrome executable path on this Windows host. The minimum local smoke was therefore completed directly against HAProxy (HTTP 200), while the functional evidence comes from the executed hosted-browser workflow above.
 
+## Post-deployment hosted verification
+
+- `staff.sakorio.com` reported version `2.1.6 0c1b2619` after the development deployment completed.
+- Settings → Printing displayed `XP-80T TABLET APP`, `Sakorio tablet app`, `Native tablet Bluetooth`, Android-tablet setup guidance, and the Android Keystore security note.
+- The former XP-80T/Sakorio/native iPad labels were absent.
+- Browser mode correctly reported that the native printer and secure-storage plugins are unavailable there; those capabilities are intentionally exposed only by the Android APK.
+- The hosted Printing page produced no browser console errors during this verification.
+
 ## Remaining launch gates
 
 1. Install the newly built APK on the shop Android tablet.

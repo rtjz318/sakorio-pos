@@ -3490,6 +3490,7 @@ export class TablesComponent implements OnInit {
   }
 
   tablePaymentState(table: CanvasTable): TablePaymentStatus {
+    if (!table.is_active && !table.active_order_id) return 'none';
     if (table.payment_summary?.status) return table.payment_summary.status;
     if (table.payment_status === 'pending') return 'requested';
     if (table.payment_status === 'paid') return 'paid';

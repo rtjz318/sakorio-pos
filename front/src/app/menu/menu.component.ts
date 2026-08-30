@@ -435,6 +435,14 @@ export class MenuComponent implements OnInit, OnDestroy {
               `${environment.apiUrl}/uploads/${detail.tenant_id}/logo/${detail.tenant_logo}`
             );
           }
+        } else if (err.status === 409 && err.error?.detail?.code === 'TABLE_SESSION_STALE') {
+          this.clearCustomerSession(false);
+          this.errorTitle.set('Table reset required');
+          this.errorMessage.set(
+            err.error.detail.message ||
+              'This table was left open from an earlier visit. Please ask staff to review the bill, then close and reset the table.',
+          );
+          this.error.set(true);
         } else {
           this.errorTitle.set('Menu link not available');
           if (err.status === 404) {

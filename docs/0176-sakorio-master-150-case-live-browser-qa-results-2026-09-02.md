@@ -5,6 +5,8 @@
 **Live staff build observed:** `2.1.6 89b5fb07`  
 **Method:** Browser-only inspection and interaction on `staff.sakorio.com` and `order.sakorio.com`. No result below is promoted from a code-only check.
 
+> **Post-report correction and remediation:** The staff service eventually recovered after roughly 55–60 seconds, so the original wording that it never recovered was too strong. A controlled queue-to-terminal lifecycle and tablet retest were subsequently completed on builds `1355dbe8` and `05737dd7`. See [0177-sakorio-launch-blocker-remediation-live-results-2026-09-02.md](0177-sakorio-launch-blocker-remediation-live-results-2026-09-02.md). The historical scores below remain the honest results of the original 150-case execution window; the addendum records which blocked paths were reopened and which launch blockers remain.
+
 ## Executive decision
 
 **NO-GO for production launch.** The customer booking and queue surfaces are usable, but the staff service entered a repeating Render wake screen and did not return to the authenticated application. This blocked the critical reservation/queue -> seat -> QR order -> KDS -> payment -> close chain. Printing is also not launch-ready: the live Settings page showed `0/3` agents online, 17 waiting jobs, and no native Bluetooth plugin in the browser build.

@@ -2534,8 +2534,10 @@ export class QueueComponent implements OnInit {
         this.mergeEntry(updated);
         this.openPosForSeatedEntry(updated);
       },
-      error: () => {
-        this.error.set('Could not seat this guest on the selected table.');
+      error: (err) => {
+        this.error.set(
+          err?.error?.detail || 'Could not seat this guest on the selected table.',
+        );
         this.busyEntryId.set(null);
       },
     });

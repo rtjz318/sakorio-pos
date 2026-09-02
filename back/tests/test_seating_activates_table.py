@@ -146,6 +146,73 @@ class TestSeatingActivatesTable(PgClientTestCase):
         self.assertEqual(table_status["payment_summary"]["status"], "none")
         self.assertIsNone(table_status["active_order_id"])
 
+    def test_future_reservation_does_not_block_queue_seating_today(self) -> None:
+        future_reservation = models.Reservation(
+            tenant_id=self.tenant_id,
+            customer_name="Future Booked Party",
+            customer_phone="+6590000002",
+            reservation_date=date.today() + timedelta(days=7),
+            reservation_time=time(19, 0),
+            party_size=2,
+            status=models.ReservationStatus.booked,
+            table_id=self.table_id,
+            token=f"reservation-{uuid4().hex}",
+        )
+        entry = models.GuestQueueEntry(
+            tenant_id=self.tenant_id,
+            customer_name="Today's Walk-in",
+            customer_phone="+6590000003",
+            party_size=2,
+            status=models.GuestQueueStatus.waiting,
+        )
+        self.session.add(future_reservation)
+        self.session.add(entry)
+        self.session.commit()
+        self.session.refresh(entry)
+
+        response = self.client.put(
+            f"/queue/{entry.id}/seat",
+            headers=self.headers,
+            json={"table_id": self.table_id},
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["status"], "seated")
+        self.assertEqual(response.json()["seated_table_id"], self.table_id)
+
+    def test_same_day_reservation_blocks_queue_seating(self) -> None:
+        same_day_reservation = models.Reservation(
+            tenant_id=self.tenant_id,
+            customer_name="Today's Booked Party",
+            customer_phone="+6590000004",
+            reservation_date=date.today(),
+            reservation_time=time(19, 0),
+            party_size=2,
+            status=models.ReservationStatus.booked,
+            table_id=self.table_id,
+            token=f"reservation-{uuid4().hex}",
+        )
+        entry = models.GuestQueueEntry(
+            tenant_id=self.tenant_id,
+            customer_name="Conflicting Walk-in",
+            customer_phone="+6590000005",
+            party_size=2,
+            status=models.GuestQueueStatus.waiting,
+        )
+        self.session.add(same_day_reservation)
+        self.session.add(entry)
+        self.session.commit()
+        self.session.refresh(entry)
+
+        response = self.client.put(
+            f"/queue/{entry.id}/seat",
+            headers=self.headers,
+            json={"table_id": self.table_id},
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(response.json()["detail"], "Table is already reserved")
+
     def test_reservation_seating_activates_table_and_clears_stale_order(self) -> None:
         reservation = models.Reservation(
             tenant_id=self.tenant_id,

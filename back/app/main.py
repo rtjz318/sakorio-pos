@@ -11293,6 +11293,10 @@ def _seat_queue_entry_on_table(
     tenant_id: int,
     session: Session,
 ) -> models.Table:
+    tenant = session.get(models.Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    service_date = _guest_queue_service_date(tenant)
     table = session.exec(
         select(models.Table).where(
             models.Table.id == table_id,
@@ -11326,6 +11330,7 @@ def _seat_queue_entry_on_table(
             select(models.Reservation).where(
                 models.Reservation.table_id == mid,
                 models.Reservation.status == models.ReservationStatus.booked,
+                models.Reservation.reservation_date == service_date,
             )
         ).first()
         if other_reserved:

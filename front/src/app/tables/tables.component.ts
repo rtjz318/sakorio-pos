@@ -1396,7 +1396,7 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     .view-toggle .btn { display: inline-flex; align-items: center; gap: 6px; }
     .view-toggle .btn.active { background: var(--color-bg); color: var(--color-text); font-weight: 500; }
 
-    .btn { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border: none; border-radius: var(--radius-md); font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.15s ease; text-decoration: none; }
+    .btn { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 2.75rem; padding: var(--space-3) var(--space-4); border: none; border-radius: var(--radius-md); font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.15s ease; text-decoration: none; }
     .btn-primary { background: var(--color-primary); color: white; &:hover { background: var(--color-primary-hover); } }
     .btn-secondary { background: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border); &:hover { background: var(--color-border); } }
     .btn-ghost { background: transparent; color: var(--color-text-muted); &:hover { background: var(--color-bg); color: var(--color-text); } }

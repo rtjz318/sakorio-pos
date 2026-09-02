@@ -1301,7 +1301,11 @@ type QueueResolutionAction = 'cancelled' | 'no_show';
                             }
                           </span>
                         </label>
-                        <div class="pos-service-categories" aria-label="Menu categories">
+                        <div class="pos-service-category-guide" aria-hidden="true">
+                          <span>Menu categories</span>
+                          <small>Swipe to see more <span>→</span></small>
+                        </div>
+                        <div class="pos-service-categories" role="region" aria-label="Scrollable menu categories" tabindex="0">
                           <button type="button" [class.active]="!selectedCategory()" (click)="selectedCategory.set('')">
                             All <span>{{ activeProducts().length }}</span>
                           </button>
@@ -2266,7 +2270,33 @@ type QueueResolutionAction = 'cancelled' | 'no_show';
       display: flex;
       gap: 0.45rem;
       overflow-x: auto;
-      padding-bottom: 0.1rem;
+      overscroll-behavior-inline: contain;
+      scroll-snap-type: x proximity;
+      scrollbar-width: thin;
+      scrollbar-color: color-mix(in srgb, var(--color-primary) 34%, transparent) transparent;
+      padding: 0.05rem 0 0.28rem;
+    }
+
+    .pos-service-category-guide {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.35rem;
+      color: var(--color-muted);
+      font-size: 0.76rem;
+      font-weight: 850;
+    }
+
+    .pos-service-category-guide small {
+      color: var(--color-primary-strong);
+      font: inherit;
+    }
+
+    .pos-service-category-guide small span {
+      display: inline-block;
+      margin-left: 0.18rem;
+      font-size: 1rem;
     }
 
     .pos-service-categories button {
@@ -2283,6 +2313,7 @@ type QueueResolutionAction = 'cancelled' | 'no_show';
       font-weight: 850;
       white-space: nowrap;
       cursor: pointer;
+      scroll-snap-align: start;
     }
 
     .pos-service-categories button.active {
@@ -5318,6 +5349,26 @@ type QueueResolutionAction = 'cancelled' | 'no_show';
         height: 100dvh;
         border-radius: 0;
         border-inline: 0;
+      }
+
+      .pos-service-drawer button {
+        min-height: 2.75rem;
+      }
+
+      .pos-service-close {
+        width: 2.75rem;
+        height: 2.75rem;
+      }
+
+      .pos-service-category-guide {
+        display: flex;
+      }
+
+      .pos-service-categories {
+        margin-right: -0.75rem;
+        padding-right: 1.5rem;
+        -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 2rem), transparent 100%);
+        mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 2rem), transparent 100%);
       }
 
       .pos-service-header {

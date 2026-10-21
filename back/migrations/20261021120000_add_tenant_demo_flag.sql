@@ -12,5 +12,6 @@ SET is_demo = TRUE,
 WHERE LOWER(BTRIM(name)) IN (
     'ajisen ramen',
     'ajisen ramen restaurant',
-    'demo restaurant'
+    'demo restaurant',
+    'test'
 );

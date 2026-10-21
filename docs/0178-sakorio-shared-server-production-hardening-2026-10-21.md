@@ -10,7 +10,7 @@ The application layer is now prepared for a shared multi-tenant deployment:
 - Production tenants cannot inherit a global HitPay API key or webhook salt.
 - Every real tenant must configure its own HitPay credentials in Settings.
 - Shared HitPay credentials remain available only to explicitly marked demo tenants and are forced to sandbox.
-- Ajisen is marked by a database migration as demo data when its tenant name is `Ajisen Ramen` or `Ajisen Ramen Restaurant`.
+- Ajisen and the legacy tenant named `test` are marked by a database migration as demo data.
 - Staff using a demo tenant see a persistent `DEMO - TRAINING ONLY` badge and a full-width warning on every staff screen.
 - A fail-closed route inventory test requires every API route to be either authenticated or explicitly reviewed as public/capability-token based.
 - The complete backend suite passes: 353 tests.
@@ -112,6 +112,7 @@ Staff guardrails:
 - Sidebar badge: `DEMO - TRAINING ONLY`.
 - Mobile header badge: `DEMO`.
 - Sticky staff-shell banner: `DEMO RESTAURANT - DO NOT ENTER LIVE CUSTOMER ORDERS`.
+- Public restaurant picker badge: `DEMO RESTAURANT - TRAINING ONLY`.
 - Live HitPay is blocked server-side, not merely hidden in the UI.
 
 New real restaurants default to `is_demo=false`. The onboarding CLI supports `--demo` only for deliberate test/training tenants.

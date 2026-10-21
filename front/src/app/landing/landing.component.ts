@@ -130,6 +130,9 @@ import { NATIVE_SAKORIO_TENANT_ID, isNativeShell } from '../shared/native-shell.
                     <img [src]="getLogoUrl(tenant)!" [alt]="tenant.name" class="tenant-logo" />
                   }
                   <h3 class="tenant-name">{{ tenant.name }}</h3>
+                  @if (tenant.is_demo) {
+                    <span class="tenant-demo-badge">DEMO RESTAURANT — TRAINING ONLY</span>
+                  }
                   <div class="tenant-qr-section">
                     <p class="tenant-qr-hint">{{ 'LANDING.PUBLIC_MENU_QR_HINT' | translate }}</p>
                     <a
@@ -635,6 +638,20 @@ import { NATIVE_SAKORIO_TENANT_ID, isNativeShell } from '../shared/native-shell.
       font-weight: 600;
       color: var(--color-text);
       margin: 0;
+      text-align: center;
+    }
+
+    .tenant-demo-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 9px;
+      border: 1px solid #b45309;
+      border-radius: 999px;
+      background: #fef3c7;
+      color: #78350f;
+      font-size: 0.6875rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
       text-align: center;
     }
 

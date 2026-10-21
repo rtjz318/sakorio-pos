@@ -160,7 +160,44 @@ images, taxes, floor and tables were verified. It provides a rollback point
 before restaurant-specific credentials, staff accounts or live transactions
 are introduced.
 
-## 9. Current launch decision
+## 9. Restaurant configuration follow-up
+
+The following production-safe configuration was completed after tenant
+creation:
+
+- business type set to `Restaurant`;
+- public phone and WhatsApp set to `+65 9145 1636`;
+- public address set to `150 Orchard Road, #04-21 Orchard Plaza, Singapore
+  238841`;
+- website set to `https://sites.google.com/view/morinaga-ramen-izakaya`;
+- Google Maps destination set to the restaurant's published business-profile
+  link;
+- opening hours set to Monday-Saturday 18:30-04:30, Sunday closed;
+- `Kitchen` and `Beverages` prep stations created;
+- food/non-beverage items route to `Kitchen` by default;
+- beverage items route to `Beverages` by default.
+
+The phone, website and late-night hours were cross-checked against the
+restaurant's public website and current public listings. Management must still
+confirm them before QR codes or booking links are distributed.
+
+Live-browser verification exposed that overnight hours were displayed
+correctly but produced an empty public booking calendar because reservation
+availability assumed closing time was later on the same date. The backend now
+splits overnight service by calendar date: the evening segment belongs to the
+starting date and the after-midnight segment belongs to the following date.
+This keeps reservation dates, host day views and capacity calculations aligned
+with the guest's actual calendar date.
+
+Verification for the overnight-hours correction:
+
+- focused opening-hours and reservation tests: 13 passed;
+- complete backend suite: 358 passed, 2 dependency deprecation warnings;
+- local application reachability: HTTP 200;
+- backend runtime logs: repeated health-check 200 responses and no inspected
+  application errors.
+
+## 10. Current launch decision
 
 Morinaga is ready for restaurant-specific configuration, staff setup, sandbox
 payment testing and physical printer/tablet acceptance. It is **not yet approved

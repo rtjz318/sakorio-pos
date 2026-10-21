@@ -8876,11 +8876,12 @@ def _grid_slot_times_for_windows(
     out: List[time] = []
     for open_t, close_t in windows:
         om = open_t.hour * 60 + open_t.minute
-        cm = close_t.hour * 60 + close_t.minute
+        end_of_day = close_t == time.max
+        cm = 24 * 60 if end_of_day else close_t.hour * 60 + close_t.minute
         t = ((om + step - 1) // step) * step
         while t < cm:
             slot = time(t // 60, t % 60)
-            if _reservation_time_allowed_before_closing(slot, close_t):
+            if end_of_day or _reservation_time_allowed_before_closing(slot, close_t):
                 key = slot.hour * 60 + slot.minute
                 if key not in seen:
                     seen.add(key)
@@ -8900,6 +8901,11 @@ def _closing_time_for_date(session: Session, tenant: models.Tenant, res_date: da
 
 def _reservation_time_allowed_before_closing(reservation_time: time, closing_time: time) -> bool:
     """True if reservation_time is at least 1 hour before closing_time."""
+    if closing_time == time.max:
+        # An overnight service is represented as an evening segment ending at
+        # the calendar boundary plus a carry-over segment on the next date.
+        # Do not apply the one-hour cutoff to the artificial midnight split.
+        return reservation_time < closing_time
     close_mins = closing_time.hour * 60 + closing_time.minute
     last_mins = (close_mins - 60) % (24 * 60)
     res_mins = reservation_time.hour * 60 + reservation_time.minute

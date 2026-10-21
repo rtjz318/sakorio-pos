@@ -116,6 +116,56 @@ class TestBookMonthDaySlotsPublic(PgClientTestCase):
         )
         self.assertEqual(r.status_code, 400, r.text)
 
+    def test_book_day_slots_support_overnight_service(self):
+        overnight = {
+            day: {"open": "18:30", "close": "04:30"}
+            for day in [
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday",
+                "saturday",
+            ]
+        }
+        overnight["sunday"] = {"closed": True}
+        self.tenant.opening_hours = json.dumps(overnight)
+        self.tenant.reservation_slot_minutes = 30
+        self.session.add(self.tenant)
+        self.session.commit()
+
+        today = date.today()
+        days_until_tuesday = (1 - today.weekday()) % 7 or 7
+        tuesday = today + timedelta(days=days_until_tuesday)
+        response = self.client.get(
+            "/reservations/book-day-slots",
+            params={
+                "tenant_id": self.tenant.id,
+                "date": tuesday.isoformat(),
+                "party_size": 2,
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual(body["cells"]["00:00"], "available")
+        self.assertEqual(body["cells"]["03:30"], "available")
+        self.assertEqual(body["cells"]["18:30"], "available")
+        self.assertEqual(body["cells"]["23:30"], "available")
+
+        sunday = tuesday + timedelta(days=5)
+        sunday_response = self.client.get(
+            "/reservations/book-day-slots",
+            params={
+                "tenant_id": self.tenant.id,
+                "date": sunday.isoformat(),
+                "party_size": 2,
+            },
+        )
+        self.assertEqual(sunday_response.status_code, 200, sunday_response.text)
+        sunday_body = sunday_response.json()
+        self.assertEqual(sunday_body["cells"]["00:00"], "available")
+        self.assertNotIn("18:30", sunday_body["times"])
+
 
 if __name__ == "__main__":
     unittest.main()

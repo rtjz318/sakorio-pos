@@ -10,7 +10,7 @@ Date overrides: narrowest covering range wins (tie-break: higher id).
 from __future__ import annotations
 
 import json
-from datetime import date, time
+from datetime import date, time, timedelta
 from typing import TYPE_CHECKING, List, Tuple
 
 from sqlalchemy import desc
@@ -58,6 +58,39 @@ def _service_windows_from_day_hours(day_hours: dict) -> List[Tuple[time, time]]:
     return [(o, c)]
 
 
+def _calendar_date_windows(
+    current_windows: List[Tuple[time, time]],
+    previous_windows: List[Tuple[time, time]],
+) -> List[Tuple[time, time]]:
+    """Return service windows that occur on one calendar date.
+
+    A stored weekday window such as 18:30-04:30 starts on that weekday and
+    finishes the following morning.  Reservation dates are calendar dates, so
+    the following day must receive the 00:00-04:30 carry-over while the start
+    day receives 18:30-midnight.  ``time.max`` is an internal end-of-day
+    sentinel; it is never persisted.
+    """
+    windows: List[Tuple[time, time]] = []
+    for open_t, close_t in previous_windows:
+        if close_t < open_t:
+            windows.append((time.min, close_t))
+    for open_t, close_t in current_windows:
+        if close_t > open_t:
+            windows.append((open_t, close_t))
+        elif close_t < open_t:
+            windows.append((open_t, time.max))
+    windows.sort(key=lambda window: (window[0].hour, window[0].minute))
+    return windows
+
+
+def _windows_from_weekly_dict(weekly: dict, res_date: date) -> List[Tuple[time, time]]:
+    day_key = _DAY_NAMES[res_date.weekday()]
+    day_hours = weekly.get(day_key)
+    if not isinstance(day_hours, dict):
+        return []
+    return _service_windows_from_day_hours(day_hours)
+
+
 def _legacy_windows_from_tenant_only(tenant: models.Tenant, res_date: date) -> List[Tuple[time, time]] | None:
     """Same behaviour as historical main.py when no DB session is available."""
     if not tenant.opening_hours or not str(tenant.opening_hours).strip():
@@ -66,11 +99,9 @@ def _legacy_windows_from_tenant_only(tenant: models.Tenant, res_date: date) -> L
         oh = json.loads(tenant.opening_hours)
     except (json.JSONDecodeError, TypeError):
         return None
-    day_key = _DAY_NAMES[res_date.weekday()]
-    day_hours = oh.get(day_key)
-    if not isinstance(day_hours, dict):
-        return []
-    return _service_windows_from_day_hours(day_hours)
+    current_windows = _windows_from_weekly_dict(oh, res_date)
+    previous_windows = _windows_from_weekly_dict(oh, res_date - timedelta(days=1))
+    return _calendar_date_windows(current_windows, previous_windows)
 
 
 def _baseline_weekly_json(session: Session, tenant: models.Tenant, res_date: date) -> str | None:
@@ -112,11 +143,22 @@ def _windows_from_weekly_json_str(weekly_json: str | None, res_date: date) -> Li
         oh = json.loads(weekly_json)
     except (json.JSONDecodeError, TypeError):
         return None
-    day_key = _DAY_NAMES[res_date.weekday()]
-    day_hours = oh.get(day_key)
-    if not isinstance(day_hours, dict):
-        return []
-    return _service_windows_from_day_hours(day_hours)
+    return _windows_from_weekly_dict(oh, res_date)
+
+
+def _weekly_source_for_date(
+    session: Session, tenant: models.Tenant, res_date: date
+) -> tuple[str | None, bool]:
+    """Return the effective weekly JSON and whether a closed date override won."""
+    baseline = _baseline_weekly_json(session, tenant, res_date)
+    override = _pick_override_for_date(session, tenant.id, res_date)
+    if override is None:
+        return baseline, False
+    if override.closed:
+        return None, True
+    if override.opening_hours and str(override.opening_hours).strip():
+        return override.opening_hours, False
+    return baseline, False
 
 
 def opening_service_windows_for_date(
@@ -132,19 +174,24 @@ def opening_service_windows_for_date(
     if session is None:
         return _legacy_windows_from_tenant_only(tenant, res_date)
 
-    baseline = _baseline_weekly_json(session, tenant, res_date)
-    override = _pick_override_for_date(session, tenant.id, res_date)
-    weekly_source: str | None = baseline
+    current_source, current_closed_override = _weekly_source_for_date(session, tenant, res_date)
+    if current_closed_override:
+        return []
 
-    if override is not None:
-        if override.closed:
-            return []
-        if override.opening_hours and str(override.opening_hours).strip():
-            weekly_source = override.opening_hours
-        else:
-            weekly_source = baseline
+    previous_date = res_date - timedelta(days=1)
+    previous_source, previous_closed_override = _weekly_source_for_date(
+        session, tenant, previous_date
+    )
+    if current_source is None and previous_source is None:
+        return None
 
-    return _windows_from_weekly_json_str(weekly_source, res_date)
+    current_windows = _windows_from_weekly_json_str(current_source, res_date) or []
+    previous_windows = (
+        []
+        if previous_closed_override
+        else (_windows_from_weekly_json_str(previous_source, previous_date) or [])
+    )
+    return _calendar_date_windows(current_windows, previous_windows)
 
 
 def effective_weekly_json_preview(

@@ -1,7 +1,7 @@
 """Effective opening hours: baseline schedules and date overrides (Postgres)."""
 import json
 import unittest
-from datetime import date
+from datetime import date, time
 
 from pg_client_mixin import PgClientTestCase
 
@@ -112,6 +112,42 @@ class TestOpeningHoursEffective(PgClientTestCase):
         windows = opening_service_windows_for_date(self.session, self.tenant, d)
         self.assertIsNotNone(windows)
         self.assertEqual(windows[0][0].hour, 12)
+
+    def test_overnight_hours_are_split_across_calendar_dates(self):
+        overnight = {
+            day: {"closed": False, "open": "18:30", "close": "04:30"}
+            for day in [
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday",
+                "saturday",
+            ]
+        }
+        overnight["sunday"] = {"closed": True}
+        self.tenant.opening_hours = json.dumps(overnight)
+        self.session.add(self.tenant)
+        self.session.commit()
+
+        monday = date(2026, 6, 8)
+        monday_windows = opening_service_windows_for_date(self.session, self.tenant, monday)
+        self.assertEqual(monday_windows, [(time(18, 30), time.max)])
+
+        tuesday_windows = opening_service_windows_for_date(
+            self.session, self.tenant, date(2026, 6, 9)
+        )
+        self.assertEqual(
+            tuesday_windows,
+            [(time.min, time(4, 30)), (time(18, 30), time.max)],
+        )
+
+        # Sunday has no new evening service but still includes the end of
+        # Saturday's service after midnight.
+        sunday_windows = opening_service_windows_for_date(
+            self.session, self.tenant, date(2026, 6, 14)
+        )
+        self.assertEqual(sunday_windows, [(time.min, time(4, 30))])
 
 
 if __name__ == "__main__":

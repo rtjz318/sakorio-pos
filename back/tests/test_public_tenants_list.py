@@ -14,6 +14,7 @@ class TestPublicTenantsList(PgClientTestCase):
         tenant = models.Tenant(
             name="Public List Test",
             email="pos-public-list-test@sakario.sg",
+            is_demo=True,
         )
         self.session.add(tenant)
         self.session.commit()
@@ -30,9 +31,11 @@ class TestPublicTenantsList(PgClientTestCase):
         self.assertIsNotNone(match, "Created tenant must appear in list")
         self.assertEqual(match["name"], "Public List Test")
         self.assertEqual(match["email"], "pos-public-list-test@sakario.sg")
+        self.assertIs(match["is_demo"], True)
         for key in (
             "id",
             "name",
+            "is_demo",
             "logo_filename",
             "whatsapp",
             "take_away_table_token",

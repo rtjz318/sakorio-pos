@@ -97,6 +97,16 @@ python -m app.onboarding.company_onboarding create-tenant \
   --tables T01:4,T02:4,T03:2,T04:2
 ```
 
+Production tenants are created with `is_demo=false` by default. Only use
+`--demo` for training restaurants. A demo tenant is permanently identified in
+the staff shell and forced to HitPay sandbox mode:
+
+```bash
+python -m app.onboarding.company_onboarding create-tenant \
+  --name "Ajisen Ramen" \
+  --demo
+```
+
 ## Import menu CSV
 
 Dry run:

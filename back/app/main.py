@@ -775,6 +775,7 @@ class TenantSummary(_BaseModel):
 
     id: int
     name: str
+    is_demo: bool = False
     logo_filename: str | None = None
     header_background_filename: str | None = None
     description: str | None = None
@@ -967,6 +968,7 @@ def _tenant_to_summary(t: models.Tenant, session: Session) -> TenantSummary:
     return TenantSummary(
         id=t.id,
         name=t.name,
+        is_demo=bool(t.is_demo),
         logo_filename=t.logo_filename,
         header_background_filename=t.header_background_filename,
         description=t.description,
@@ -3548,6 +3550,7 @@ def get_tenant_service_settings(
     tenant_dict = {
         "id": tenant.id,
         "name": tenant.name,
+        "is_demo": bool(tenant.is_demo),
         "currency": tenant.currency,
         "currency_code": tenant.currency_code,
         "default_language": tenant.default_language,
@@ -3700,6 +3703,11 @@ def update_tenant_settings(
             if isinstance(tenant_update.hitpay_mode, str)
             else ""
         )
+        if tenant.is_demo and mode == "live":
+            raise HTTPException(
+                status_code=400,
+                detail="Demo tenants must use HitPay sandbox mode",
+            )
         if mode in ("sandbox", "live"):
             tenant.hitpay_mode = mode
         elif mode == "":
@@ -12945,13 +12953,7 @@ def get_menu(
             )
         )[0],
         "tenant_currency": _menu_cc[1],
-        "tenant_hitpay_configured": bool(
-            tenant
-            and (
-                (tenant.hitpay_api_key and tenant.hitpay_api_key.strip())
-                or (settings.hitpay_api_key and settings.hitpay_api_key.strip())
-            )
-        ),
+        "tenant_hitpay_configured": bool(_tenant_hitpay_api_key(tenant)),
         "tenant_immediate_payment_required": tenant.immediate_payment_required
         if tenant
         else False,
@@ -15578,13 +15580,37 @@ def _resolve_tenant_payment_currency(tenant: models.Tenant) -> str:
 
 
 def _hitpay_mode(tenant: models.Tenant | None) -> str:
-    tenant_has_key = bool(tenant and tenant.hitpay_api_key and tenant.hitpay_api_key.strip())
+    if tenant and tenant.is_demo:
+        return "sandbox"
+    tenant_has_key = bool(
+        tenant and tenant.hitpay_api_key and tenant.hitpay_api_key.strip()
+    )
     raw = (
-        (tenant.hitpay_mode if tenant_has_key and tenant else None)
-        or settings.hitpay_mode
-        or "sandbox"
+        (tenant.hitpay_mode if tenant_has_key and tenant else None) or "sandbox"
     ).strip().lower()
     return "live" if raw == "live" else "sandbox"
+
+
+def _tenant_hitpay_api_key(tenant: models.Tenant | None) -> str | None:
+    """Return a tenant-owned key; only demos may use the shared sandbox fallback."""
+    tenant_key = (tenant.hitpay_api_key or "").strip() if tenant else ""
+    if tenant_key:
+        return tenant_key
+    if tenant and tenant.is_demo:
+        fallback = (settings.hitpay_api_key or "").strip()
+        return fallback or None
+    return None
+
+
+def _tenant_hitpay_webhook_salt(tenant: models.Tenant | None) -> str | None:
+    """Return a tenant-owned salt; only demos may use the shared sandbox fallback."""
+    tenant_salt = (tenant.hitpay_webhook_salt or "").strip() if tenant else ""
+    if tenant_salt:
+        return tenant_salt
+    if tenant and tenant.is_demo:
+        fallback = (settings.hitpay_webhook_salt or "").strip()
+        return fallback or None
+    return None
 
 
 def _hitpay_api_base(mode: str) -> str:
@@ -15848,8 +15874,8 @@ def create_hitpay_payment_request(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    hitpay_api_key = tenant.hitpay_api_key or settings.hitpay_api_key
-    if not hitpay_api_key or not hitpay_api_key.strip():
+    hitpay_api_key = _tenant_hitpay_api_key(tenant)
+    if not hitpay_api_key:
         raise HTTPException(
             status_code=400, detail="HitPay is not configured for this tenant"
         )
@@ -15878,7 +15904,7 @@ def create_hitpay_payment_request(
 
     try:
         hitpay_request = _hitpay_create_payment_request(
-            api_key=hitpay_api_key.strip(),
+            api_key=hitpay_api_key,
             mode=_hitpay_mode(tenant),
             amount_cents=total_cents,
             currency=currency,
@@ -15889,7 +15915,7 @@ def create_hitpay_payment_request(
         )
     except requests.RequestException as e:
         _log_hitpay_request_exception(
-            "create payment request", e, api_key=hitpay_api_key.strip()
+            "create payment request", e, api_key=hitpay_api_key
         )
         raise HTTPException(status_code=502, detail="HitPay request failed") from e
 
@@ -15960,21 +15986,21 @@ def confirm_hitpay_payment(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    hitpay_api_key = tenant.hitpay_api_key or settings.hitpay_api_key
-    if not hitpay_api_key or not hitpay_api_key.strip():
+    hitpay_api_key = _tenant_hitpay_api_key(tenant)
+    if not hitpay_api_key:
         raise HTTPException(
             status_code=400, detail="HitPay is not configured for this tenant"
         )
 
     try:
         hitpay_request = _hitpay_retrieve_payment_request(
-            api_key=hitpay_api_key.strip(),
+            api_key=hitpay_api_key,
             mode=_hitpay_mode(tenant),
             request_id=order.hitpay_payment_request_id,
         )
     except requests.RequestException as e:
         _log_hitpay_request_exception(
-            "retrieve payment request", e, api_key=hitpay_api_key.strip()
+            "retrieve payment request", e, api_key=hitpay_api_key
         )
         raise HTTPException(status_code=502, detail="HitPay request failed") from e
 
@@ -16051,11 +16077,11 @@ async def hitpay_webhook(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    salt = tenant.hitpay_webhook_salt or settings.hitpay_webhook_salt
-    if not salt or not salt.strip():
+    salt = _tenant_hitpay_webhook_salt(tenant)
+    if not salt:
         raise HTTPException(status_code=400, detail="HitPay webhook salt is not configured")
 
-    if not _hitpay_signature_valid(raw_body, request.headers.get("Hitpay-Signature"), salt.strip()):
+    if not _hitpay_signature_valid(raw_body, request.headers.get("Hitpay-Signature"), salt):
         raise HTTPException(status_code=401, detail="Invalid HitPay webhook signature")
 
     event_type = (request.headers.get("Hitpay-Event-Type") or "").strip().lower()

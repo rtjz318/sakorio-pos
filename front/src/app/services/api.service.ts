@@ -588,6 +588,7 @@ export interface PublicTenantMenuResponse {
 export interface TenantSummary {
   id: number;
   name: string;
+  is_demo?: boolean;
   logo_filename: string | null;
   header_background_filename?: string | null;
   description?: string | null;
@@ -1479,6 +1480,8 @@ export interface Tax {
 export interface TenantSettings {
   id?: number;
   name: string;
+  /** True only for non-production training/demo restaurants. */
+  is_demo?: boolean;
   business_type?: string | null;
   description?: string | null;
   phone?: string | null;
@@ -1790,6 +1793,8 @@ export class ApiService {
   tenantUiModules = signal<Record<TenantUiModuleKey, boolean>>({ ...DEFAULT_TENANT_UI_MODULES });
   /** Tenant `name` from settings (staff sidebar branding); cleared on logout. */
   tenantDisplayName = signal<string | null>(null);
+  /** Demo status from the authenticated tenant; shown as an operational guardrail. */
+  tenantIsDemo = signal(false);
 
   private orderUpdates = new Subject<any>();
   private reservationUpdates = new Subject<any>();
@@ -1948,6 +1953,7 @@ export class ApiService {
     this.tenantUiModulesResolved.set(false);
     this.tenantUiModules.set({ ...DEFAULT_TENANT_UI_MODULES });
     this.tenantDisplayName.set(null);
+    this.tenantIsDemo.set(false);
     this.disconnectWebSocket();
     return this.http.post(`${this.apiUrl}/logout`, {}, { withCredentials: !isCustomerPublicHost() }).pipe(
       catchError(() => of(undefined))
@@ -2856,12 +2862,12 @@ export class ApiService {
     this.tenantUiModulesResolved.set(true);
   }
 
-  /** For route guards: loads settings once per session (after login). */
+  /** For route guards: loads safe service settings once per session (after login). */
   ensureTenantUiModulesLoaded(): Observable<void> {
     if (this.tenantUiModulesResolved()) {
       return of(void 0);
     }
-    return this.getTenantSettings().pipe(
+    return this.getTenantServiceSettings().pipe(
       map(() => void 0),
       catchError(() => {
         this.applyTenantUiModulesFromSettings(null);
@@ -2884,6 +2890,7 @@ export class ApiService {
         this.applyTenantUiModulesFromSettings(s);
         const n = typeof s?.name === 'string' ? s.name.trim() : '';
         this.tenantDisplayName.set(n || null);
+        this.tenantIsDemo.set(s?.is_demo === true);
       })
     );
   }
@@ -2895,6 +2902,7 @@ export class ApiService {
         this.applyTenantUiModulesFromSettings(s);
         const n = typeof s?.name === 'string' ? s.name.trim() : '';
         this.tenantDisplayName.set(n || null);
+        this.tenantIsDemo.set(s?.is_demo === true);
       })
     );
   }
@@ -2906,6 +2914,7 @@ export class ApiService {
           const n = s.name.trim();
           this.tenantDisplayName.set(n || null);
         }
+        this.tenantIsDemo.set(s?.is_demo === true);
       })
     );
   }

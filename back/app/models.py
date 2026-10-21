@@ -81,6 +81,9 @@ class UserRole(str, Enum):
 class Tenant(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True)
+    # Demo tenants are visually marked and may only use the shared sandbox payment
+    # fallback. Production tenants must provide their own payment credentials.
+    is_demo: bool = Field(default=False, index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Business Profile Fields

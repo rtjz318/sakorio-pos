@@ -1284,6 +1284,15 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
                   <div class="divider"></div>
 
                   <h3>{{ 'SETTINGS.HITPAY_INTEGRATION' | translate }}</h3>
+                  @if (formData.is_demo) {
+                    <p class="hint">
+                      Demo restaurant: shared test credentials are allowed, but live HitPay is blocked.
+                    </p>
+                  } @else {
+                    <p class="hint">
+                      These credentials belong only to this restaurant. Shared server credentials are never used for a live tenant.
+                    </p>
+                  }
                   <div class="form-group">
                     <label for="hitpay_mode">{{ 'SETTINGS.HITPAY_MODE' | translate }}</label>
                     <select
@@ -1292,7 +1301,7 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
                       name="hitpay_mode"
                       class="input-medium">
                       <option value="sandbox">{{ 'SETTINGS.HITPAY_MODE_SANDBOX' | translate }}</option>
-                      <option value="live">{{ 'SETTINGS.HITPAY_MODE_LIVE' | translate }}</option>
+                      <option value="live" [disabled]="formData.is_demo === true">{{ 'SETTINGS.HITPAY_MODE_LIVE' | translate }}</option>
                     </select>
                   </div>
                   <div class="form-group">

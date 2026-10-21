@@ -30,6 +30,9 @@ import { StaffLayoutService } from '../services/staff-layout.service';
               tenantOrgName()
             }}</span>
           }
+          @if (isDemoTenant()) {
+            <span class="demo-badge">DEMO</span>
+          }
         </div>
       </header>
 
@@ -42,6 +45,9 @@ import { StaffLayoutService } from '../services/staff-layout.service';
               <span class="sidebar-org-name" [attr.title]="tenantOrgName()!" [attr.aria-label]="tenantOrgName()!">{{
                 tenantOrgName()
               }}</span>
+            }
+            @if (isDemoTenant()) {
+              <span class="demo-badge">DEMO — TRAINING ONLY</span>
             }
           </div>
           <button class="close-btn" (click)="closeSidebar()">
@@ -265,6 +271,11 @@ import { StaffLayoutService } from '../services/staff-layout.service';
       <div class="overlay" (click)="closeSidebar()"></div>
 
       <main class="main">
+        @if (isDemoTenant()) {
+          <div class="demo-tenant-banner" role="status" aria-live="polite">
+            DEMO RESTAURANT — DO NOT ENTER LIVE CUSTOMER ORDERS
+          </div>
+        }
         <ng-content></ng-content>
       </main>
     </div>
@@ -311,6 +322,7 @@ export class SidebarComponent implements OnInit, AfterViewInit, OnDestroy {
 
   /** Organization display name from tenant settings (Sidebar loads settings via ensureTenantUiModulesLoaded). */
   tenantOrgName = computed(() => this.api.tenantDisplayName()?.trim() ?? '');
+  isDemoTenant = computed(() => this.api.tenantIsDemo());
 
   /** Full branding string for tooltip / a11y when the visible label may be truncated. */
   brandTitle = computed(() => {

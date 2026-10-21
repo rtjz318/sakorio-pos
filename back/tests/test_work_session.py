@@ -227,6 +227,45 @@ class TestWorkSession(PgClientTestCase):
         )
         self.assertEqual(r3.status_code, 400, r3.text)
 
+    def test_demo_tenant_cannot_enable_live_hitpay(self):
+        tenant = self.session.get(models.Tenant, self.tenant_id)
+        self.assertIsNotNone(tenant)
+        assert tenant is not None
+        tenant.is_demo = True
+        tenant.hitpay_mode = "sandbox"
+        self.session.add(tenant)
+        self.session.commit()
+
+        response = self.client.put(
+            "/tenant/settings",
+            headers=_bearer_headers(self.admin),
+            json={"hitpay_mode": "live"},
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(
+            response.json()["detail"], "Demo tenants must use HitPay sandbox mode"
+        )
+        self.session.expire_all()
+        unchanged = self.session.get(models.Tenant, self.tenant_id)
+        self.assertEqual(unchanged.hitpay_mode, "sandbox")
+
+    def test_service_settings_expose_demo_guardrail_to_operational_staff(self):
+        tenant = self.session.get(models.Tenant, self.tenant_id)
+        self.assertIsNotNone(tenant)
+        assert tenant is not None
+        tenant.is_demo = True
+        self.session.add(tenant)
+        self.session.commit()
+
+        response = self.client.get(
+            "/tenant/service-settings",
+            headers=_bearer_headers(self.waiter),
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertIs(response.json()["is_demo"], True)
+
     def test_clock_qr_encrypt_roundtrip(self):
         plain = "abc123test"
         ct = encrypt_clock_qr_token_for_storage(plain)

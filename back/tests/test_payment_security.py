@@ -193,6 +193,50 @@ class TestPaymentSecurity(PgClientTestCase):
         self.assertEqual(kwargs["currency"], "SGD")
         self.assertEqual(kwargs["mode"], "sandbox")
 
+    @patch.object(main.settings, "hitpay_api_key", "shared_global_key")
+    @patch("app.main._hitpay_create_payment_request")
+    def test_production_tenant_cannot_use_global_hitpay_fallback(self, mock_create):
+        self.tenant.hitpay_api_key = None
+        self.tenant.is_demo = False
+        self.session.add(self.tenant)
+        self.session.commit()
+        order_id = self._create_order()
+
+        response = self.client.post(
+            f"/orders/{order_id}/create-hitpay-payment-request",
+            params={"table_token": self.table.token},
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(
+            response.json()["detail"], "HitPay is not configured for this tenant"
+        )
+        mock_create.assert_not_called()
+
+    @patch.object(main.settings, "hitpay_api_key", "shared_demo_key")
+    @patch("app.main._hitpay_create_payment_request")
+    def test_demo_tenant_may_use_global_sandbox_fallback(self, mock_create):
+        self.tenant.hitpay_api_key = None
+        self.tenant.is_demo = True
+        self.tenant.hitpay_mode = "live"
+        self.session.add(self.tenant)
+        self.session.commit()
+        order_id = self._create_order()
+        mock_create.return_value = {
+            "id": "hp_req_demo",
+            "url": "https://checkout.test/hp_req_demo",
+        }
+
+        response = self.client.post(
+            f"/orders/{order_id}/create-hitpay-payment-request",
+            params={"table_token": self.table.token},
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        _, kwargs = mock_create.call_args
+        self.assertEqual(kwargs["api_key"], "shared_demo_key")
+        self.assertEqual(kwargs["mode"], "sandbox")
+
     @patch("app.main._hitpay_create_payment_request")
     def test_create_hitpay_payment_request_provider_error_is_not_exposed(self, mock_create):
         order_id = self._create_order()
@@ -354,6 +398,36 @@ class TestPaymentSecurity(PgClientTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ignored"})
         self.assertNotIn("Order not found", response.text)
+
+    @patch.object(main.settings, "hitpay_webhook_salt", "shared_global_salt")
+    def test_production_tenant_cannot_use_global_webhook_salt(self):
+        self.tenant.hitpay_webhook_salt = None
+        self.tenant.is_demo = False
+        self.session.add(self.tenant)
+        self.session.commit()
+        order_id = self._create_order_with_hitpay_request()
+        payload = {
+            "id": "hp_req_123",
+            "status": "completed",
+            "amount": "100.00",
+            "currency": "SGD",
+            "reference_number": f"pos-order-{order_id}",
+        }
+        raw_body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        signature = hmac.new(
+            b"shared_global_salt", raw_body, hashlib.sha256
+        ).hexdigest()
+
+        response = self.client.post(
+            "/payments/hitpay/webhook",
+            content=raw_body,
+            headers={"Content-Type": "application/json", "Hitpay-Signature": signature},
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(
+            response.json()["detail"], "HitPay webhook salt is not configured"
+        )
 
     def test_public_menu_order_history_does_not_expose_previous_diners(self):
         old_order = models.Order(

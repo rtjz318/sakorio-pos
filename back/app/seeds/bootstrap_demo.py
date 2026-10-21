@@ -26,7 +26,7 @@ def run() -> None:
         if existing:
             print("Tenants already exist. Skipping bootstrap.")
             return
-        tenant = Tenant(name=DEMO_TENANT_NAME)
+        tenant = Tenant(name=DEMO_TENANT_NAME, is_demo=True, hitpay_mode="sandbox")
         session.add(tenant)
         session.commit()
         session.refresh(tenant)

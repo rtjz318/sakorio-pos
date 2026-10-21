@@ -264,6 +264,9 @@ def create_tenant(args: argparse.Namespace) -> int:
         summary["tenant_updated"] = not created
 
         tenant.name = name
+        if args.demo:
+            tenant.is_demo = True
+            tenant.hitpay_mode = "sandbox"
         _set_if_present(tenant, "description", args.description)
         _set_if_present(tenant, "phone", args.phone)
         _set_if_present(tenant, "whatsapp", args.whatsapp)
@@ -554,6 +557,11 @@ def build_parser() -> argparse.ArgumentParser:
     create = sub.add_parser("create-tenant", help="Create/update tenant, owner and default tables")
     create.add_argument("--tenant-id", type=int, default=None, help="Existing tenant id to update")
     create.add_argument("--name", required=True, help="Restaurant/company display name")
+    create.add_argument(
+        "--demo",
+        action="store_true",
+        help="Mark this tenant as non-production demo data and force HitPay sandbox mode",
+    )
     create.add_argument("--description")
     create.add_argument("--phone")
     create.add_argument("--whatsapp")

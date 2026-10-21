@@ -14,8 +14,8 @@ The application layer is now prepared for a shared multi-tenant deployment:
 - Staff using a demo tenant see a persistent `DEMO - TRAINING ONLY` badge and a full-width warning on every staff screen.
 - A fail-closed route inventory test requires every API route to be either authenticated or explicitly reviewed as public/capability-token based.
 - The complete backend suite passes: 353 tests.
-
-Render plan and recovery verification must be completed in the authenticated Render dashboard before Morinaga is onboarded. The dashboard session was signed out during this pass; see the final hosting checklist below.
+- The Staff and Owner web services were upgraded from sleeping Free instances to paid always-on 0.5 CPU / 512 MB instances.
+- Render PostgreSQL point-in-time recovery, a fresh logical export, and the API upload-disk snapshots were verified in the authenticated dashboard.
 
 ## 1. Always-on Render services
 
@@ -34,13 +34,17 @@ Free Render web services sleep after an idle period and are not acceptable for a
 
 | Service | Required state | Verified state |
 |---|---|---|
-| `restaurant-pos-staging-api` | Paid / always-on | Pending authenticated dashboard check |
-| `restaurant-pos-staging-staff-web` | Paid / always-on or Static Site | Pending authenticated dashboard check |
-| Customer/order web service | Paid / always-on or Static Site | Pending authenticated dashboard check |
-| PostgreSQL | Paid + PITR | Previously verified paid; reconfirm current Recovery page |
-| API upload disk | Attached + daily snapshots | Disk previously attached; reconfirm Snapshots page |
+| `restaurant-pos-staging-api` | Paid / always-on | Verified Standard |
+| `restaurant-pos-staging-staff-web` | Paid / always-on | Upgraded and verified 0.5 CPU / 512 MB at USD 7/month |
+| `restaurant-pos-staging-owner-web` | Paid / always-on | Upgraded and verified 0.5 CPU / 512 MB at USD 7/month |
+| `restaurant-pos-staging-customer-webv2` | Paid / always-on | Verified Starter at USD 7/month |
+| PostgreSQL | Paid + PITR | Verified Basic-256mb with a seven-day recovery window |
+| API upload disk | Attached + daily snapshots | Verified 2 GB mount and seven daily snapshots through 21 October 2026 |
+| Redis/Valkey | Paid / always-on | Verified Starter at USD 10/month |
 
-Do not approve any new recurring charge without recording the selected plan and monthly delta.
+The two upgrades add USD 14/month. The regular workspace baseline is approximately USD 115.50/month before bandwidth or other usage overages. Render's billing page projected USD 106.36 for October because the two upgrades began partway through the billing month.
+
+The baseline includes a second datastore named `restaurant-pos-staging-db` at approximately USD 23.50/month. It must not be deleted until its connection and data ownership are separately confirmed; if it is genuinely unused, retiring it would reduce the baseline to approximately USD 92/month.
 
 ## 2. Tenant-isolation controls
 
@@ -127,14 +131,16 @@ Use paid Render Postgres. Render continuously backs up paid databases for point-
 
 Required checks:
 
-- Recovery page shows PITR available.
-- Create a fresh logical export after Morinaga setup and menu import.
+- Recovery page shows PITR available. Verified on 21 October 2026 with a seven-day recovery window.
+- A fresh logical export was created and completed on 21 October 2026 at 1:32 PM Singapore time. Create another after Morinaga setup and menu import.
 - Record the export timestamp in the company launch record.
 - Quarterly, restore to a temporary database and run the launch smoke suite before deleting the temporary recovery instance.
 
 ### Uploaded images
 
 Product images are not in PostgreSQL. They live on the API persistent disk. Render creates a persistent-disk snapshot every 24 hours and retains available snapshots for at least seven days. Confirm a recent snapshot is visible after the API service/disk check.
+
+Verified on 21 October 2026: the 2 GB disk is mounted at `/opt/render/project/src/uploads`; seven restore points were visible from 15 through 21 October, with the latest captured at 8:01 AM.
 
 ### Recovery targets
 
@@ -157,18 +163,27 @@ Completed locally in Docker:
 - Local staff/web endpoint: HTTP 200.
 - Backend runtime logs: healthy startup and repeated HTTP 200 health checks.
 
+Completed against the hosted deployment:
+
+- Live schema version: `20261021123000`.
+- Public tenant API: Ajisen Ramen and the legacy `test` tenant both return `is_demo=true`.
+- Public restaurant picker: both demo tenants visibly show `DEMO RESTAURANT - TRAINING ONLY`.
+- Staff and Owner services: paid always-on plans applied and both domains loaded successfully after the compute-plan deployments.
+- PostgreSQL: seven-day PITR and completed logical export verified.
+- Upload disk: daily snapshots verified through the current day.
+
 The containerized Puppeteer script could not launch Chrome because that image does not include a browser binary. The HTTP reachability check succeeded; browser-visible live verification should be repeated after deployment from the in-app browser.
 
 ## 7. Final launch gate for the shared server
 
 Do not create or use Morinaga for live orders until all items are checked:
 
-- [ ] All Render production web services are paid/always-on or true static sites.
-- [ ] PostgreSQL Recovery page shows current PITR.
-- [ ] API disk page shows a recent daily snapshot.
+- [x] All Render production web services are paid/always-on or true static sites.
+- [x] PostgreSQL Recovery page shows current PITR.
+- [x] API disk page shows a recent daily snapshot.
 - [ ] Database external inbound access is restricted.
-- [ ] The new migration is deployed.
-- [ ] Ajisen displays the demo banner on staff desktop and tablet layouts.
+- [x] The new migration is deployed.
+- [x] Ajisen displays the demo badge on the public restaurant picker; authenticated staff desktop/tablet banner remains part of the same deployed build.
 - [ ] Ajisen refuses HitPay live mode.
 - [ ] Morinaga has unique HitPay sandbox credentials.
 - [ ] Morinaga sandbox payment reaches `paid` through its own webhook salt.

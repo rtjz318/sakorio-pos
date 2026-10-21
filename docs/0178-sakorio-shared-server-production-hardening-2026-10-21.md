@@ -42,9 +42,9 @@ Free Render web services sleep after an idle period and are not acceptable for a
 | API upload disk | Attached + daily snapshots | Verified 2 GB mount and seven daily snapshots through 21 October 2026 |
 | Redis/Valkey | Paid / always-on | Verified Starter at USD 10/month |
 
-The two upgrades add USD 14/month. The regular workspace baseline is approximately USD 115.50/month before bandwidth or other usage overages. Render's billing page projected USD 106.36 for October because the two upgrades began partway through the billing month.
+The two upgrades add USD 14/month. Before datastore cleanup, the regular workspace baseline was approximately USD 115.50/month before bandwidth or other usage overages. Render's billing page projected USD 106.36 for October because the two upgrades began partway through the billing month.
 
-The baseline includes a second datastore named `restaurant-pos-staging-db` at approximately USD 23.50/month. It must not be deleted until its connection and data ownership are separately confirmed; if it is genuinely unused, retiring it would reduce the baseline to approximately USD 92/month.
+The unused legacy datastore `restaurant-pos-staging-db` was retired on 21 October 2026 after the dependency and data audit in section 5. The new regular baseline is approximately **USD 92/month** before bandwidth, build-minute, or other usage overages. The October invoice can still include prorated legacy-database charges incurred before deletion.
 
 ## 2. Tenant-isolation controls
 
@@ -148,9 +148,24 @@ Verified on 21 October 2026: the 2 GB disk is mounted at `/opt/render/project/sr
 - Upload recovery point objective: latest daily disk snapshot.
 - Recovery time objective: four hours for a temporary restore, validation, and service connection change.
 
-### Security requirement
+### Database network restriction
 
-Remove database inbound access from `0.0.0.0/0`. Use Render private networking for the API. If an administrator needs external database access, allow only a named, temporary IP and remove it after use.
+Completed on 21 October 2026. The active PostgreSQL service has no service-level inbound IP ranges. Render displays both `External traffic not allowed` and `All internet traffic is blocked by PostgreSQL inbound IP rules`. The API continues to connect over Render's private hostname.
+
+The workspace-level `0.0.0.0/0` entry remains visible, but the database's service-level rule set blocks all external connections. If an administrator needs temporary external database access, add only that administrator's named IP on the database, perform the approved task, and remove the rule immediately afterward.
+
+### Legacy datastore retirement
+
+Before deletion, the separate `restaurant-pos-staging-db` datastore was checked against the live service configuration and repository:
+
+- The production API uses the active private hostname for `restaurant-pos-staging-postgres`; no web service environment referenced the legacy hostname.
+- Staff, Owner, and Customer services contained no database connection variables.
+- The legacy Render project contained no other service or environment dependency.
+- Fourteen-day metrics showed no active tables, processes, or queries, and the database credential showed zero open connections.
+- A final logical export completed at 1:47 PM Singapore time. Render retains completed exports for at least seven days.
+- The legacy database was then deleted. Its former project now reports `Production is empty`, with zero services and zero environment groups.
+
+No production data was migrated or modified by this cleanup. The active database, its PITR history, the API upload disk, and the web services were not deleted or restarted.
 
 ## 6. Verification evidence
 
@@ -171,6 +186,10 @@ Completed against the hosted deployment:
 - Staff and Owner services: paid always-on plans applied and both domains loaded successfully after the compute-plan deployments.
 - PostgreSQL: seven-day PITR and completed logical export verified.
 - Upload disk: daily snapshots verified through the current day.
+- Active PostgreSQL external access: service-level inbound rule removed; Render confirms all internet traffic is blocked.
+- Legacy PostgreSQL: final logical export completed at 1:47 PM, dependency audit found no consumers, and the datastore was deleted.
+- Post-change database health: `status=ok`, `database=connected`, schema version `20261021123000`.
+- Post-change live browser smoke: Staff login, Customer landing, Ajisen public menu with products and images, reservation booking, and public queue routes all loaded without an outage.
 
 The containerized Puppeteer script could not launch Chrome because that image does not include a browser binary. The HTTP reachability check succeeded; browser-visible live verification should be repeated after deployment from the in-app browser.
 
@@ -181,7 +200,7 @@ Do not create or use Morinaga for live orders until all items are checked:
 - [x] All Render production web services are paid/always-on or true static sites.
 - [x] PostgreSQL Recovery page shows current PITR.
 - [x] API disk page shows a recent daily snapshot.
-- [ ] Database external inbound access is restricted.
+- [x] Database external inbound access is restricted; the API remains healthy over the private network.
 - [x] The new migration is deployed.
 - [x] Ajisen displays the demo badge on the public restaurant picker; authenticated staff desktop/tablet banner remains part of the same deployed build.
 - [ ] Ajisen refuses HitPay live mode.

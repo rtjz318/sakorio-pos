@@ -149,6 +149,9 @@ Local verification after the upload resolver correction:
 
 - A fresh post-setup Render logical PostgreSQL export completed successfully at
   3:26 PM Singapore time on 21 October 2026.
+- A second post-configuration export completed successfully at 3:47 PM after
+  the contact details, operating hours and kitchen routes were saved and the
+  overnight-hours code was deployed.
 - Render retains database export files for at least seven days.
 - Point-in-time recovery is active for timestamps within the preceding seven
   days.
@@ -195,7 +198,15 @@ Verification for the overnight-hours correction:
 - complete backend suite: 358 passed, 2 dependency deprecation warnings;
 - local application reachability: HTTP 200;
 - backend runtime logs: repeated health-check 200 responses and no inspected
-  application errors.
+  application errors;
+- Render deployed commit `5702dc03` successfully;
+- live public booking showed 18:30-23:45 on the starting calendar date;
+- the following calendar date showed 00:00-03:30 carry-over plus
+  18:30-23:45 evening service;
+- Sunday showed only Saturday's 00:00-03:30 carry-over and no Sunday-evening
+  service;
+- the public booking header showed the verified phone, WhatsApp, address,
+  website, map link and late-night hours.
 
 ## 10. Current launch decision
 

@@ -21,10 +21,12 @@ confirmation phrase.
 from __future__ import annotations
 
 import argparse
+import copy
 import csv
 import json
 import os
 import re
+import shutil
 import sys
 import unicodedata
 from dataclasses import dataclass
@@ -36,12 +38,57 @@ from sqlalchemy import text
 from sqlmodel import Session, select
 
 from app.db import engine
-from app.models import Floor, KitchenStation, Product, Table, Tenant, User, UserRole
+from app.models import (
+    Floor,
+    KitchenStation,
+    OpeningHoursBaselineSchedule,
+    Order,
+    Product,
+    ProductQuestion,
+    Table,
+    Tax,
+    Tenant,
+    User,
+    UserRole,
+)
 from app.security import get_password_hash
 
 
 DEFAULT_TABLES = "T01:4,T02:4,T03:4,T04:4,T05:4,T06:2,T07:2,T08:2,T09:2,T10:2"
 DELETE_CONFIRMATION = "DELETE_PRODUCTS"
+CLONE_CONFIRMATION = "CLONE_TEMPLATE"
+
+# Operational defaults that are safe to copy from a reviewed template tenant.
+# Identity, branding, payment, SMTP, location, clock-in and fiscal secrets are
+# deliberately excluded.
+TEMPLATE_TENANT_FIELDS = (
+    "opening_hours",
+    "immediate_payment_required",
+    "currency_code",
+    "currency",
+    "default_language",
+    "timezone",
+    "country_code",
+    "reservation_prepayment_cents",
+    "reservation_prepayment_text",
+    "reservation_cancellation_policy",
+    "reservation_arrival_tolerance_minutes",
+    "reservation_average_table_turn_minutes",
+    "reservation_slot_minutes",
+    "reservation_max_guests_per_slot",
+    "reservation_walk_in_tables_reserved",
+    "reservation_dress_code",
+    "reservation_reminder_24h_enabled",
+    "reservation_reminder_2h_enabled",
+    "kitchen_display_timer_yellow_minutes",
+    "kitchen_display_timer_orange_minutes",
+    "kitchen_display_timer_red_minutes",
+    "tip_preset_percents",
+    "tip_tax_rate_percent",
+    "tip_entry_mode",
+    "ui_modules",
+    "custom_subcategories",
+)
 
 
 @dataclass(frozen=True)
@@ -443,6 +490,284 @@ def import_menu_csv(args: argparse.Namespace) -> int:
     return 0
 
 
+def _copy_product_image(
+    uploads_dir: Path,
+    source_tenant_id: int,
+    target_tenant_id: int,
+    image_filename: str | None,
+) -> str:
+    """Copy one tenant-owned product image and return a result label."""
+    if not image_filename:
+        return "none"
+    if image_filename.startswith("providers/"):
+        return "provider"
+
+    relative = Path(image_filename)
+    if relative.is_absolute() or ".." in relative.parts:
+        return "unsafe"
+
+    source_root = (uploads_dir / str(source_tenant_id) / "products").resolve()
+    target_root = (uploads_dir / str(target_tenant_id) / "products").resolve()
+    source_path = (source_root / relative).resolve()
+    target_path = (target_root / relative).resolve()
+    if source_root not in source_path.parents or target_root not in target_path.parents:
+        return "unsafe"
+    if not source_path.is_file():
+        return "missing"
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_path, target_path)
+    return "copied"
+
+
+def clone_tenant_template(args: argparse.Namespace) -> int:
+    """Clone pre-launch operational data without copying identity or secrets."""
+    if args.source_tenant_id == args.target_tenant_id:
+        raise SystemExit("Source and target tenant must be different.")
+    if not args.dry_run and args.confirm_clone != CLONE_CONFIRMATION:
+        raise SystemExit(f"Live cloning requires --confirm-clone {CLONE_CONFIRMATION}")
+
+    uploads_dir = Path(args.uploads_dir)
+    summary: dict[str, object] = {
+        "dry_run": args.dry_run,
+        "source_tenant_id": args.source_tenant_id,
+        "target_tenant_id": args.target_tenant_id,
+        "tenant_fields_copied": list(TEMPLATE_TENANT_FIELDS),
+        "taxes": 0,
+        "stations": 0,
+        "floors": 0,
+        "tables": 0,
+        "products": 0,
+        "questions": 0,
+        "opening_hours_baselines": 0,
+        "images": {"copied": 0, "provider": 0, "none": 0, "missing": 0, "unsafe": 0},
+    }
+
+    with Session(engine) as session:
+        source = session.get(Tenant, args.source_tenant_id)
+        target = session.get(Tenant, args.target_tenant_id)
+        if source is None:
+            raise SystemExit(f"Source tenant id {args.source_tenant_id} not found.")
+        if target is None:
+            raise SystemExit(f"Target tenant id {args.target_tenant_id} not found.")
+        if target.is_demo:
+            raise SystemExit("Target tenant is marked demo; production template cloning is blocked.")
+
+        target_orders = session.exec(select(Order).where(Order.tenant_id == target.id)).all()
+        if target_orders:
+            raise SystemExit("Target tenant already has orders; template cloning is no longer safe.")
+
+        for field in TEMPLATE_TENANT_FIELDS:
+            setattr(target, field, copy.deepcopy(getattr(source, field)))
+        target.is_demo = False
+        session.add(target)
+
+        tax_map: dict[int, int] = {}
+        source_taxes = session.exec(select(Tax).where(Tax.tenant_id == source.id)).all()
+        for source_tax in source_taxes:
+            target_tax = session.exec(
+                select(Tax)
+                .where(Tax.tenant_id == target.id)
+                .where(Tax.name == source_tax.name)
+                .where(Tax.rate_percent == source_tax.rate_percent)
+                .where(Tax.valid_from == source_tax.valid_from)
+                .where(Tax.valid_to == source_tax.valid_to)
+            ).first()
+            if target_tax is None:
+                target_tax = Tax(
+                    tenant_id=target.id,
+                    name=source_tax.name,
+                    rate_percent=source_tax.rate_percent,
+                    valid_from=source_tax.valid_from,
+                    valid_to=source_tax.valid_to,
+                )
+                session.add(target_tax)
+                session.flush()
+            tax_map[source_tax.id] = target_tax.id
+        summary["taxes"] = len(tax_map)
+
+        station_map: dict[int, int] = {}
+        source_stations = session.exec(
+            select(KitchenStation).where(KitchenStation.tenant_id == source.id)
+        ).all()
+        for source_station in source_stations:
+            target_station = session.exec(
+                select(KitchenStation)
+                .where(KitchenStation.tenant_id == target.id)
+                .where(KitchenStation.name == source_station.name)
+            ).first()
+            if target_station is None:
+                target_station = KitchenStation(
+                    tenant_id=target.id,
+                    name=source_station.name,
+                    sort_order=source_station.sort_order,
+                    display_route=source_station.display_route,
+                )
+            else:
+                target_station.sort_order = source_station.sort_order
+                target_station.display_route = source_station.display_route
+            session.add(target_station)
+            session.flush()
+            station_map[source_station.id] = target_station.id
+        summary["stations"] = len(station_map)
+
+        floor_map: dict[int, int] = {}
+        source_floors = session.exec(select(Floor).where(Floor.tenant_id == source.id)).all()
+        for source_floor in source_floors:
+            target_floor = session.exec(
+                select(Floor)
+                .where(Floor.tenant_id == target.id)
+                .where(Floor.name == source_floor.name)
+            ).first()
+            if target_floor is None:
+                target_floor = Floor(tenant_id=target.id, name=source_floor.name)
+            target_floor.sort_order = source_floor.sort_order
+            target_floor.is_active = source_floor.is_active
+            target_floor.seating_zone = source_floor.seating_zone
+            session.add(target_floor)
+            session.flush()
+            floor_map[source_floor.id] = target_floor.id
+        summary["floors"] = len(floor_map)
+
+        source_tables = session.exec(select(Table).where(Table.tenant_id == source.id)).all()
+        for source_table in source_tables:
+            target_table = session.exec(
+                select(Table)
+                .where(Table.tenant_id == target.id)
+                .where(Table.name == source_table.name)
+            ).first()
+            if target_table is None:
+                target_table = Table(tenant_id=target.id, name=source_table.name, token=str(uuid4()))
+            target_table.floor_id = floor_map.get(source_table.floor_id)
+            target_table.x_position = source_table.x_position
+            target_table.y_position = source_table.y_position
+            target_table.rotation = source_table.rotation
+            target_table.shape = source_table.shape
+            target_table.width = source_table.width
+            target_table.height = source_table.height
+            target_table.seat_count = source_table.seat_count
+            target_table.is_active = False
+            target_table.active_order_id = None
+            target_table.activated_at = None
+            target_table.assigned_waiter_id = None
+            target_table.table_group_id = None
+            session.add(target_table)
+        session.flush()
+        summary["tables"] = len(source_tables)
+
+        product_map: dict[int, Product] = {}
+        source_products = session.exec(select(Product).where(Product.tenant_id == source.id)).all()
+        if not source_products:
+            raise SystemExit("Source tenant has no products to clone.")
+        for source_product in source_products:
+            target_product = session.exec(
+                select(Product)
+                .where(Product.tenant_id == target.id)
+                .where(Product.name == source_product.name)
+                .where(Product.category == source_product.category)
+            ).first()
+            if target_product is None:
+                target_product = Product(
+                    tenant_id=target.id,
+                    name=source_product.name,
+                    price_cents=source_product.price_cents,
+                )
+            target_product.price_cents = source_product.price_cents
+            target_product.cost_cents = source_product.cost_cents
+            target_product.description = source_product.description
+            target_product.image_filename = source_product.image_filename
+            target_product.ingredients = source_product.ingredients
+            target_product.category = source_product.category
+            target_product.subcategory = source_product.subcategory
+            target_product.tax_id = tax_map.get(source_product.tax_id)
+            target_product.available_from = source_product.available_from
+            target_product.available_until = source_product.available_until
+            target_product.kitchen_station_id = station_map.get(source_product.kitchen_station_id)
+            session.add(target_product)
+            session.flush()
+            product_map[source_product.id] = target_product
+
+            if not args.dry_run:
+                image_result = _copy_product_image(
+                    uploads_dir,
+                    source.id,
+                    target.id,
+                    source_product.image_filename,
+                )
+                images: dict[str, int] = summary["images"]  # type: ignore[assignment]
+                images[image_result] += 1
+        summary["products"] = len(product_map)
+
+        source_questions = session.exec(
+            select(ProductQuestion).where(ProductQuestion.tenant_id == source.id)
+        ).all()
+        target_product_ids = [product.id for product in product_map.values() if product.id is not None]
+        if target_product_ids:
+            existing_questions = session.exec(
+                select(ProductQuestion)
+                .where(ProductQuestion.tenant_id == target.id)
+                .where(ProductQuestion.product_id.in_(target_product_ids))
+            ).all()
+            for question in existing_questions:
+                session.delete(question)
+            session.flush()
+        for source_question in source_questions:
+            target_product = product_map.get(source_question.product_id)
+            if target_product is None or target_product.id is None:
+                continue
+            session.add(
+                ProductQuestion(
+                    tenant_id=target.id,
+                    product_id=target_product.id,
+                    type=source_question.type,
+                    label=source_question.label,
+                    options=copy.deepcopy(source_question.options),
+                    sort_order=source_question.sort_order,
+                    required=source_question.required,
+                )
+            )
+        summary["questions"] = len(source_questions)
+
+        target_baselines = session.exec(
+            select(OpeningHoursBaselineSchedule).where(
+                OpeningHoursBaselineSchedule.tenant_id == target.id
+            )
+        ).all()
+        for baseline in target_baselines:
+            session.delete(baseline)
+        source_baselines = session.exec(
+            select(OpeningHoursBaselineSchedule).where(
+                OpeningHoursBaselineSchedule.tenant_id == source.id
+            )
+        ).all()
+        for baseline in source_baselines:
+            session.add(
+                OpeningHoursBaselineSchedule(
+                    tenant_id=target.id,
+                    effective_from=baseline.effective_from,
+                    opening_hours=baseline.opening_hours,
+                    note=f"Template from tenant {source.id}: {baseline.note or 'operational schedule'}",
+                )
+            )
+        summary["opening_hours_baselines"] = len(source_baselines)
+
+        if source.default_tax_id:
+            target.default_tax_id = tax_map.get(source.default_tax_id)
+        if source.default_kitchen_station_id:
+            target.default_kitchen_station_id = station_map.get(source.default_kitchen_station_id)
+        if source.default_bar_station_id:
+            target.default_bar_station_id = station_map.get(source.default_bar_station_id)
+        session.add(target)
+
+        if args.dry_run:
+            session.rollback()
+        else:
+            session.commit()
+
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return 0
+
+
 def launch_check(args: argparse.Namespace) -> int:
     uploads_dir = Path(args.uploads_dir)
     result: dict[str, object] = {
@@ -593,6 +918,17 @@ def build_parser() -> argparse.ArgumentParser:
     menu.add_argument("--confirm-delete-products", default="")
     menu.add_argument("--dry-run", action="store_true")
     menu.set_defaults(func=import_menu_csv)
+
+    clone = sub.add_parser(
+        "clone-tenant-template",
+        help="Clone reviewed operational settings, tables and menu into an empty production tenant",
+    )
+    clone.add_argument("--source-tenant-id", type=int, required=True)
+    clone.add_argument("--target-tenant-id", type=int, required=True)
+    clone.add_argument("--uploads-dir", default="uploads")
+    clone.add_argument("--confirm-clone", default="")
+    clone.add_argument("--dry-run", action="store_true")
+    clone.set_defaults(func=clone_tenant_template)
 
     check = sub.add_parser("launch-check", help="Run non-browser tenant launch data checks")
     check.add_argument("--tenant-id", type=int, required=True)

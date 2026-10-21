@@ -18,7 +18,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml exec back \
 
 ## What this package does
 
-It provides four safe first-step utilities:
+It provides five safe first-step utilities:
 
 1. `create-tenant`
    - Creates or updates a tenant/company.
@@ -30,10 +30,18 @@ It provides four safe first-step utilities:
    - Cleans copied/PDF text artifacts.
    - Parses common price formats such as `SGD 10.00`, `$7`, and cents.
    - Optionally creates kitchen/beverage stations.
-3. `launch-check`
+3. `clone-tenant-template`
+   - Copies reviewed operational settings, taxes, kitchen stations, floor/table layout,
+     menu products, product questions, opening-hours baselines, and tenant-owned menu
+     images from an existing template tenant.
+   - Creates new table QR tokens and leaves every table inactive.
+   - Never copies company identity, branding, customer/order history, users, payment
+     credentials, SMTP credentials, clock-in secrets, location checks, or fiscal secrets.
+   - Refuses to run when the target is a demo tenant or already has orders.
+4. `launch-check`
    - Performs non-browser preflight checks for one tenant.
    - Reports staff roles, table count, product count, image references, HitPay setup, timezone, and currency.
-4. `render-env-template`
+5. `render-env-template`
    - Generates a company-specific Render environment checklist without secret values.
 
 ## Important safety notes
@@ -155,6 +163,35 @@ The command exits:
 - `0` for pass or warning.
 - `1` when a hard failure is detected.
 
+## Clone a reviewed tenant template
+
+Use this only for a new, pre-launch production tenant. Run a dry run first:
+
+```bash
+cd back
+python -m app.onboarding.company_onboarding clone-tenant-template \
+  --dry-run \
+  --source-tenant-id 1 \
+  --target-tenant-id 3 \
+  --uploads-dir uploads
+```
+
+Apply the clone only after reviewing the dry-run counts:
+
+```bash
+cd back
+python -m app.onboarding.company_onboarding clone-tenant-template \
+  --source-tenant-id 1 \
+  --target-tenant-id 3 \
+  --uploads-dir uploads \
+  --confirm-clone CLONE_TEMPLATE
+```
+
+The source tenant is not modified. The target tenant remains `is_demo=false`, uses
+its own QR tokens, starts with inactive tables, and retains its own identity and
+credentials. Configure the target restaurant's logo, contact details, UEN/GST data,
+SMTP, location and HitPay credentials separately.
+
 ## Generate Render env checklist
 
 ```bash
@@ -176,7 +213,7 @@ Do not paste real secrets into generated docs. Fill actual secret values only in
 4. Run migrations.
 5. Run `create-tenant`.
 6. Upload logo/header.
-7. Run `import-menu-csv`.
+7. Run `import-menu-csv`, or use `clone-tenant-template` when a reviewed menu/template is intentionally being reused.
 8. Upload product images.
 9. Run `launch-check`.
 10. Run live browser QA using the launch QA brief.

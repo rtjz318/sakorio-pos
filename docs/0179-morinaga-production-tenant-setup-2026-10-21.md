@@ -208,7 +208,23 @@ Verification for the overnight-hours correction:
 - the public booking header showed the verified phone, WhatsApp, address,
   website, map link and late-night hours.
 
-## 10. Current launch decision
+## 10. Owner login transfer
+
+The requested production owner email previously belonged to the Ajisen demo
+tenant, while Morinaga had been provisioned with a temporary email alias. A
+one-time, idempotent data migration now transfers the requested email to the
+existing Morinaga owner record without moving or deleting either tenant's
+orders, staff history, products, tables or other operational data.
+
+The former Ajisen owner record is retained only for referential history under a
+reserved, non-deliverable address. Its two-factor secret is cleared and its
+token version is incremented. The Morinaga owner token version is also
+incremented so every pre-transfer session is invalidated. The owner must sign in
+again or use the normal password-reset flow after deployment.
+
+No password or password hash is stored in this document or in the migration.
+
+## 11. Current launch decision
 
 Morinaga is ready for restaurant-specific configuration, staff setup, sandbox
 payment testing and physical printer/tablet acceptance. It is **not yet approved

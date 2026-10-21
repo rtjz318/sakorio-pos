@@ -145,7 +145,22 @@ Local verification after the upload resolver correction:
 - backend runtime logs: repeated health-check 200 responses, no application
   errors in the inspected window.
 
-## 8. Current launch decision
+## 8. Backup and recovery evidence
+
+- A fresh post-setup Render logical PostgreSQL export completed successfully at
+  3:26 PM Singapore time on 21 October 2026.
+- Render retains database export files for at least seven days.
+- Point-in-time recovery is active for timestamps within the preceding seven
+  days.
+- The export remains in the protected Render workspace; its signed download URL
+  and database credentials are deliberately not recorded in this repository.
+
+This recovery point was created after the Morinaga tenant, owner, products,
+images, taxes, floor and tables were verified. It provides a rollback point
+before restaurant-specific credentials, staff accounts or live transactions
+are introduced.
+
+## 9. Current launch decision
 
 Morinaga is ready for restaurant-specific configuration, staff setup, sandbox
 payment testing and physical printer/tablet acceptance. It is **not yet approved

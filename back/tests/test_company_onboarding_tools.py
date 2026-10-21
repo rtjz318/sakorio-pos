@@ -1,6 +1,7 @@
 from app.onboarding.company_onboarding import (
     TEMPLATE_TENANT_FIELDS,
     _copy_product_image,
+    _resolve_uploads_dir,
     clean_text,
     parse_price_cents,
     parse_tables,
@@ -68,4 +69,11 @@ def test_copy_product_image_copies_only_safe_tenant_owned_files(tmp_path):
     assert _copy_product_image(tmp_path, 1, 2, "providers/global/products/x.jpg") == "provider"
     assert _copy_product_image(tmp_path, 1, 2, "../secret.txt") == "unsafe"
     assert _copy_product_image(tmp_path, 1, 2, "missing.jpg") == "missing"
+
+
+def test_uploads_dir_honors_runtime_override(monkeypatch, tmp_path):
+    uploads = tmp_path / "persistent-uploads"
+    monkeypatch.setenv("UPLOADS_DIR", str(uploads))
+
+    assert _resolve_uploads_dir() == uploads
 

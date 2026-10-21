@@ -13,6 +13,7 @@ This folder contains deployment guides, feature documentation, implementation pl
 | Multi-agent task loop + GitHub Issues handoff | [agent-loop.md](agent-loop.md) |
 | Deploy to a server | [0004-deployment.md](0004-deployment.md) |
 | Harden a shared multi-tenant Render deployment | [0178-sakorio-shared-server-production-hardening-2026-10-21.md](0178-sakorio-shared-server-production-hardening-2026-10-21.md) |
+| Review the Morinaga production tenant setup | [0179-morinaga-production-tenant-setup-2026-10-21.md](0179-morinaga-production-tenant-setup-2026-10-21.md) |
 | Set up CI/CD (amvara9) | [0001-ci-cd-amvara9.md](0001-ci-cd-amvara9.md) |
 | Configure Gmail for email | [0018-gmail-setup.md](0018-gmail-setup.md) |
 | Understand reservations (staff + public) | [0011-table-reservation-user-guide.md](0011-table-reservation-user-guide.md) |
@@ -32,6 +33,7 @@ This folder contains deployment guides, feature documentation, implementation pl
 | [0026-haproxy-ssl-amvara9.md](0026-haproxy-ssl-amvara9.md) | HAProxy SSL on amvara9: durable cert path (certbot/haproxy-certs), reload without overwriting certs. |
 | [0029-deployment-images-plan-next-month.md](0029-deployment-images-plan-next-month.md) | **Todo (next month):** Deploy via images (CI build → registry → pull on server), two-slot so production stays up, CI production build to catch errors. |
 | [0178-sakorio-shared-server-production-hardening-2026-10-21.md](0178-sakorio-shared-server-production-hardening-2026-10-21.md) | Shared-server tenant isolation, per-tenant HitPay, demo guardrails, Render plans, and backup launch gate. |
+| [0179-morinaga-production-tenant-setup-2026-10-21.md](0179-morinaga-production-tenant-setup-2026-10-21.md) | Morinaga production tenant inventory, live-browser verification, isolation evidence, and remaining launch gates. |
 
 ---
 

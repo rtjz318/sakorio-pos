@@ -58,6 +58,27 @@ DEFAULT_TABLES = "T01:4,T02:4,T03:4,T04:4,T05:4,T06:2,T07:2,T08:2,T09:2,T10:2"
 DELETE_CONFIRMATION = "DELETE_PRODUCTS"
 CLONE_CONFIRMATION = "CLONE_TEMPLATE"
 
+
+def _resolve_uploads_dir() -> Path:
+    """Use the same persistent upload root as the running API.
+
+    Render starts the backend from ``/opt/render/project/src/back`` while the
+    persistent disk is mounted one directory higher.  A relative ``uploads``
+    default therefore inspects ephemeral deployment files and can incorrectly
+    report every image as missing.  Keep the onboarding tools aligned with the
+    runtime resolver without importing ``app.main`` and its application side
+    effects.
+    """
+    configured = os.getenv("UPLOADS_DIR")
+    if configured:
+        return Path(configured)
+
+    render_disk = Path("/opt/render/project/src/uploads")
+    if render_disk.is_dir():
+        return render_disk
+
+    return Path(__file__).resolve().parents[2] / "uploads"
+
 # Operational defaults that are safe to copy from a reviewed template tenant.
 # Identity, branding, payment, SMTP, location, clock-in and fiscal secrets are
 # deliberately excluded.
@@ -925,14 +946,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     clone.add_argument("--source-tenant-id", type=int, required=True)
     clone.add_argument("--target-tenant-id", type=int, required=True)
-    clone.add_argument("--uploads-dir", default="uploads")
+    clone.add_argument("--uploads-dir", default=str(_resolve_uploads_dir()))
     clone.add_argument("--confirm-clone", default="")
     clone.add_argument("--dry-run", action="store_true")
     clone.set_defaults(func=clone_tenant_template)
 
     check = sub.add_parser("launch-check", help="Run non-browser tenant launch data checks")
     check.add_argument("--tenant-id", type=int, required=True)
-    check.add_argument("--uploads-dir", default="uploads")
+    check.add_argument("--uploads-dir", default=str(_resolve_uploads_dir()))
     check.add_argument("--min-tables", type=int, default=1)
     check.add_argument("--min-products", type=int, default=1)
     check.set_defaults(func=launch_check)

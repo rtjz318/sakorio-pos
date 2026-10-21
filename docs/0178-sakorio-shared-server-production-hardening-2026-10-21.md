@@ -105,7 +105,7 @@ The payment request ID resolves the order and tenant first; the signature is the
 
 ## 4. Demo-tenant guardrails
 
-Migration `20261021120000_add_tenant_demo_flag.sql` adds `tenant.is_demo` and marks known Ajisen tenant names as demo.
+Migration `20261021120000_add_tenant_demo_flag.sql` adds `tenant.is_demo`; follow-up migration `20261021123000_mark_legacy_demo_tenants.sql` safely marks known Ajisen/demo/legacy QA tenants even if the schema migration was already deployed.
 
 Staff guardrails:
 

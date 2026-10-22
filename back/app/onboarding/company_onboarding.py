@@ -821,6 +821,7 @@ def launch_check(args: argparse.Namespace) -> int:
             "has_hitpay_webhook_salt": bool(tenant.hitpay_webhook_salt),
             "currency_code": tenant.currency_code,
             "timezone": tenant.timezone,
+            "is_publicly_listed": tenant.is_publicly_listed,
         }
 
         failures: list[str] = result["failures"]  # type: ignore[assignment]

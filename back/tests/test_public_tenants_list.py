@@ -47,6 +47,25 @@ class TestPublicTenantsList(PgClientTestCase):
         ):
             self.assertIn(key, match, f"TenantSummary must include {key!r}")
 
+    def test_unlisted_tenant_is_hidden_from_discovery_but_still_directly_accessible(self):
+        hidden = models.Tenant(
+            name="Retired QA Tenant",
+            email="pos-retired-qa-tenant@sakario.sg",
+            is_demo=True,
+            is_publicly_listed=False,
+        )
+        self.session.add(hidden)
+        self.session.commit()
+        self.session.refresh(hidden)
+
+        listing = self.client.get("/public/tenants")
+        self.assertEqual(listing.status_code, 200, listing.text)
+        self.assertNotIn(hidden.id, {tenant["id"] for tenant in listing.json()})
+
+        direct = self.client.get(f"/public/tenants/{hidden.id}")
+        self.assertEqual(direct.status_code, 200, direct.text)
+        self.assertEqual(direct.json()["name"], "Retired QA Tenant")
+
 
 if __name__ == "__main__":
     unittest.main()

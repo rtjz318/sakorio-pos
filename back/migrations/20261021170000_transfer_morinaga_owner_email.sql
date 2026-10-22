@@ -22,7 +22,10 @@ BEGIN
     LIMIT 1;
 
     IF morinaga_tenant_id IS NULL THEN
-        RAISE EXCEPTION 'Morinaga Ramen Izakaya tenant is missing; owner email transfer aborted';
+        -- Development, test and fresh-install databases legitimately do not
+        -- contain the production Morinaga tenant. This production-only data
+        -- repair must not block later schema migrations in those databases.
+        RETURN;
     END IF;
 
     SELECT id, tenant_id

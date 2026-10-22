@@ -84,6 +84,9 @@ class Tenant(SQLModel, table=True):
     # Demo tenants are visually marked and may only use the shared sandbox payment
     # fallback. Production tenants must provide their own payment credentials.
     is_demo: bool = Field(default=False, index=True)
+    # Controls discovery on the public restaurant picker. Direct tenant URLs
+    # remain available so archived demos can still be opened deliberately.
+    is_publicly_listed: bool = Field(default=True, index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Business Profile Fields

@@ -1019,8 +1019,12 @@ def list_public_tenants(
     response: Response,
     session: Session = Depends(get_session),
 ) -> list:
-    """List all tenants (id, name, logo, description, phone, email). Public, no authentication."""
-    tenants = session.exec(select(models.Tenant).order_by(models.Tenant.name)).all()
+    """List customer-facing tenants for the public restaurant picker."""
+    tenants = session.exec(
+        select(models.Tenant)
+        .where(models.Tenant.is_publicly_listed.is_(True))
+        .order_by(models.Tenant.name)
+    ).all()
     return [_tenant_to_summary(t, session) for t in tenants]
 
 

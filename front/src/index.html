@@ -16,6 +16,12 @@
     const host = window.location.host;
     window.__API_URL__ = window.__API_URL__ || `${protocol}//${host}/api`;
     window.__WS_URL__ = window.__WS_URL__ || `${wsProtocol}//${host}/ws`;
+    // Deployment-specific portal identity. Docker injects these values for
+    // dedicated web portals; the native preparation script injects them into
+    // the packaged Android/iOS assets.
+    window.__TENANT_ID__ = window.__TENANT_ID__ || null;
+    window.__PORTAL_MODE__ = window.__PORTAL_MODE__ || 'shared';
+    window.__PUBLIC_ORDER_ORIGIN__ = window.__PUBLIC_ORDER_ORIGIN__ || '';
   </script>
 </head>
 <body>

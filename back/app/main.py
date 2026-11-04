@@ -1666,10 +1666,19 @@ def login_for_access_token(
     request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     tenant_id: int | None = Query(None, description="Optional tenant id from tenant picker"),
-    scope: str | None = Query(None, description="Login scope: 'provider' for provider portal, 'courier' for courier portal"),
+    scope: str | None = Query(
+        None,
+        description="Login scope: tenant, management, provider, or courier",
+    ),
     lang: str = Depends(_get_requested_language),
     session: Session = Depends(get_session),
 ) -> dict:
+    valid_scopes = {None, "tenant", "management", "provider", "courier"}
+    if scope not in valid_scopes:
+        raise HTTPException(status_code=400, detail="Invalid login scope")
+    if scope == "management" and tenant_id is None:
+        raise HTTPException(status_code=400, detail="Management login requires tenant_id")
+
     statement = select(models.User).where(models.User.email == form_data.username)
     if scope == "provider":
         statement = statement.where(
@@ -1681,8 +1690,13 @@ def login_for_access_token(
             models.User.role == models.UserRole.courier,
             models.User.tenant_id.is_not(None),
         )
-    elif tenant_id is not None:
-        statement = statement.where(models.User.tenant_id == tenant_id)
+    else:
+        if tenant_id is not None:
+            statement = statement.where(models.User.tenant_id == tenant_id)
+        if scope == "management":
+            statement = statement.where(
+                models.User.role.in_([models.UserRole.owner, models.UserRole.admin])
+            )
     user = session.exec(statement).first()
 
     if not user or not security.verify_password(

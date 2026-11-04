@@ -46,6 +46,19 @@ Use this when deploying Sakorio POS for a new company or outlet.
 - Add staff custom domain.
 - Deploy.
 - Confirm login page loads.
+- Set `SAKORIO_TENANT_ID` to the restaurant tenant id.
+- Set `SAKORIO_PORTAL_MODE=staff`.
+- For a free Render static site, make the build command run the Angular
+  production-static build followed by `npm run runtime:configure-build`; static
+  sites do not execute the Docker startup injector.
+- Confirm the root URL redirects to the tenant-branded staff login.
+
+### Management portal
+
+- Use `/management/login` on the staff domain, or deploy the same static image
+  with `SAKORIO_PORTAL_MODE=management` on a management-only domain.
+- Confirm waiter, kitchen and receptionist accounts are rejected.
+- Confirm only owner/admin accounts can authenticate through this entry point.
 
 ### Order web service
 
@@ -54,6 +67,11 @@ Use this when deploying Sakorio POS for a new company or outlet.
 - Add order custom domain.
 - Deploy.
 - Confirm public menu, booking, and waitlist pages load.
+- Set `SAKORIO_TENANT_ID` to the restaurant tenant id.
+- Set `SAKORIO_PORTAL_MODE=customer`.
+- For a free Render static site, run `npm run runtime:configure-build` after the
+  Angular build so the generated `index.html` contains the fixed tenant.
+- Confirm the root URL opens that restaurant directly without a tenant picker.
 
 ## 3. Configure DNS
 
@@ -64,6 +82,11 @@ Use this when deploying Sakorio POS for a new company or outlet.
 - Confirm each domain loads over HTTPS.
 
 ## 4. Configure company data
+
+For an existing shared tenant, restore the database into the new PostgreSQL
+service and run `isolate-database-copy` in dry-run mode first. Execute only when
+the target service has `SAKORIO_ISOLATED_DEPLOYMENT=1` and the exact
+tenant-specific confirmation phrase. Never run it on the shared database.
 
 - Create tenant/company settings.
 - Upload logo/header images.
@@ -114,6 +137,8 @@ Before launch:
 - Confirm `/users/me` does not expose password hashes.
 - Confirm staff roles cannot access unauthorized pages.
 - Confirm CORS/trusted hosts are company-specific.
+- Confirm the deployed native/static runtime contains the intended tenant id.
+- Confirm no maintenance allowlist can delete a non-demo tenant.
 
 ## 8. Backup launch gate
 

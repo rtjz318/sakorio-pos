@@ -7,11 +7,21 @@ import { providerGuard } from './auth/provider.guard';
 import { courierGuard } from './auth/courier.guard';
 import { tablesCanvasCanDeactivate } from './tables/tables-canvas-deactivate.guard';
 import { ordersRouteGuard } from './auth/orders-route.guard';
+import { portalRootGuard } from './auth/portal-root.guard';
 
 export const routes: Routes = [
   // Public routes
-  { path: '', loadComponent: () => import('./landing/landing.component').then(m => m.LandingComponent) },
-  { path: 'login', loadComponent: () => import('./auth/login.component').then(m => m.LoginComponent) },
+  { path: '', canActivate: [portalRootGuard], loadComponent: () => import('./landing/landing.component').then(m => m.LandingComponent) },
+  {
+    path: 'login',
+    loadComponent: () => import('./auth/login.component').then(m => m.LoginComponent),
+    data: { portalMode: 'staff' },
+  },
+  {
+    path: 'management/login',
+    loadComponent: () => import('./auth/login.component').then(m => m.LoginComponent),
+    data: { portalMode: 'management' },
+  },
   { path: 'register', loadComponent: () => import('./auth/register.component').then(m => m.RegisterComponent) },
   {
     path: 'terms',

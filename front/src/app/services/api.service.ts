@@ -1865,13 +1865,12 @@ export class ApiService {
   }
 
   /** Login: sends username/password as application/x-www-form-urlencoded (required by backend OAuth2PasswordRequestForm). May return 403 with require_otp + temp_token when OTP is enabled. */
-  login(username: string, password: string, tenantId?: number, scope?: 'tenant' | 'provider' | 'courier'): Observable<any> {
+  login(username: string, password: string, tenantId?: number, scope?: 'tenant' | 'management' | 'provider' | 'courier'): Observable<any> {
     let queryParams = new HttpParams();
-    if (scope === 'provider') {
-      queryParams = queryParams.set('scope', 'provider');
-    } else if (scope === 'courier') {
-      queryParams = queryParams.set('scope', 'courier');
-    } else if (tenantId != null) {
+    if (scope) {
+      queryParams = queryParams.set('scope', scope);
+    }
+    if (tenantId != null && scope !== 'provider') {
       queryParams = queryParams.set('tenant_id', tenantId.toString());
     }
     const body = new HttpParams().set('username', username).set('password', password).toString();

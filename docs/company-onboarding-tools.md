@@ -197,21 +197,52 @@ SMTP, location and HitPay credentials separately.
 ```bash
 cd back
 python -m app.onboarding.company_onboarding render-env-template \
-  --company-slug ajisen \
-  --staff-url https://staff.ajisen.example \
-  --order-url https://order.ajisen.example \
-  --api-url https://api.ajisen.example
+  --company-slug morinaga.sakorio \
+  --tenant-id 3 \
+  --staff-url https://morinaga-staff.sakorio.com \
+  --order-url https://morinaga-order.sakorio.com \
+  --api-url https://morinaga-api.sakorio.com
 ```
 
 Do not paste real secrets into generated docs. Fill actual secret values only inside Render.
+The generated staff, customer and optional management portal settings pin every
+frontend to one tenant. HitPay values are listed under tenant settings because a
+production tenant never inherits the shared demo payment fallback.
+
+## Prepare an isolated database copy
+
+Use a protected PostgreSQL snapshot/restore to create the new database first.
+Never run the pruning command against the shared Sakorio database.
+
+```bash
+# Safe plan: lists exactly what would be removed.
+python -m app.onboarding.company_onboarding isolate-database-copy \
+  --tenant-id 3 \
+  --uploads-dir /opt/render/project/src/uploads
+
+# Only on the new isolated service, after checking the dry-run output.
+SAKORIO_ISOLATED_DEPLOYMENT=1 \
+SAKORIO_ISOLATE_CONFIRM='ISOLATE:3:Morinaga Ramen Izakaya' \
+python -m app.onboarding.company_onboarding isolate-database-copy \
+  --tenant-id 3 \
+  --uploads-dir /opt/render/project/src/uploads \
+  --execute
+```
+
+The execution refuses demo targets, requires two independent safeguards and
+retains the selected tenant's identifier, staff, menu, tables, QR tokens and
+operational data. Copy only that tenant's upload directory to the isolated disk.
+Run `launch-check` and live browser QA afterwards.
 
 ## Full onboarding sequence
 
-1. Create Render services and database.
-2. Configure env vars.
+1. For a new restaurant, create Render services and database. For an existing
+   shared tenant, restore a protected database copy and run the isolated-copy
+   dry run before any DNS cutover.
+2. Configure API and tenant-pinned portal env vars.
 3. Deploy API/staff/order services.
 4. Run migrations.
-5. Run `create-tenant`.
+5. Run `create-tenant`, or execute the reviewed isolated-copy plan.
 6. Upload logo/header.
 7. Run `import-menu-csv`, or use `clone-tenant-template` when a reviewed menu/template is intentionally being reused.
 8. Upload product images.

@@ -23,6 +23,7 @@ requireFile('native/android-secure-storage/README.md');
 requireFile('src/app/services/xp80t-printer.service.ts');
 requireFile('src/app/services/ipad-printer-worker.service.ts');
 requireFile('src/app/services/escpos-receipt-renderer.ts');
+requireFile('scripts/configure-native-runtime.mjs');
 
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const dependencies = {
@@ -93,6 +94,15 @@ warnIfMissing(
   'dist/front/browser/index.html',
   'Angular app shell is not built yet. Run npm run build -- --configuration production-static before npx cap sync.',
 );
+
+if (existsSync(join(root, 'dist/front/browser/index.html'))) {
+  const builtIndex = readFileSync(join(root, 'dist/front/browser/index.html'), 'utf8');
+  if (!/window\.__TENANT_ID__ = [1-9][0-9]*;/.test(builtIndex)) {
+    warnings.push(
+      'Native app shell is not branded to a tenant. Run npm run native:configure-runtime with SAKORIO_TENANT_ID, SAKORIO_API_URL and SAKORIO_PUBLIC_ORDER_ORIGIN before npx cap sync.',
+    );
+  }
+}
 warnIfMissing(
   'android/app/build.gradle',
   'Capacitor Android project is not generated yet. This is expected until the Android build pass runs npx cap add android.',

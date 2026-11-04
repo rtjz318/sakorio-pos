@@ -8,7 +8,8 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
 import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { LegalLinksComponent } from '../shared/legal-links.component';
 import { isCustomerPublicHost } from '../shared/host-portal.util';
-import { NATIVE_SAKORIO_TENANT_ID, isNativeShell } from '../shared/native-shell.util';
+import { getNativeSakorioTenantId, isNativeShell } from '../shared/native-shell.util';
+import { getRuntimePortalMode, getRuntimeTenantId } from '../shared/runtime-config.util';
 
 @Component({
   selector: 'app-login',
@@ -20,8 +21,8 @@ import { NATIVE_SAKORIO_TENANT_ID, isNativeShell } from '../shared/native-shell.
         <div class="auth-header">
           <div class="auth-header-row">
             <div>
-              <h1>{{ 'AUTH.WELCOME_BACK' | translate }}</h1>
-              <p>{{ 'AUTH.SIGN_IN_ACCOUNT' | translate }}</p>
+              <h1>{{ managementPortal() ? 'Management sign in' : ('AUTH.WELCOME_BACK' | translate) }}</h1>
+              <p>{{ managementPortal() ? 'Owners and administrators only' : ('AUTH.SIGN_IN_ACCOUNT' | translate) }}</p>
             </div>
             <app-language-picker></app-language-picker>
           </div>
@@ -36,7 +37,9 @@ import { NATIVE_SAKORIO_TENANT_ID, isNativeShell } from '../shared/native-shell.
               <span>{{ 'AUTH.LOGGING_INTO' | translate }}</span>
               <strong>{{ selectedTenant()!.name }}</strong>
             </div>
-            <a routerLink="/">{{ 'AUTH.CHANGE_RESTAURANT' | translate }}</a>
+            @if (!dedicatedPortal()) {
+              <a routerLink="/">{{ 'AUTH.CHANGE_RESTAURANT' | translate }}</a>
+            }
           </div>
         }
 
@@ -359,8 +362,14 @@ export class LoginComponent implements OnInit {
   selectedTenant = signal<TenantSummary | null>(null);
   selectedTenantLogoUrl = signal<string | null>(null);
   nativeShell = signal(isNativeShell());
+  managementPortal = signal(false);
+  dedicatedPortal = signal(getRuntimePortalMode() !== 'shared');
 
   ngOnInit(): void {
+    const routeMode = this.route.snapshot.data['portalMode'];
+    this.managementPortal.set(
+      routeMode === 'management' || getRuntimePortalMode() === 'management',
+    );
     this.api.getPublicLegalUrls().subscribe({
       next: (u) => {
         this.legalTermsUrl.set(u.terms_of_service_url ?? null);
@@ -387,7 +396,8 @@ export class LoginComponent implements OnInit {
   get forgotPasswordQueryParams(): Record<string, string> {
     const t = this.route.snapshot.queryParamMap.get('tenant');
     if (t) return { tenant: t };
-    return this.nativeShell() ? { tenant: String(NATIVE_SAKORIO_TENANT_ID) } : {};
+    const configuredTenant = getNativeSakorioTenantId() ?? getRuntimeTenantId();
+    return configuredTenant ? { tenant: String(configuredTenant) } : {};
   }
 
   private loadSelectedTenant(): void {
@@ -395,9 +405,7 @@ export class LoginComponent implements OnInit {
     const tenantId =
       tenantParam != null
         ? Number.parseInt(tenantParam, 10)
-        : this.nativeShell()
-          ? NATIVE_SAKORIO_TENANT_ID
-          : NaN;
+        : (getNativeSakorioTenantId() ?? getRuntimeTenantId() ?? NaN);
     if (!Number.isInteger(tenantId) || tenantId <= 0) return;
 
     this.api.getPublicTenant(tenantId).subscribe({
@@ -442,10 +450,14 @@ export class LoginComponent implements OnInit {
     const id =
       tenantId != null
         ? parseInt(tenantId, 10)
-        : this.nativeShell()
-          ? NATIVE_SAKORIO_TENANT_ID
-          : undefined;
-    this.api.login(username, password, isNaN(id as number) ? undefined : id).subscribe({
+        : (getNativeSakorioTenantId() ?? getRuntimeTenantId() ?? undefined);
+    if (this.nativeShell() && !id) {
+      this.loading.set(false);
+      this.error.set('This app build is not configured for a restaurant. Please install the branded build.');
+      return;
+    }
+    const scope = this.managementPortal() ? 'management' : 'tenant';
+    this.api.login(username, password, isNaN(id as number) ? undefined : id, scope).subscribe({
       next: () => {
         this.api.checkAuth().subscribe(user => {
           if (isCustomerPublicHost()) {

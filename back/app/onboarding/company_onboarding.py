@@ -52,11 +52,13 @@ from app.models import (
     UserRole,
 )
 from app.security import get_password_hash
+from app.tenant_lifecycle import delete_tenant_cascade, remove_tenant_files
 
 
 DEFAULT_TABLES = "T01:4,T02:4,T03:4,T04:4,T05:4,T06:2,T07:2,T08:2,T09:2,T10:2"
 DELETE_CONFIRMATION = "DELETE_PRODUCTS"
 CLONE_CONFIRMATION = "CLONE_TEMPLATE"
+ISOLATED_DEPLOYMENT_CONFIRM_ENV = "SAKORIO_ISOLATE_CONFIRM"
 
 
 def _resolve_uploads_dir() -> Path:
@@ -868,13 +870,88 @@ def launch_check(args: argparse.Namespace) -> int:
     return 1 if result["status"] == "fail" else 0
 
 
+def expected_isolation_confirmation(tenant: Tenant) -> str:
+    """Exact phrase required before pruning a restored database copy."""
+    return f"ISOLATE:{tenant.id}:{tenant.name}"
+
+
+def isolate_database_copy(args: argparse.Namespace) -> int:
+    """Prune every other tenant from a *restored copy* of the shared database.
+
+    This command deliberately cannot run merely because ``--execute`` was
+    supplied. The destination service must also declare itself isolated and an
+    operator must provide a tenant-specific phrase through an environment
+    variable. This prevents the migration tool from becoming a convenient way
+    to damage the shared production database.
+    """
+    uploads_dir = Path(args.uploads_dir)
+    with Session(engine) as session:
+        target = session.get(Tenant, args.tenant_id)
+        if target is None:
+            raise SystemExit(f"Tenant id {args.tenant_id} not found.")
+        if target.is_demo:
+            raise SystemExit("Refusing to isolate a tenant marked as demo.")
+
+        others = session.exec(select(Tenant).where(Tenant.id != target.id)).all()
+        result = {
+            "mode": "execute" if args.execute else "dry-run",
+            "target_tenant_id": target.id,
+            "target_tenant_name": target.name,
+            "tenants_to_remove": [
+                {"id": tenant.id, "name": tenant.name, "is_demo": tenant.is_demo}
+                for tenant in others
+            ],
+            "confirmation": expected_isolation_confirmation(target),
+            "uploads_dir": str(uploads_dir),
+        }
+        if not args.execute:
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return 0
+
+        if os.getenv("SAKORIO_ISOLATED_DEPLOYMENT") != "1":
+            raise SystemExit(
+                "Refusing to execute: SAKORIO_ISOLATED_DEPLOYMENT=1 is required on the new isolated service."
+            )
+        supplied = os.getenv(ISOLATED_DEPLOYMENT_CONFIRM_ENV, "")
+        expected = expected_isolation_confirmation(target)
+        if supplied != expected:
+            raise SystemExit(
+                f"Refusing to execute: {ISOLATED_DEPLOYMENT_CONFIRM_ENV} must exactly equal {expected!r}."
+            )
+
+        removed_files: list[tuple[int, list[str]]] = []
+        for tenant in others:
+            if tenant.id is None:
+                continue
+            provider_tokens = delete_tenant_cascade(session, tenant.id)
+            removed_files.append((tenant.id, provider_tokens))
+        target.is_publicly_listed = True
+        session.add(target)
+        session.commit()
+
+    for tenant_id, provider_tokens in removed_files:
+        remove_tenant_files(uploads_dir, tenant_id, provider_tokens)
+    result["removed_tenant_count"] = len(removed_files)
+    result["status"] = "isolated"
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
 def render_env_template(args: argparse.Namespace) -> int:
     company_slug = clean_text(args.company_slug).lower().replace(" ", "-")
     staff = args.staff_url or f"https://staff.{company_slug}.com"
     order = args.order_url or f"https://order.{company_slug}.com"
     api = args.api_url or f"https://api.{company_slug}.com"
+    management = args.management_url or f"{staff}/management/login"
     template = {
         "company_slug": company_slug,
+        "tenant_id": args.tenant_id,
+        "portal_urls": {
+            "customer": order,
+            "staff": staff,
+            "management": management,
+            "api": api,
+        },
         "api_required": {
             "DATABASE_URL": "<render-postgres-internal-url>",
             "REDIS_URL": "<render-redis-internal-url>",
@@ -886,12 +963,39 @@ def render_env_template(args: argparse.Namespace) -> int:
             "DEFAULT_PHONE_COUNTRY": args.default_phone_country,
             "ALLOWED_ORIGINS": f"{staff},{order}",
             "TRUSTED_HOSTS": ",".join([api.replace("https://", ""), staff.replace("https://", ""), order.replace("https://", "")]),
+        },
+        "tenant_settings_required": {
             "HITPAY_MODE": "sandbox",
             "HITPAY_API_KEY": "<company-hitpay-api-key>",
             "HITPAY_WEBHOOK_SALT": "<company-hitpay-webhook-salt>",
+            "note": "Production payment credentials are stored on the tenant, never inherited from shared environment variables.",
         },
-        "staff_web": {"API_BASE_URL": api, "STAFF_APP_BASE_URL": staff},
-        "order_web": {"API_BASE_URL": api, "PUBLIC_APP_BASE_URL": order},
+        "staff_web": {
+            "API_URL": api,
+            "WS_URL": api.replace("https://", "wss://") + "/ws",
+            "SAKORIO_TENANT_ID": str(args.tenant_id),
+            "SAKORIO_PORTAL_MODE": "staff",
+            "SAKORIO_PUBLIC_ORDER_ORIGIN": order,
+        },
+        "order_web": {
+            "API_URL": api,
+            "WS_URL": api.replace("https://", "wss://") + "/ws",
+            "SAKORIO_TENANT_ID": str(args.tenant_id),
+            "SAKORIO_PORTAL_MODE": "customer",
+            "SAKORIO_PUBLIC_ORDER_ORIGIN": order,
+        },
+        "management_web_optional": {
+            "API_URL": api,
+            "WS_URL": api.replace("https://", "wss://") + "/ws",
+            "SAKORIO_TENANT_ID": str(args.tenant_id),
+            "SAKORIO_PORTAL_MODE": "management",
+            "SAKORIO_PUBLIC_ORDER_ORIGIN": order,
+        },
+        "native_build": {
+            "SAKORIO_TENANT_ID": str(args.tenant_id),
+            "SAKORIO_API_URL": api,
+            "SAKORIO_PUBLIC_ORDER_ORIGIN": order,
+        },
     }
     print(json.dumps(template, indent=2, sort_keys=True))
     return 0
@@ -959,11 +1063,22 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--min-products", type=int, default=1)
     check.set_defaults(func=launch_check)
 
+    isolate = sub.add_parser(
+        "isolate-database-copy",
+        help="Prune all other tenants from a restored database copy (dry-run unless --execute)",
+    )
+    isolate.add_argument("--tenant-id", type=int, required=True)
+    isolate.add_argument("--uploads-dir", default=str(_resolve_uploads_dir()))
+    isolate.add_argument("--execute", action="store_true")
+    isolate.set_defaults(func=isolate_database_copy)
+
     env = sub.add_parser("render-env-template", help="Generate a per-company Render env checklist")
     env.add_argument("--company-slug", required=True)
+    env.add_argument("--tenant-id", type=int, default=1)
     env.add_argument("--staff-url")
     env.add_argument("--order-url")
     env.add_argument("--api-url")
+    env.add_argument("--management-url")
     env.add_argument("--default-phone-country", default="SG")
     env.set_defaults(func=render_env_template)
 

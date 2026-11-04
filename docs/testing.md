@@ -547,6 +547,23 @@ npm run test:bartender-role --prefix front
 
 ---
 
+### Dedicated restaurant portal routing
+
+Simulates deployment-time runtime configuration in a real browser and verifies
+that customer, staff and management roots select the configured tenant. No
+credentials or data mutations are required.
+
+```bash
+BASE_URL=http://127.0.0.1:4202 TENANT_ID=1 \
+  npm run test:dedicated-portal-routing --prefix front
+```
+
+- Customer mode must redirect to `/public-menu/:tenantId`.
+- Staff mode must redirect to `/login?tenant=:tenantId` and show restaurant context.
+- Management mode must redirect to `/management/login?tenant=:tenantId`.
+
+---
+
 ## Maintenance notes
 
 - **Selectors:** Tests use stable selectors (e.g. `[data-testid="..."]`, `.auth-card`, `.order-card`). When changing UI, update tests or add data-testids so tests stay green.

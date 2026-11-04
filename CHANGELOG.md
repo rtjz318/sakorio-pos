@@ -10,6 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ### Added
 
+- **Multi-restaurant deployment:** Added tenant-pinned customer, staff and management portal modes, a dedicated owner/admin management login, build-time/native branding, guarded database isolation tooling and per-company Render configuration output for repeatable restaurant deployments.
 - **Marketing / Ariba Döner:** Registered **sakario.sg/ariba-doner/es/** — manifest entry for **`090_aribakebab`** (slug **`ariba-doner`** matches SPA **`baseHref`**; artifact **`ariba-doner-sakario-deploy`**; **`deploySubpath`** **`es`**).
 - **Marketing / Amigo Kebab:** Registered **sakario.sg/amigo-kebab/es/** — manifest entry for **`089_amigokebab`** (slug **`amigo-kebab`** matches SPA **`baseHref`**; artifact **`amigo-kebab-sakario-deploy`**; **`deploySubpath`** **`es`**).
 - **Marketing / La Bella Toscana:** Registered **sakario.sg/labellatoscana/es/** — manifest entry for **`060_labellatoscana`** (slug **`labellatoscana`** matches SPA **`baseHref`**; artifact **`labellatoscana-sakario-deploy`**; **`deploySubpath`** **`es`**).
@@ -18,6 +19,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ### Fixed
 
+- **Tenant safety:** Removed the native app's silent Ajisen tenant fallback and replaced the hard-coded demo-purge id list with explicit ids, exact confirmation and `is_demo` validation so Morinaga cannot be selected by legacy cleanup defaults.
 - **Realtime:** Normalized malformed runtime WebSocket URLs and redacted token-bearing WebSocket URLs from console diagnostics so HTTPS staff pages can connect safely.
 - **Kitchen & beverages:** Added a clear production-route switcher so staff can filter the board to All, Kitchen, or Beverages, with station filters scoped to the selected route.
 - **Orders:** Made the active Orders view table-first by default; tables now appear as compact overview cards and ticket-level detail stays collapsed until staff choose a table.

@@ -1,12 +1,18 @@
+import argparse
+import json
+
 from app.onboarding.company_onboarding import (
     TEMPLATE_TENANT_FIELDS,
     _copy_product_image,
     _resolve_uploads_dir,
     clean_text,
+    expected_isolation_confirmation,
     parse_price_cents,
     parse_tables,
     row_to_menu,
+    render_env_template,
 )
+from app.models import Tenant
 
 
 def test_clean_text_removes_pdf_artifacts_and_normalizes_spacing():
@@ -76,4 +82,31 @@ def test_uploads_dir_honors_runtime_override(monkeypatch, tmp_path):
     monkeypatch.setenv("UPLOADS_DIR", str(uploads))
 
     assert _resolve_uploads_dir() == uploads
+
+
+def test_render_template_contains_tenant_portal_and_per_tenant_payment(capsys):
+    args = argparse.Namespace(
+        company_slug="morinaga.sakorio",
+        tenant_id=3,
+        staff_url="https://morinaga-staff.sakorio.com",
+        order_url="https://morinaga-order.sakorio.com",
+        api_url="https://morinaga-api.sakorio.com",
+        management_url=None,
+        default_phone_country="SG",
+    )
+
+    assert render_env_template(args) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["tenant_id"] == 3
+    assert output["staff_web"]["SAKORIO_PORTAL_MODE"] == "staff"
+    assert output["order_web"]["SAKORIO_PORTAL_MODE"] == "customer"
+    assert output["management_web_optional"]["SAKORIO_PORTAL_MODE"] == "management"
+    assert output["native_build"]["SAKORIO_TENANT_ID"] == "3"
+    assert "HITPAY_API_KEY" not in output["api_required"]
+    assert output["tenant_settings_required"]["HITPAY_MODE"] == "sandbox"
+
+
+def test_isolation_confirmation_binds_tenant_id_and_name():
+    tenant = Tenant(id=3, name="Morinaga Ramen Izakaya", is_demo=False)
+    assert expected_isolation_confirmation(tenant) == "ISOLATE:3:Morinaga Ramen Izakaya"
 

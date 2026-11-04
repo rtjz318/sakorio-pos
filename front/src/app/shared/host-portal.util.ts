@@ -1,5 +1,12 @@
+import {
+  getRuntimePortalMode,
+  getRuntimePublicOrderOrigin,
+} from './runtime-config.util';
+
 export function isCustomerPublicHost(): boolean {
   if (typeof window === 'undefined') return false;
+
+  if (getRuntimePortalMode() === 'customer') return true;
 
   const host = (window.location.hostname || '').toLowerCase();
   if (!host) return false;
@@ -13,6 +20,9 @@ export function isCustomerPublicHost(): boolean {
  */
 export function getCustomerPublicOrigin(): string {
   if (typeof window === 'undefined') return 'https://order.sakorio.com';
+
+  const configuredOrigin = getRuntimePublicOrderOrigin();
+  if (configuredOrigin) return configuredOrigin;
 
   const host = (window.location.hostname || '').toLowerCase();
   if (host === 'localhost' || host === '127.0.0.1') {

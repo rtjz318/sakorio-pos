@@ -4,7 +4,7 @@ Execution started: 5 November 2026 (Asia/Singapore)
 Controlling specification: `docs/0184-morinaga-final-prelaunch-certification-checklist-2026-11-05.md`  
 Environment: live Sakorio production domains and authenticated Render workspace  
 Tenant: `3` — Morinaga Ramen Izakaya  
-Execution status: **IN PROGRESS — three live-browser batches recorded, including one controlled end-to-end transaction**
+Execution status: **IN PROGRESS — four live-browser batches recorded, including P1 remediation verification**
 
 ## 1. Rules applied
 
@@ -365,3 +365,91 @@ After the two P1 fixes are deployed, rerun this exact transaction pattern with:
 3. one queue party seated and one cancelled/no-show to reconcile every report
    widget;
 4. a staff-created and public-created reservation to verify source reporting.
+
+## 16. Batch 4 — P1 remediation and live targeted regression
+
+Fix commit: `9fc49498` — `fix: preserve queue seating truth in host workflows`
+
+Deployment evidence:
+
+- API Render service deployed `9fc49498` and reported Live.
+- Staff web Render service deployed `9fc49498` and reported Live.
+- The authenticated staff header displayed `POS 2.1.6 / 9fc49498` for Morinaga.
+
+### 16.1 MOR-P1-001 closure — explicit reservation/queue identity
+
+Implementation:
+
+- Reservation and Queue screens now resolve reservation queue history only
+  when `GuestQueueEntry.linked_reservation_id` equals the reservation ID.
+- The unsafe phone-number fallback was removed.
+- The UI no longer presents an unrelated phone match as `Recent queue history`.
+
+Live proof using the original defect records:
+
+- Reservation `#100` displayed as Finished with its own guest, party and notes.
+- It displayed no queue-history chip or queue-derived status.
+- Queue `Q001` remained visible under Include closed with the same phone number,
+  a different guest name, source `Host stand`, status Completed and table T06.
+- The Queue board reported `0 reservation-linked`, confirming Q001 was not
+  explicitly linked to reservation #100.
+
+Result: **PASS — P1 defect closed in live browser.**
+
+### 16.2 MOR-P1-002 closure — durable queue seating conversion
+
+Implementation:
+
+- Queue analytics now treat `seated_at` as the durable seating outcome.
+- A visit remains counted as seated after its live status changes from Seated
+  to Completed when the table is closed or released.
+- The conversion numerator uses unique lifecycle outcomes, avoiding double
+  counting a converted record that also contains seating evidence.
+- Daily throughput and the summary conversion use the same seating predicate.
+
+Live proof using Q001:
+
+| Report signal | Before fix | After live deployment |
+| --- | ---: | ---: |
+| Queue entries | 1 | 1 |
+| Seated count | 0 | 1 |
+| Seat conversion | 0% | 100% |
+| Daily throughput | 1 total · 0 seated | 1 total · 1 seated |
+| Daily seated rate | 0% | 100% |
+
+Result: **PASS — P1 defect closed in live browser.**
+
+### 16.3 Automated and local verification
+
+- Targeted backend suite: **9 passed**.
+- Added an integration regression proving a Completed queue visit with
+  `seated_at` remains included in conversion and daily throughput.
+- Added unit coverage for completed-seated, completed-unseated and legacy live
+  seated records.
+- Angular hot-reload compilation completed without TypeScript/Angular errors.
+- Local HAProxy landing request returned HTTP `200`.
+- Backend and frontend container logs contained no new application/compiler
+  errors after the change.
+
+### 16.4 Updated scores and launch decision
+
+| Area | Previous | Current | Result |
+| --- | ---: | ---: | --- |
+| Reservation/queue identity | 7/10 | 10/10 | Explicit linkage only |
+| Queue conversion reporting | 3/10 | 10/10 | Durable seated outcome reconciled |
+| Host/reports data integrity | 6.6/10 | 9/10 | P2 source attribution remains |
+| Core order-to-payment flow | 10/10 | 10/10 | No regression |
+
+The two P1 defects discovered in batch 3 are closed. The launch decision
+remains **CONDITIONAL NO-GO** for the separate already-documented launch gates:
+
+1. operational role accounts and role-matrix certification;
+2. printer/tablet agent readiness and physical receipt tests;
+3. final 9% GST configuration and receipt arithmetic;
+4. final HitPay sandbox/production payment certification;
+5. transactional email/password recovery;
+6. owner MFA and recovery testing;
+7. P2 reservation source attribution and reservation availability latency.
+
+No new live reservation, queue entry, order or payment was created for batch 4;
+the regression reused the retained batch-3 audit records.

@@ -1144,6 +1144,7 @@ export interface Reservation {
   table_name?: string | null;
   seated_at?: string | null;
   token?: string | null;
+  source?: 'public' | 'staff' | 'queue';
   created_at?: string | null;
   updated_at?: string | null;
   client_notes?: string | null;

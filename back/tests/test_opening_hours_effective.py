@@ -6,7 +6,10 @@ from datetime import date, time
 from pg_client_mixin import PgClientTestCase
 
 from app import models
-from app.opening_hours_effective import opening_service_windows_for_date
+from app.opening_hours_effective import (
+    opening_service_windows_for_date,
+    opening_service_windows_for_range,
+)
 
 BASE_WEEK = {
     "monday": {"closed": False, "open": "09:00", "close": "22:00"},
@@ -148,6 +151,36 @@ class TestOpeningHoursEffective(PgClientTestCase):
             self.session, self.tenant, date(2026, 6, 14)
         )
         self.assertEqual(sunday_windows, [(time.min, time(4, 30))])
+
+    def test_range_resolver_matches_single_date_rules(self):
+        alternate = dict(BASE_WEEK)
+        alternate["thursday"] = {**BASE_WEEK["thursday"], "open": "12:00"}
+        self.session.add(
+            models.OpeningHoursBaselineSchedule(
+                tenant_id=self.tenant.id,
+                effective_from=date(2026, 6, 11),
+                opening_hours=json.dumps(alternate),
+            )
+        )
+        self.session.add(
+            models.OpeningHoursDateOverride(
+                tenant_id=self.tenant.id,
+                date_from=date(2026, 6, 13),
+                date_to=date(2026, 6, 13),
+                closed=True,
+            )
+        )
+        self.session.commit()
+
+        start = date(2026, 6, 8)
+        end = date(2026, 6, 14)
+        resolved = opening_service_windows_for_range(self.session, self.tenant, start, end)
+        for offset in range(7):
+            day = date.fromordinal(start.toordinal() + offset)
+            self.assertEqual(
+                resolved[day],
+                opening_service_windows_for_date(self.session, self.tenant, day),
+            )
 
 
 if __name__ == "__main__":

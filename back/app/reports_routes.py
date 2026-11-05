@@ -393,7 +393,7 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
             }
         )
 
-    # Reservations in date range (by reservation_date); source = public (token set) vs staff (no token); by status
+    # Reservations in date range (by reservation_date); source is persisted at creation time.
     reservations = session.exec(
         select(models.Reservation)
         .where(models.Reservation.tenant_id == tenant_id)
@@ -404,7 +404,8 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
     by_source: dict[str, int] = defaultdict(int)
     by_status: dict[str, int] = defaultdict(int)
     for r in reservations:
-        source = "public" if r.token else "staff"
+        raw_source = getattr(r, "source", models.ReservationSource.public)
+        source = raw_source.value if hasattr(raw_source, "value") else str(raw_source or "public")
         by_source[source] += 1
         by_status[r.status.value] += 1
 

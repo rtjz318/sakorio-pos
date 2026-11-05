@@ -90,6 +90,40 @@ class TestQueueConversionReport(PgClientTestCase):
         self.assertEqual(queue["daily"][0]["count"], 2)
         self.assertEqual(queue["daily"][0]["seated_count"], 1)
 
+    def test_reservation_report_uses_explicit_source_even_when_all_have_tokens(self) -> None:
+        today = date.today()
+        for index, source in enumerate(
+            [
+                models.ReservationSource.public,
+                models.ReservationSource.staff,
+                models.ReservationSource.queue,
+            ],
+            start=1,
+        ):
+            self.session.add(
+                models.Reservation(
+                    tenant_id=self.tenant.id,
+                    customer_name=f"Source {source.value}",
+                    customer_phone=f"+659100000{index}",
+                    reservation_date=today,
+                    reservation_time=datetime.now().time().replace(microsecond=0),
+                    party_size=2,
+                    token=str(uuid4()),
+                    source=source,
+                )
+            )
+        self.session.commit()
+
+        response = self.client.get(
+            f"/reports/sales?from_date={today.isoformat()}&to_date={today.isoformat()}",
+            headers=self.headers,
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        by_source = {
+            row["source"]: row["count"] for row in response.json()["reservations"]["by_source"]
+        }
+        self.assertEqual(by_source, {"public": 1, "queue": 1, "staff": 1})
+
 
 if __name__ == "__main__":
     import unittest

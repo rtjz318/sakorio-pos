@@ -4,6 +4,8 @@ import json
 import unittest
 from datetime import date, timedelta
 
+from sqlalchemy import event
+
 from pg_client_mixin import PgClientTestCase
 
 from app import models
@@ -76,6 +78,34 @@ class TestBookMonthDaySlotsPublic(PgClientTestCase):
                     "out_of_range",
                 ),
             )
+
+    def test_book_month_day_states_uses_bounded_query_count(self):
+        today = date.today()
+        statements: list[str] = []
+
+        def record_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+            statements.append(statement)
+
+        event.listen(self.connection, "before_cursor_execute", record_statement)
+        try:
+            response = self.client.get(
+                "/reservations/book-month-day-states",
+                params={
+                    "tenant_id": self.tenant.id,
+                    "year": today.year,
+                    "month": today.month,
+                    "party_size": 2,
+                },
+            )
+        finally:
+            event.remove(self.connection, "before_cursor_execute", record_statement)
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertLessEqual(
+            len(statements),
+            20,
+            f"month availability used {len(statements)} SQL statements",
+        )
 
     def test_book_month_unknown_tenant(self):
         r = self.client.get(

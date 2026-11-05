@@ -756,6 +756,12 @@ class ReservationStatus(str, Enum):
     no_show = "no_show"
 
 
+class ReservationSource(str, Enum):
+    public = "public"
+    staff = "staff"
+    queue = "queue"
+
+
 class GuestQueueStatus(str, Enum):
     waiting = "waiting"
     notified = "notified"
@@ -788,6 +794,7 @@ class Reservation(TenantMixin, table=True):
     table_id: int | None = Field(default=None, foreign_key="table.id")
     seated_at: datetime | None = Field(default=None)  # UTC when staff seated party (turn-time capacity)
     token: str | None = Field(default=None, unique=True, index=True)
+    source: ReservationSource = Field(default=ReservationSource.public, index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     # Notes: reservation notes (this visit, e.g. baby stroller); customer profile (e.g. allergies); owner/internal

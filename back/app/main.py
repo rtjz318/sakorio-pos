@@ -97,6 +97,7 @@ from .schedule_export_i18n import planned_vs_export_labels, schedule_export_labe
 from .opening_hours_effective import (
     effective_weekly_json_preview,
     opening_service_windows_for_date as _opening_service_windows_for_date,
+    opening_service_windows_for_range as _opening_service_windows_for_range,
 )
 from .websocket_bridge import (
     public_queue_token_fingerprint,
@@ -8948,6 +8949,7 @@ def _reservation_to_dict(
         "table_id": r.table_id,
         "seated_at": r.seated_at.isoformat() if r.seated_at else None,
         "token": r.token,
+        "source": getattr(r, "source", models.ReservationSource.public).value,
         "created_at": r.created_at.isoformat() if r.created_at else None,
         "updated_at": r.updated_at.isoformat() if r.updated_at else None,
         "client_notes": r.client_notes,
@@ -9513,6 +9515,7 @@ def _reservable_capacity_for_tenant(
     *,
     _now_utc: datetime | None = None,
     floor_id: int | None = None,
+    availability_context: dict[str, Any] | None = None,
 ) -> tuple[int, int]:
     """Seats and table count in the reservation pool for one slot.
 
@@ -9524,46 +9527,51 @@ def _reservable_capacity_for_tenant(
     to venue-wide capacity (``floor_id`` None).
     """
     now_utc = _now_utc or datetime.now(timezone.utc)
-    tables = session.exec(
-        select(models.Table).where(models.Table.tenant_id == tenant_id)
-    ).all()
-    if floor_id is not None:
-        tables = [t for t in tables if t.floor_id == floor_id]
+    if availability_context is not None:
+        tables = availability_context["tables"]
+    else:
+        tables = session.exec(
+            select(models.Table).where(models.Table.tenant_id == tenant_id)
+        ).all()
+        if floor_id is not None:
+            tables = [t for t in tables if t.floor_id == floor_id]
     if not tables:
         return (0, 0)
     table_ids = [t.id for t in tables if t.id is not None]
     if not table_ids:
         return (0, 0)
 
-    seated_rows = session.exec(
-        select(models.Reservation).where(
-            models.Reservation.tenant_id == tenant_id,
-            models.Reservation.table_id.in_(table_ids),
-            models.Reservation.status == models.ReservationStatus.seated,
-        )
-    ).all()
-    seated_by_table: dict[int, models.Reservation] = {
-        r.table_id: r for r in seated_rows if r.table_id is not None
-    }
+    if availability_context is not None:
+        seated_by_table = availability_context["seated_by_table"]
+        orders_by_table = availability_context["orders_by_table"]
+    else:
+        seated_rows = session.exec(
+            select(models.Reservation).where(
+                models.Reservation.tenant_id == tenant_id,
+                models.Reservation.table_id.in_(table_ids),
+                models.Reservation.status == models.ReservationStatus.seated,
+            )
+        ).all()
+        seated_by_table = {r.table_id: r for r in seated_rows if r.table_id is not None}
 
-    orders_all = session.exec(
-        select(models.Order).where(
-            models.Order.table_id.in_(table_ids),
-            models.Order.status.in_(
-                [
-                    models.OrderStatus.pending,
-                    models.OrderStatus.preparing,
-                    models.OrderStatus.ready,
-                    models.OrderStatus.partially_delivered,
-                ]
-            ),
-        )
-    ).all()
-    orders_by_table: dict[int, models.Order] = {}
-    for o in orders_all:
-        tid = o.table_id
-        if tid not in orders_by_table or o.created_at < orders_by_table[tid].created_at:
-            orders_by_table[tid] = o
+        orders_all = session.exec(
+            select(models.Order).where(
+                models.Order.table_id.in_(table_ids),
+                models.Order.status.in_(
+                    [
+                        models.OrderStatus.pending,
+                        models.OrderStatus.preparing,
+                        models.OrderStatus.ready,
+                        models.OrderStatus.partially_delivered,
+                    ]
+                ),
+            )
+        ).all()
+        orders_by_table = {}
+        for o in orders_all:
+            tid = o.table_id
+            if tid not in orders_by_table or o.created_at < orders_by_table[tid].created_at:
+                orders_by_table[tid] = o
 
     blocked: set[int] = set()
     for t in tables:
@@ -9795,6 +9803,7 @@ def _demand_for_slot(
     slot_time: time,
     exclude_reservation_id: int | None = None,
     floor_id: int | None = None,
+    availability_context: dict[str, Any] | None = None,
 ) -> tuple[int, int]:
     """Return (reserved_guests, reserved_parties) for the slot. Active = booked, seated.
 
@@ -9805,6 +9814,9 @@ def _demand_for_slot(
     Booked parties without preferred floor and without a table do not consume zone capacity (they
     only count venue-wide).
     """
+    if availability_context is not None:
+        return availability_context["demand_by_slot"].get((slot_date, slot_time), (0, 0))
+
     q = select(models.Reservation).where(
         models.Reservation.tenant_id == tenant_id,
         models.Reservation.reservation_date == slot_date,
@@ -9833,6 +9845,82 @@ def _demand_for_slot(
                 included.append(r)
     reserved_guests = sum(r.party_size for r in included)
     return (reserved_guests, len(included))
+
+
+def _build_reservation_availability_context(
+    session: Session,
+    tenant_id: int,
+    date_from: date,
+    date_to: date,
+    *,
+    floor_id: int | None = None,
+    exclude_reservation_id: int | None = None,
+) -> dict[str, Any]:
+    """Load table occupancy and reservation demand once for a calendar request."""
+    all_tables = session.exec(
+        select(models.Table).where(models.Table.tenant_id == tenant_id)
+    ).all()
+    tables = all_tables if floor_id is None else [t for t in all_tables if t.floor_id == floor_id]
+    table_ids = [t.id for t in tables if t.id is not None]
+
+    seated_by_table: dict[int, models.Reservation] = {}
+    orders_by_table: dict[int, models.Order] = {}
+    if table_ids:
+        seated_rows = session.exec(
+            select(models.Reservation).where(
+                models.Reservation.tenant_id == tenant_id,
+                models.Reservation.table_id.in_(table_ids),
+                models.Reservation.status == models.ReservationStatus.seated,
+            )
+        ).all()
+        seated_by_table = {r.table_id: r for r in seated_rows if r.table_id is not None}
+        orders_all = session.exec(
+            select(models.Order).where(
+                models.Order.table_id.in_(table_ids),
+                models.Order.status.in_(
+                    [
+                        models.OrderStatus.pending,
+                        models.OrderStatus.preparing,
+                        models.OrderStatus.ready,
+                        models.OrderStatus.partially_delivered,
+                    ]
+                ),
+            )
+        ).all()
+        for order in orders_all:
+            tid = order.table_id
+            if tid not in orders_by_table or order.created_at < orders_by_table[tid].created_at:
+                orders_by_table[tid] = order
+
+    demand_query = select(models.Reservation).where(
+        models.Reservation.tenant_id == tenant_id,
+        models.Reservation.reservation_date >= date_from,
+        models.Reservation.reservation_date <= date_to,
+        models.Reservation.status.in_([models.ReservationStatus.booked, models.ReservationStatus.seated]),
+    )
+    if exclude_reservation_id is not None:
+        demand_query = demand_query.where(models.Reservation.id != exclude_reservation_id)
+    demand_rows = session.exec(demand_query).all()
+    table_map = {t.id: t for t in all_tables if t.id is not None}
+    demand_by_slot: dict[tuple[date, time], tuple[int, int]] = {}
+    for reservation in demand_rows:
+        if floor_id is not None:
+            preferred_floor_id = getattr(reservation, "preferred_floor_id", None)
+            seated_table = table_map.get(reservation.table_id) if reservation.table_id else None
+            if preferred_floor_id != floor_id and not (
+                preferred_floor_id is None and seated_table and seated_table.floor_id == floor_id
+            ):
+                continue
+        key = (reservation.reservation_date, reservation.reservation_time)
+        guests, parties = demand_by_slot.get(key, (0, 0))
+        demand_by_slot[key] = (guests + reservation.party_size, parties + 1)
+
+    return {
+        "tables": tables,
+        "seated_by_table": seated_by_table,
+        "orders_by_table": orders_by_table,
+        "demand_by_slot": demand_by_slot,
+    }
 
 
 def _normalize_reservation_service_type(raw: str | None) -> str | None:
@@ -10266,6 +10354,11 @@ def create_reservation(
         party_size=data.party_size,
         status=models.ReservationStatus.booked,
         token=token_str,
+        source=(
+            models.ReservationSource.staff
+            if current_user is not None
+            else models.ReservationSource.public
+        ),
         client_notes=data.client_notes,
         customer_notes=getattr(data, "customer_notes", None),
         owner_notes=None,
@@ -10384,10 +10477,16 @@ def _public_book_slot_cells_for_single_date(
     min_dt: datetime,
     max_book: date,
     floor_id: int | None = None,
+    availability_context: dict[str, Any] | None = None,
+    opening_windows_by_date: dict[date, list[tuple[time, time]] | None] | None = None,
 ) -> dict[str, str]:
     """Per time-slot state for one calendar day (same rules as book-week-slots)."""
     slot_step = _effective_reservation_slot_minutes(tenant)
-    windows = _opening_service_windows_for_date(session, tenant, d)
+    windows = (
+        opening_windows_by_date.get(d)
+        if opening_windows_by_date is not None
+        else _opening_service_windows_for_date(session, tenant, d)
+    )
     if windows is None:
         windows = [(time(8, 0), time(23, 0))]
     windows_f = _filter_windows_by_service(windows, svc)
@@ -10416,13 +10515,25 @@ def _public_book_slot_cells_for_single_date(
             cells[key] = "past"
             continue
         total_seats, total_tables = _reservable_capacity_for_tenant(
-            session, tenant_id, d, tenant, st, floor_id=floor_id
+            session,
+            tenant_id,
+            d,
+            tenant,
+            st,
+            floor_id=floor_id,
+            availability_context=availability_context,
         )
         if total_tables < 1 or total_seats < party_size:
             cells[key] = "full"
             continue
         reserved_guests, reserved_parties = _demand_for_slot(
-            session, tenant_id, d, st, exclude_reservation_id=exclude_reservation_id, floor_id=floor_id
+            session,
+            tenant_id,
+            d,
+            st,
+            exclude_reservation_id=exclude_reservation_id,
+            floor_id=floor_id,
+            availability_context=availability_context,
         )
         if reserved_guests + party_size <= total_seats and reserved_parties + 1 <= total_tables:
             cells[key] = "available"
@@ -10503,12 +10614,23 @@ def get_reservation_book_week_slots(
         anchor_day = today_local
 
     anchor_monday = _monday_on_or_before(anchor_day)
+    availability_context = _build_reservation_availability_context(
+        session,
+        tenant_id,
+        anchor_monday,
+        anchor_monday + timedelta(days=6),
+        floor_id=floor_id,
+        exclude_reservation_id=exclude_reservation_id,
+    )
+    opening_windows_by_date = _opening_service_windows_for_range(
+        session, tenant, anchor_monday, anchor_monday + timedelta(days=6)
+    )
 
     slot_step = _effective_reservation_slot_minutes(tenant)
     all_slot_times: set[time] = set()
     for i in range(7):
         d = anchor_monday + timedelta(days=i)
-        windows = _opening_service_windows_for_date(session, tenant, d)
+        windows = opening_windows_by_date.get(d)
         if windows is None:
             windows = [(time(8, 0), time(23, 0))]
         if len(windows) == 0:
@@ -10526,7 +10648,7 @@ def get_reservation_book_week_slots(
     for i in range(7):
         d = anchor_monday + timedelta(days=i)
         cells: dict[str, str] = {}
-        windows = _opening_service_windows_for_date(session, tenant, d)
+        windows = opening_windows_by_date.get(d)
         if windows is None:
             windows = [(time(8, 0), time(23, 0))]
         windows_f = _filter_windows_by_service(windows, svc)
@@ -10555,14 +10677,26 @@ def get_reservation_book_week_slots(
                 continue
 
             total_seats, total_tables = _reservable_capacity_for_tenant(
-                session, tenant_id, d, tenant, st, floor_id=floor_id
+                session,
+                tenant_id,
+                d,
+                tenant,
+                st,
+                floor_id=floor_id,
+                availability_context=availability_context,
             )
             if total_tables < 1 or total_seats < party_size:
                 cells[key] = "full"
                 continue
 
             reserved_guests, reserved_parties = _demand_for_slot(
-                session, tenant_id, d, st, exclude_reservation_id=exclude_reservation_id, floor_id=floor_id
+                session,
+                tenant_id,
+                d,
+                st,
+                exclude_reservation_id=exclude_reservation_id,
+                floor_id=floor_id,
+                availability_context=availability_context,
             )
             if reserved_guests + party_size <= total_seats and reserved_parties + 1 <= total_tables:
                 cells[key] = "available"
@@ -10617,6 +10751,19 @@ def get_reservation_book_month_day_states(
     max_book = today_local + timedelta(days=366)
 
     _, last_day = monthrange(year, month)
+    month_start = date(year, month, 1)
+    month_end = date(year, month, last_day)
+    availability_context = _build_reservation_availability_context(
+        session,
+        tenant_id,
+        month_start,
+        month_end,
+        floor_id=floor_id,
+        exclude_reservation_id=exclude_reservation_id,
+    )
+    opening_windows_by_date = _opening_service_windows_for_range(
+        session, tenant, month_start, month_end
+    )
     days_out: list[dict] = []
     for dom in range(1, last_day + 1):
         d = date(year, month, dom)
@@ -10634,6 +10781,8 @@ def get_reservation_book_month_day_states(
             min_dt,
             max_book,
             floor_id=floor_id,
+            availability_context=availability_context,
+            opening_windows_by_date=opening_windows_by_date,
         )
         days_out.append({"date": d.isoformat(), "state": _aggregate_public_day_slot_state(cells)})
 
@@ -10679,6 +10828,15 @@ def get_reservation_book_day_slots(
     min_dt = now_local + timedelta(minutes=RESERVATION_PUBLIC_MIN_LEAD_MINUTES)
     max_book = today_local + timedelta(days=366)
 
+    availability_context = _build_reservation_availability_context(
+        session,
+        tenant_id,
+        d,
+        d,
+        floor_id=floor_id,
+        exclude_reservation_id=exclude_reservation_id,
+    )
+    opening_windows_by_date = _opening_service_windows_for_range(session, tenant, d, d)
     cells = _public_book_slot_cells_for_single_date(
         session,
         tenant_id,
@@ -10693,6 +10851,8 @@ def get_reservation_book_day_slots(
         min_dt,
         max_book,
         floor_id=floor_id,
+        availability_context=availability_context,
+        opening_windows_by_date=opening_windows_by_date,
     )
     times_sorted = sorted(cells.keys(), key=lambda k: int(k[:2]) * 60 + int(k[3:5]))
     return {"date": d.isoformat(), "times": times_sorted, "cells": cells}
@@ -11741,6 +11901,7 @@ def convert_guest_queue_to_reservation(
         party_size=queue_entry.party_size,
         status=models.ReservationStatus.booked,
         token=str(uuid4()),
+        source=models.ReservationSource.queue,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
         client_notes=body.client_notes.strip() if isinstance(body.client_notes, str) and body.client_notes.strip() else queue_entry.notes,

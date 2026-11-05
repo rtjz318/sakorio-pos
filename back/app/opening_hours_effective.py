@@ -194,6 +194,74 @@ def opening_service_windows_for_date(
     return _calendar_date_windows(current_windows, previous_windows)
 
 
+def opening_service_windows_for_range(
+    session: Session,
+    tenant: models.Tenant,
+    date_from: date,
+    date_to: date,
+) -> dict[date, List[Tuple[time, time]] | None]:
+    """Resolve a date range with two schedule queries instead of four per day."""
+    lookup_from = date_from - timedelta(days=1)
+    baselines = session.exec(
+        select(models.OpeningHoursBaselineSchedule)
+        .where(models.OpeningHoursBaselineSchedule.tenant_id == tenant.id)
+        .where(models.OpeningHoursBaselineSchedule.effective_from <= date_to)
+        .order_by(models.OpeningHoursBaselineSchedule.effective_from)
+    ).all()
+    overrides = session.exec(
+        select(models.OpeningHoursDateOverride).where(
+            models.OpeningHoursDateOverride.tenant_id == tenant.id,
+            models.OpeningHoursDateOverride.date_from <= date_to,
+            models.OpeningHoursDateOverride.date_to >= lookup_from,
+        )
+    ).all()
+
+    def source_for(day: date) -> tuple[str | None, bool]:
+        baseline = tenant.opening_hours
+        for row in baselines:
+            if row.effective_from <= day:
+                baseline = row.opening_hours
+            else:
+                break
+        matches = [row for row in overrides if row.date_from <= day <= row.date_to]
+        if not matches:
+            return baseline, False
+        matches.sort(key=lambda row: ((row.date_to - row.date_from).days, -(row.id or 0)))
+        winner = matches[0]
+        if winner.closed:
+            return None, True
+        if winner.opening_hours and winner.opening_hours.strip():
+            return winner.opening_hours, False
+        return baseline, False
+
+    sources: dict[date, tuple[str | None, bool]] = {}
+    cursor = lookup_from
+    while cursor <= date_to:
+        sources[cursor] = source_for(cursor)
+        cursor += timedelta(days=1)
+
+    result: dict[date, List[Tuple[time, time]] | None] = {}
+    cursor = date_from
+    while cursor <= date_to:
+        current_source, current_closed = sources[cursor]
+        previous_source, previous_closed = sources[cursor - timedelta(days=1)]
+        if current_closed:
+            result[cursor] = []
+        elif current_source is None and previous_source is None:
+            result[cursor] = None
+        else:
+            current_windows = _windows_from_weekly_json_str(current_source, cursor) or []
+            previous_date = cursor - timedelta(days=1)
+            previous_windows = (
+                []
+                if previous_closed
+                else (_windows_from_weekly_json_str(previous_source, previous_date) or [])
+            )
+            result[cursor] = _calendar_date_windows(current_windows, previous_windows)
+        cursor += timedelta(days=1)
+    return result
+
+
 def effective_weekly_json_preview(
     session: Session | None,
     tenant: models.Tenant,

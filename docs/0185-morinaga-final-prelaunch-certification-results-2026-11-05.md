@@ -4,7 +4,7 @@ Execution started: 5 November 2026 (Asia/Singapore)
 Controlling specification: `docs/0184-morinaga-final-prelaunch-certification-checklist-2026-11-05.md`  
 Environment: live Sakorio production domains and authenticated Render workspace  
 Tenant: `3` — Morinaga Ramen Izakaya  
-Execution status: **IN PROGRESS — first live-browser batch recorded**
+Execution status: **IN PROGRESS — two live-browser batches recorded**
 
 ## 1. Rules applied
 
@@ -153,3 +153,53 @@ Once owner access is restored, continue in this order:
 7. record every mutation and cleanup proof.
 
 Current launch decision: **NO-GO — certification in progress**.
+
+## 11. Authenticated live-browser batch 2
+
+The owner password was hard-reset through a hidden-input production shell and
+the live staff portal then accepted the new credential. The authenticated
+header identified `Morinaga Ramen Izakaya`, the account email, and role
+`Owner`. The staff build displayed `2.1.6 / 9eeb23eb`.
+
+| ID | Result | Score | Status | Evidence / required follow-up |
+| --- | --- | ---: | --- | --- |
+| MOR-LCH-010 | Clean baseline: 10 available tables, 0 open bills, 0 active orders, 0 queue records, 0 reservations, 0 kitchen tickets and 0 open staff sessions | 10 | PASS | Live Tables, POS, Orders, Queue, Reservations, Kitchen and Reports pages |
+| MOR-LCH-011 | Morinaga owner login accepted after the production hard reset; tenant name and Owner role rendered | 10 | PASS | Live staff dashboard |
+| MOR-LCH-013 | Forcing Ajisen table ID `1` into the Morinaga POS did not expose or select that table; only Morinaga's ten tables rendered | 10 | PASS | Authenticated live URL-forcing test |
+| MOR-LCH-014 | Forcing Ajisen order ID `273` with Morinaga table ID `11` removed the foreign `orderId` from the URL and exposed no Ajisen order data | 10 | PASS | Authenticated live URL-forcing test |
+| MOR-LCH-021 | User Management contains only the Morinaga owner/administrator | 1 | BLOCKED (P1) | Create individual host, waiter/cashier, kitchen and manager accounts before role certification |
+| MOR-LCH-027 | Optional OTP is currently disabled for the owner | 2 | BLOCKED (P1) | Enable and recovery-test owner MFA before launch |
+| MOR-LCH-037 | POS reported 112 catalog items across six menu categories; all sampled prices were non-zero SGD values | 9 | PASS | Full approved-source reconciliation still required |
+| MOR-LCH-039 | POS category counts total 112 and match the live catalog total | 10 | PASS | `8 + 41 + 8 + 24 + 19 + 12 = 112` |
+| MOR-LCH-048 | Dynamic attendance page is operational and allows unscheduled clock-in with photo | 8 | PARTIAL | Controlled photo clock-in/out still required |
+| MOR-LCH-049 | Timetable shows actual attendance automatically and planned shifts as optional | 8 | PARTIAL | Controlled clock-in/out evidence still required |
+| MOR-LCH-050 | No operational staff profiles exist; timetable contains only the owner account | 1 | BLOCKED (P1) | Add named employee profiles |
+| MOR-LCH-189 | Printing reports `0/0` online agents, no printer, no heartbeat and 13% XP-80T readiness | 1 | BLOCKED (P1) | Complete tablet plugin/token/Bluetooth/heartbeat and receipt tests |
+
+### Batch 2 configuration facts
+
+- Currency is `SGD`.
+- HitPay is set to `Sandbox`; final payment certification remains deferred to
+  Phase P by owner direction.
+- Immediate payment is disabled.
+- Fiscal mode is off.
+- Tenant SMTP fields and global SMTP variables are absent; email-dependent
+  flows are not launch-ready.
+- Both `GST 0%` and `GST 9%` are currently active from 10 July 2026. The final
+  tax selection and receipt arithmetic remain deferred to Phase P, but the
+  simultaneous records must be resolved before live orders.
+- Optional account OTP is disabled.
+- Printer launch readiness is 13%, with no paired/online agent or completed
+  print job.
+
+### New live defect
+
+The Queue page reported `0 clear tables` while Tables and POS simultaneously
+showed all ten Morinaga tables as idle/available. This is a **P1 host-stand
+consistency defect** because it can prevent or confuse queue-to-table seating.
+The availability calculation must be aligned and re-tested before launch.
+
+Current launch decision after batch 2: **NO-GO**. Protected access and tenant
+isolation pass, but operational role coverage, queue/table consistency,
+transactional email, printer readiness, MFA, tax finalization and controlled
+end-to-end transactions remain incomplete.

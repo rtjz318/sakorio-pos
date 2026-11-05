@@ -453,3 +453,104 @@ remains **CONDITIONAL NO-GO** for the separate already-documented launch gates:
 
 No new live reservation, queue entry, order or payment was created for batch 4;
 the regression reused the retained batch-3 audit records.
+
+## 17. Batch 5 — reservation reporting and booking-speed remediation
+
+Fix commit: `3d8458c2` — `fix: make reservation reporting and availability reliable`
+
+Deployment evidence:
+
+- API Render service deployed `3d8458c2` and reported Live.
+- Staff web Render service deployed `3d8458c2` and reported Live.
+- The authenticated staff header displayed `POS 2.1.6 / 3d8458c2` for Morinaga.
+
+### 17.1 MOR-P2-003 remediation — explicit reservation source
+
+Implementation:
+
+- Added a persisted reservation source with the canonical values `public`,
+  `staff`, and `queue`.
+- Public booking writes `public`; authenticated reservation creation writes
+  `staff`; queue conversion writes `queue`.
+- Reservation serialization exposes the stored source to staff clients.
+- Reports now aggregate the persisted source instead of guessing that every
+  reservation with a public-view token came from the public book page.
+- The migration safely defaults historical rows to `public` because their
+  original authenticated/public channel was not stored and cannot be inferred
+  reliably after the fact.
+
+Verification:
+
+- Endpoint-level tests created one unauthenticated public booking and one
+  authenticated staff booking and confirmed both API responses and database
+  rows retained distinct sources.
+- Reporting regression created public, staff and queue-source reservations,
+  all with tokens, and confirmed the report returned one count for each source.
+- The live report loaded successfully on `3d8458c2`. Its retained reservation
+  #100 is a historical row and therefore remains under the documented legacy
+  default; no production booking was fabricated merely to alter the chart.
+
+Result: **PASS in deployed code and endpoint/report integration tests.** A new
+real staff booking after this deployment will report as Staff.
+
+### 17.2 MOR-P2-004 closure — bounded booking availability
+
+Root cause:
+
+- Month and week availability repeated the same table, seated-reservation,
+  active-order, reservation-demand and opening-hours queries for every slot.
+- Query volume therefore grew with days × time slots and caused the observed
+  approximately 22-second staff wait.
+
+Implementation:
+
+- Added one request-scoped availability snapshot for tables, active occupancy,
+  orders and reservation demand.
+- Added a range-based opening-hours resolver that loads baseline schedules and
+  date overrides once, while preserving overnight, baseline and narrowest-
+  override semantics.
+- Month, week and day availability now reuse these snapshots without changing
+  the capacity or zone rules.
+
+Live browser measurements on Morinaga after deployment:
+
+| Signal | Result |
+| --- | ---: |
+| Month availability endpoint | 162 ms |
+| Selected-day slots endpoint | 108 ms |
+| Reservation modal to usable calendar + time control | 277 ms |
+| Launch target | under 2 seconds |
+
+The month regression also enforces a maximum of 20 SQL statements for the
+whole calendar request, preventing the slot-by-slot query pattern from
+returning.
+
+Result: **PASS — availability latency reduced from about 22 seconds to well
+under the two-second target in the live browser.**
+
+### 17.3 Verification summary
+
+- Distinct focused backend tests: **21 passed**.
+- Opening-hours range resolver was proven equivalent to the single-date rules
+  across baseline changes, overrides, closed dates and overnight service.
+- Angular hot-reload compilation completed successfully with no TypeScript or
+  Angular compiler error.
+- Local HAProxy landing request returned HTTP `200`.
+- Backend startup applied migration `20261105170000` and remained healthy.
+- No new production reservation, queue record, order, payment or message was
+  created during this batch.
+
+### 17.4 Updated scores and decision
+
+| Area | Previous | Current | Result |
+| --- | ---: | ---: | --- |
+| Reservation source attribution | 6/10 | 9/10 | Explicit write-time source; historical row remains non-inferable |
+| Reservation availability latency | 6/10 | 10/10 | 277 ms live UI readiness |
+| Host/reports data integrity | 9/10 | 9.5/10 | P1 defects closed; source schema corrected |
+| Core order-to-payment flow | 10/10 | 10/10 | No regression |
+
+The software-controlled reservation defects from batch 3 are now remediated.
+The launch decision remains **CONDITIONAL NO-GO** only for the separate physical
+and configuration gates already documented: role-account certification,
+printer/tablet receipt testing, final GST arithmetic, final HitPay payment
+certification, transactional email/password recovery, and owner MFA/recovery.

@@ -198,7 +198,7 @@ import { getCustomerPublicOrigin } from '../shared/host-portal.util';
                   <div class="queue-handoff-summary">
                     <span class="queue-handoff-chip">{{ queueStatusLabel(queueMatch) }}</span>
                     <span class="queue-handoff-copy">
-                      {{ queueMatch.linked_reservation_id === r.id ? 'Queue linked to this reservation' : 'Recent queue history found' }}
+                      Queue linked to this reservation
                       · {{ queueRelativeTime(queueMatch.updated_at || queueMatch.requested_at) }}
                     </span>
                   </div>
@@ -1539,20 +1539,9 @@ export class ReservationsComponent implements OnInit, OnDestroy {
   }
 
   latestQueueMatch(reservation: Reservation): GuestQueueEntry | null {
-    const linkedMatches = this.queueEntries()
+    return this.queueEntries()
       .filter((entry) => entry.linked_reservation_id === reservation.id)
-      .sort((a, b) => this.queueSortTime(b) - this.queueSortTime(a));
-    if (linkedMatches.length > 0) {
-      return linkedMatches[0];
-    }
-
-    const phone = this.normalizePhone(reservation.customer_phone);
-    if (!phone) return null;
-
-    const phoneMatches = this.queueEntries()
-      .filter((entry) => this.normalizePhone(entry.customer_phone) === phone)
-      .sort((a, b) => this.queueSortTime(b) - this.queueSortTime(a));
-    return phoneMatches[0] ?? null;
+      .sort((a, b) => this.queueSortTime(b) - this.queueSortTime(a))[0] ?? null;
   }
 
   queueStatusLabel(entry: GuestQueueEntry): string {

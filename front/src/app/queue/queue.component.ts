@@ -2247,17 +2247,9 @@ export class QueueComponent implements OnInit {
   }
 
   latestQueueMatchForReservation(reservation: Reservation): GuestQueueEntry | null {
-    const linkedMatches = this.queue()
+    return this.queue()
       .filter((entry) => entry.linked_reservation_id === reservation.id)
-      .sort((a, b) => this.queueSortTime(b) - this.queueSortTime(a));
-    if (linkedMatches.length) return linkedMatches[0] ?? null;
-
-    const phone = this.normalizePhone(reservation.customer_phone);
-    if (!phone) return null;
-    const phoneMatches = this.queue()
-      .filter((entry) => this.normalizePhone(entry.customer_phone) === phone)
-      .sort((a, b) => this.queueSortTime(b) - this.queueSortTime(a));
-    return phoneMatches[0] ?? null;
+      .sort((a, b) => this.queueSortTime(b) - this.queueSortTime(a))[0] ?? null;
   }
 
   queueStatusLabel(entry: GuestQueueEntry): string {
@@ -2922,7 +2914,4 @@ export class QueueComponent implements OnInit {
     return statusWeight + reservationWeight + urgencyWeight + minutes;
   }
 
-  private normalizePhone(value?: string | null): string {
-    return (value || '').replace(/\D/g, '');
-  }
 }

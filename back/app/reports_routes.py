@@ -86,6 +86,12 @@ def _in_range(
     return from_date <= local_date <= to_date
 
 
+def _queue_entry_was_seated(entry: models.GuestQueueEntry) -> bool:
+    """Return the durable seating outcome even after the live status is completed."""
+    status = entry.status.value if hasattr(entry.status, "value") else str(entry.status or "")
+    return entry.seated_at is not None or status == models.GuestQueueStatus.seated.value
+
+
 def _waiter_name_for_order_tips(session: Session, order: models.Order) -> str:
     """Waiter for tip attribution: stored tip_attributed_user_id, else table assignment."""
     tid = getattr(order, "tip_attributed_user_id", None)
@@ -446,12 +452,13 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
     for entry in queue_entries:
         source_key = entry.source.value if hasattr(entry.source, "value") else str(entry.source or "unknown")
         status_key = entry.status.value if hasattr(entry.status, "value") else str(entry.status or "unknown")
+        was_seated = _queue_entry_was_seated(entry)
         queue_by_source[source_key] += 1
         queue_by_status[status_key] += 1
         if entry.requested_at:
             day_key = _local_report_date(entry.requested_at, report_timezone).isoformat()
             queue_daily[day_key]["count"] += 1
-            if status_key == models.GuestQueueStatus.seated.value:
+            if was_seated:
                 queue_daily[day_key]["seated_count"] += 1
         if entry.quoted_wait_minutes is not None:
             quoted_wait_values.append(int(entry.quoted_wait_minutes))
@@ -467,14 +474,22 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
             )
             actual_wait_values.append(actual_wait_minutes)
 
-    queue_seated_count = queue_by_status.get(models.GuestQueueStatus.seated.value, 0)
+    queue_seated_count = sum(1 for entry in queue_entries if _queue_entry_was_seated(entry))
     queue_converted_count = queue_by_status.get(models.GuestQueueStatus.converted_to_reservation.value, 0)
     queue_cancelled_count = queue_by_status.get(models.GuestQueueStatus.cancelled.value, 0)
     queue_no_show_count = queue_by_status.get(models.GuestQueueStatus.no_show.value, 0)
     queue_expired_count = queue_by_status.get(models.GuestQueueStatus.expired.value, 0)
     queue_waiting_count = queue_by_status.get(models.GuestQueueStatus.waiting.value, 0)
     queue_notified_count = queue_by_status.get(models.GuestQueueStatus.notified.value, 0)
-    seated_or_converted_count = queue_seated_count + queue_converted_count
+    seated_or_converted_count = sum(
+        1
+        for entry in queue_entries
+        if _queue_entry_was_seated(entry)
+        or (
+            entry.status.value if hasattr(entry.status, "value") else str(entry.status or "")
+        )
+        == models.GuestQueueStatus.converted_to_reservation.value
+    )
 
     queue_summary = {
         "total": queue_total,

@@ -33,6 +33,7 @@ Execution status: **IN PROGRESS — first live-browser batch recorded**
 | Morinaga public menu | Correct restaurant identity; six category sections; SGD prices and product imagery rendered |
 | Booking first usable availability | Approximately 20 seconds in this observed run; target is under 2 seconds |
 | Staff authentication | Previously supplied Morinaga owner credential rejected by live staff login in this run |
+| Password recovery | Owner account exists for tenant `3`, but both tenant SMTP credentials and global Render SMTP credentials are absent; the reset request cannot send email |
 
 ## 3. Phase A — release baseline and change control
 
@@ -56,7 +57,7 @@ Phase A certification status: **BLOCKED** by MOR-LCH-003 and MOR-LCH-010.
 
 | ID | Result | Score | Status | Evidence / required follow-up |
 | --- | --- | ---: | --- | --- |
-| MOR-LCH-011 | Staff login page loaded, but saved Morinaga owner credential was rejected | 2 | BLOCKED | Restore/rotate owner access before protected QA |
+| MOR-LCH-011 | Staff login page loaded, but saved Morinaga owner credential was rejected. Live recovery request returned the privacy-safe success message, but no email was sent because SMTP is not configured | 2 | BLOCKED | Configure transactional SMTP, verify a test email, then rotate owner access |
 | MOR-LCH-012 | Management route displayed owner/admin-only scope; authentication not completed | 7 | PARTIAL | Re-run with working owner and non-admin account |
 | MOR-LCH-013 | Not run; requires authenticated Morinaga session | 0 | NOT RUN | Force foreign table ID after login |
 | MOR-LCH-014 | Not run; requires authenticated Morinaga session | 0 | NOT RUN | Force foreign order ID after login |
@@ -133,6 +134,7 @@ certified until a controlled queue entry is created.
 | Defect | Severity | Affected checks | Result |
 | --- | --- | --- | --- |
 | Live Morinaga owner credential rejected | P1 | 010–015, 018–022 and all protected phases | Protected QA cannot proceed |
+| Transactional email is not configured | P1 | 011, password recovery and all email-dependent launch flows | Live shell confirmed the owner exists under Morinaga tenant `3`; tenant SMTP user/password are unset and the API has no global SMTP user/password variables, so reset email delivery is impossible |
 | Reservation availability takes about 20 seconds | P1 | 058, 171 | Fails the under-two-second launch target |
 | Tenant `3` login pages omit Morinaga identity | P2 | 011, 012, 016, 192 | Shared-stack wrong-restaurant confusion risk |
 | Guest landing contains provider/courier/account links | P2 | 016, 192 | Distracts from booking/queue/table ordering |

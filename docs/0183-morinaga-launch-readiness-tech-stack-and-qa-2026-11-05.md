@@ -393,6 +393,43 @@ input. The following owner inputs are required to cross the launch gates:
    session at the restaurant.
 9. Choose a launch date and a first-service support window.
 
+### Owner response and live account verification — 5 November 2026
+
+| Input | Current status |
+|---|---|
+| Dedicated Morinaga deployment | Confirmed by the owner |
+| Render access | Authenticated workspace verified |
+| DNS | Owner approved proceeding; DNS-provider access/records still need to be available at cutover |
+| HitPay | Dashboard credentials supplied and accepted; login is waiting for the six-digit email verification code. Credentials are not stored in Git or this document |
+| GST | Owner confirmed Morinaga is GST registered at **9%**; final invoice/legal identity and UEN still need confirmation |
+| Staff roster | Deferred; may remain empty during infrastructure setup, but individual accounts are required before launch |
+| Physical Android/XP-80T test | Deferred |
+| Launch date/support window | Deferred |
+
+### Verified Render cost impact
+
+The live Render billing page projected the existing shared workspace at
+**USD 92.00/month** for November 2026. The following isolated Morinaga estimate
+uses the same production-sized backend components and free static customer/staff
+portals:
+
+| Added resource | Monthly estimate |
+|---|---:|
+| API Standard (1 CPU / 2 GB) | USD 25.00 |
+| API persistent disk (2 GB) | approximately USD 0.44 |
+| PostgreSQL Basic compute | USD 6.00 |
+| PostgreSQL storage (15 GB) | approximately USD 4.50 |
+| Redis/Valkey Starter | USD 10.00 |
+| Customer and staff static portals | USD 0.00 |
+| **Estimated additional total** | **USD 45.94/month** |
+| **Estimated combined workspace total** | **USD 137.94/month** |
+
+The estimate excludes tax, bandwidth or other overages. Render charges begin
+when the new paid resources are created. Point-in-time recovery can create the
+new Morinaga database from the current shared database's seven-day recovery
+window; the restored copy must then run the guarded tenant-isolation command
+before any dedicated API is connected to it.
+
 ## 14. Cutover and rollback
 
 ### Cutover

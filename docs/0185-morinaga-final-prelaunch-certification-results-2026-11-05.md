@@ -4,7 +4,7 @@ Execution started: 5 November 2026 (Asia/Singapore)
 Controlling specification: `docs/0184-morinaga-final-prelaunch-certification-checklist-2026-11-05.md`  
 Environment: live Sakorio production domains and authenticated Render workspace  
 Tenant: `3` — Morinaga Ramen Izakaya  
-Execution status: **IN PROGRESS — two live-browser batches recorded**
+Execution status: **IN PROGRESS — three live-browser batches recorded, including one controlled end-to-end transaction**
 
 ## 1. Rules applied
 
@@ -12,6 +12,9 @@ Execution status: **IN PROGRESS — two live-browser batches recorded**
 - No source-derived assertion is counted as a live QA pass.
 - No real reservation, queue entry, order, payment or account was created in
   this first safe/read-only batch.
+- Batch 3 used the owner-approved synthetic reservation, queue, table, order,
+  terminal-payment and table-close records documented below. No real HitPay
+  charge was attempted.
 - HitPay and 9% GST remain deferred to Phase P by owner direction.
 - Any `BLOCKED` or `NOT RUN` item is not a pass.
 - Secrets, signed backup URLs and credentials are deliberately omitted.
@@ -203,3 +206,162 @@ Current launch decision after batch 2: **NO-GO**. Protected access and tenant
 isolation pass, but operational role coverage, queue/table consistency,
 transactional email, printer readiness, MFA, tax finalization and controlled
 end-to-end transactions remain incomplete.
+
+## 12. Controlled live-browser batch 3 — complete restaurant service loop
+
+Execution date: 5 November 2026 (Asia/Singapore)
+
+Live staff build: `2.1.6 / 9eeb23eb`
+
+Operator role: Morinaga `Owner`
+
+Test data: synthetic QA guest, reservation and queue records approved by the
+owner before mutation
+
+This batch exercised the live production UI from host-stand intake to final
+reporting. The browser was used for every state transition. No API or database
+shortcut was used to manufacture a pass.
+
+### 12.1 Transaction evidence
+
+| Record | Live result |
+| --- | --- |
+| Reservation | `#100`, party of 2, created by staff for the current service day and later finished automatically when T01 closed |
+| Queue | `Q001` / backend entry `64`, party of 2, progressed from Waiting to Notified to Seated at T06 |
+| Reservation table | T01 |
+| Queue table | T06; released after the controlled seating check because no order was opened there |
+| Order | `#274`, T01, two items, SGD 9.00 |
+| Kitchen routing | Food item routed to Kitchen; drink routed to Beverages |
+| Payment | Synthetic internal Terminal payment, SGD 9.00; no external card or HitPay charge |
+| Final state | T01 and T06 available; no open bills, active orders or live kitchen tickets |
+
+The two ordered items were `A1 Kimchi` at SGD 4.00 and `Green Tea (Hot or
+Cold)` at SGD 5.00. The order history, POS bill and report total all reconciled
+to SGD 9.00.
+
+### 12.2 End-to-end scorecard
+
+| Flow | Score | Status | Live result |
+| --- | ---: | --- | --- |
+| Staff authentication and tenant identity | 10/10 | PASS | Owner login succeeded and Morinaga tenant identity remained visible |
+| Reservation creation | 8/10 | PARTIAL | Reservation created correctly; availability took about 22 seconds to become usable |
+| Reservation arrival and table assignment | 7/10 | FAIL (P1) | Seating at T01 worked, but an unrelated queue record with the same phone number was incorrectly shown as this reservation's queue history |
+| Queue creation and number visibility | 9/10 | PASS | Q001 was immediately visible with party and wait details |
+| Queue notify transition | 9/10 | PASS | Waiting changed to Notified without a refresh; external handset/SMS delivery was not independently verified |
+| Queue seating and table handoff | 9/10 | PASS | Q001 seated at T06 and POS opened with a queue-handoff confirmation |
+| Table release/reset | 10/10 | PASS | Empty T06 was released through explicit confirmation and returned to Available |
+| POS catalog, cart and order submission | 10/10 | PASS | Two items totalled SGD 9.00 and submitted as order #274 |
+| Orders overview | 10/10 | PASS | Active order showed T01, two items and the correct total |
+| Kitchen and beverage routing | 10/10 | PASS | Food and beverage appeared in their correct production lanes |
+| KDS lifecycle | 10/10 | PASS | Start, Ready and Served states completed; served toast included a five-second removal countdown |
+| POS payment panel | 10/10 | PASS | Terminal payment recorded as paid with the correct amount and method |
+| Table close and linked reservation finish | 10/10 | PASS | Final confirmation explained consequences; T01 reset and reservation #100 finished automatically |
+| Order history | 10/10 | PASS | #274 retained item, guest, table, paid-state and SGD 9.00 evidence |
+| Sales reporting | 9/10 | PASS | SGD 9.00 collected, one order, SGD 9.00 average ticket, Terminal 100% |
+| Reservation reporting source | 6/10 | FAIL (P2) | Staff-created reservation was classified as `Public (book page)` |
+| Queue conversion reporting | 3/10 | FAIL (P1) | Completed queue entry reported `0 seated / 0% seated` after Q001 was visibly seated at T06 |
+| End-of-day operational state | 10/10 | PASS | Reports showed zero active tables, open bills and kitchen tickets |
+
+The earlier `0 clear tables` queue defect was not reproduced in this batch: the
+queue seating dialog showed all ten Morinaga tables as clear, and Q001 was
+successfully assigned to T06. Treat that earlier defect as **recovered but
+regression-sensitive**, not as an open blocker.
+
+Batch 3 weighted operational score: **8.8/10**.
+
+Core order-to-kitchen-to-payment score: **10/10**.
+
+Host/reports data-integrity score: **6.6/10**.
+
+## 13. Defects proven by batch 3
+
+### MOR-P1-001 — reservation/queue identity is correlated by shared phone data
+
+Reservation `#100` and queue `Q001` were deliberately created as separate QA
+records but used the same test phone. The reservation card immediately claimed
+that its guest was already on the live queue, then followed the unrelated queue
+through Notified, Seated and Completed states. The queue source remained `Host
+stand` and its guest name differed from the reservation guest name.
+
+Required correction:
+
+1. Link a reservation to a queue entry only through an explicit foreign key or
+   handoff identifier.
+2. Never infer current queue ownership from phone number alone.
+3. Keep phone matching as a clearly labelled suggestion requiring staff
+   confirmation if duplicate detection is desired.
+4. Add regression cases for two unrelated parties sharing a phone, family
+   bookings, repeat visits and a phone reused on different service days.
+
+Severity: **P1** because the host can act on the wrong party and the reservation
+timeline becomes false.
+
+### MOR-P1-002 — seated queue entry is not counted as seated conversion
+
+Q001 visibly moved through Waiting, Notified and Seated at T06. Reports later
+showed one completed queue entry but `0 seated`, `0% seated conversion`, and
+daily throughput `1 total · 0 seated`.
+
+Required correction:
+
+1. Persist a dedicated seated timestamp/outcome when the host assigns a table.
+2. Do not overwrite the seated outcome when a table is later released or the
+   queue record becomes Completed.
+3. Derive conversion from immutable lifecycle events rather than the current
+   display status.
+4. Reconcile queue detail, daily throughput and outcome widgets from the same
+   source of truth.
+
+Severity: **P1** for launch analytics and operational decision accuracy. The
+guest-facing/host-facing seating action itself worked.
+
+### MOR-P2-003 — staff-created reservation source is mislabeled as public
+
+Reservation #100 was created from the authenticated Reservations page, but the
+report classified it as `Public (book page) 1 (100%)`.
+
+Required correction: persist the creation channel at write time (`public`,
+`staff`, `import`, `phone` or equivalent) and report the stored channel without
+guessing from missing fields.
+
+### MOR-P2-004 — booking availability remains too slow
+
+The staff reservation form took approximately 22 seconds before current/future
+slots were usable. The flow eventually worked but fails the under-two-second
+launch target and creates a high risk of duplicate clicks or abandoned phone
+bookings during service.
+
+## 14. Cleanup and retained audit data
+
+- T01 and T06 were returned to Available.
+- The POS showed no open bill after closing T01.
+- Kitchen showed no active ticket after serving #274.
+- Active queue and active reservation boards returned to zero.
+- Reservation #100 remains as Finished history.
+- Queue Q001 remains as completed history.
+- Paid order #274 remains as order/report evidence for SGD 9.00.
+- No history record was deleted. Deletion was not necessary for operational
+  cleanup and would require explicit destructive-action confirmation.
+
+## 15. Updated launch decision
+
+The live core service path is proven functional: **table assignment → cart →
+order → kitchen/beverage routing → served → terminal settlement → close table
+→ history/report reconciliation** all passed.
+
+The system is **not yet certified 10/10 or unconditional GO** because the two
+P1 data-integrity defects above can misidentify a reservation party and
+misreport queue conversion. The current decision is:
+
+**CONDITIONAL NO-GO pending MOR-P1-001 and MOR-P1-002, plus the already-open
+operational launch gates for role accounts, printer, final GST/HitPay setup,
+transactional email and MFA.**
+
+After the two P1 fixes are deployed, rerun this exact transaction pattern with:
+
+1. separate phone numbers to prove normal behavior;
+2. the same phone number on unrelated reservation/queue records to prove no
+   false linkage;
+3. one queue party seated and one cancelled/no-show to reconcile every report
+   widget;
+4. a staff-created and public-created reservation to verify source reporting.

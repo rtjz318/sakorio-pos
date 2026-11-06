@@ -4,7 +4,7 @@ Execution started: 5 November 2026 (Asia/Singapore)
 Controlling specification: `docs/0184-morinaga-final-prelaunch-certification-checklist-2026-11-05.md`  
 Environment: live Sakorio production domains and authenticated Render workspace  
 Tenant: `3` — Morinaga Ramen Izakaya  
-Execution status: **IN PROGRESS — six live-browser batches recorded, including security hardening verification**
+Execution status: **IN PROGRESS — seven live-browser batches recorded, including dependency hardening verification**
 
 ## 1. Rules applied
 
@@ -601,22 +601,51 @@ Fix commit: `19bdc391` — `fix: add restrictive browser content security policy
 - Full production Docker build completed and the Angular compiler reported no
   error. Nginx configuration validation passed.
 
-### 18.4 Newly discovered dependency launch blocker
+### 18.4 Dependency launch blocker resolved
 
-The production-only Node dependency audit is not clean:
+Fix commit: `288f1b05` — `chore: upgrade frontend runtime security dependencies`
 
-- **2 critical** advisories;
-- **9 high** advisories;
-- **1 moderate** advisory.
+The pinned manifest and lockfile were upgraded together inside Docker without
+using `npm audit fix` or `npm audit fix --force`:
 
-The affected direct runtime families include Angular and Capacitor. Fixed
-versions are available, but the pinned manifest and lockfile must be upgraded
-together in a controlled container-only change, followed by the complete
-Angular build, native-shell build checks and live browser regression. No
-`npm audit fix --force` was used because an unreviewed forced dependency rewrite
-would be unsafe immediately before launch.
+- Angular runtime/compiler packages: `21.2.26`;
+- Angular build, CLI and SSR packages: `21.2.29`;
+- Capacitor core, Android, iOS and CLI packages: `8.6.0`;
+- Express: `5.3.0`.
 
-Security boundary score excluding the unresolved dependency versions:
-**9.7/10**. Overall security launch gate: **NO-GO until the dependency upgrade
-and regression pass are complete**. Existing role-account, physical printer,
-GST, HitPay, SMTP and MFA launch gates remain unchanged.
+Post-upgrade evidence:
+
+- production dependency audit (`npm audit --omit=dev`): **0 vulnerabilities**;
+- production Docker/Angular build: **PASS** with no compiler error;
+- Nginx configuration validation: **PASS**;
+- Capacitor Android readiness: **PASS**;
+- XP-80T native scaffold and readiness: **PASS**;
+- native runtime configuration tests: **PASS**;
+- backend route inventory, order IDOR, upload isolation, settings security and
+  payment security: **26 passed**;
+- local Docker HTTP smoke check: **200**;
+- live staff portal, customer portal and API database health endpoint: **200**.
+
+The complete development dependency audit still reports advisories inherited
+by test/build tooling (principally Puppeteer and Angular CLI). These packages
+are not copied into the static Nginx production image and the production-only
+audit is clean. They remain tracked as development-tooling maintenance rather
+than a live restaurant runtime blocker.
+
+### 18.5 Live browser regression after dependency deployment
+
+The live Render deployment was confirmed on commit `288f1b05` before testing.
+
+| Surface | Result | Evidence |
+| --- | --- | --- |
+| Staff login and dashboard | PASS | Owner login reached the Morinaga dashboard and displayed build `2.1.6 288f1b05` |
+| Products | PASS | Morinaga product catalog, categories, prices and availability controls rendered |
+| Cashier POS | PASS | 10 tables and 112 menu products loaded; queue and table controls rendered |
+| Restaurant selection | PASS | Morinaga was selectable and Ajisen remained clearly labelled as demo/training |
+| Morinaga public menu | PASS | All menu categories, prices and available images rendered |
+| Browser console | PASS | No warning or error on the tested staff and customer flows |
+
+Dependency/security launch gate: **PASS — 10/10 for the deployed runtime**.
+Existing role-account, physical printer, GST, HitPay, SMTP and MFA launch gates
+remain unchanged and must be completed or explicitly accepted before the final
+restaurant go-live decision.

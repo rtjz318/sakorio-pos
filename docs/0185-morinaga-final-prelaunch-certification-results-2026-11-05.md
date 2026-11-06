@@ -4,7 +4,7 @@ Execution started: 5 November 2026 (Asia/Singapore)
 Controlling specification: `docs/0184-morinaga-final-prelaunch-certification-checklist-2026-11-05.md`  
 Environment: live Sakorio production domains and authenticated Render workspace  
 Tenant: `3` — Morinaga Ramen Izakaya  
-Execution status: **IN PROGRESS — four live-browser batches recorded, including P1 remediation verification**
+Execution status: **IN PROGRESS — six live-browser batches recorded, including security hardening verification**
 
 ## 1. Rules applied
 
@@ -23,7 +23,7 @@ Execution status: **IN PROGRESS — four live-browser batches recorded, includin
 
 | Item | Live evidence |
 | --- | --- |
-| Current deployed commit | `86faca8f` |
+| Current deployed commit | `19bdc391` |
 | API service | Render Standard, deployed and healthy |
 | Active Render resources | Six active services: API, customer web, staff web, owner web, PostgreSQL and Redis/Valkey |
 | API health | `status=ok` |
@@ -554,3 +554,69 @@ The launch decision remains **CONDITIONAL NO-GO** only for the separate physical
 and configuration gates already documented: role-account certification,
 printer/tablet receipt testing, final GST arithmetic, final HitPay payment
 certification, transactional email/password recovery, and owner MFA/recovery.
+
+## 18. Batch 6 — security boundary and browser hardening certification
+
+Fix commit: `19bdc391` — `fix: add restrictive browser content security policy`
+
+### 18.1 Live authentication and tenant boundary
+
+| ID | Result | Score | Status | Evidence / required follow-up |
+| --- | --- | ---: | --- | --- |
+| MOR-LCH-011 | Morinaga owner login succeeded and the staff shell rendered the Morinaga tenant and Owner role | 10 | PASS | Live browser on `19bdc391` |
+| MOR-LCH-012 | Owner-only management surfaces are available; no production non-admin role account exists yet | 8 | PARTIAL | Complete the role matrix after named staff accounts are provisioned |
+| MOR-LCH-013 | An authenticated foreign table/order deep link rendered only Morinaga's ten-table floor and selected no foreign table | 10 | PASS | Live browser URL-forcing test |
+| MOR-LCH-014 | The foreign order ID was not rendered and no foreign order content appeared | 10 | PASS | Live browser URL-forcing test |
+| MOR-LCH-015 | Order IDOR, upload and settings-isolation suites passed; production data was not mutated for this test | 8 | PARTIAL | Add a disposable second-tenant mutation fixture in staging for a future destructive pass |
+| MOR-LCH-018 | Logout returned to login; browser back plus reload did not restore protected access; owner could sign in again | 10 | PASS | Live browser logout/back/refresh sequence |
+
+### 18.2 Response, origin and asset hardening
+
+- Staff and customer web responses now return a Content-Security-Policy in
+  addition to HSTS, `nosniff`, `DENY` framing, strict referrer policy and a
+  restrictive permissions policy.
+- The CSP restricts scripts, API/WebSocket connections, images, fonts, forms,
+  plugins, framing, workers and mixed content to the minimum currently needed
+  by the Angular SPA, Sakorio API and Google-hosted Inter font.
+- Staff Dashboard and Products loaded on the deployed commit with no browser
+  CSP warning/error. The customer restaurant chooser and full Morinaga public
+  menu also loaded, including API-hosted product images, with no CSP violation.
+- Approved preflight from `https://staff.sakorio.com` returned that exact
+  allow-origin. An untrusted origin returned HTTP 400 and no allow-origin.
+- Both `https://staff.sakorio.com/` and `https://order.sakorio.com/` returned
+  HTTP 200 with the new CSP after deployment.
+
+| ID | Result | Score | Status | Evidence / required follow-up |
+| --- | --- | ---: | --- | --- |
+| MOR-LCH-023 | Required browser headers, including the newly deployed CSP, are present on both live portals | 10 | PASS | Live HTTPS headers plus browser console regression |
+| MOR-LCH-024 | Approved Sakorio origin allowed; untrusted origin rejected without allow-origin | 10 | PASS | Live API preflight comparison |
+| MOR-LCH-026 | Tracked-source secret-pattern scan returned zero files | 10 | PASS | Scan intentionally reported file count only; no secret material was printed |
+
+### 18.3 Automated security evidence
+
+- Route inventory, order IDOR, upload isolation, settings security and payment
+  security: **26 passed**.
+- The fail-closed route inventory still requires every new FastAPI route to be
+  protected or explicitly reviewed as public/capability-token based.
+- Full production Docker build completed and the Angular compiler reported no
+  error. Nginx configuration validation passed.
+
+### 18.4 Newly discovered dependency launch blocker
+
+The production-only Node dependency audit is not clean:
+
+- **2 critical** advisories;
+- **9 high** advisories;
+- **1 moderate** advisory.
+
+The affected direct runtime families include Angular and Capacitor. Fixed
+versions are available, but the pinned manifest and lockfile must be upgraded
+together in a controlled container-only change, followed by the complete
+Angular build, native-shell build checks and live browser regression. No
+`npm audit fix --force` was used because an unreviewed forced dependency rewrite
+would be unsafe immediately before launch.
+
+Security boundary score excluding the unresolved dependency versions:
+**9.7/10**. Overall security launch gate: **NO-GO until the dependency upgrade
+and regression pass are complete**. Existing role-account, physical printer,
+GST, HitPay, SMTP and MFA launch gates remain unchanged.

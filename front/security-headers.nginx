@@ -3,3 +3,8 @@ add_header X-Frame-Options "DENY" always;
 add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
 add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+# Angular currently injects component styles at runtime and the runtime bootstrap
+# in index.html is inline, so style-src/script-src must retain unsafe-inline until
+# those two paths are nonce/hash based. The remaining directives still fail
+# closed for plugins, framing, foreign APIs, unexpected forms, and mixed content.
+add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https://api.sakorio.com data: blob:; connect-src 'self' https://api.sakorio.com wss://api.sakorio.com; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests" always;

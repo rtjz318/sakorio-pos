@@ -1023,6 +1023,32 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
                     </select>
                     <small class="field-hint">{{ 'SETTINGS.DEFAULT_TAX_HINT' | translate }}</small>
                   </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label for="service_charge_percent">Service charge (%)</label>
+                      <input
+                        type="number"
+                        id="service_charge_percent"
+                        name="service_charge_percent"
+                        min="0"
+                        max="100"
+                        step="1"
+                        [(ngModel)]="formData.service_charge_percent"
+                      />
+                      <small class="field-hint">Added to the advertised menu subtotal.</small>
+                    </div>
+                    <div class="form-group checkbox-group">
+                      <label>
+                        <input
+                          type="checkbox"
+                          name="prices_include_tax"
+                          [(ngModel)]="formData.prices_include_tax"
+                        />
+                        Menu prices already include GST
+                      </label>
+                      <small class="field-hint">Turn this off to add GST after the service charge.</small>
+                    </div>
+                  </div>
                 </div>
               }
 
@@ -3077,6 +3103,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
     cif: null,
     ccc: null,
     default_tax_id: null,
+    service_charge_percent: 0,
+    prices_include_tax: true,
     opening_hours: null,
     currency_code: 'SGD',
     hitpay_api_key: null,
@@ -3193,6 +3221,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
           cif: settings.cif || null,
           ccc: settings.ccc || null,
           default_tax_id: settings.default_tax_id ?? null,
+          service_charge_percent: settings.service_charge_percent ?? 0,
+          prices_include_tax: settings.prices_include_tax !== false,
           opening_hours: settings.opening_hours || null,
           currency_code: 'SGD',
           hitpay_api_key: null,
@@ -4180,6 +4210,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
     );
     updateData.tip_entry_mode =
       this.formData.tip_entry_mode === 'overpayment' ? 'overpayment' : 'preset';
+    updateData.service_charge_percent = Math.min(
+      100,
+      Math.max(0, Math.floor(Number(this.formData.service_charge_percent) || 0)),
+    );
+    updateData.prices_include_tax = this.formData.prices_include_tax !== false;
 
     updateData.ui_modules = {
       ...DEFAULT_TENANT_UI_MODULES,

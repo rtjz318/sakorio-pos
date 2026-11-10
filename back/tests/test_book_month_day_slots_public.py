@@ -195,6 +195,23 @@ class TestBookMonthDaySlotsPublic(PgClientTestCase):
         sunday_body = sunday_response.json()
         self.assertEqual(sunday_body["cells"]["00:00"], "available")
         self.assertNotIn("18:30", sunday_body["times"])
+        self.assertTrue(sunday_body["after_midnight_only"])
+        self.assertIn("00:00", sunday_body["after_midnight_times"])
+
+        month_response = self.client.get(
+            "/reservations/book-month-day-states",
+            params={
+                "tenant_id": self.tenant.id,
+                "year": sunday.year,
+                "month": sunday.month,
+                "party_size": 2,
+            },
+        )
+        self.assertEqual(month_response.status_code, 200, month_response.text)
+        sunday_row = next(
+            row for row in month_response.json()["days"] if row["date"] == sunday.isoformat()
+        )
+        self.assertTrue(sunday_row["after_midnight_only"])
 
 
 if __name__ == "__main__":

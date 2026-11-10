@@ -16,6 +16,9 @@ export interface EscposReceiptPayload {
   }>;
   order_notes?: string;
   subtotal_cents?: number;
+  service_charge_percent?: number;
+  service_charge_cents?: number;
+  tax_cents?: number;
   tip_cents?: number;
   total_cents?: number;
   payment_method?: string;
@@ -70,6 +73,14 @@ export function receiptText(payload: EscposReceiptPayload): string {
     const currency = payload.currency_code;
     rows.push('-'.repeat(RECEIPT_WIDTH));
     rows.push(`${'SUBTOTAL'.padEnd(18)}${money(payload.subtotal_cents, currency).padStart(24)}`);
+    if ((payload.service_charge_cents || 0) > 0) {
+      rows.push(
+        `${`SERVICE ${payload.service_charge_percent || 0}%`.padEnd(18)}${money(payload.service_charge_cents, currency).padStart(24)}`,
+      );
+    }
+    if ((payload.tax_cents || 0) > 0) {
+      rows.push(`${'GST'.padEnd(18)}${money(payload.tax_cents, currency).padStart(24)}`);
+    }
     if ((payload.tip_cents || 0) > 0) {
       rows.push(`${'TIP'.padEnd(18)}${money(payload.tip_cents, currency).padStart(24)}`);
     }

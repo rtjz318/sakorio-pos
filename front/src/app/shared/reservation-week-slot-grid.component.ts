@@ -41,6 +41,7 @@ export class ReservationWeekSlotGridComponent {
   calendarYear = signal(0);
   calendarMonth = signal(1);
   monthStates = signal<Record<string, ReservationBookWeekSlotState>>({});
+  monthAfterMidnightOnly = signal<Record<string, boolean>>({});
   monthLoading = signal(false);
   bookDaySlots = signal<ReservationBookDaySlotsResponse | null>(null);
   daySlotsLoading = signal(false);
@@ -129,13 +130,19 @@ export class ReservationWeekSlotGridComponent {
       .subscribe({
         next: (res) => {
           const map: Record<string, ReservationBookWeekSlotState> = {};
-          for (const row of res.days) map[row.date] = row.state;
+          const afterMidnightOnly: Record<string, boolean> = {};
+          for (const row of res.days) {
+            map[row.date] = row.state;
+            afterMidnightOnly[row.date] = !!row.after_midnight_only;
+          }
           this.monthStates.set(map);
+          this.monthAfterMidnightOnly.set(afterMidnightOnly);
           this.monthLoading.set(false);
           untracked(() => this.afterMonthLoaded());
         },
         error: () => {
           this.monthStates.set({});
+          this.monthAfterMidnightOnly.set({});
           this.monthLoading.set(false);
         },
       });
@@ -331,7 +338,23 @@ export class ReservationWeekSlotGridComponent {
       out_of_range: 'BOOK.SLOT_STATE_OUT_OF_RANGE',
     };
     const msg = this.translate.instant(keyMap[st || ''] || 'BOOK.SLOT_STATE_OUT_OF_HOURS');
-    return `${this.weekDayAriaDate(dateStr)}. ${msg}`;
+    const afterMidnightContext = this.monthAfterMidnightOnly()[dateStr]
+      ? `. ${this.translate.instant('BOOK.SLOT_STATE_AFTER_MIDNIGHT_ONLY')}`
+      : '';
+    return `${this.weekDayAriaDate(dateStr)}. ${msg}${afterMidnightContext}`;
+  }
+
+  isAfterMidnightSlot(timeStr: string): boolean {
+    return !!this.bookDaySlots()?.after_midnight_times?.includes(timeStr);
+  }
+
+  isAfterMidnightOnlyDay(): boolean {
+    return !!this.bookDaySlots()?.after_midnight_only;
+  }
+
+  slotDisplayLabel(timeStr: string): string {
+    if (!this.isAfterMidnightSlot(timeStr)) return timeStr;
+    return `${timeStr} · ${this.translate.instant('BOOK.AFTER_MIDNIGHT_LABEL')}`;
   }
 
   monthTitle(): string {

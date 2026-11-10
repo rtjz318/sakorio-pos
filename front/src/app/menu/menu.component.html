@@ -234,6 +234,18 @@
             </div>
             }
           </div>
+          @if ((order.serviceCharge || 0) > 0 || (order.tax || 0) > 0) {
+          <div class="cart-totals">
+            <div class="cart-total-row"><span>Subtotal</span><span>{{ formatPrice(order.subtotal || 0) }}</span></div>
+            @if ((order.serviceCharge || 0) > 0) {
+            <div class="cart-total-row"><span>Service charge ({{ order.serviceChargePercent || 0 }}%)</span><span>{{ formatPrice(order.serviceCharge || 0) }}</span></div>
+            }
+            @if ((order.tax || 0) > 0) {
+            <div class="cart-total-row"><span>GST</span><span>{{ formatPrice(order.tax || 0) }}</span></div>
+            }
+            <div class="cart-total-row"><strong>Total</strong><strong>{{ formatPrice(order.total) }}</strong></div>
+          </div>
+          }
 
           <div class="order-actions">
             @if (isPaid()) {
@@ -544,6 +556,22 @@
       </div>
 
       <div class="cart-totals">
+        <div class="cart-total-row">
+          <span>Subtotal</span>
+          <span>{{ formatPrice(getSubtotal()) }}</span>
+        </div>
+        @if (getServiceCharge() > 0) {
+        <div class="cart-total-row">
+          <span>Service charge ({{ serviceChargePercent() }}%)</span>
+          <span>{{ formatPrice(getServiceCharge()) }}</span>
+        </div>
+        }
+        @if (getTax() > 0) {
+        <div class="cart-total-row">
+          <span>GST ({{ defaultTaxRatePercent() }}%)</span>
+          <span>{{ formatPrice(getTax()) }}</span>
+        </div>
+        }
         <div class="cart-total-row">
           <span>{{ 'COMMON.TOTAL' | translate }}</span>
           <span class="cart-grand-total">{{ formatPrice(getTotal()) }}</span>

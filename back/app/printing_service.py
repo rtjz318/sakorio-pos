@@ -10,6 +10,7 @@ from sqlmodel import Session, select
 
 from . import models
 from .kitchen_stations_util import resolve_order_item_kds
+from .order_pricing import calculate_order_totals
 
 
 MAX_RECEIPT_TEXT_LENGTH = 500
@@ -53,6 +54,9 @@ def validate_receipt_payload(payload: dict) -> dict:
         "payment_method": _receipt_text(payload.get("payment_method"), max_length=80),
         "currency_code": (_receipt_text(payload.get("currency_code"), max_length=8) or "SGD").upper(),
         "subtotal_cents": _receipt_int(payload.get("subtotal_cents")),
+        "service_charge_percent": _receipt_int(payload.get("service_charge_percent")),
+        "service_charge_cents": _receipt_int(payload.get("service_charge_cents")),
+        "tax_cents": _receipt_int(payload.get("tax_cents")),
         "tip_cents": _receipt_int(payload.get("tip_cents")),
         "total_cents": _receipt_int(payload.get("total_cents")),
     }
@@ -198,8 +202,7 @@ def enqueue_customer_receipt(
     if not active_items:
         return None
 
-    subtotal_cents = sum(item.price_cents * item.quantity for item in active_items)
-    tip_cents = int(order.tip_amount_cents or 0)
+    totals = calculate_order_totals(active_items, tenant=tenant, order=order)
     paid_at = order.paid_at or datetime.now(timezone.utc)
     job = models.PrintJob(
         tenant_id=tenant.id,
@@ -219,9 +222,12 @@ def enqueue_customer_receipt(
                 "submitted_at": paid_at.isoformat(),
                 "payment_method": order.payment_method,
                 "currency_code": (tenant.currency_code or "SGD").upper(),
-                "subtotal_cents": subtotal_cents,
-                "tip_cents": tip_cents,
-                "total_cents": subtotal_cents + tip_cents,
+                "subtotal_cents": totals.subtotal_cents,
+                "service_charge_percent": totals.service_charge_percent,
+                "service_charge_cents": totals.service_charge_cents,
+                "tax_cents": totals.tax_cents,
+                "tip_cents": totals.tip_cents,
+                "total_cents": totals.total_cents,
                 "items": [
                     {
                         "quantity": item.quantity,

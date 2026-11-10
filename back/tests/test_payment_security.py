@@ -193,6 +193,39 @@ class TestPaymentSecurity(PgClientTestCase):
         self.assertEqual(kwargs["currency"], "SGD")
         self.assertEqual(kwargs["mode"], "sandbox")
 
+    @patch("app.main._hitpay_create_payment_request")
+    def test_hitpay_charges_service_and_gst_total(self, mock_create):
+        gst = models.Tax(
+            tenant_id=self.tenant.id,
+            name="GST 9%",
+            rate_percent=9,
+            valid_from=datetime.now(timezone.utc).date(),
+        )
+        self.session.add(gst)
+        self.session.commit()
+        self.session.refresh(gst)
+        self.tenant.service_charge_percent = 10
+        self.tenant.prices_include_tax = False
+        self.tenant.default_tax_id = gst.id
+        self.product.price_cents = 500
+        self.session.add(self.tenant)
+        self.session.add(self.product)
+        self.session.commit()
+        order_id = self._create_order()
+        mock_create.return_value = {
+            "id": "hp_req_charges",
+            "url": "https://checkout.test/hp_req_charges",
+        }
+
+        response = self.client.post(
+            f"/orders/{order_id}/create-hitpay-payment-request",
+            params={"table_token": self.table.token},
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        _, kwargs = mock_create.call_args
+        self.assertEqual(kwargs["amount_cents"], 600)
+
     @patch.object(main.settings, "hitpay_api_key", "shared_global_key")
     @patch("app.main._hitpay_create_payment_request")
     def test_production_tenant_cannot_use_global_hitpay_fallback(self, mock_create):

@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlmodel import Session
 
 from app import models
+from app.order_pricing import percentage_cents, snapshot_order_billing_rules
 
 
 def _tax_amount_cents_inclusive(price_cents: int, quantity: int, rate_percent: int) -> int:
@@ -89,6 +90,9 @@ def create_order_from_delivery_payload(
         delivery_integration_id=integration.id,
         external_order_ref=external_order_ref,
     )
+    tenant = session.get(models.Tenant, tenant_id)
+    if tenant:
+        snapshot_order_billing_rules(order, tenant)
     session.add(order)
     session.flush()
 
@@ -99,7 +103,13 @@ def create_order_from_delivery_payload(
         tax_rate = effective_tax.rate_percent if effective_tax else 0
         price_cents = product.price_cents or 0
         line_tax_cents = (
-            _tax_amount_cents_inclusive(price_cents, qty, tax_rate) if effective_tax else 0
+            (
+                _tax_amount_cents_inclusive(price_cents, qty, tax_rate)
+                if order.prices_include_tax_applied is not False
+                else percentage_cents(price_cents * qty, tax_rate)
+            )
+            if effective_tax
+            else 0
         )
         oi = models.OrderItem(
             order_id=order.id,

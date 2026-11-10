@@ -692,6 +692,8 @@ export interface ReservationBookWeekSlotsResponse {
 export interface ReservationBookMonthDayState {
   date: string;
   state: ReservationBookWeekSlotState;
+  /** True when only the previous evening service's after-midnight slots exist. */
+  after_midnight_only?: boolean;
 }
 
 export interface ReservationBookMonthDayStatesResponse {
@@ -718,6 +720,8 @@ export interface ReservationBookDaySlotsResponse {
   date: string;
   times: string[];
   cells: Record<string, ReservationBookWeekSlotState>;
+  after_midnight_times?: string[];
+  after_midnight_only?: boolean;
 }
 
 /** One restaurant when several share the same printed table name. */
@@ -1426,8 +1430,11 @@ export interface Order {
   created_at: string;
   items: OrderItem[];
   total_cents: number;
-  /** Sum of active line items (excludes tip); same as total_cents when no tip */
+  /** Advertised menu-item subtotal before service charge, tax, and tip. */
   subtotal_cents?: number;
+  service_charge_percent?: number;
+  service_charge_cents?: number;
+  tax_cents?: number;
   tip_percent_applied?: number | null;
   tip_amount_cents?: number | null;
   tip_attributed_user_id?: number | null;
@@ -1455,6 +1462,9 @@ export interface MenuResponse {
   tenant_currency_code?: string | null;
   tenant_hitpay_configured?: boolean;
   tenant_immediate_payment_required?: boolean;
+  tenant_service_charge_percent?: number;
+  tenant_prices_include_tax?: boolean;
+  tenant_default_tax_rate_percent?: number;
   tenant_public_background_color?: string | null;
   tenant_header_background_filename?: string | null;
   // Table session status
@@ -1495,6 +1505,9 @@ export interface TenantSettings {
   /** Optional payroll/account reference shown on attendance exports. */
   ccc?: string | null;
   default_tax_id?: number | null;
+  service_charge_percent?: number | null;
+  prices_include_tax?: boolean | null;
+  default_tax_rate_percent?: number | null;
   logo_filename?: string | null;
   header_background_filename?: string | null;
   opening_hours?: string | null;

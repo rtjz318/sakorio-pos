@@ -244,6 +244,52 @@ def test_paid_order_creates_one_customer_receipt_with_totals():
     assert [item["line_total_cents"] for item in job.payload["items"]] == [2400, 350]
 
 
+def test_customer_receipt_prints_morinaga_service_charge_and_gst():
+    item = models.OrderItem(
+        id=1,
+        order_id=56,
+        product_id=101,
+        product_name="Ramen",
+        quantity=1,
+        price_cents=500,
+        tax_id=9,
+        tax_rate_percent=9,
+        tax_amount_cents=45,
+    )
+    session = _Session([], [item])
+    tenant = models.Tenant(
+        id=1,
+        name="Morinaga Ramen Izakaya",
+        currency_code="SGD",
+        service_charge_percent=10,
+        prices_include_tax=False,
+        default_tax_id=9,
+    )
+    order = models.Order(
+        id=56,
+        tenant_id=1,
+        table_id=7,
+        status=models.OrderStatus.paid,
+        payment_method="terminal",
+        service_charge_percent_applied=10,
+        prices_include_tax_applied=False,
+    )
+
+    job = enqueue_customer_receipt(
+        session,
+        tenant=tenant,
+        table=models.Table(id=7, tenant_id=1, name="T07"),
+        order=order,
+    )
+
+    assert job is not None
+    assert job.payload["subtotal_cents"] == 500
+    assert job.payload["service_charge_percent"] == 10
+    assert job.payload["service_charge_cents"] == 50
+    assert job.payload["tax_cents"] == 50
+    assert job.payload["total_cents"] == 600
+
+
 def test_customer_receipt_is_idempotent():
     existing = models.PrintJob(
         id=9,

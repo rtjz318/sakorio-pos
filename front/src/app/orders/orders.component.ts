@@ -1059,6 +1059,13 @@ type OrdersViewMode = 'active' | 'not_paid' | 'paid_close' | 'history';
                 <p class="payment-amount-line">
                   {{ 'ORDERS.SUBTOTAL' | translate }}: {{ formatPrice(orderPaymentSubtotal(orderToMarkPaid()!)) }}
                 </p>
+                @if ((orderToMarkPaid()!.service_charge_cents || 0) > 0) {
+                  <p class="payment-amount-line">Service charge ({{ orderToMarkPaid()!.service_charge_percent || 0 }}%): {{ formatPrice(orderToMarkPaid()!.service_charge_cents || 0) }}</p>
+                }
+                @if ((orderToMarkPaid()!.tax_cents || 0) > 0) {
+                  <p class="payment-amount-line">GST: {{ formatPrice(orderToMarkPaid()!.tax_cents || 0) }}</p>
+                }
+                <p class="payment-amount-line"><strong>Amount before tip: {{ formatPrice(orderPaymentAmountBeforeTip(orderToMarkPaid()!)) }}</strong></p>
                 @if (tipEntryModeOverpayment()) {
                   <p class="modal-hint">{{ 'ORDERS.OVERPAYMENT_PAYMENT_HINT' | translate }}</p>
                   <div class="form-group">
@@ -3985,6 +3992,12 @@ export class OrdersComponent implements OnInit, OnDestroy {
         <td style="text-align:right">${this.formatPrice(tipAmt)}</td>
       </tr>`
         : '';
+    const serviceChargeRowsHtml = (order.service_charge_cents || 0) > 0
+      ? `<tr>
+        <td colspan="4" style="text-align:right;">Service charge (${order.service_charge_percent || 0}%)</td>
+        <td style="text-align:right">${this.formatPrice(order.service_charge_cents || 0)}</td>
+      </tr>`
+      : '';
 
     // Totals by tax rate for invoice breakdown
     const taxByRate: Record<number, number> = {};
@@ -3998,7 +4011,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     if (tipTaxPart > 0) {
       taxByRate[tipTaxRate] = (taxByRate[tipTaxRate] ?? 0) + tipTaxPart;
     }
-    const totalTaxCents = Object.values(taxByRate).reduce((a, b) => a + b, 0);
+    const totalTaxCents = order.tax_cents ?? Object.values(taxByRate).reduce((a, b) => a + b, 0);
     const taxSummaryRows = Object.entries(taxByRate)
       .sort(([a], [b]) => Number(a) - Number(b))
       .map(([rate, cents]) =>
@@ -4088,6 +4101,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     </thead>
     <tbody>
       ${rows}
+      ${serviceChargeRowsHtml}
       ${tipRowsHtml}
     </tbody>
     ${taxSummaryRows}
@@ -4493,6 +4507,12 @@ export class OrdersComponent implements OnInit, OnDestroy {
     return items.reduce((s, i) => s + (i.price_cents || 0) * (i.quantity || 0), 0);
   }
 
+  orderPaymentAmountBeforeTip(order: Order): number {
+    const total = Math.max(0, Number(order.total_cents || 0));
+    const existingTip = Math.max(0, Number(order.tip_amount_cents || 0));
+    return total > 0 ? Math.max(0, total - existingTip) : this.orderPaymentSubtotal(order);
+  }
+
   tipEntryModeOverpayment(): boolean {
     return this.tenantSettings()?.tip_entry_mode === 'overpayment';
   }
@@ -4513,7 +4533,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
   onPaymentAmountPaidChange(): void {
     const order = this.orderToMarkPaid();
     if (!order) return;
-    const sub = this.orderPaymentSubtotal(order);
+    const sub = this.orderPaymentAmountBeforeTip(order);
     const paid = this.parseMoneyMajorToCents(this.paymentAmountPaidInput);
     const tip = Math.max(0, paid - sub);
     this.paymentTipAmountInput = (tip / 100).toFixed(2);
@@ -4553,13 +4573,13 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
   paymentGrandTotalCents(order: Order | null | undefined): number {
     if (!order) return 0;
-    return this.orderPaymentSubtotal(order) + this.paymentTipPreviewCents(order);
+    return this.orderPaymentAmountBeforeTip(order) + this.paymentTipPreviewCents(order);
   }
 
   paymentOverpaymentGrandTotalCents(): number {
     const order = this.orderToMarkPaid();
     if (!order) return 0;
-    return this.orderPaymentSubtotal(order) + this.parseMoneyMajorToCents(this.paymentTipAmountInput);
+    return this.orderPaymentAmountBeforeTip(order) + this.parseMoneyMajorToCents(this.paymentTipAmountInput);
   }
 
   confirmMarkAsPaid() {
@@ -4567,7 +4587,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     if (!order || !this.paymentMethod) return;
 
     if (this.tipEntryModeOverpayment()) {
-      const sub = this.orderPaymentSubtotal(order);
+      const sub = this.orderPaymentAmountBeforeTip(order);
       const paid = this.parseMoneyMajorToCents(this.paymentAmountPaidInput);
       const tip = this.parseMoneyMajorToCents(this.paymentTipAmountInput);
       if (paid < sub + tip) {

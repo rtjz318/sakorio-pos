@@ -20,7 +20,8 @@ def _json_column(*, nullable: bool = True) -> Column:
 class Tax(SQLModel, table=True):
     """
     Per-tenant tax rates (e.g. GST 9%, GST 0%) with validity period.
-    Prices are tax-inclusive; used for invoice breakdown and reporting.
+    Tenant settings decide whether menu prices include tax. Used for invoice
+    breakdown, payment totals, and reporting.
     """
     __tablename__ = "tax"
     id: int | None = Field(default=None, primary_key=True)
@@ -208,6 +209,9 @@ class Tenant(SQLModel, table=True):
 
     # Default tax/GST applied system-wide when product has no tax override.
     default_tax_id: int | None = Field(default=None, foreign_key="tax.id", index=True)
+    # Billing additions applied after the advertised menu subtotal.
+    service_charge_percent: int = Field(default=0, ge=0, le=100)
+    prices_include_tax: bool = Field(default=True)
 
     # KDS: unmapped products fall back to these prep stations (by category route)
     default_kitchen_station_id: int | None = Field(
@@ -967,6 +971,10 @@ class Order(TenantMixin, table=True):
     tip_percent_applied: int | None = None  # Preset % charged as tip when staff marked paid (null = no tip)
     tip_amount_cents: int | None = None  # Tip amount in cents (gross; VAT split uses tenant tip_tax_rate_percent)
     tip_attributed_user_id: int | None = Field(default=None, foreign_key="user.id")
+    # Immutable billing-rule snapshot. Null means a legacy order: no service
+    # charge and tax-inclusive menu prices.
+    service_charge_percent_applied: int | None = None
+    prices_include_tax_applied: bool | None = None
 
     # Location verification tracking
     location_verified: bool | None = Field(default=None)  # None=not checked, True=inside, False=outside
@@ -1470,6 +1478,8 @@ class TenantUpdate(SQLModel):
     country_code: str | None = Field(default=None, max_length=2)
 
     default_tax_id: int | None = None  # FK to tax.id; system-wide default tax/GST.
+    service_charge_percent: int | None = Field(default=None, ge=0, le=100)
+    prices_include_tax: bool | None = None
 
     hitpay_api_key: str | None = None
     hitpay_webhook_salt: str | None = None

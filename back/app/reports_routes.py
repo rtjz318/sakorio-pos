@@ -23,6 +23,7 @@ from .rate_limits import admin_user_limit
 from .report_export_i18n import report_export_labels
 from .security import get_current_user
 from .work_session_serialization import serialize_work_session
+from .order_pricing import calculate_order_totals
 
 router = APIRouter()
 
@@ -208,6 +209,7 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
     tips_by_waiter: dict[str, int] = defaultdict(int)
     total_tips_cents = 0
     paid_orders_summary: list[dict] = []
+    tenant = session.get(models.Tenant, tenant_id)
     orders_for_tips = session.exec(
         select(models.Order)
         .where(models.Order.tenant_id == tenant_id)
@@ -227,13 +229,20 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
         ).all()
         order_revenue_cents = sum(item.quantity * item.price_cents for item in order_items)
         tip = int(order.tip_amount_cents or 0)
+        totals = (
+            calculate_order_totals(order_items, tenant=tenant, order=order, tip_cents=tip)
+            if tenant
+            else None
+        )
         payment_method = _normalize_payment_method(getattr(order, "payment_method", None))
         paid_orders_summary.append(
             {
                 "payment_method": payment_method,
                 "revenue_cents": order_revenue_cents,
                 "tips_cents": tip,
-                "collected_cents": order_revenue_cents + tip,
+                "service_charge_cents": totals.service_charge_cents if totals else 0,
+                "tax_cents": totals.tax_cents if totals else 0,
+                "collected_cents": totals.total_cents if totals else order_revenue_cents + tip,
             }
         )
         if tip <= 0:

@@ -53,6 +53,11 @@ from .delivery_integration_routes import (
 from .social_routes import router as social_router
 from .printing_routes import router as printing_router
 from .printing_service import enqueue_customer_receipt, enqueue_kitchen_receipts
+from .order_pricing import (
+    calculate_order_totals,
+    percentage_cents,
+    snapshot_order_billing_rules,
+)
 from .work_session_serialization import serialize_work_session, work_session_net_duration_minutes
 from .clock_qr_util import (
     clock_qr_tokens_equal,
@@ -3566,6 +3571,7 @@ def get_tenant_service_settings(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
+    default_tax = session.get(models.Tax, tenant.default_tax_id) if tenant.default_tax_id else None
     tenant_dict = {
         "id": tenant.id,
         "name": tenant.name,
@@ -3574,6 +3580,11 @@ def get_tenant_service_settings(
         "currency_code": tenant.currency_code,
         "default_language": tenant.default_language,
         "timezone": tenant.timezone,
+        "service_charge_percent": int(tenant.service_charge_percent or 0),
+        "prices_include_tax": bool(tenant.prices_include_tax),
+        "default_tax_rate_percent": (
+            int(default_tax.rate_percent) if default_tax else 0
+        ),
         "ui_modules": resolve_tenant_ui_modules(tenant.ui_modules),
     }
     apply_tenant_currency_api_dict(tenant_dict)
@@ -3656,6 +3667,10 @@ def update_tenant_settings(
             if not tax or tax.tenant_id != current_user.tenant_id:
                 raise HTTPException(status_code=400, detail="Invalid default tax")
         tenant.default_tax_id = tenant_update.default_tax_id or None
+    if tenant_update.service_charge_percent is not None:
+        tenant.service_charge_percent = tenant_update.service_charge_percent
+    if tenant_update.prices_include_tax is not None:
+        tenant.prices_include_tax = tenant_update.prices_include_tax
 
     tenant.currency_code = "SGD"
     tenant.currency = sync_tenant_currency_symbol_from_code("SGD") or "$"
@@ -10767,6 +10782,7 @@ def get_reservation_book_month_day_states(
     days_out: list[dict] = []
     for dom in range(1, last_day + 1):
         d = date(year, month, dom)
+        windows = opening_windows_by_date.get(d)
         cells = _public_book_slot_cells_for_single_date(
             session,
             tenant_id,
@@ -10784,7 +10800,16 @@ def get_reservation_book_month_day_states(
             availability_context=availability_context,
             opening_windows_by_date=opening_windows_by_date,
         )
-        days_out.append({"date": d.isoformat(), "state": _aggregate_public_day_slot_state(cells)})
+        after_midnight_only = bool(
+            windows
+            and any(start == time.min for start, _ in windows)
+            and not any(start != time.min for start, _ in windows)
+        )
+        days_out.append({
+            "date": d.isoformat(),
+            "state": _aggregate_public_day_slot_state(cells),
+            "after_midnight_only": after_midnight_only,
+        })
 
     return {"year": year, "month": month, "days": days_out}
 
@@ -10855,7 +10880,23 @@ def get_reservation_book_day_slots(
         opening_windows_by_date=opening_windows_by_date,
     )
     times_sorted = sorted(cells.keys(), key=lambda k: int(k[:2]) * 60 + int(k[3:5]))
-    return {"date": d.isoformat(), "times": times_sorted, "cells": cells}
+    windows = opening_windows_by_date.get(d)
+    after_midnight_times: list[str] = []
+    if windows:
+        after_midnight_windows = [window for window in windows if window[0] == time.min]
+        allowed_after_midnight = {
+            slot.strftime("%H:%M")
+            for window in after_midnight_windows
+            for slot in _grid_slot_times_for_windows([window], _effective_reservation_slot_minutes(tenant))
+        }
+        after_midnight_times = [slot for slot in times_sorted if slot in allowed_after_midnight]
+    return {
+        "date": d.isoformat(),
+        "times": times_sorted,
+        "cells": cells,
+        "after_midnight_times": after_midnight_times,
+        "after_midnight_only": bool(after_midnight_times) and len(after_midnight_times) == len(times_sorted),
+    }
 
 
 @app.get("/reservations/next-available")
@@ -13119,6 +13160,12 @@ def get_menu(
     if table_session_started_at and table_session_started_at.tzinfo is None:
         table_session_started_at = table_session_started_at.replace(tzinfo=timezone.utc)
 
+    menu_default_tax = (
+        session.get(models.Tax, tenant.default_tax_id)
+        if tenant and tenant.default_tax_id
+        else None
+    )
+
     tenant_data = {
         "table_name": table.name,
         "table_id": table.id,
@@ -13142,6 +13189,13 @@ def get_menu(
         "tenant_immediate_payment_required": tenant.immediate_payment_required
         if tenant
         else False,
+        "tenant_service_charge_percent": int(tenant.service_charge_percent or 0)
+        if tenant
+        else 0,
+        "tenant_prices_include_tax": bool(tenant.prices_include_tax) if tenant else True,
+        "tenant_default_tax_rate_percent": int(menu_default_tax.rate_percent)
+        if menu_default_tax
+        else 0,
         "tenant_public_background_color": tenant.public_background_color if tenant else None,
         "table_is_active": table.is_active,
         "table_requires_pin": False,
@@ -13286,6 +13340,8 @@ def get_current_order(
     # Compute order status from items
     all_items = session.exec(select(models.OrderItem).where(models.OrderItem.order_id == active_order.id)).all()
     computed_status = compute_order_status_from_items(all_items)
+    tenant = session.get(models.Tenant, table.tenant_id)
+    totals = calculate_order_totals(items, tenant=tenant, order=active_order) if tenant else None
 
     payload = {
         "order": {
@@ -13313,7 +13369,14 @@ def get_current_order(
                 }
                 for item in items
             ],
-            "total_cents": sum(item.price_cents * item.quantity for item in items),
+            **(totals.as_dict() if totals else {
+                "subtotal_cents": sum(item.price_cents * item.quantity for item in items),
+                "service_charge_percent": 0,
+                "service_charge_cents": 0,
+                "tax_cents": 0,
+                "tip_amount_cents": 0,
+                "total_cents": sum(item.price_cents * item.quantity for item in items),
+            }),
         }
     }
     return JSONResponse(content=payload)
@@ -13479,6 +13542,11 @@ def _tax_amount_cents_inclusive(price_cents: int, quantity: int, rate_percent: i
     return round(total_incl * rate_percent / (100 + rate_percent))
 
 
+def _tax_amount_cents_exclusive(price_cents: int, quantity: int, rate_percent: int) -> int:
+    """Tax added after the advertised menu price."""
+    return percentage_cents(price_cents * quantity, rate_percent)
+
+
 @app.post("/menu/{table_token}/order")
 @limiter.limit(
     f"{getattr(settings, 'rate_limit_public_menu_per_minute', 30)}/minute"
@@ -13577,6 +13645,7 @@ def create_order(
             status=models.OrderStatus.pending,
             session_id=None,
         )
+        snapshot_order_billing_rules(new_order, tenant)
         session.add(new_order)
         session.flush()
         table.active_order_id = new_order.id
@@ -13786,7 +13855,15 @@ def create_order(
         effective_tax = _get_effective_tax(session, table.tenant_id, product_tax_id, order_date)
         tax_id = effective_tax.id if effective_tax else None
         tax_rate = effective_tax.rate_percent if effective_tax else 0
-        line_tax_cents = _tax_amount_cents_inclusive(price_cents, item.quantity, tax_rate) if effective_tax else 0
+        line_tax_cents = (
+            (
+                _tax_amount_cents_inclusive(price_cents, item.quantity, tax_rate)
+                if order.prices_include_tax_applied is not False
+                else _tax_amount_cents_exclusive(price_cents, item.quantity, tax_rate)
+            )
+            if effective_tax
+            else 0
+        )
 
         # Check if this product already exists in the order with same customization (only active, non-removed items)
         # Match by effective_product_id and same customization_answers so we merge only when preferences match
@@ -13824,9 +13901,15 @@ def create_order(
             # Recompute tax for new total quantity
             existing_item.tax_id = tax_id
             existing_item.tax_rate_percent = tax_rate if effective_tax else None
-            existing_item.tax_amount_cents = _tax_amount_cents_inclusive(
-                price_cents, existing_item.quantity, tax_rate
-            ) if effective_tax else None
+            existing_item.tax_amount_cents = (
+                (
+                    _tax_amount_cents_inclusive(price_cents, existing_item.quantity, tax_rate)
+                    if order.prices_include_tax_applied is not False
+                    else _tax_amount_cents_exclusive(price_cents, existing_item.quantity, tax_rate)
+                )
+                if effective_tax
+                else None
+            )
             session.add(existing_item)
         else:
             order_item = models.OrderItem(
@@ -14199,6 +14282,30 @@ def _active_order_subtotal_cents(session: Session, order_id: int) -> int:
     return sum(i.price_cents * i.quantity for i in active)
 
 
+def _active_order_totals(
+    session: Session,
+    order: models.Order,
+    tenant: models.Tenant,
+    *,
+    tip_cents: int | None = None,
+):
+    items = session.exec(
+        select(models.OrderItem).where(models.OrderItem.order_id == order.id)
+    ).all()
+    return calculate_order_totals(items, tenant=tenant, order=order, tip_cents=tip_cents)
+
+
+def _order_total_cents_for_items(
+    session: Session,
+    order: models.Order,
+    items: list[models.OrderItem],
+) -> int:
+    tenant = session.get(models.Tenant, order.tenant_id)
+    if not tenant:
+        return sum(i.price_cents * i.quantity for i in items)
+    return calculate_order_totals(items, tenant=tenant, order=order).total_cents
+
+
 def _tenant_tip_entry_mode(tenant: models.Tenant) -> str:
     raw = getattr(tenant, "tip_entry_mode", None) or "preset"
     if raw not in ("preset", "overpayment"):
@@ -14245,10 +14352,16 @@ def _resolve_tip_for_mark_paid(
             raise HTTPException(status_code=400, detail="Cannot add a tip to an empty order")
         if payment_data.amount_paid_cents is not None:
             ap = int(payment_data.amount_paid_cents)
-            if ap < subtotal + tip_amt:
+            order = session.get(models.Order, order_id)
+            payable = (
+                _active_order_totals(session, order, tenant, tip_cents=tip_amt).total_cents
+                if order
+                else subtotal + tip_amt
+            )
+            if ap < payable:
                 raise HTTPException(
                     status_code=400,
-                    detail="amount_paid_cents must cover subtotal and tip",
+                    detail="amount_paid_cents must cover subtotal, charges, tax, and tip",
                 )
         return None, tip_amt
     if payment_data.tip_amount_cents is not None:
@@ -14390,9 +14503,18 @@ def list_orders(
         # Do not list orders that have no products (empty orders are not allowed)
         if len(active_items) == 0:
             continue
-        subtotal_cents = sum(item.price_cents * item.quantity for item in active_items)
         tip_amt = int(order.tip_amount_cents or 0)
-        total_cents = subtotal_cents + tip_amt
+        order_totals = (
+            calculate_order_totals(active_items, tenant=tenant_row, order=order, tip_cents=tip_amt)
+            if tenant_row
+            else None
+        )
+        subtotal_cents = (
+            order_totals.subtotal_cents
+            if order_totals
+            else sum(item.price_cents * item.quantity for item in active_items)
+        )
+        total_cents = order_totals.total_cents if order_totals else subtotal_cents + tip_amt
 
         # Product categories for kitchen/bar display filtering (one query per order)
         product_ids = list({i.product_id for i in items})
@@ -14484,6 +14606,9 @@ def list_orders(
             "staff_urgent": bool(getattr(order, "staff_urgent", False)),
             "items": order_items_json,
             "subtotal_cents": subtotal_cents,
+            "service_charge_percent": order_totals.service_charge_percent if order_totals else 0,
+            "service_charge_cents": order_totals.service_charge_cents if order_totals else 0,
+            "tax_cents": order_totals.tax_cents if order_totals else 0,
             "tip_percent_applied": getattr(order, "tip_percent_applied", None),
             "tip_amount_cents": getattr(order, "tip_amount_cents", None),
             "tip_attributed_user_id": getattr(order, "tip_attributed_user_id", None),
@@ -15293,7 +15418,7 @@ def cancel_order_item_staff(
     
     # Calculate new total
     active_items = [i for i in all_items if not i.removed_by_customer and i.removed_by_user_id is None]
-    new_total = sum(i.price_cents * i.quantity for i in active_items)
+    new_total = _order_total_cents_for_items(session, order, active_items)
     
     # Publish update
     table = session.exec(select(models.Table).where(models.Table.id == order.table_id)).first()
@@ -15384,7 +15509,7 @@ def update_order_item_staff(
     
     # Calculate new total
     active_items = [i for i in all_items if not i.removed_by_customer and i.removed_by_user_id is None]
-    new_total = sum(i.price_cents * i.quantity for i in active_items)
+    new_total = _order_total_cents_for_items(session, order, active_items)
     
     # Publish update
     table = session.exec(select(models.Table).where(models.Table.id == order.table_id)).first()
@@ -15463,7 +15588,7 @@ def remove_order_item_staff(
     
     # Calculate new total
     active_items = [i for i in all_items if not i.removed_by_customer and i.removed_by_user_id is None]
-    new_total = sum(i.price_cents * i.quantity for i in active_items)
+    new_total = _order_total_cents_for_items(session, order, active_items)
     
     # Publish update
     table = session.exec(select(models.Table).where(models.Table.id == order.table_id)).first()
@@ -15559,7 +15684,7 @@ def remove_order_item(
     
     # Calculate new total (exclude removed items)
     active_items = [i for i in all_items if not i.removed_by_customer]
-    new_total = sum(i.price_cents * i.quantity for i in active_items)
+    new_total = _order_total_cents_for_items(session, order, active_items)
     
     # Publish update
     publish_order_update(order.tenant_id, {
@@ -15654,7 +15779,7 @@ def update_order_item_quantity(
     
     # Calculate new total (exclude items removed by customer OR staff)
     active_items = [i for i in all_items if not i.removed_by_customer and i.removed_by_user_id is None]
-    new_total = sum(i.price_cents * i.quantity for i in active_items)
+    new_total = _order_total_cents_for_items(session, order, active_items)
     
     # Publish update
     publish_order_update(order.tenant_id, {
@@ -16049,15 +16174,15 @@ def create_hitpay_payment_request(
     items = session.exec(
         select(models.OrderItem).where(models.OrderItem.order_id == order_id)
     ).all()
-    total_cents = sum(item.price_cents * item.quantity for item in items)
-    if total_cents <= 0:
-        raise HTTPException(status_code=400, detail="Order has no items")
 
     tenant = session.exec(
         select(models.Tenant).where(models.Tenant.id == order.tenant_id)
     ).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    total_cents = calculate_order_totals(items, tenant=tenant, order=order).total_cents
+    if total_cents <= 0:
+        raise HTTPException(status_code=400, detail="Order has no items")
 
     hitpay_api_key = _tenant_hitpay_api_key(tenant)
     if not hitpay_api_key:
@@ -16199,7 +16324,7 @@ def confirm_hitpay_payment(
     items = session.exec(
         select(models.OrderItem).where(models.OrderItem.order_id == order_id)
     ).all()
-    total_cents = sum(item.price_cents * item.quantity for item in items)
+    total_cents = calculate_order_totals(items, tenant=tenant, order=order).total_cents
     currency = _resolve_tenant_payment_currency(tenant)
     _validate_hitpay_payment_matches_order(
         hitpay_request,
@@ -16282,7 +16407,7 @@ async def hitpay_webhook(
     items = session.exec(
         select(models.OrderItem).where(models.OrderItem.order_id == order.id)
     ).all()
-    total_cents = sum(item.price_cents * item.quantity for item in items)
+    total_cents = calculate_order_totals(items, tenant=tenant, order=order).total_cents
     _validate_hitpay_payment_matches_order(
         payload,
         order=order,

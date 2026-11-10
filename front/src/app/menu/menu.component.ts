@@ -28,6 +28,10 @@ interface PlacedOrder {
   items: CartItem[];
   notes: string;
   total: number;
+  subtotal?: number;
+  serviceChargePercent?: number;
+  serviceCharge?: number;
+  tax?: number;
   status: string;
 }
 
@@ -80,6 +84,9 @@ export class MenuComponent implements OnInit, OnDestroy {
   tenantCurrency = signal<string>('$');
   tenantCurrencyCode = signal<string>('SGD');
   immediatePaymentRequired = signal(false);
+  serviceChargePercent = signal(0);
+  pricesIncludeTax = signal(true);
+  defaultTaxRatePercent = signal(0);
   tenantPublicBackgroundColor = signal<string | null>(null);
   tenantHitPayConfigured = signal(false);
   tenantHeaderBackgroundFilename = signal<string | null>(null);
@@ -409,6 +416,9 @@ export class MenuComponent implements OnInit, OnDestroy {
         this.tenantCurrencyCode.set(code);
         this.tenantCurrency.set(data.tenant_currency || '$');
         this.immediatePaymentRequired.set(data.tenant_immediate_payment_required || false);
+        this.serviceChargePercent.set(Number(data.tenant_service_charge_percent || 0));
+        this.pricesIncludeTax.set(data.tenant_prices_include_tax !== false);
+        this.defaultTaxRatePercent.set(Number(data.tenant_default_tax_rate_percent || 0));
         this.tenantPublicBackgroundColor.set(data.tenant_public_background_color ?? null);
         this.tenantHeaderBackgroundFilename.set(data.tenant_header_background_filename ?? null);
 
@@ -1054,8 +1064,21 @@ export class MenuComponent implements OnInit, OnDestroy {
     return this.cart().reduce((sum, item) => sum + item.quantity, 0);
   }
 
-  getTotal(): number {
+  getSubtotal(): number {
     return this.cart().reduce((sum, item) => sum + item.product.price_cents * item.quantity, 0);
+  }
+
+  getServiceCharge(): number {
+    return Math.round(this.getSubtotal() * this.serviceChargePercent() / 100);
+  }
+
+  getTax(): number {
+    if (this.pricesIncludeTax()) return 0;
+    return Math.round((this.getSubtotal() + this.getServiceCharge()) * this.defaultTaxRatePercent() / 100);
+  }
+
+  getTotal(): number {
+    return this.getSubtotal() + this.getServiceCharge() + this.getTax();
   }
 
   formatPrice(priceCents: number): string {
@@ -1272,6 +1295,10 @@ export class MenuComponent implements OnInit, OnDestroy {
             } as CartItem))),
             notes: response.order.notes || '',
             total: response.order.total_cents,
+            subtotal: response.order.subtotal_cents,
+            serviceChargePercent: response.order.service_charge_percent,
+            serviceCharge: response.order.service_charge_cents,
+            tax: response.order.tax_cents,
             status: response.order.status
           };
           this.placedOrders.set([order]);

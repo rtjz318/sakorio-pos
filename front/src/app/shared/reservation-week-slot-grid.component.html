@@ -101,9 +101,12 @@
             >
               <option value="">{{ 'BOOK.SELECT_TIME_PLACEHOLDER' | translate }}</option>
               @for (t of dayTimes(); track t) {
-                <option [value]="t" [disabled]="!daySlotSelectable(t)">{{ t }}</option>
+                <option [value]="t" [disabled]="!daySlotSelectable(t)">{{ slotDisplayLabel(t) }}</option>
               }
             </select>
+            @if (isAfterMidnightOnlyDay()) {
+              <p class="book-same-day-time-hint">{{ 'BOOK.AFTER_MIDNIGHT_ONLY_HINT' | translate }}</p>
+            }
             @if (isTodaySelected()) {
               <p class="book-same-day-time-hint">{{ 'BOOK.SAME_DAY_TIME_HINT' | translate }}</p>
             }

@@ -3966,20 +3966,7 @@ export class TablesComponent implements OnInit {
       this.activatingTableId.set(tableId);
       this.api.closeTable(tableId).subscribe({
         next: () => {
-          this.tables.update(tables => tables.map(t =>
-            t.id === tableId
-              ? {
-                  ...t,
-                  is_active: false,
-                  order_pin: null,
-                  active_order_id: null,
-                  payment_status: 'none',
-                  operational_status: 'available',
-                  status: 'available',
-                  seated_reservation: null,
-                }
-              : t
-          ));
+          this.applyClosedTableState(tableId);
           this.activatingTableId.set(null);
           this.showToast('TABLES.TABLE_CLOSED', 'success');
           this.onConfirmationCancel();
@@ -4238,20 +4225,7 @@ export class TablesComponent implements OnInit {
     this.activatingTableId.set(table.id);
     this.api.closeTable(table.id).subscribe({
       next: () => {
-        this.tables.update(tables => tables.map(t =>
-          t.id === table.id
-            ? {
-                ...t,
-                is_active: false,
-                order_pin: null,
-                active_order_id: null,
-                payment_status: 'none',
-                operational_status: 'available',
-                status: 'available',
-                seated_reservation: null,
-              }
-            : t
-        ));
+        this.applyClosedTableState(table.id as number);
         this.activatingTableId.set(null);
       },
       error: err => {
@@ -4259,6 +4233,35 @@ export class TablesComponent implements OnInit {
         this.activatingTableId.set(null);
       }
     });
+  }
+
+  private applyClosedTableState(tableId: number): void {
+    const currentTable = this.tables().find((table) => table.id === tableId);
+    if (!currentTable) return;
+    const closedTable: CanvasTable = {
+      ...currentTable,
+      is_active: false,
+      order_pin: null,
+      active_order_id: null,
+      payment_status: 'none',
+      operational_status: 'available',
+      status: 'available',
+      seated_reservation: null,
+    };
+    this.tables.update((tables) => tables.map((table) => table.id === tableId ? closedTable : table));
+
+    if (this.quickOrderTable()?.id === tableId) {
+      this.quickOrderTable.set(closedTable);
+      this.quickOrderCart.set([]);
+      this.quickMoveTargetTableId.set(null);
+      this.quickMoveConfirmed.set(false);
+      this.quickMoveReason.set('');
+      this.quickOrderError.set('');
+      this.quickOrderSuccess.set(`${closedTable.name} table closed.`);
+    }
+    if (this.tableQrHandoff()?.tableId === tableId) {
+      this.tableQrHandoff.set(null);
+    }
   }
 
   onWaiterAssign(table: Table, event: Event) {

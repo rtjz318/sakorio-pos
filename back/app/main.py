@@ -1,5 +1,6 @@
 import asyncio
 import base64
+from copy import copy
 from contextlib import asynccontextmanager
 import hashlib
 import hmac
@@ -14457,6 +14458,26 @@ def list_orders(
         .order_by(models.Order.created_at.desc())
     ).all()
 
+    adjustment_rows = session.exec(
+        select(models.ReceiptAdjustment)
+        .where(models.ReceiptAdjustment.tenant_id == current_user.tenant_id)
+        .order_by(models.ReceiptAdjustment.created_at.asc())
+    ).all()
+    adjustments_by_order: dict[int, list[models.ReceiptAdjustment]] = {}
+    adjustment_user_ids = {
+        row.created_by_user_id for row in adjustment_rows if row.created_by_user_id is not None
+    }
+    adjustment_users = {
+        user.id: user
+        for user in (
+            session.exec(select(models.User).where(models.User.id.in_(adjustment_user_ids))).all()
+            if adjustment_user_ids
+            else []
+        )
+    }
+    for adjustment in adjustment_rows:
+        adjustments_by_order.setdefault(adjustment.order_id, []).append(adjustment)
+
     tenant_row = session.get(models.Tenant, current_user.tenant_id)
     station_rows = session.exec(
         select(models.KitchenStation).where(
@@ -14515,6 +14536,24 @@ def list_orders(
             else sum(item.price_cents * item.quantity for item in active_items)
         )
         total_cents = order_totals.total_cents if order_totals else subtotal_cents + tip_amt
+        receipt_adjustments = adjustments_by_order.get(order.id or 0, [])
+        refunded_cents = sum(max(0, int(row.amount_cents or 0)) for row in receipt_adjustments)
+        has_void = any(
+            row.adjustment_type == models.ReceiptAdjustmentType.receipt_void
+            for row in receipt_adjustments
+        )
+        if has_void:
+            receipt_status = "voided"
+        elif refunded_cents >= total_cents and refunded_cents > 0:
+            receipt_status = "refunded"
+        elif refunded_cents > 0:
+            receipt_status = "partially_refunded"
+        elif order.paid_at is not None or order.status == models.OrderStatus.paid:
+            receipt_status = "paid"
+        elif order.status == models.OrderStatus.cancelled:
+            receipt_status = "cancelled"
+        else:
+            receipt_status = "open"
 
         # Product categories for kitchen/bar display filtering (one query per order)
         product_ids = list({i.product_id for i in items})
@@ -14561,8 +14600,14 @@ def list_orders(
                     "line_modifiers_summary": getattr(oi, "line_modifiers_summary", None) or None,
                     "status": oi.status.value if hasattr(oi.status, "value") else str(oi.status),
                     "removed_by_customer": oi.removed_by_customer,
+                    "removed_by_user_id": oi.removed_by_user_id,
                     "removed_at": oi.removed_at.isoformat() if oi.removed_at else None,
                     "removed_reason": oi.removed_reason,
+                    "refunded_quantity": int(getattr(oi, "refunded_quantity", 0) or 0),
+                    "refundable_quantity": max(
+                        0,
+                        int(oi.quantity) - int(getattr(oi, "refunded_quantity", 0) or 0),
+                    ),
                     "tax_id": getattr(oi, "tax_id", None),
                     "tax_rate_percent": getattr(oi, "tax_rate_percent", None),
                     "tax_amount_cents": getattr(oi, "tax_amount_cents", None),
@@ -14613,6 +14658,29 @@ def list_orders(
             "tip_amount_cents": getattr(order, "tip_amount_cents", None),
             "tip_attributed_user_id": getattr(order, "tip_attributed_user_id", None),
             "total_cents": total_cents,
+            "receipt_number": f"R-{int(order.id or 0):06d}",
+            "receipt_status": receipt_status,
+            "refunded_cents": refunded_cents,
+            "net_total_cents": max(0, total_cents - refunded_cents),
+            "receipt_adjustments": [
+                {
+                    "id": row.id,
+                    "type": row.adjustment_type.value,
+                    "order_item_id": row.order_item_id,
+                    "quantity": row.quantity,
+                    "amount_cents": row.amount_cents,
+                    "reason": row.reason,
+                    "created_at": row.created_at.isoformat(),
+                    "created_by_user_id": row.created_by_user_id,
+                    "created_by_name": (
+                        adjustment_users[row.created_by_user_id].full_name
+                        or adjustment_users[row.created_by_user_id].email
+                    )
+                    if row.created_by_user_id in adjustment_users
+                    else None,
+                }
+                for row in receipt_adjustments
+            ],
             "removed_items_count": len([item for item in all_items if item.removed_by_customer])
         }
         if tg_label:
@@ -14862,6 +14930,17 @@ def unmark_order_paid(
         raise HTTPException(status_code=400, detail="Cannot unmark a cancelled order.")
     if order.status != models.OrderStatus.paid and order.paid_at is None:
         raise HTTPException(status_code=400, detail="Order is not paid.")
+    existing_adjustment = session.exec(
+        select(models.ReceiptAdjustment).where(
+            models.ReceiptAdjustment.tenant_id == current_user.tenant_id,
+            models.ReceiptAdjustment.order_id == order_id,
+        )
+    ).first()
+    if existing_adjustment:
+        raise HTTPException(
+            status_code=409,
+            detail="A receipt with a refund or void cannot be marked unpaid.",
+        )
 
     # Clear the paid mark only
     order.paid_at = None
@@ -14905,6 +14984,11 @@ def delete_order(
         raise HTTPException(status_code=404, detail="Order not found")
     if order.deleted_at is not None:
         raise HTTPException(status_code=400, detail="Order is already deleted")
+    if order.paid_at is not None or order.status == models.OrderStatus.paid:
+        raise HTTPException(
+            status_code=409,
+            detail="Paid receipts cannot be deleted. Use the Receipts void workflow.",
+        )
 
     order.deleted_at = datetime.now(timezone.utc)
     order.deleted_by_user_id = current_user.id
@@ -14922,6 +15006,210 @@ def delete_order(
     session.add(order)
     session.commit()
     return {"status": "deleted", "order_id": order.id}
+
+
+def _active_receipt_items(session: Session, order_id: int) -> list[models.OrderItem]:
+    return [
+        item
+        for item in session.exec(
+            select(models.OrderItem).where(models.OrderItem.order_id == order_id)
+        ).all()
+        if not item.removed_by_customer
+        and item.removed_by_user_id is None
+        and item.status != models.OrderItemStatus.cancelled
+    ]
+
+
+def _remaining_receipt_total_cents(
+    tenant: models.Tenant,
+    order: models.Order,
+    items: list[models.OrderItem],
+) -> int:
+    remaining_items: list[models.OrderItem] = []
+    for item in items:
+        remaining_quantity = max(
+            0,
+            int(item.quantity) - int(getattr(item, "refunded_quantity", 0) or 0),
+        )
+        if remaining_quantity <= 0:
+            continue
+        item_copy = copy(item)
+        item_copy.quantity = remaining_quantity
+        remaining_items.append(item_copy)
+    return calculate_order_totals(
+        remaining_items,
+        tenant=tenant,
+        order=order,
+        tip_cents=int(order.tip_amount_cents or 0),
+    ).total_cents
+
+
+def _receipt_has_void(session: Session, tenant_id: int, order_id: int) -> bool:
+    return session.exec(
+        select(models.ReceiptAdjustment).where(
+            models.ReceiptAdjustment.tenant_id == tenant_id,
+            models.ReceiptAdjustment.order_id == order_id,
+            models.ReceiptAdjustment.adjustment_type
+            == models.ReceiptAdjustmentType.receipt_void,
+        )
+    ).first() is not None
+
+
+@app.post("/receipts/{order_id}/items/{item_id}/refund")
+def refund_receipt_item(
+    order_id: int,
+    item_id: int,
+    body: models.ReceiptItemRefundRequest,
+    current_user: Annotated[
+        models.User, Depends(require_permission(Permission.RECEIPT_ADJUST))
+    ],
+    session: Session = Depends(get_session),
+) -> dict:
+    """Record an audited item refund without rewriting the original paid sale."""
+    order = session.exec(
+        select(models.Order).where(
+            models.Order.id == order_id,
+            models.Order.tenant_id == current_user.tenant_id,
+            models.Order.deleted_at.is_(None),
+        )
+    ).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+    if order.paid_at is None and order.status != models.OrderStatus.paid:
+        raise HTTPException(status_code=409, detail="Only paid receipts can be refunded.")
+    if _receipt_has_void(session, current_user.tenant_id, order_id):
+        raise HTTPException(status_code=409, detail="This receipt has already been voided.")
+
+    item = session.exec(
+        select(models.OrderItem).where(
+            models.OrderItem.id == item_id,
+            models.OrderItem.order_id == order_id,
+        )
+    ).first()
+    if not item or item.removed_by_customer or item.removed_by_user_id is not None:
+        raise HTTPException(status_code=404, detail="Receipt item not found")
+
+    refunded_quantity = int(getattr(item, "refunded_quantity", 0) or 0)
+    refundable_quantity = max(0, int(item.quantity) - refunded_quantity)
+    if body.quantity > refundable_quantity:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Only {refundable_quantity} unit(s) remain refundable.",
+        )
+
+    tenant = session.get(models.Tenant, current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    active_items = _active_receipt_items(session, order_id)
+    before_cents = _remaining_receipt_total_cents(tenant, order, active_items)
+    item.refunded_quantity = refunded_quantity + body.quantity
+    after_cents = _remaining_receipt_total_cents(tenant, order, active_items)
+    refund_cents = max(0, before_cents - after_cents)
+
+    adjustment = models.ReceiptAdjustment(
+        tenant_id=current_user.tenant_id,
+        order_id=order_id,
+        order_item_id=item_id,
+        adjustment_type=models.ReceiptAdjustmentType.item_refund,
+        quantity=body.quantity,
+        amount_cents=refund_cents,
+        reason=body.reason.strip(),
+        created_by_user_id=current_user.id,
+    )
+    session.add(item)
+    session.add(adjustment)
+    session.commit()
+    session.refresh(adjustment)
+
+    publish_order_update(
+        current_user.tenant_id,
+        {
+            "type": "receipt_item_refunded",
+            "order_id": order_id,
+            "item_id": item_id,
+            "quantity": body.quantity,
+            "amount_cents": refund_cents,
+        },
+        table_id=order.table_id,
+    )
+    return {
+        "status": "item_refunded",
+        "adjustment_id": adjustment.id,
+        "order_id": order_id,
+        "item_id": item_id,
+        "quantity": body.quantity,
+        "amount_cents": refund_cents,
+        "remaining_receipt_cents": after_cents,
+    }
+
+
+@app.post("/receipts/{order_id}/void")
+def void_receipt(
+    order_id: int,
+    body: models.ReceiptVoidRequest,
+    current_user: Annotated[
+        models.User, Depends(require_permission(Permission.RECEIPT_ADJUST))
+    ],
+    session: Session = Depends(get_session),
+) -> dict:
+    """Void a receipt and record the remaining paid value as an audited refund."""
+    order = session.exec(
+        select(models.Order).where(
+            models.Order.id == order_id,
+            models.Order.tenant_id == current_user.tenant_id,
+            models.Order.deleted_at.is_(None),
+        )
+    ).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+    if _receipt_has_void(session, current_user.tenant_id, order_id):
+        raise HTTPException(status_code=409, detail="This receipt has already been voided.")
+
+    tenant = session.get(models.Tenant, current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    active_items = _active_receipt_items(session, order_id)
+    was_paid = order.paid_at is not None or order.status == models.OrderStatus.paid
+    void_amount_cents = (
+        _remaining_receipt_total_cents(tenant, order, active_items) if was_paid else 0
+    )
+    if was_paid:
+        for item in active_items:
+            item.refunded_quantity = item.quantity
+            session.add(item)
+
+    adjustment = models.ReceiptAdjustment(
+        tenant_id=current_user.tenant_id,
+        order_id=order_id,
+        adjustment_type=models.ReceiptAdjustmentType.receipt_void,
+        amount_cents=void_amount_cents,
+        reason=body.reason.strip(),
+        created_by_user_id=current_user.id,
+    )
+    order.status = models.OrderStatus.cancelled
+    order.cancelled_at = datetime.now(timezone.utc)
+    order.cancelled_by = "staff"
+    session.add(order)
+    session.add(adjustment)
+    session.commit()
+    session.refresh(adjustment)
+
+    publish_order_update(
+        current_user.tenant_id,
+        {
+            "type": "receipt_voided",
+            "order_id": order_id,
+            "amount_cents": void_amount_cents,
+        },
+        table_id=order.table_id,
+    )
+    return {
+        "status": "voided",
+        "adjustment_id": adjustment.id,
+        "order_id": order_id,
+        "amount_cents": void_amount_cents,
+        "payment_reversal_required": was_paid,
+    }
 
 
 @app.put("/orders/{order_id}/billing-customer")
@@ -15457,6 +15745,14 @@ def update_order_item_staff(
     
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    if order.paid_at is not None or order.status in (
+        models.OrderStatus.paid,
+        models.OrderStatus.cancelled,
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Paid or voided receipt lines cannot be edited. Use the Receipts refund workflow.",
+        )
     
     item = session.exec(
         select(models.OrderItem).where(
@@ -15549,6 +15845,14 @@ def remove_order_item_staff(
     
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    if order.paid_at is not None or order.status in (
+        models.OrderStatus.paid,
+        models.OrderStatus.cancelled,
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Paid or voided receipt lines cannot be removed. Use the Receipts refund workflow.",
+        )
     
     item = session.exec(
         select(models.OrderItem).where(

@@ -93,6 +93,15 @@ import { StaffLayoutService } from '../services/staff-layout.service';
              </svg>
              <span>{{ 'NAV.ORDERS' | translate }}</span>
            </a>
+           @if (canViewReceipts()) {
+             <a routerLink="/staff/receipts" routerLinkActive="active" class="nav-link" (click)="closeSidebar()">
+               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                 <path d="M6 2h12a2 2 0 012 2v18l-3-2-3 2-3-2-3 2-4-2V4a2 2 0 012-2z"/>
+                 <path d="M8 7h8M8 11h8M8 15h5"/>
+               </svg>
+               <span>Receipts</span>
+             </a>
+           }
            @if (canViewReservations() && moduleEnabled('reservations')) {
              <a routerLink="/reservations" routerLinkActive="active" class="nav-link" (click)="closeSidebar()">
                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -305,6 +314,7 @@ export class SidebarComponent implements OnInit, AfterViewInit, OnDestroy {
   canViewTables = computed(() => this.permissions.canAccessRoute(this.user(), '/tables'));
   canViewReservations = computed(() => this.permissions.hasPermission(this.user(), 'reservation:read'));
   canViewCustomers = computed(() => this.permissions.canAccessRoute(this.user(), '/customers'));
+  canViewReceipts = computed(() => this.permissions.canAccessRoute(this.user(), '/staff/receipts'));
   canViewKitchen = computed(() => this.permissions.canAccessRoute(this.user(), '/kitchen'));
   canViewProducts = computed(() => this.permissions.canAccessRoute(this.user(), '/products'));
   canViewCatalog = computed(() => this.permissions.canAccessRoute(this.user(), '/catalog'));

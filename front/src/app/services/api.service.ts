@@ -1371,8 +1371,11 @@ export interface OrderItem {
   line_modifiers_summary?: string | null;
   status?: string;  // pending, preparing, ready, delivered, cancelled
   removed_by_customer?: boolean;
+  removed_by_user_id?: number | null;
   removed_at?: string;
   removed_reason?: string;
+  refunded_quantity?: number;
+  refundable_quantity?: number;
   tax_id?: number | null;
   tax_rate_percent?: number | null;
   tax_amount_cents?: number | null;
@@ -1441,10 +1444,27 @@ export interface Order {
   removed_items_count?: number;
   paid_at?: string | null;
   payment_method?: string | null;
+  receipt_number?: string;
+  receipt_status?: 'open' | 'paid' | 'partially_refunded' | 'refunded' | 'voided' | 'cancelled';
+  refunded_cents?: number;
+  net_total_cents?: number;
+  receipt_adjustments?: ReceiptAdjustment[];
   /** Waiter marked urgent â€” guest waiting (kitchen/bar). */
   staff_urgent?: boolean;
   /** When set, joined tables label e.g. "T1 + T2" for staff context */
   table_group_label?: string | null;
+}
+
+export interface ReceiptAdjustment {
+  id: number;
+  type: 'item_refund' | 'receipt_void';
+  order_item_id?: number | null;
+  quantity?: number | null;
+  amount_cents: number;
+  reason: string;
+  created_at: string;
+  created_by_user_id?: number | null;
+  created_by_name?: string | null;
 }
 
 export interface MenuResponse {
@@ -2625,6 +2645,42 @@ export class ApiService {
 
   deleteOrder(orderId: number): Observable<{ status: string; order_id: number }> {
     return this.http.delete<{ status: string; order_id: number }>(`${this.apiUrl}/orders/${orderId}`);
+  }
+
+  refundReceiptItem(
+    orderId: number,
+    itemId: number,
+    quantity: number,
+    reason: string,
+  ): Observable<{
+    status: string;
+    adjustment_id: number;
+    amount_cents: number;
+    remaining_receipt_cents: number;
+  }> {
+    return this.http.post<{
+      status: string;
+      adjustment_id: number;
+      amount_cents: number;
+      remaining_receipt_cents: number;
+    }>(`${this.apiUrl}/receipts/${orderId}/items/${itemId}/refund`, { quantity, reason });
+  }
+
+  voidReceipt(
+    orderId: number,
+    reason: string,
+  ): Observable<{
+    status: string;
+    adjustment_id: number;
+    amount_cents: number;
+    payment_reversal_required: boolean;
+  }> {
+    return this.http.post<{
+      status: string;
+      adjustment_id: number;
+      amount_cents: number;
+      payment_reversal_required: boolean;
+    }>(`${this.apiUrl}/receipts/${orderId}/void`, { reason });
   }
 
   setOrderBillingCustomer(orderId: number, billingCustomerId: number | null): Observable<{ order_id: number; billing_customer_id: number | null }> {

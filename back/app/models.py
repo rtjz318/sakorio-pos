@@ -998,6 +998,25 @@ class Order(TenantMixin, table=True):
     billing_customer: BillingCustomer | None = Relationship(back_populates="orders")
 
 
+class ReceiptAdjustmentType(str, Enum):
+    item_refund = "item_refund"
+    receipt_void = "receipt_void"
+
+
+class ReceiptAdjustment(TenantMixin, table=True):
+    """Immutable accounting audit row for a paid-receipt correction."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    order_id: int = Field(foreign_key="order.id", index=True)
+    order_item_id: int | None = Field(default=None, foreign_key="orderitem.id", index=True)
+    adjustment_type: ReceiptAdjustmentType = Field(index=True)
+    quantity: int | None = Field(default=None)
+    amount_cents: int = Field(default=0, ge=0)
+    reason: str = Field(max_length=500)
+    created_by_user_id: int | None = Field(default=None, foreign_key="user.id")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
+
+
 class OrderItemStatus(str, Enum):
     pending = "pending"
     preparing = "preparing"
@@ -1043,6 +1062,9 @@ class OrderItem(SQLModel, table=True):
     modified_by_user_id: int | None = None  # Who modified this item (staff)
     modified_at: datetime | None = None  # When was it modified
     cancelled_reason: str | None = None  # Required when cancelling ready items (for tax authorities)
+    # Quantity already refunded through the audited Receipts workflow. The
+    # original ordered quantity and price remain immutable for traceability.
+    refunded_quantity: int = Field(default=0, ge=0)
 
     # Session tracking and location flagging
     added_by_session: str | None = Field(default=None)  # Which browser session added this item
@@ -1424,6 +1446,15 @@ class OrderBillingCustomerSet(SQLModel):
 class OrderStaffUrgentUpdate(SQLModel):
     """Mark or clear kitchen urgency (guest waiting for food)."""
     urgent: bool
+
+
+class ReceiptItemRefundRequest(SQLModel):
+    quantity: int = Field(ge=1)
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class ReceiptVoidRequest(SQLModel):
+    reason: str = Field(min_length=3, max_length=500)
 
 
 class BillingCustomerCreate(SQLModel):

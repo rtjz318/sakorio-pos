@@ -38,6 +38,7 @@ export type Permission =
   | 'order:cancel'
   | 'order:remove_item'
   | 'order:delete'
+  | 'receipt:adjust'
   // Inventory
   | 'inventory:read'
   | 'inventory:write'
@@ -85,6 +86,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<Permission | '*'>> = {
     'floor:read', 'floor:write',
     'order:read', 'order:update_status', 'order:item_status',
     'order:mark_paid', 'order:cancel', 'order:remove_item', 'order:delete',
+    'receipt:adjust',
     'billing_customer:read', 'billing_customer:write',
     'inventory:read', 'inventory:write',
     'translation:read', 'translation:write',
@@ -124,6 +126,7 @@ const ROUTE_ROLES: Record<string, UserRole[]> = {
   '/reservations': ['owner', 'admin', 'waiter', 'receptionist'],
   '/queue': ['owner', 'admin', 'waiter', 'receptionist'],
   '/staff/orders': ['owner', 'admin', 'kitchen', 'bartender', 'waiter', 'receptionist'],
+  '/staff/receipts': ['owner', 'admin', 'waiter', 'receptionist'],
   '/customers': ['owner', 'admin', 'waiter', 'receptionist'],
   '/kitchen': ['owner', 'admin', 'kitchen', 'bartender'],
   '/inventory': ['owner', 'admin'],

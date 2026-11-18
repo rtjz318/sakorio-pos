@@ -36,6 +36,15 @@ import { StaffLayoutService } from '../services/staff-layout.service';
               {{ 'NAV.ORDERS' | translate }}
             </a>
           }
+          @if (canReceipts()) {
+            <a
+              routerLink="/staff/receipts"
+              class="segment-btn"
+              [class.active]="isReceiptsRoute()"
+              data-testid="staff-flow-receipts-link">
+              Receipts
+            </a>
+          }
           @if (canQueue()) {
             <a
               routerLink="/queue"
@@ -199,7 +208,7 @@ export class StaffPosToolbarComponent {
   private router = inject(Router);
 
   showBar(): boolean {
-    return this.canPos() || this.canOrders() || this.canQueue() || this.canTables();
+    return this.canPos() || this.canOrders() || this.canReceipts() || this.canQueue() || this.canTables();
   }
 
   canPos(): boolean {
@@ -208,6 +217,10 @@ export class StaffPosToolbarComponent {
 
   canOrders(): boolean {
     return this.permissions.canAccessRoute(this.api.getCurrentUser(), '/staff/orders');
+  }
+
+  canReceipts(): boolean {
+    return this.permissions.canAccessRoute(this.api.getCurrentUser(), '/staff/receipts');
   }
 
   canTables(): boolean {
@@ -226,6 +239,10 @@ export class StaffPosToolbarComponent {
 
   isOrdersRoute(): boolean {
     return this.router.url.split('?')[0].startsWith('/staff/orders');
+  }
+
+  isReceiptsRoute(): boolean {
+    return this.router.url.split('?')[0].startsWith('/staff/receipts');
   }
 
   isPosRoute(): boolean {

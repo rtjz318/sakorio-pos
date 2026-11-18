@@ -166,12 +166,18 @@ def _get_revenue_items(
                 waiter_name = (u.full_name or u.email) if u else str(waiter_id)
         table_name = table.name if table else "Unknown"
         for item in items:
+            effective_quantity = max(
+                0,
+                int(item.quantity) - int(getattr(item, "refunded_quantity", 0) or 0),
+            )
+            if effective_quantity == 0:
+                continue
             product = session.get(models.Product, item.product_id)
             category = (product.category or "Uncategorized") if product else "Uncategorized"
             subcategory = (product.subcategory or "") if product else ""
             unit_cost = getattr(item, "cost_cents", None) or 0
-            revenue_cents = item.quantity * item.price_cents
-            cost_cents = item.quantity * unit_cost
+            revenue_cents = effective_quantity * item.price_cents
+            cost_cents = effective_quantity * unit_cost
             result.append({
                 "order_id": order.id,
                 "date": rev_date,
@@ -183,7 +189,7 @@ def _get_revenue_items(
                 "product_name": item.product_name,
                 "category": category,
                 "subcategory": subcategory,
-                "quantity": item.quantity,
+                "quantity": effective_quantity,
                 "price_cents": item.price_cents,
                 "cost_cents": cost_cents,
                 "revenue_cents": revenue_cents,
@@ -227,31 +233,64 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
             .where(models.OrderItem.removed_by_customer == False)
             .where(models.OrderItem.status != models.OrderItemStatus.cancelled)
         ).all()
-        order_revenue_cents = sum(item.quantity * item.price_cents for item in order_items)
+        original_order_items = list(order_items)
+        effective_order_items = []
+        for item in original_order_items:
+            remaining_quantity = max(
+                0,
+                int(item.quantity) - int(getattr(item, "refunded_quantity", 0) or 0),
+            )
+            if remaining_quantity <= 0:
+                continue
+            item_copy = item.model_copy()
+            item_copy.quantity = remaining_quantity
+            effective_order_items.append(item_copy)
+        order_revenue_cents = sum(
+            item.quantity * item.price_cents for item in effective_order_items
+        )
         tip = int(order.tip_amount_cents or 0)
         totals = (
-            calculate_order_totals(order_items, tenant=tenant, order=order, tip_cents=tip)
+            calculate_order_totals(
+                effective_order_items,
+                tenant=tenant,
+                order=order,
+                tip_cents=tip,
+            )
             if tenant
             else None
         )
+        voided_cents = sum(
+            int(adjustment.amount_cents or 0)
+            for adjustment in session.exec(
+                select(models.ReceiptAdjustment).where(
+                    models.ReceiptAdjustment.tenant_id == tenant_id,
+                    models.ReceiptAdjustment.order_id == order.id,
+                    models.ReceiptAdjustment.adjustment_type
+                    == models.ReceiptAdjustmentType.receipt_void,
+                )
+            ).all()
+        )
+        gross_collected_cents = totals.total_cents if totals else order_revenue_cents + tip
+        net_collected_cents = max(0, gross_collected_cents - voided_cents)
+        effective_tip = min(tip, net_collected_cents)
         payment_method = _normalize_payment_method(getattr(order, "payment_method", None))
         paid_orders_summary.append(
             {
                 "payment_method": payment_method,
                 "revenue_cents": order_revenue_cents,
-                "tips_cents": tip,
+                "tips_cents": effective_tip,
                 "service_charge_cents": totals.service_charge_cents if totals else 0,
                 "tax_cents": totals.tax_cents if totals else 0,
-                "collected_cents": totals.total_cents if totals else order_revenue_cents + tip,
+                "collected_cents": net_collected_cents,
             }
         )
-        if tip <= 0:
+        if effective_tip <= 0:
             continue
-        total_tips_cents += tip
+        total_tips_cents += effective_tip
         day = _local_report_date(rev_date, report_timezone).isoformat()
-        tips_by_day[day] += tip
+        tips_by_day[day] += effective_tip
         wn = _waiter_name_for_order_tips(session, order)
-        tips_by_waiter[wn] += tip
+        tips_by_waiter[wn] += effective_tip
 
     # Summary by day
     by_day_agg: dict[str, dict] = defaultdict(

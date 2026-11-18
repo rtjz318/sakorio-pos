@@ -82,6 +82,7 @@ export const routes: Routes = [
 
   // Staff orders (list and manage orders)
   { path: 'staff/orders', canActivate: [authGuard, orderAccessGuard], loadComponent: () => import('./orders/orders.component').then(m => m.OrdersComponent) },
+  { path: 'staff/receipts', canActivate: [authGuard, orderAccessGuard, roleGuard(['owner', 'admin', 'waiter', 'receptionist'])], loadComponent: () => import('./receipts/receipts.component').then(m => m.ReceiptsComponent) },
   // Billing customers
   { path: 'customers', canActivate: [authGuard, orderAccessGuard], loadComponent: () => import('./customers/customers.component').then(m => m.CustomersComponent) },
   // One production display covers kitchen and beverage stations; keep /bar bookmarks working.

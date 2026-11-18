@@ -81,6 +81,18 @@ interface PosCheckoutOutcome {
   amountCents: number;
 }
 
+interface PosCheckoutBreakdown {
+  subtotalCents: number;
+  serviceChargePercent: number;
+  serviceChargeCents: number;
+  taxRatePercent: number;
+  taxCents: number;
+  tipCents: number;
+  totalCents: number;
+  taxIncluded: boolean;
+  estimated: boolean;
+}
+
 type PosHitPayFlowState = 'idle' | 'redirecting' | 'confirming' | 'cancelled' | 'failed';
 type PosDrawerView = 'menu' | 'checkout' | 'orders' | 'history';
 type QueueResolutionAction = 'cancelled' | 'no_show';
@@ -1447,7 +1459,23 @@ type QueueResolutionAction = 'cancelled' | 'no_show';
 
                       <div class="pos-service-cart-footer">
                         <div><span>Items</span><strong>{{ checkoutSummaryItemsCopy() }}</strong></div>
-                        <div><span>Total</span><strong>{{ checkoutSummaryTotalCopy() }}</strong></div>
+                        <div><span>Subtotal</span><strong>{{ formatPrice(checkoutBreakdown().subtotalCents) }}</strong></div>
+                        @if (checkoutBreakdown().serviceChargePercent > 0 || checkoutBreakdown().serviceChargeCents > 0) {
+                          <div>
+                            <span>Service charge ({{ checkoutBreakdown().serviceChargePercent }}%)</span>
+                            <strong>{{ formatPrice(checkoutBreakdown().serviceChargeCents) }}</strong>
+                          </div>
+                        }
+                        @if (checkoutBreakdown().taxRatePercent > 0 || checkoutBreakdown().taxCents > 0) {
+                          <div>
+                            <span>GST ({{ checkoutBreakdown().taxRatePercent }}%){{ checkoutBreakdown().taxIncluded ? ' included' : '' }}</span>
+                            <strong>{{ formatPrice(checkoutBreakdown().taxCents) }}</strong>
+                          </div>
+                        }
+                        <div class="pos-service-cart-footer-total">
+                          <span>Amount due</span>
+                          <strong>{{ checkoutSummaryTotalCopy() }}</strong>
+                        </div>
                         <div class="pos-service-cart-actions">
                           @if (cartLines().length > 0) {
                             <button
@@ -1479,9 +1507,39 @@ type QueueResolutionAction = 'cancelled' | 'no_show';
                         <p>{{ hasCheckoutWork() ? settlementSummaryCaption() : checkoutIntroCopy() }}</p>
                       </div>
                       <div class="pos-service-total-card">
-                        <span>Amount due</span>
-                        <strong>{{ checkoutSummaryTotalCopy() }}</strong>
+                        <span>Bill breakdown</span>
+                        <div class="pos-service-bill-breakdown" aria-label="Bill total breakdown">
+                          <div>
+                            <span>Subtotal</span>
+                            <b>{{ formatPrice(checkoutBreakdown().subtotalCents) }}</b>
+                          </div>
+                          @if (checkoutBreakdown().serviceChargePercent > 0 || checkoutBreakdown().serviceChargeCents > 0) {
+                            <div>
+                              <span>Service charge ({{ checkoutBreakdown().serviceChargePercent }}%)</span>
+                              <b>{{ formatPrice(checkoutBreakdown().serviceChargeCents) }}</b>
+                            </div>
+                          }
+                          @if (checkoutBreakdown().taxRatePercent > 0 || checkoutBreakdown().taxCents > 0) {
+                            <div>
+                              <span>GST ({{ checkoutBreakdown().taxRatePercent }}%){{ checkoutBreakdown().taxIncluded ? ' included' : '' }}</span>
+                              <b>{{ formatPrice(checkoutBreakdown().taxCents) }}</b>
+                            </div>
+                          }
+                          @if (checkoutBreakdown().tipCents > 0) {
+                            <div>
+                              <span>Tip</span>
+                              <b>{{ formatPrice(checkoutBreakdown().tipCents) }}</b>
+                            </div>
+                          }
+                          <div class="pos-service-bill-breakdown-total">
+                            <span>Amount due</span>
+                            <strong>{{ checkoutSummaryTotalCopy() }}</strong>
+                          </div>
+                        </div>
                         <small>{{ checkoutSummaryItemsCopy() }} · {{ checkoutSummaryTableCopy() }}</small>
+                        @if (checkoutBreakdown().estimated) {
+                          <small>Estimate until the new items are saved to the bill</small>
+                        }
                       </div>
                     </div>
 
@@ -2606,6 +2664,17 @@ type QueueResolutionAction = 'cancelled' | 'no_show';
       grid-column: 1 / -1;
     }
 
+    .pos-service-cart-footer-total {
+      margin-top: 0.18rem;
+      padding-top: 0.55rem;
+      border-top: 1px solid color-mix(in srgb, var(--color-border) 78%, white);
+      color: var(--color-primary-strong);
+    }
+
+    .pos-service-cart-footer-total strong {
+      font-size: 1.08rem;
+    }
+
     .pos-service-submit {
       width: 100%;
       min-height: 3.1rem;
@@ -2658,7 +2727,7 @@ type QueueResolutionAction = 'cancelled' | 'no_show';
     }
 
     .pos-service-total-card {
-      min-width: 14rem;
+      min-width: 19rem;
       padding: 0.85rem;
       border-radius: 18px;
       background: color-mix(in srgb, var(--color-primary-light) 26%, white);
@@ -2679,6 +2748,37 @@ type QueueResolutionAction = 'cancelled' | 'no_show';
       margin: 0.12rem 0;
       font-size: 1.9rem;
       line-height: 1;
+    }
+
+    .pos-service-bill-breakdown {
+      display: grid;
+      gap: 0.38rem;
+      margin: 0.55rem 0;
+      padding-top: 0.55rem;
+      border-top: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+    }
+
+    .pos-service-bill-breakdown > div {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .pos-service-bill-breakdown b {
+      color: var(--color-text);
+      font-size: 0.88rem;
+      white-space: nowrap;
+    }
+
+    .pos-service-bill-breakdown-total {
+      margin-top: 0.18rem;
+      padding-top: 0.48rem;
+      border-top: 1px solid color-mix(in srgb, var(--color-primary) 24%, transparent);
+    }
+
+    .pos-service-bill-breakdown .pos-service-bill-breakdown-total strong {
+      font-size: 1.65rem;
     }
 
     .pos-service-payment-grid {
@@ -6100,6 +6200,16 @@ export class CashierPosComponent {
     return `${currency}${(cents / 100).toFixed(2)}`;
   };
 
+  private clampPercentage(value: number | null | undefined): number {
+    return Math.max(0, Math.min(100, Math.trunc(Number(value) || 0)));
+  }
+
+  private percentageCents(amountCents: number, ratePercent: number): number {
+    const amount = Math.max(0, Math.trunc(Number(amountCents) || 0));
+    const rate = this.clampPercentage(ratePercent);
+    return Math.floor((amount * rate + 50) / 100);
+  }
+
   loading = signal(true);
   error = signal<string | null>(null);
   notice = signal<string | null>(null);
@@ -6390,16 +6500,59 @@ export class CashierPosComponent {
     }
     return liveBillItems;
   });
+  checkoutBreakdown = computed<PosCheckoutBreakdown>(() => {
+    const liveBill = this.payableLiveBillOrder();
+    const cartSubtotalCents = this.cartSubtotalCents();
+    const liveSubtotalCents = liveBill
+      ? liveBill.subtotal_cents ??
+        liveBill.items.reduce(
+          (sum, item) => sum + (item.price_cents || 0) * (item.quantity || 0),
+          0,
+        )
+      : 0;
+    const serviceChargePercent = this.clampPercentage(
+      liveBill?.service_charge_percent ?? this.settings()?.service_charge_percent ?? 0,
+    );
+    const liveServiceChargeCents = Math.max(0, liveBill?.service_charge_cents || 0);
+    const cartServiceChargeCents = this.percentageCents(
+      cartSubtotalCents,
+      serviceChargePercent,
+    );
+    const taxRatePercent = this.clampPercentage(
+      this.settings()?.default_tax_rate_percent ?? 0,
+    );
+    const taxIncluded = this.settings()?.prices_include_tax !== false;
+    const liveTaxCents = Math.max(0, liveBill?.tax_cents || 0);
+    const cartLineTaxCents = taxIncluded
+      ? 0
+      : this.cartLines().reduce(
+          (sum, line) =>
+            sum + this.percentageCents(line.priceCents * line.quantity, taxRatePercent),
+          0,
+        );
+    const cartServiceTaxCents = taxIncluded
+      ? 0
+      : this.percentageCents(cartServiceChargeCents, taxRatePercent);
+    const cartTaxCents = cartLineTaxCents + cartServiceTaxCents;
+    const tipCents = Math.max(0, liveBill?.tip_amount_cents || 0);
+    const liveTotalCents = Math.max(0, liveBill?.total_cents || 0);
+    const cartTotalCents =
+      cartSubtotalCents + cartServiceChargeCents + (taxIncluded ? 0 : cartTaxCents);
+
+    return {
+      subtotalCents: liveSubtotalCents + cartSubtotalCents,
+      serviceChargePercent,
+      serviceChargeCents: liveServiceChargeCents + cartServiceChargeCents,
+      taxRatePercent,
+      taxCents: liveTaxCents + cartTaxCents,
+      tipCents,
+      totalCents: liveTotalCents + cartTotalCents,
+      taxIncluded,
+      estimated: cartSubtotalCents > 0,
+    };
+  });
   checkoutAmountCents = computed(() => {
-    const liveBillTotal = this.payableLiveBillOrder()?.total_cents || 0;
-    const cartTotal = this.cartSubtotalCents();
-    if (cartTotal > 0 && liveBillTotal > 0) {
-      return liveBillTotal + cartTotal;
-    }
-    if (cartTotal > 0) {
-      return cartTotal;
-    }
-    return liveBillTotal;
+    return this.checkoutBreakdown().totalCents;
   });
   hasCheckoutWork = computed(() => this.cartItemCount() > 0 || !!this.payableLiveBillOrder());
   tableScopedOrders = computed(() => {
@@ -7478,7 +7631,7 @@ export class CashierPosComponent {
 
   checkoutTotalCaption(): string | null {
     const liveBillTotal = this.payableLiveBillOrder()?.total_cents || 0;
-    const cartTotal = this.cartSubtotalCents();
+    const cartTotal = Math.max(0, this.checkoutBreakdown().totalCents - liveBillTotal);
     if (liveBillTotal > 0 && cartTotal > 0) {
       return `${this.formatPrice(liveBillTotal)} live bill + ${this.formatPrice(cartTotal)} add-on`;
     }

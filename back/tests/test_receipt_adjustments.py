@@ -57,6 +57,7 @@ class TestReceiptAdjustments(PgClientTestCase):
         self.session.add(floor)
         self.session.commit()
         self.session.refresh(floor)
+        self.floor_id = floor.id
         table = models.Table(
             name="T01",
             token=f"receipt-table-{uuid4().hex}",
@@ -74,11 +75,11 @@ class TestReceiptAdjustments(PgClientTestCase):
         self.table_id = table.id
         self.product_id = product.id
 
-    def _paid_order(self) -> tuple[int, int]:
+    def _paid_order(self, table_id: int | None = None) -> tuple[int, int]:
         created = self.client.post(
             "/orders/staff",
             json={
-                "table_id": self.table_id,
+                "table_id": table_id or self.table_id,
                 "items": [{"product_id": self.product_id, "quantity": 2, "source": "product"}],
             },
             headers=_headers(self.owner),
@@ -143,6 +144,18 @@ class TestReceiptAdjustments(PgClientTestCase):
         self.assertEqual(receipt["net_total_cents"], 0)
         self.assertEqual(len(receipt["receipt_adjustments"]), 2)
 
+        report_after_void = self.client.get(
+            f"/reports/sales?from_date={today}&to_date={today}",
+            headers=_headers(self.owner),
+        )
+        self.assertEqual(report_after_void.status_code, 200, report_after_void.text)
+        report_payload = report_after_void.json()
+        self.assertEqual(report_payload["summary"]["total_revenue_cents"], 0)
+        self.assertEqual(report_payload["summary"]["total_collected_cents"], 0)
+        self.assertEqual(report_payload["summary"]["total_orders"], 0)
+        self.assertEqual(report_payload["by_payment_method"], [])
+        self.assertEqual(report_payload["by_product"], [])
+
     def test_paid_receipt_cannot_be_silently_edited_or_deleted(self) -> None:
         order_id, item_id = self._paid_order()
         edit = self.client.put(
@@ -153,6 +166,45 @@ class TestReceiptAdjustments(PgClientTestCase):
         self.assertEqual(edit.status_code, 409, edit.text)
         delete = self.client.delete(f"/orders/{order_id}", headers=_headers(self.owner))
         self.assertEqual(delete.status_code, 409, delete.text)
+
+    def test_report_counts_valid_sale_but_excludes_voided_sale(self) -> None:
+        kept_order_id, _ = self._paid_order()
+        second_table = models.Table(
+            name="T02",
+            token=f"receipt-table-{uuid4().hex}",
+            floor_id=self.floor_id,
+            tenant_id=self.tenant.id,
+            seat_count=4,
+            is_active=True,
+        )
+        self.session.add(second_table)
+        self.session.commit()
+        self.session.refresh(second_table)
+        voided_order_id, _ = self._paid_order(second_table.id)
+        voided = self.client.post(
+            f"/receipts/{voided_order_id}/void",
+            json={"reason": "Duplicate receipt"},
+            headers=_headers(self.owner),
+        )
+        self.assertEqual(voided.status_code, 200, voided.text)
+
+        today = datetime.now(timezone.utc).date().isoformat()
+        report = self.client.get(
+            f"/reports/sales?from_date={today}&to_date={today}",
+            headers=_headers(self.owner),
+        )
+        self.assertEqual(report.status_code, 200, report.text)
+        payload = report.json()
+        self.assertEqual(payload["summary"]["total_revenue_cents"], 2000)
+        self.assertEqual(payload["summary"]["total_collected_cents"], 2000)
+        self.assertEqual(payload["summary"]["total_orders"], 1)
+        self.assertEqual(payload["by_payment_method"][0]["order_count"], 1)
+        self.assertEqual(payload["by_payment_method"][0]["revenue_cents"], 2000)
+        self.assertEqual(
+            {row["order_count"] for row in payload["by_table"]},
+            {1},
+        )
+        self.assertNotEqual(kept_order_id, voided_order_id)
 
     def test_waiter_can_view_receipts_but_cannot_refund_or_void(self) -> None:
         order_id, item_id = self._paid_order()

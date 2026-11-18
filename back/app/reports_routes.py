@@ -58,6 +58,24 @@ def _order_counts_as_revenue(order: models.Order) -> bool:
     return order.deleted_at is None and (order.status == models.OrderStatus.paid or order.paid_at is not None)
 
 
+def _voided_receipt_order_ids(session: Session, tenant_id: int) -> set[int]:
+    """Return receipt IDs that must never contribute to sales reporting.
+
+    A paid order intentionally keeps its payment timestamp after a manager voids
+    the receipt so the audit trail remains intact.  The immutable receipt-void
+    adjustment is therefore the authoritative signal for excluding the sale.
+    """
+    return set(
+        session.exec(
+            select(models.ReceiptAdjustment.order_id).where(
+                models.ReceiptAdjustment.tenant_id == tenant_id,
+                models.ReceiptAdjustment.adjustment_type
+                == models.ReceiptAdjustmentType.receipt_void,
+            )
+        ).all()
+    )
+
+
 def _tenant_report_timezone(session: Session, tenant_id: int):
     tenant = session.get(models.Tenant, tenant_id)
     timezone_name = (tenant.timezone or "UTC").strip() if tenant else "UTC"
@@ -130,6 +148,7 @@ def _get_revenue_items(
     from_date: date,
     to_date: date,
     report_timezone,
+    voided_receipt_order_ids: set[int],
 ):
     """Load orders and items that count toward revenue in the date range."""
     orders = session.exec(
@@ -142,6 +161,8 @@ def _get_revenue_items(
     result = []
     for order in orders:
         if not _order_counts_as_revenue(order):
+            continue
+        if order.id in voided_receipt_order_ids:
             continue
         rev_date = _revenue_date(order)
         if not _in_range(rev_date, from_date, to_date, report_timezone):
@@ -203,12 +224,14 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
     if from_date > to_date:
         from_date, to_date = to_date, from_date
     report_timezone = _tenant_report_timezone(session, tenant_id)
+    voided_receipt_order_ids = _voided_receipt_order_ids(session, tenant_id)
     rows = _get_revenue_items(
         session,
         tenant_id,
         from_date,
         to_date,
         report_timezone,
+        voided_receipt_order_ids,
     )
 
     tips_by_day: dict[str, int] = defaultdict(int)
@@ -223,6 +246,8 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
     ).all()
     for order in orders_for_tips:
         if not _order_counts_as_revenue(order):
+            continue
+        if order.id in voided_receipt_order_ids:
             continue
         rev_date = _revenue_date(order)
         if not _in_range(rev_date, from_date, to_date, report_timezone):
@@ -259,19 +284,8 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
             if tenant
             else None
         )
-        voided_cents = sum(
-            int(adjustment.amount_cents or 0)
-            for adjustment in session.exec(
-                select(models.ReceiptAdjustment).where(
-                    models.ReceiptAdjustment.tenant_id == tenant_id,
-                    models.ReceiptAdjustment.order_id == order.id,
-                    models.ReceiptAdjustment.adjustment_type
-                    == models.ReceiptAdjustmentType.receipt_void,
-                )
-            ).all()
-        )
         gross_collected_cents = totals.total_cents if totals else order_revenue_cents + tip
-        net_collected_cents = max(0, gross_collected_cents - voided_cents)
+        net_collected_cents = max(0, gross_collected_cents)
         effective_tip = min(tip, net_collected_cents)
         payment_method = _normalize_payment_method(getattr(order, "payment_method", None))
         paid_orders_summary.append(

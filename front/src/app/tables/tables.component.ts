@@ -776,6 +776,15 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   >
                     {{ copiedTableId() === table.id ? 'Copied!' : 'Copy QR' }}
                   </button>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm"
+                    [attr.aria-label]="'Print fixed QR for ' + table.name"
+                    [attr.data-testid]="'print-fixed-qr-' + table.id"
+                    (click)="openQuickTable(table, 'qr')"
+                  >
+                    Print QR
+                  </button>
                 </div>
               </div>
 
@@ -3450,6 +3459,10 @@ export class TablesComponent implements OnInit {
   }
 
   printTableQr(): void {
+    document.body.classList.add('sakorio-table-qr-printing');
+    const removePrintMode = () => document.body.classList.remove('sakorio-table-qr-printing');
+    window.addEventListener('afterprint', removePrintMode, { once: true });
+    window.setTimeout(removePrintMode, 120_000);
     window.print();
   }
 

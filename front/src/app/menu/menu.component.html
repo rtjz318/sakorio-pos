@@ -863,6 +863,7 @@
         </div>
 
         <div class="payment-options-list">
+          @if (tenantHitPayConfigured() && customerOnlinePaymentEnabled()) {
           <button class="payment-option-btn" (click)="selectPayOnline()" [disabled]="paymentRequestSending()">
             <div class="payment-option-icon">
               @if (paymentRequestSending()) {
@@ -890,59 +891,36 @@
             </svg>
             }
           </button>
+          } @else {
+          <div class="payment-option-notice" role="status">
+            <strong>{{ 'PAYMENTS.ONLINE_PAYMENT_UNAVAILABLE' | translate }}</strong>
+            <span>{{ 'PAYMENTS.ONLINE_PAYMENT_UNAVAILABLE_DESC' | translate }}</span>
+          </div>
+          }
 
-          <button class="payment-option-btn" (click)="selectPayCard()">
+          <button class="payment-option-btn" (click)="payAtCashier()" [disabled]="paymentRequestSending()">
             <div class="payment-option-icon">
+              @if (paymentRequestSending()) {
+              <span class="spinner-small"></span>
+              } @else {
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <rect x="2" y="5" width="20" height="14" rx="2" />
-                <circle cx="12" cy="12" r="3" />
+                <path d="M3 21h18" />
+                <path d="M5 21V9l7-5 7 5v12" />
+                <path d="M9 13h6" />
               </svg>
+              }
             </div>
             <div class="payment-option-text">
-              <span class="payment-option-title">{{ 'PAYMENTS.PAY_CARD_TERMINAL' | translate }}</span>
-              <span class="payment-option-desc">{{ 'PAYMENTS.PAY_CARD_TERMINAL_DESC' | translate }}</span>
+              <span class="payment-option-title">{{ 'PAYMENTS.PAY_AT_CASHIER' | translate }}</span>
+              <span class="payment-option-desc">{{ 'PAYMENTS.PAY_AT_CASHIER_DESC' | translate }}</span>
             </div>
+            @if (!paymentRequestSending()) {
             <svg class="payment-option-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="9,18 15,12 9,6" />
             </svg>
-          </button>
-
-        </div>
-        }
-
-        @if (paymentOptionsStep() === 'message') {
-        <div appFocusFirstInput>
-        <div class="modal-header-row">
-          <h3 class="modal-title">
-            {{ 'PAYMENTS.PAY_CARD_TERMINAL' | translate }}
-          </h3>
-          <button class="close-btn" (click)="closePaymentOptions()">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <p class="modal-subtitle">{{ 'PAYMENTS.MESSAGE_HINT' | translate }}</p>
-
-        <textarea
-          class="payment-message-input"
-          [ngModel]="paymentMessage()"
-          (ngModelChange)="paymentMessage.set($event)"
-          [placeholder]="'PAYMENTS.MESSAGE_PLACEHOLDER' | translate"
-          rows="3"
-          maxlength="500"
-        ></textarea>
-
-        <div class="modal-actions">
-          <button class="btn-secondary" (click)="backToPaymentOptions()">{{ 'COMMON.BACK' | translate }}</button>
-          <button class="btn-primary" (click)="submitPaymentRequest()" [disabled]="paymentRequestSending()">
-            @if (paymentRequestSending()) {
-            <span class="spinner-small"></span>
             }
-            {{ 'PAYMENTS.REQUEST_PAYMENT' | translate }}
           </button>
-        </div>
+
         </div>
         }
 
@@ -955,10 +933,10 @@
             </svg>
           </div>
           <h3 class="modal-title">
-            {{ 'PAYMENTS.PAYMENT_REQUESTED' | translate }}
+            {{ 'PAYMENTS.CASHIER_PAYMENT_REQUESTED' | translate }}
           </h3>
           <p class="modal-subtitle">
-            {{ 'PAYMENTS.PAYMENT_REQUESTED_DESC' | translate }}
+            {{ 'PAYMENTS.CASHIER_PAYMENT_REQUESTED_DESC' | translate }}
           </p>
           <div class="modal-actions">
             <button class="btn-primary full-width" (click)="closePaymentOptions()">{{ 'MENU.DONE' | translate }}</button>

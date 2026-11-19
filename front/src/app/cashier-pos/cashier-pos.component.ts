@@ -112,9 +112,31 @@ type QueueResolutionAction = 'cancelled' | 'no_show';
               <h1>Service counter</h1>
               <p class="subcopy">Pick a table, build the order, take payment.</p>
             </div>
-            <button type="button" class="btn btn-secondary" (click)="loadData()" [disabled]="loading()">
-              {{ loading() ? 'Refreshing...' : 'Refresh board' }}
-            </button>
+            <div class="pos-header-actions">
+              <div class="customer-payment-control">
+                <div>
+                  <span class="micro-label">Customer online payment</span>
+                  <strong>{{ customerOnlinePaymentEnabled() ? 'On' : 'Off' }}</strong>
+                  <small>
+                    {{ customerOnlinePaymentEnabled() ? 'QR guests can pay online' : 'QR guests pay at cashier' }}
+                  </small>
+                </div>
+                <button
+                  type="button"
+                  class="payment-toggle"
+                  role="switch"
+                  [class.payment-toggle--on]="customerOnlinePaymentEnabled()"
+                  [attr.aria-checked]="customerOnlinePaymentEnabled()"
+                  [attr.aria-label]="customerOnlinePaymentEnabled() ? 'Turn off customer online payment' : 'Turn on customer online payment'"
+                  [disabled]="onlinePaymentToggleSaving() || !settings()"
+                  (click)="toggleCustomerOnlinePayment()">
+                  <span></span>
+                </button>
+              </div>
+              <button type="button" class="btn btn-secondary" (click)="loadData()" [disabled]="loading()">
+                {{ loading() ? 'Refreshing...' : 'Refresh board' }}
+              </button>
+            </div>
           </div>
         </header>
 
@@ -1990,6 +2012,83 @@ type QueueResolutionAction = 'cancelled' | 'no_show';
       font-size: clamp(1.45rem, 2vw, 1.9rem);
     }
 
+    .pos-header-actions {
+      display: flex;
+      align-items: stretch;
+      justify-content: flex-end;
+      gap: 0.55rem;
+      flex-wrap: wrap;
+    }
+
+    .customer-payment-control {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      min-width: 15.5rem;
+      padding: 0.55rem 0.7rem;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .customer-payment-control > div {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      column-gap: 0.5rem;
+      align-items: center;
+    }
+
+    .customer-payment-control strong {
+      color: var(--color-primary-strong);
+    }
+
+    .customer-payment-control small {
+      grid-column: 1 / -1;
+      color: var(--color-text-muted);
+      font-size: 0.72rem;
+      line-height: 1.25;
+    }
+
+    .payment-toggle {
+      position: relative;
+      width: 3rem;
+      height: 1.7rem;
+      flex: 0 0 auto;
+      padding: 0;
+      border: 0;
+      border-radius: 999px;
+      background: #9ca3af;
+      cursor: pointer;
+      transition: background 0.18s ease;
+    }
+
+    .payment-toggle span {
+      position: absolute;
+      top: 0.2rem;
+      left: 0.2rem;
+      width: 1.3rem;
+      height: 1.3rem;
+      border-radius: 50%;
+      background: white;
+      box-shadow: 0 1px 4px rgba(15, 23, 42, 0.28);
+      transition: transform 0.18s ease;
+    }
+
+    .payment-toggle--on {
+      background: var(--color-success, #16a34a);
+    }
+
+    .payment-toggle--on span {
+      transform: translateX(1.3rem);
+    }
+
+    .payment-toggle:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+
     .subcopy {
       margin: var(--space-2) 0 0;
       color: var(--color-text-muted);
@@ -3613,9 +3712,19 @@ type QueueResolutionAction = 'cancelled' | 'no_show';
 
       .header-copy {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr);
         align-items: end;
         gap: 0.5rem;
+      }
+
+      .pos-header-actions {
+        width: 100%;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .customer-payment-control {
+        min-width: 0;
       }
 
       .header-copy h1 {
@@ -6230,6 +6339,7 @@ export class CashierPosComponent {
   queueActionId = signal<number | null>(null);
   queueSeatEntry = signal<GuestQueueEntry | null>(null);
   queueSeatTargetId = signal<number | null>(null);
+  onlinePaymentToggleSaving = signal(false);
 
   /**
    * The POS now uses the table-service drawer as the single ordering/payment workflow.
@@ -6248,6 +6358,9 @@ export class CashierPosComponent {
   private queueRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
   settings = signal<TenantSettings | null>(null);
+  customerOnlinePaymentEnabled = computed(
+    () => this.settings()?.customer_online_payment_enabled !== false,
+  );
   tables = signal<CanvasTable[]>([]);
   orders = signal<Order[]>([]);
   tenantProducts = signal<TenantProduct[]>([]);
@@ -7113,6 +7226,31 @@ export class CashierPosComponent {
 
   loadData(): void {
     void this.refreshPosData({ setLoading: true, clearError: true });
+  }
+
+  async toggleCustomerOnlinePayment(): Promise<void> {
+    if (!this.settings() || this.onlinePaymentToggleSaving()) return;
+    const enabled = !this.customerOnlinePaymentEnabled();
+    this.onlinePaymentToggleSaving.set(true);
+    this.error.set(null);
+    try {
+      const result = await firstValueFrom(this.api.updateCustomerOnlinePayment(enabled));
+      this.settings.update((current) => current ? {
+        ...current,
+        customer_online_payment_enabled:
+          result.customer_online_payment_enabled !== false,
+        tenant_hitpay_configured: result.tenant_hitpay_configured,
+      } : current);
+      this.notice.set(
+        enabled
+          ? 'Customer online payment is on. QR guests can pay online.'
+          : 'Customer online payment is off. QR guests will pay at the cashier.',
+      );
+    } catch (err) {
+      this.error.set(this.getErrorMessage(err, 'Unable to update customer online payment.'));
+    } finally {
+      this.onlinePaymentToggleSaving.set(false);
+    }
   }
 
   private async refreshPosData(

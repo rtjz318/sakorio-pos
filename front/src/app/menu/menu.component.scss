@@ -2619,6 +2619,27 @@ $cart-expanded-max: 60vh;
   gap: var(--space-2);
 }
 
+.payment-option-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-warning, #d97706) 35%, var(--color-border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-warning, #d97706) 8%, var(--color-surface));
+
+  strong {
+    color: var(--color-text);
+    font-size: 0.9rem;
+  }
+
+  span {
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+    line-height: 1.35;
+  }
+}
+
 .payment-option-btn {
   display: flex;
   align-items: center;

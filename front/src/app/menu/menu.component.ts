@@ -89,6 +89,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   defaultTaxRatePercent = signal(0);
   tenantPublicBackgroundColor = signal<string | null>(null);
   tenantHitPayConfigured = signal(false);
+  customerOnlinePaymentEnabled = signal(true);
   tenantHeaderBackgroundFilename = signal<string | null>(null);
 
   // Cart & Orders
@@ -137,9 +138,7 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   // Payment options
   showPaymentOptions = signal(false);
-  paymentOptionsStep = signal<'choose' | 'message' | 'success'>('choose');
-  paymentMessageTarget = signal<'card_terminal' | null>(null);
-  paymentMessage = signal('');
+  paymentOptionsStep = signal<'choose' | 'success'>('choose');
   paymentRequestSending = signal(false);
   paymentRequestSuccess = signal(false);
 
@@ -273,8 +272,6 @@ export class MenuComponent implements OnInit, OnDestroy {
     this.paymentAmount.set(0);
     this.showPaymentOptions.set(false);
     this.paymentOptionsStep.set('choose');
-    this.paymentMessage.set('');
-    this.paymentMessageTarget.set(null);
     this.paymentRequestSending.set(false);
     this.paymentRequestSuccess.set(false);
 
@@ -423,6 +420,9 @@ export class MenuComponent implements OnInit, OnDestroy {
         this.tenantHeaderBackgroundFilename.set(data.tenant_header_background_filename ?? null);
 
         this.tenantHitPayConfigured.set(!!data.tenant_hitpay_configured);
+        this.customerOnlinePaymentEnabled.set(
+          data.tenant_customer_online_payment_enabled !== false,
+        );
 
         // Table session status
         this.tableIsActive.set(data.table_is_active !== false);  // Default true for backward compatibility
@@ -523,6 +523,8 @@ export class MenuComponent implements OnInit, OnDestroy {
             );
           }
           this.loadStoredOrders();
+        } else if (data.type === 'customer_online_payment_changed') {
+          this.customerOnlinePaymentEnabled.set(data.enabled === true);
         } else if (data.type === 'item_removed' || data.type === 'item_updated' || data.type === 'order_cancelled' || data.type === 'items_added' || data.type === 'new_order') {
           this.audio.playCustomerOrderChange();
           this.loadStoredOrders();
@@ -1420,8 +1422,6 @@ export class MenuComponent implements OnInit, OnDestroy {
     this.currentOrderId = order.id;
     this.paymentAmount.set(order.total);
     this.paymentOptionsStep.set('choose');
-    this.paymentMessage.set('');
-    this.paymentMessageTarget.set(null);
     this.paymentRequestSuccess.set(false);
     this.showPaymentOptions.set(true);
   }
@@ -1434,6 +1434,10 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   selectPayHitPay() {
     if (!this.currentOrderId || !this.tableToken) return;
+    if (!this.customerOnlinePaymentEnabled()) {
+      alert('Online payment is currently unavailable. Please pay at the cashier.');
+      return;
+    }
     this.paymentRequestSending.set(true);
     this.api.createHitPayPaymentRequest(this.currentOrderId, this.tableToken).subscribe({
       next: (res) => {
@@ -1451,24 +1455,15 @@ export class MenuComponent implements OnInit, OnDestroy {
     });
   }
 
-  selectPayCard() {
-    this.paymentMessageTarget.set('card_terminal');
-    this.paymentOptionsStep.set('message');
-  }
-
-  submitPaymentRequest() {
-    const target = this.paymentMessageTarget();
-    const message = this.paymentMessage().trim() || undefined;
-    if (target !== 'card_terminal') {
-      return;
-    }
+  payAtCashier() {
+    if (!this.currentOrderId || !this.tableToken || this.paymentRequestSending()) return;
     this.paymentRequestSending.set(true);
 
     this.api.requestPayment(
       this.tableToken,
       this.currentOrderId,
-      target,
-      message,
+      'card_terminal',
+      undefined,
       this.staffAccess ?? undefined,
       this.qrAccess ?? undefined,
     ).subscribe({
@@ -1486,14 +1481,6 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   closePaymentOptions() {
     this.showPaymentOptions.set(false);
-    this.paymentMessage.set('');
-    this.paymentMessageTarget.set(null);
-  }
-
-  backToPaymentOptions() {
-    this.paymentOptionsStep.set('choose');
-    this.paymentMessage.set('');
-    this.paymentMessageTarget.set(null);
   }
 
 }

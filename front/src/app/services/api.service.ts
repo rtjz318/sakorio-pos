@@ -1481,6 +1481,7 @@ export interface MenuResponse {
   tenant_currency?: string | null;
   tenant_currency_code?: string | null;
   tenant_hitpay_configured?: boolean;
+  tenant_customer_online_payment_enabled?: boolean;
   tenant_immediate_payment_required?: boolean;
   tenant_service_charge_percent?: number;
   tenant_prices_include_tax?: boolean;
@@ -1541,6 +1542,10 @@ export interface TenantSettings {
   hitpay_api_key?: string | null;
   hitpay_webhook_salt?: string | null;
   hitpay_mode?: 'sandbox' | 'live' | string | null;
+  /** Operational switch controlled from the cashier POS. */
+  customer_online_payment_enabled?: boolean;
+  /** Safe configured/not-configured indicator; never contains the API key. */
+  tenant_hitpay_configured?: boolean;
   logo_size_bytes?: number | null;
   logo_size_formatted?: string | null;
   /** Staff clock QR is configured (no secret exposed). */
@@ -2986,6 +2991,14 @@ export class ApiService {
         this.tenantIsDemo.set(s?.is_demo === true);
       })
     );
+  }
+
+  updateCustomerOnlinePayment(
+    enabled: boolean,
+  ): Observable<Pick<TenantSettings, 'customer_online_payment_enabled' | 'tenant_hitpay_configured'>> {
+    return this.http.put<
+      Pick<TenantSettings, 'customer_online_payment_enabled' | 'tenant_hitpay_configured'>
+    >(`${this.apiUrl}/tenant/service-settings/customer-online-payment`, { enabled });
   }
 
   getOpeningHoursSchedule(): Observable<OpeningHoursScheduleResponse> {

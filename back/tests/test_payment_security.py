@@ -2,14 +2,14 @@ import hashlib
 import hmac
 import json
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import requests
 from pg_client_mixin import PgClientTestCase
 from sqlmodel import select
 
-from app import main, models
+from app import main, models, security
 
 
 class TestPaymentSecurity(PgClientTestCase):
@@ -54,6 +54,28 @@ class TestPaymentSecurity(PgClientTestCase):
         self.session.commit()
         self.session.refresh(self.product)
 
+        self.cashier = models.User(
+            email="payment-cashier@sakorio.sg",
+            hashed_password=security.get_password_hash("test-only-password"),
+            full_name="Payment Cashier",
+            role=models.UserRole.waiter,
+            tenant_id=self.tenant.id,
+        )
+        self.session.add(self.cashier)
+        self.session.commit()
+        self.session.refresh(self.cashier)
+
+    def _headers(self) -> dict[str, str]:
+        token = security.create_access_token(
+            {
+                "sub": self.cashier.email,
+                "tenant_id": self.cashier.tenant_id,
+                "token_version": self.cashier.token_version,
+            },
+            expires_delta=timedelta(minutes=30),
+        )
+        return {"Authorization": f"Bearer {token}"}
+
     def _create_order(self) -> int:
         response = self.client.post(
             f"/menu/{self.table.token}/order",
@@ -86,6 +108,80 @@ class TestPaymentSecurity(PgClientTestCase):
 
         self.assertEqual(response.status_code, 403, response.text)
         self.assertEqual(response.json()["detail"]["code"], "TABLE_ACCESS_REQUIRED")
+
+    def test_public_menu_exposes_customer_online_payment_switch(self):
+        response = self.client.get(
+            f"/menu/{self.table.token}",
+            params={"qr_access": main._sign_public_table_qr_access(self.table.token)},
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()["tenant_customer_online_payment_enabled"])
+
+    def test_cashier_can_toggle_customer_online_payment_for_own_tenant(self):
+        response = self.client.put(
+            "/tenant/service-settings/customer-online-payment",
+            json={"enabled": False},
+            headers=self._headers(),
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertFalse(response.json()["customer_online_payment_enabled"])
+        self.session.expire_all()
+        tenant = self.session.get(models.Tenant, self.tenant.id)
+        self.assertIsNotNone(tenant)
+        self.assertFalse(tenant.customer_online_payment_enabled)
+
+        settings_response = self.client.get(
+            "/tenant/service-settings",
+            headers=self._headers(),
+        )
+        self.assertEqual(settings_response.status_code, 200, settings_response.text)
+        self.assertFalse(settings_response.json()["customer_online_payment_enabled"])
+
+    @patch("app.main._hitpay_create_payment_request")
+    def test_disabled_customer_online_payment_blocks_public_hitpay(self, mock_create):
+        self.tenant.customer_online_payment_enabled = False
+        self.session.add(self.tenant)
+        self.session.commit()
+        order_id = self._create_order()
+
+        response = self.client.post(
+            f"/orders/{order_id}/create-hitpay-payment-request",
+            params={"table_token": self.table.token},
+        )
+
+        self.assertEqual(response.status_code, 403, response.text)
+        self.assertEqual(
+            response.json()["detail"],
+            "Online payment is currently unavailable. Please pay at the cashier.",
+        )
+        mock_create.assert_not_called()
+
+    @patch("app.main._hitpay_create_payment_request")
+    def test_disabled_customer_online_payment_keeps_cashier_hitpay_available(self, mock_create):
+        self.tenant.customer_online_payment_enabled = False
+        self.session.add(self.tenant)
+        self.session.commit()
+        order_id = self._create_order()
+        mock_create.return_value = {
+            "id": "hp_req_cashier",
+            "url": "https://checkout.test/hp_req_cashier",
+        }
+
+        response = self.client.post(
+            f"/orders/{order_id}/create-hitpay-payment-request",
+            params={"table_token": self.table.token},
+            json={"redirect_path": "/pos"},
+            headers=self._headers(),
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(
+            response.json()["checkout_url"],
+            "https://checkout.test/hp_req_cashier",
+        )
+        mock_create.assert_called_once()
 
     def test_add_on_withdraws_terminal_payment_request_and_refreshes_total(self):
         order_id = self._create_order()

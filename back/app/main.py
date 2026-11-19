@@ -686,6 +686,29 @@ def publish_order_update(tenant_id: int, order_data: dict, table_id: int | None 
             pass  # Fail silently if Redis unavailable
 
 
+def publish_customer_online_payment_setting(
+    tenant_id: int,
+    table_ids: list[int],
+    enabled: bool,
+) -> None:
+    """Push the customer self-payment switch to staff and open table QR pages."""
+    r = get_redis()
+    if not r:
+        return
+    payload = json.dumps(
+        {
+            "type": "customer_online_payment_changed",
+            "enabled": enabled,
+        }
+    )
+    try:
+        r.publish(f"orders:tenant:{tenant_id}", payload)
+        for table_id in table_ids:
+            r.publish(f"orders:table:{table_id}", payload)
+    except Exception:
+        pass  # The saved setting remains authoritative if Redis is unavailable.
+
+
 def publish_reservation_update(tenant_id: int, reservation_data: dict) -> None:
     """Publish reservation update to Redis for WebSocket bridge.
     Channel: reservations:tenant:{tenant_id} (for restaurant owners).
@@ -3586,10 +3609,53 @@ def get_tenant_service_settings(
         "default_tax_rate_percent": (
             int(default_tax.rate_percent) if default_tax else 0
         ),
+        "customer_online_payment_enabled": bool(tenant.customer_online_payment_enabled),
+        "tenant_hitpay_configured": bool(_tenant_hitpay_api_key(tenant)),
         "ui_modules": resolve_tenant_ui_modules(tenant.ui_modules),
     }
     apply_tenant_currency_api_dict(tenant_dict)
     return tenant_dict
+
+
+class CustomerOnlinePaymentSetting(_BaseModel):
+    enabled: bool
+
+
+@app.put("/tenant/service-settings/customer-online-payment")
+@limiter.limit(
+    f"{getattr(settings, 'rate_limit_admin_per_minute', 30)}/minute",
+    key_func=_rate_limit_key_user,
+)
+def update_customer_online_payment_setting(
+    request: Request,
+    response: Response,
+    setting: CustomerOnlinePaymentSetting,
+    current_user: Annotated[
+        models.User,
+        Depends(require_permission(Permission.ORDER_MARK_PAID)),
+    ],
+    session: Session = Depends(get_session),
+) -> dict:
+    """Allow cashier-capable staff to control customer QR self-payment."""
+    tenant = session.get(models.Tenant, current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    tenant.customer_online_payment_enabled = setting.enabled
+    session.add(tenant)
+    session.commit()
+    table_ids = [
+        table_id
+        for table_id in session.exec(
+            select(models.Table.id).where(models.Table.tenant_id == tenant.id)
+        ).all()
+        if table_id is not None
+    ]
+    publish_customer_online_payment_setting(tenant.id, table_ids, setting.enabled)
+    return {
+        "customer_online_payment_enabled": bool(tenant.customer_online_payment_enabled),
+        "tenant_hitpay_configured": bool(_tenant_hitpay_api_key(tenant)),
+    }
 
 
 @app.put("/tenant/settings")
@@ -3749,6 +3815,8 @@ def update_tenant_settings(
             tenant.hitpay_mode = "sandbox"
         else:
             raise HTTPException(status_code=400, detail="hitpay_mode must be sandbox or live")
+    if tenant_update.customer_online_payment_enabled is not None:
+        tenant.customer_online_payment_enabled = tenant_update.customer_online_payment_enabled
 
     if tenant_update.fiscal_mode is not None:
         fm = tenant_update.fiscal_mode.strip().lower() if isinstance(tenant_update.fiscal_mode, str) else ""
@@ -13187,6 +13255,9 @@ def get_menu(
         )[0],
         "tenant_currency": _menu_cc[1],
         "tenant_hitpay_configured": bool(_tenant_hitpay_api_key(tenant)),
+        "tenant_customer_online_payment_enabled": bool(
+            tenant.customer_online_payment_enabled
+        ) if tenant else False,
         "tenant_immediate_payment_required": tenant.immediate_payment_required
         if tenant
         else False,
@@ -14043,7 +14114,7 @@ def create_staff_order(
 
 
 class PaymentRequest(_BaseModel):
-    payment_method: str  # Customer QR payment request: 'card_terminal' only. HitPay uses its own endpoint.
+    payment_method: str  # Customer cashier handoff: 'card_terminal' only. HitPay uses its own endpoint.
     message: str | None = None  # Optional message/observation from customer
     staff_access: str | None = None
     qr_access: str | None = None
@@ -14073,8 +14144,8 @@ def request_payment(
     session: Session = Depends(get_session),
 ) -> dict:
     """
-    Public endpoint - customer requests payment via card terminal.
-    Notifies staff via WebSocket so they can come to the table.
+    Public endpoint - customer says they will pay at the cashier.
+    Marks the bill as requested and notifies staff without asking a waiter to visit.
     """
     table = session.exec(
         select(models.Table).where(models.Table.token == table_token)
@@ -14142,13 +14213,14 @@ def request_payment(
         if waiter:
             effective_waiter_name = waiter.full_name or waiter.email
 
-    # Notify staff via WebSocket
+    # Notify staff via WebSocket so the cashier can prepare the table bill.
     publish_order_update(table.tenant_id, {
         "type": "payment_requested",
         "order_id": order.id,
         "table_name": table.name,
         "table_id": table.id,
         "payment_method": normalized_payment_method,
+        "checkout_location": "cashier",
         "message": payment_request.message,
         "assigned_waiter_id": effective_waiter_id,
         "assigned_waiter_name": effective_waiter_name,
@@ -16455,6 +16527,10 @@ def create_hitpay_payment_request(
     response: Response,
     order_id: int,
     table_token: str,
+    current_user: Annotated[
+        models.User | None,
+        Depends(security.get_current_user_optional),
+    ],
     payment_request: HitPayPaymentRequestCreate | None = None,
     session: Session = Depends(get_session),
 ) -> dict:
@@ -16484,6 +16560,16 @@ def create_hitpay_payment_request(
     ).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    staff_checkout = bool(
+        current_user
+        and current_user.tenant_id == tenant.id
+        and has_permission(current_user, Permission.ORDER_MARK_PAID)
+    )
+    if not tenant.customer_online_payment_enabled and not staff_checkout:
+        raise HTTPException(
+            status_code=403,
+            detail="Online payment is currently unavailable. Please pay at the cashier.",
+        )
     total_cents = calculate_order_totals(items, tenant=tenant, order=order).total_cents
     if total_cents <= 0:
         raise HTTPException(status_code=400, detail="Order has no items")

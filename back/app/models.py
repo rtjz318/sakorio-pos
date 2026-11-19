@@ -137,6 +137,9 @@ class Tenant(SQLModel, table=True):
     hitpay_mode: str | None = Field(
         default="sandbox", max_length=16
     )  # "sandbox" or "live"
+    customer_online_payment_enabled: bool = Field(
+        default=True
+    )  # Staff-controlled switch for customer QR self-payment
 
     # Inventory Management (commented out - migration not applied)
     # inventory_tracking_enabled: bool = Field(
@@ -1515,6 +1518,7 @@ class TenantUpdate(SQLModel):
     hitpay_api_key: str | None = None
     hitpay_webhook_salt: str | None = None
     hitpay_mode: str | None = None
+    customer_online_payment_enabled: bool | None = None
     # inventory_tracking_enabled: bool | None = None  # Commented out - migration not applied
 
     # Location verification settings

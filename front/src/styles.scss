@@ -230,8 +230,63 @@ select {
   }
 }
 
-/* Guest feedback: print only the QR block (see GuestFeedbackComponent.printFeedbackQr) */
+/* QR print modes isolate the selected QR card from the surrounding staff interface. */
 @media print {
+  body.sakorio-table-qr-printing {
+    * {
+      visibility: hidden !important;
+    }
+
+    .table-qr-print,
+    .table-qr-print * {
+      visibility: visible !important;
+    }
+
+    .table-qr-print {
+      position: fixed !important;
+      inset: 0 !important;
+      z-index: 99999 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 1rem !important;
+      padding: 1.5rem !important;
+      color: #111 !important;
+      background: #fff !important;
+    }
+
+    .table-qr-print .quick-qr-actions,
+    .table-qr-print .quick-qr-fallback,
+    .table-qr-print .table-service-alert,
+    .table-qr-print .table-service-success {
+      display: none !important;
+    }
+
+    .table-qr-print .quick-qr-card {
+      width: min(100%, 26rem) !important;
+      padding: 2rem !important;
+      border: 2px solid #111 !important;
+      border-radius: 1rem !important;
+      box-shadow: none !important;
+      background: #fff !important;
+      text-align: center !important;
+    }
+
+    .table-qr-print .quick-qr-card strong {
+      display: block !important;
+      margin-top: 0.8rem !important;
+      font-size: 2.2rem !important;
+    }
+
+    .table-qr-print .quick-qr-card small {
+      display: block !important;
+      margin-top: 0.5rem !important;
+      font-size: 0.65rem !important;
+      overflow-wrap: anywhere !important;
+    }
+  }
+
   body.print-feedback-qr-only {
     .layout > .sidebar,
     .layout > .mobile-header,

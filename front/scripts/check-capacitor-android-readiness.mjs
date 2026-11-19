@@ -33,7 +33,9 @@ const dependencies = {
 
 for (const dependency of ['@capacitor/core', '@capacitor/cli', '@capacitor/android']) {
   if (!dependencies[dependency]) {
-    warnings.push(`${dependency} is not installed yet. Add it in the dedicated Android dependency pass.`);
+    warnings.push(
+      `${dependency} is not installed yet. Add it in the dedicated Android dependency pass.`,
+    );
   }
 }
 
@@ -59,9 +61,24 @@ for (const marker of [
   'SPP_UUID',
   'payloadBase64',
   'androidBluetoothSpp',
+  'isLikelyReceiptPrinter',
+  'createInsecureRfcommSocketToServiceRecord',
+  'lower.contains("epson")',
+  'lower.startsWith("tm-")',
+  'result.put("protocol", "escpos")',
 ]) {
   if (!java.includes(marker)) {
     failures.push(`Android plugin missing marker: ${marker}`);
+  }
+}
+
+const generatedPrinterPlugin = 'android/app/src/main/java/com/sakorio/pos/Xp80tPrinterPlugin.java';
+if (existsSync(join(root, generatedPrinterPlugin))) {
+  const generatedJava = readFileSync(join(root, generatedPrinterPlugin), 'utf8');
+  if (generatedJava.trim() !== java.trim()) {
+    failures.push(
+      'Generated Android printer plugin differs from the canonical native scaffold.',
+    );
   }
 }
 
@@ -87,6 +104,9 @@ if (existsSync(join(root, 'android/app/src/main/java/com/sakorio/pos/MainActivit
   );
   if (!activity.includes('registerPlugin(SakorioSecureStoragePlugin.class)')) {
     failures.push('Generated Android app does not register SakorioSecureStoragePlugin.');
+  }
+  if (!activity.includes('registerPlugin(Xp80tPrinterPlugin.class)')) {
+    failures.push('Generated Android app does not register the Bluetooth ESC/POS plugin.');
   }
 }
 

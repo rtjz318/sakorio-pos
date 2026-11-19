@@ -31,7 +31,7 @@ export function evaluateXp80tReadiness(input: Xp80tReadinessInput): Xp80tReadine
       label: 'Tablet app plugin',
       ok: input.nativeReady,
       detail: input.nativeReady
-        ? 'Native XP-80T plugin detected.'
+        ? 'Native Bluetooth ESC/POS plugin detected.'
         : 'Open Sakorio through the native Android tablet app, not browser mode.',
     },
     {
@@ -39,8 +39,8 @@ export function evaluateXp80tReadiness(input: Xp80tReadinessInput): Xp80tReadine
       label: 'Bluetooth printer',
       ok: input.bluetoothConnected,
       detail: input.bluetoothConnected
-        ? 'XP-80T printer is connected.'
-        : 'Allow Bluetooth, scan, then connect the XP-80T printer.',
+        ? 'Bluetooth ESC/POS printer is connected.'
+        : 'Allow Bluetooth, scan, then connect the paired XPrinter or Epson TM printer.',
     },
     {
       id: 'token',
@@ -104,7 +104,7 @@ export function evaluateXp80tReadiness(input: Xp80tReadinessInput): Xp80tReadine
   return {
     ready,
     score,
-    label: ready ? 'Ready for XP-80T service' : 'XP-80T setup incomplete',
+    label: ready ? 'Ready for ESC/POS service' : 'ESC/POS setup incomplete',
     items,
     nextAction: firstMissing?.detail || 'Run a real receipt print test before launch.',
   };

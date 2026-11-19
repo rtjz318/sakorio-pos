@@ -65,6 +65,11 @@ for (const marker of [
   'SPP_UUID',
   'payloadBase64',
   'androidBluetoothSpp',
+  'isLikelyReceiptPrinter',
+  'createInsecureRfcommSocketToServiceRecord',
+  'lower.contains("epson")',
+  'lower.startsWith("tm-")',
+  'result.put("protocol", "escpos")',
 ]) {
   if (!java.includes(marker)) {
     console.error(`[xp80t-scaffold] Android plugin missing marker: ${marker}`);

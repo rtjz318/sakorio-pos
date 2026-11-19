@@ -85,7 +85,7 @@ const ready = evaluateXp80tReadiness({
 });
 assert(ready.ready === true, 'fully configured printer should be ready');
 assert(ready.score === 100, `ready score should be 100, got ${ready.score}`);
-assert(ready.label === 'Ready for XP-80T service', 'ready label should be launch positive');
+assert(ready.label === 'Ready for ESC/POS service', 'ready label should be vendor-neutral');
 
 if (failures.length) {
   console.error('[xp80t-readiness-test] failed');
@@ -93,4 +93,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('[xp80t-readiness-test] all XP-80T readiness scenarios passed');
+console.log('[xp80t-readiness-test] all Bluetooth ESC/POS readiness scenarios passed');

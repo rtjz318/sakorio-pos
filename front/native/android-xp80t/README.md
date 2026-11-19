@@ -1,30 +1,30 @@
-# XP-80T Android Bluetooth Printer Plugin
+# Android Bluetooth ESC/POS Printer Plugin
 
-This folder contains the Android native scaffold for Sakorio XP-80T Bluetooth receipt printing.
+This folder contains the Android native scaffold for Sakorio Bluetooth ESC/POS receipt printing. It supports XPrinter XP-80T, Epson TM models with Bluetooth Classic SPP, and compatible generic ESC/POS printers.
 
 ## Why Android-first
 
-The XP-80T Bluetooth model appeared as `Printer001` / Bluetooth serial during Windows testing. Android can usually connect to this kind of printer through Bluetooth Classic SPP, which is much more practical than iPad browser printing.
+The original XP-80T Bluetooth model appeared as `Printer001` / Bluetooth serial during Windows testing. Android can connect to this class of printer through Bluetooth Classic SPP. Epson TM Bluetooth support uses the same raw ESC/POS route when the selected model/interface exposes Classic SPP.
 
 The launch target is now:
 
 ```text
 Sakorio Android Tablet App
 → Capacitor WebView running the existing Angular staff POS
-→ native Android Xp80tPrinter plugin
-→ Bluetooth SPP / Xprinter Android SDK
-→ XP-80T ESC/POS printer
+→ native Android Xp80tPrinter plugin (legacy API name)
+→ Bluetooth Classic SPP
+→ XPrinter / Epson TM / compatible ESC/POS printer
 ```
 
 ## Expected shop workflow
 
-1. Turn on XP-80T.
+1. Turn on the supported Bluetooth ESC/POS printer.
 2. On Android tablet, open Bluetooth settings.
-3. Pair with `Printer001` / XP-80T using PIN `0000`.
+3. Pair with the printer using the PIN or pairing method in its manufacturer manual.
 4. Open Sakorio Android app.
 5. Go to Settings → Printing.
 6. Scan paired devices.
-7. Select XP-80T.
+7. Select the paired printer. Sakorio labels Epson and XPrinter devices automatically.
 8. Print test receipt.
 9. Leave the printer worker running while POS is open.
 
@@ -48,20 +48,21 @@ This means the existing Angular service can stay mostly unchanged.
 `Xp80tPrinterPlugin.java` currently:
 
 - scans paired/bonded Bluetooth devices;
-- filters likely printer names;
+- recognises Android imaging devices and likely XPrinter, Epson TM and generic receipt-printer names;
 - connects using Bluetooth SPP UUID `00001101-0000-1000-8000-00805F9B34FB`;
+- retries with Android's insecure RFCOMM socket for already-paired printers that reject authenticated SPP;
 - writes base64-decoded ESC/POS bytes to the printer output stream;
 - reports status and disconnects cleanly.
 
-## Future SDK route
+## Vendor SDK fallback
 
-If the official Xprinter Android SDK is available and provides more reliable discovery/connection, keep the same JavaScript API and replace the transport internals.
+The raw SPP route avoids bundling a vendor SDK and preserves one workflow for supported XPrinter and Epson devices. If a particular Epson model does not expose Bluetooth Classic SPP, integrate Epson ePOS SDK behind the same JavaScript API rather than changing the POS workflow.
 
 Recommended order:
 
-1. Test current Bluetooth SPP scaffold with the real XP-80T.
+1. Test the Bluetooth SPP scaffold with each approved physical printer model.
 2. If stable, launch with SPP.
-3. If unstable, wire the Xprinter Android SDK behind the same plugin API.
+3. If a model is not SPP-compatible, wire its official vendor SDK behind the same plugin API.
 
 ## Required Android permissions
 
@@ -73,8 +74,8 @@ For Android 12+, Bluetooth permissions may also need runtime permission handling
 
 The Android app route is accepted only when the real Android tablet can:
 
-- pair with XP-80T;
-- find XP-80T inside Sakorio;
+- pair with the approved XPrinter or Epson TM model;
+- find and correctly label it inside Sakorio;
 - connect;
 - print short test receipt;
 - print kitchen tickets;

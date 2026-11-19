@@ -161,3 +161,44 @@ So **by itself**, in-browser “native JavaScript” cannot print to LAN printer
 - **Simplest for “staff PC in the restaurant”**: Use **Option A**. Install **WebApp Hardware Bridge** on the staff PC; in the Angular app, add a small service that connects to `ws://localhost:8443` (or `ws://<bridge-host>:8443`). When the bridge is connected, send kitchen/receipt jobs (e.g. ESC/POS or PDF) to the mapped printer keys; when not connected, fall back to `window.print()` or show “Printer bridge offline”. No browser extension or extra backend push is required for staff-triggered printing.
 - **Fully automatic (no browser)**: Use **Option C**. Run a small **Node (or Python) agent** on a device on the restaurant’s WiFi that polls or subscribes (WebSocket) to the backend; on “order confirmed” / “payment received”, the backend enqueues or pushes a job and the agent prints to the configured LAN printer(s).
 - **Browser extension**: Use **Option B** only if you specifically need extension-based install (e.g. enterprise Chrome policy). Otherwise Option A is easier to deploy and maintain.
+
+---
+
+## 9. Native Android Bluetooth ESC/POS route
+
+The Sakorio Android app can print directly to a paired Bluetooth Classic SPP receipt printer without a PC bridge. The native plugin keeps its historical `Xp80tPrinter` API name so existing APK integrations continue to work, but the transport is vendor-neutral.
+
+Supported software path:
+
+```text
+Sakorio Android app
+→ printer-agent job lease
+→ shared ESC/POS receipt renderer
+→ Android Bluetooth Classic SPP
+→ paired XPrinter, Epson TM, or compatible ESC/POS printer
+```
+
+### Epson compatibility boundary
+
+- Epson TM models that expose Bluetooth Classic SPP and accept ESC/POS bytes use the same direct path as XP-80T.
+- Sakorio recognises paired names containing `EPSON` and common `TM-...` model prefixes, as well as Android imaging-class printers.
+- Secure RFCOMM is attempted first. An insecure RFCOMM fallback is used only for a device the operator has already paired in Android settings.
+- A model with only BLE, Wi-Fi, USB, or a vendor-specific transport is not automatically covered by this SPP path. Use the Epson ePOS SDK or the LAN print-agent route for that model.
+
+### Setup
+
+1. Confirm the exact Epson model has the Bluetooth interface installed and supports ESC/POS.
+2. Pair it in Android Settings → Bluetooth using the printer manual's pairing procedure.
+3. Open Sakorio → Settings → Printing.
+4. Allow Bluetooth and select **Scan paired printers**.
+5. Select the device labelled **Epson ESC/POS**.
+6. Configure the printer-agent token and start the tablet print worker.
+7. Print one kitchen ticket and one customer receipt; verify characters, 80 mm width, totals, cut, reconnect, and job completion.
+
+Physical acceptance is required for every exact printer model before restaurant deployment. Passing the scaffold and receipt-renderer tests proves the software contract, not the radio/interface behaviour of untested hardware.
+
+Official references:
+
+- Epson ESC/POS reference: <https://download4.epson.biz/sec_pubs/pos/reference_en/>
+- Epson ePOS SDK overview: <https://download4.epson.biz/sec_pubs/pos/reference_en/technology/epson_epos_sdk.html>
+- Epson ESC/POS applicable models: <https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/applicables.html>

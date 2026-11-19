@@ -1,7 +1,4 @@
-import {
-  EscposReceiptPayload,
-  renderEscposReceipt,
-} from './escpos-receipt-renderer';
+import { EscposReceiptPayload, renderEscposReceipt } from './escpos-receipt-renderer';
 
 export interface LeasedPrintJob {
   id: number;
@@ -48,7 +45,7 @@ export async function runIpadPrintJob(
             'message' in error &&
             typeof error.message === 'string'
           ? error.message
-          : 'XP-80T print failed.';
+          : 'ESC/POS print failed.';
     await runner.fail(job.id, job.lease_token, message);
     return {
       jobId: job.id,

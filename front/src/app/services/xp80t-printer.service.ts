@@ -1,25 +1,50 @@
 import { Injectable, signal } from '@angular/core';
 
-export interface Xp80tPrinterDevice {
+export type EscPosPrinterVendor = 'epson' | 'xprinter' | 'generic';
+
+export interface BluetoothEscPosPrinterDevice {
   id: string;
   name: string;
   rssi?: number;
+  vendor?: EscPosPrinterVendor;
+  protocol?: 'escpos';
+  transport?: 'androidBluetoothSpp';
 }
 
-export interface Xp80tPrinterStatus {
+export interface BluetoothEscPosPrinterStatus {
   available: boolean;
   connected: boolean;
   deviceName?: string;
+  vendor?: EscPosPrinterVendor;
+  protocol?: 'escpos';
+  transport?: string;
   error?: string;
 }
 
+// Backwards-compatible type names for integrations compiled against the
+// original XPrinter-only service.
+export type Xp80tPrinterDevice = BluetoothEscPosPrinterDevice;
+export type Xp80tPrinterStatus = BluetoothEscPosPrinterStatus;
+
 interface Xp80tPrinterPlugin {
   requestPermissions(): Promise<{ bluetooth: 'granted' | 'denied' | 'prompt' }>;
-  scan(): Promise<{ devices: Xp80tPrinterDevice[] }>;
-  connect(options: { deviceId: string }): Promise<{ connected: boolean; deviceName?: string }>;
+  scan(): Promise<{ devices: BluetoothEscPosPrinterDevice[] }>;
+  connect(options: { deviceId: string }): Promise<{
+    connected: boolean;
+    deviceName?: string;
+    vendor?: EscPosPrinterVendor;
+    protocol?: 'escpos';
+    transport?: string;
+  }>;
   disconnect(): Promise<void>;
   print(options: { jobId: number; payloadBase64: string }): Promise<{ printed: boolean }>;
-  getStatus(): Promise<{ connected: boolean; deviceName?: string }>;
+  getStatus(): Promise<{
+    connected: boolean;
+    deviceName?: string;
+    vendor?: EscPosPrinterVendor;
+    protocol?: 'escpos';
+    transport?: string;
+  }>;
 }
 
 declare global {
@@ -33,7 +58,7 @@ declare global {
 
 @Injectable({ providedIn: 'root' })
 export class Xp80tPrinterService {
-  readonly status = signal<Xp80tPrinterStatus>({
+  readonly status = signal<BluetoothEscPosPrinterStatus>({
     available: false,
     connected: false,
   });
@@ -47,12 +72,12 @@ export class Xp80tPrinterService {
       ?.Xp80tPrinter;
   }
 
-  async refreshStatus(): Promise<Xp80tPrinterStatus> {
+  async refreshStatus(): Promise<BluetoothEscPosPrinterStatus> {
     if (!this.plugin) {
       const status = {
         available: false,
         connected: false,
-        error: 'XP-80T native printer plugin is not available in this build.',
+        error: 'Bluetooth ESC/POS printer plugin is not available in this build.',
       };
       this.status.set(status);
       return status;
@@ -63,6 +88,9 @@ export class Xp80tPrinterService {
         available: true,
         connected: result.connected,
         deviceName: result.deviceName,
+        vendor: result.vendor,
+        protocol: result.protocol,
+        transport: result.transport,
       };
       this.status.set(status);
       return status;
@@ -83,18 +111,18 @@ export class Xp80tPrinterService {
     return result.bluetooth === 'granted';
   }
 
-  async scan(): Promise<Xp80tPrinterDevice[]> {
+  async scan(): Promise<BluetoothEscPosPrinterDevice[]> {
     if (!this.plugin) return [];
     const result = await this.plugin.scan();
     return result.devices;
   }
 
-  async connect(deviceId: string): Promise<Xp80tPrinterStatus> {
+  async connect(deviceId: string): Promise<BluetoothEscPosPrinterStatus> {
     if (!this.plugin) {
       const status = {
         available: false,
         connected: false,
-        error: 'XP-80T native printer plugin is not available in this build.',
+        error: 'Bluetooth ESC/POS printer plugin is not available in this build.',
       };
       this.status.set(status);
       return status;
@@ -104,6 +132,9 @@ export class Xp80tPrinterService {
       available: true,
       connected: result.connected,
       deviceName: result.deviceName,
+      vendor: result.vendor,
+      protocol: result.protocol,
+      transport: result.transport,
     };
     this.status.set(status);
     return status;
@@ -111,14 +142,14 @@ export class Xp80tPrinterService {
 
   async printEscPos(jobId: number, bytes: Uint8Array): Promise<void> {
     if (!this.plugin) {
-      throw new Error('XP-80T native printer plugin is not available in this build.');
+      throw new Error('Bluetooth ESC/POS printer plugin is not available in this build.');
     }
     const result = await this.plugin.print({
       jobId,
       payloadBase64: bytesToBase64(bytes),
     });
     if (!result.printed) {
-      throw new Error('XP-80T printer did not confirm print completion.');
+      throw new Error('ESC/POS printer did not confirm print completion.');
     }
   }
 }

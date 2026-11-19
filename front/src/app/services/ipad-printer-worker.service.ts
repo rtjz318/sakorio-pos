@@ -48,7 +48,7 @@ export class IpadPrinterWorkerService {
     if (!this.xp80t.isNativeAvailable) {
       this.patchStatus({
         nativePrinterAvailable: false,
-        lastError: 'XP-80T native printer plugin is not available in this build.',
+        lastError: 'Bluetooth ESC/POS printer plugin is not available in this build.',
       });
       return;
     }
@@ -75,7 +75,7 @@ export class IpadPrinterWorkerService {
       return jobs.length;
     } catch (error) {
       this.patchStatus({
-        lastError: error instanceof Error ? error.message : 'iPad printer worker failed.',
+        lastError: error instanceof Error ? error.message : 'Tablet printer worker failed.',
       });
       return 0;
     }

@@ -2,6 +2,7 @@ package com.sakorio.pos;
 
 import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothClass;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.pm.PackageManager;
@@ -19,21 +20,27 @@ import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
 import java.io.OutputStream;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
 /**
- * Native Android plugin scaffold for Xprinter XP-80T Bluetooth receipt printing.
+ * Native Android Bluetooth Classic plugin for ESC/POS receipt printers.
  *
  * Android is the preferred launch route for Sakorio Bluetooth-only printing
  * because XP-80T appears as a serial-style Bluetooth printer and Android can
  * use Bluetooth Classic SPP far more directly than iPad Safari/iOS.
  *
+ * The Capacitor plugin name remains Xp80tPrinter for backwards compatibility
+ * with existing Sakorio APKs. The transport itself is vendor-neutral and
+ * supports paired XPrinter, Epson TM and compatible ESC/POS printers that
+ * expose the Bluetooth Serial Port Profile (SPP).
+ *
  * Expected workflow:
- * 1. Pair XP-80T / Printer001 in Android Bluetooth settings using PIN 0000.
+ * 1. Pair the receipt printer in Android Bluetooth settings.
  * 2. Open Sakorio Android app.
  * 3. Settings > Printing scans paired devices.
- * 4. Connect to the paired XP-80T.
+ * 4. Connect to the paired ESC/POS printer.
  * 5. Sakorio sends ESC/POS receipt bytes to the printer socket.
  */
 @CapacitorPlugin(
@@ -101,11 +108,13 @@ public class Xp80tPrinterPlugin extends Plugin {
         Set<BluetoothDevice> bondedDevices = adapter.getBondedDevices();
         for (BluetoothDevice device : bondedDevices) {
             String name = safeName(device);
-            String lower = name.toLowerCase();
-            if (lower.contains("printer") || lower.contains("xp") || lower.contains("80")) {
+            if (isLikelyReceiptPrinter(device, name)) {
                 JSObject item = new JSObject();
                 item.put("id", device.getAddress());
                 item.put("name", name);
+                item.put("vendor", detectVendor(name));
+                item.put("protocol", "escpos");
+                item.put("transport", "androidBluetoothSpp");
                 devices.put(item);
             }
         }
@@ -134,20 +143,21 @@ public class Xp80tPrinterPlugin extends Plugin {
         try {
             disconnectCurrentSocket();
             BluetoothDevice device = adapter.getRemoteDevice(deviceId);
-            BluetoothSocket nextSocket = device.createRfcommSocketToServiceRecord(SPP_UUID);
             adapter.cancelDiscovery();
-            nextSocket.connect();
+            BluetoothSocket nextSocket = connectSpp(device);
             socket = nextSocket;
             connectedDevice = device;
 
             JSObject result = new JSObject();
             result.put("connected", true);
             result.put("deviceName", safeName(device));
+            result.put("vendor", detectVendor(safeName(device)));
+            result.put("protocol", "escpos");
             result.put("transport", "androidBluetoothSpp");
             call.resolve(result);
         } catch (Exception error) {
             disconnectCurrentSocket();
-            call.reject("Could not connect to XP-80T printer: " + error.getMessage(), error);
+            call.reject("Could not connect to Bluetooth ESC/POS printer: " + error.getMessage(), error);
         }
     }
 
@@ -165,7 +175,7 @@ public class Xp80tPrinterPlugin extends Plugin {
             return;
         }
         if (socket == null || !socket.isConnected()) {
-            call.reject("XP-80T printer is not connected");
+            call.reject("Bluetooth ESC/POS printer is not connected");
             return;
         }
 
@@ -186,7 +196,7 @@ public class Xp80tPrinterPlugin extends Plugin {
             result.put("printed", true);
             call.resolve(result);
         } catch (Exception error) {
-            call.reject("XP-80T print failed: " + error.getMessage(), error);
+            call.reject("ESC/POS print failed: " + error.getMessage(), error);
         }
     }
 
@@ -196,10 +206,78 @@ public class Xp80tPrinterPlugin extends Plugin {
         boolean connected = socket != null && socket.isConnected();
         result.put("connected", connected);
         if (connectedDevice != null) {
-            result.put("deviceName", safeName(connectedDevice));
+            String name = safeName(connectedDevice);
+            result.put("deviceName", name);
+            result.put("vendor", detectVendor(name));
         }
+        result.put("protocol", "escpos");
         result.put("transport", connected ? "androidBluetoothSpp" : "notConnected");
         call.resolve(result);
+    }
+
+    private BluetoothSocket connectSpp(BluetoothDevice device) throws Exception {
+        BluetoothSocket secureSocket = device.createRfcommSocketToServiceRecord(SPP_UUID);
+        try {
+            secureSocket.connect();
+            return secureSocket;
+        } catch (Exception secureError) {
+            try {
+                secureSocket.close();
+            } catch (Exception ignored) {
+                // Continue with the insecure SPP fallback.
+            }
+
+            // Some paired Epson TM and generic ESC/POS adapters expose SPP but
+            // reject the authenticated RFCOMM path. Android's insecure socket
+            // is still restricted to a device already paired by the operator.
+            BluetoothSocket fallbackSocket =
+                device.createInsecureRfcommSocketToServiceRecord(SPP_UUID);
+            try {
+                fallbackSocket.connect();
+                return fallbackSocket;
+            } catch (Exception fallbackError) {
+                try {
+                    fallbackSocket.close();
+                } catch (Exception ignored) {
+                    // Preserve the useful connection error below.
+                }
+                throw fallbackError;
+            }
+        }
+    }
+
+    private boolean isLikelyReceiptPrinter(BluetoothDevice device, String name) {
+        String lower = name.toLowerCase(Locale.ROOT);
+        boolean printerName =
+            lower.contains("printer")
+                || lower.contains("xprinter")
+                || lower.startsWith("xp")
+                || lower.contains("epson")
+                || lower.startsWith("tm-")
+                || lower.startsWith("tm_")
+                || lower.startsWith("tm ")
+                || lower.contains("receipt")
+                || lower.contains("pos-")
+                || lower.contains("80")
+                || lower.contains("58");
+        BluetoothClass bluetoothClass = device.getBluetoothClass();
+        boolean imagingDevice = bluetoothClass != null
+            && bluetoothClass.getMajorDeviceClass() == BluetoothClass.Device.Major.IMAGING;
+        return printerName || imagingDevice;
+    }
+
+    private String detectVendor(String name) {
+        String lower = name.toLowerCase(Locale.ROOT);
+        if (lower.contains("epson")
+            || lower.startsWith("tm-")
+            || lower.startsWith("tm_")
+            || lower.startsWith("tm ")) {
+            return "epson";
+        }
+        if (lower.contains("xprinter") || lower.startsWith("xp")) {
+            return "xprinter";
+        }
+        return "generic";
     }
 
     private boolean hasBluetoothConnectPermission() {

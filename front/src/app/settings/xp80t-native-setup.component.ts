@@ -5,7 +5,8 @@ import { IpadPrinterWorkerService } from '../services/ipad-printer-worker.servic
 import { NativeSecureStorageService } from '../services/native-secure-storage.service';
 import { evaluateXp80tReadiness } from '../services/xp80t-printer-readiness';
 import {
-  Xp80tPrinterDevice,
+  BluetoothEscPosPrinterDevice,
+  EscPosPrinterVendor,
   Xp80tPrinterService,
 } from '../services/xp80t-printer.service';
 
@@ -17,10 +18,11 @@ import {
     <article class="xp80t-panel" data-testid="xp80t-native-setup">
       <header>
         <div>
-          <p class="eyebrow">XP-80T tablet app</p>
+          <p class="eyebrow">Android tablet printing</p>
           <h3>Native Bluetooth printer setup</h3>
           <p class="muted">
-            Use this in the native Sakorio Android tablet app. Browser mode stays safe and will show this as unavailable.
+            Pair an XPrinter or Epson TM Bluetooth ESC/POS printer in Android settings, then connect it here.
+            Browser mode stays safe and will show native printing as unavailable.
           </p>
         </div>
         <span class="status-pill" [class.online]="nativeReady()" [class.warning]="!nativeReady()">
@@ -32,7 +34,7 @@ import {
         <div>
           <span>Bluetooth printer</span>
           <strong>{{ printerStatus().connected ? 'Connected' : 'Not connected' }}</strong>
-          <small>{{ printerStatus().deviceName || printerStatus().error || 'Waiting for XP-80T pairing' }}</small>
+          <small>{{ printerStatusCopy() }}</small>
         </div>
         <div>
           <span>Print worker</span>
@@ -80,7 +82,7 @@ import {
           Allow Bluetooth
         </button>
         <button type="button" class="button secondary" [disabled]="busy() || !nativeReady()" (click)="scan()">
-          {{ busy() ? 'Scanning...' : 'Scan XP-80T' }}
+          {{ busy() ? 'Scanning...' : 'Scan paired printers' }}
         </button>
       </div>
 
@@ -89,7 +91,7 @@ import {
           @for (device of devices(); track device.id) {
             <button type="button" class="device" [disabled]="busy()" (click)="connect(device)">
               <strong>{{ device.name }}</strong>
-              <small>{{ device.id }}</small>
+              <small>{{ printerVendorLabel(device.vendor) }} · {{ device.id }}</small>
             </button>
           }
         </div>
@@ -124,7 +126,8 @@ import {
       </div>
 
       <p class="footnote">
-        Security note: the Android app stores the printer token encrypted by Android Keystore.
+        Compatible route: Bluetooth Classic SPP with ESC/POS commands. Epson support depends on the selected
+        TM model having a Bluetooth Classic interface. The Android app stores the printer token encrypted by Android Keystore.
         Browser mode remains session-only and does not persist the token.
       </p>
     </article>
@@ -338,7 +341,7 @@ export class Xp80tNativeSetupComponent implements OnInit {
       secureStorageReady: this.secureStorageReady(),
     });
   });
-  readonly devices = signal<Xp80tPrinterDevice[]>([]);
+  readonly devices = signal<BluetoothEscPosPrinterDevice[]>([]);
   readonly busy = signal(false);
   readonly message = signal('');
   readonly messageType = signal<'info' | 'error'>('info');
@@ -354,9 +357,9 @@ export class Xp80tNativeSetupComponent implements OnInit {
   async refreshStatus(): Promise<void> {
     const status = await this.printer.refreshStatus();
     if (status.available) {
-      this.setMessage('XP-80T native plugin detected. Continue with Bluetooth permission and scan.');
+      this.setMessage('Bluetooth ESC/POS plugin detected. Continue with Bluetooth permission and scan.');
     } else {
-      this.setMessage(status.error || 'Native XP-80T plugin is not available in browser mode.', 'error');
+      this.setMessage(status.error || 'Native Bluetooth printer plugin is not available in browser mode.', 'error');
     }
   }
 
@@ -377,7 +380,7 @@ export class Xp80tNativeSetupComponent implements OnInit {
     try {
       const devices = await this.printer.scan();
       this.devices.set(devices);
-      this.setMessage(devices.length ? `Found ${devices.length} Bluetooth printer device(s).` : 'No XP-80T printer found. Keep the printer on and nearby.');
+      this.setMessage(devices.length ? `Found ${devices.length} paired Bluetooth printer device(s).` : 'No compatible paired printer found. Pair the XPrinter or Epson TM printer in Android settings first.');
     } catch (error) {
       this.setMessage(errorMessage(error), 'error');
     } finally {
@@ -385,7 +388,7 @@ export class Xp80tNativeSetupComponent implements OnInit {
     }
   }
 
-  async connect(device: Xp80tPrinterDevice): Promise<void> {
+  async connect(device: BluetoothEscPosPrinterDevice): Promise<void> {
     this.busy.set(true);
     try {
       const status = await this.printer.connect(device.id);
@@ -402,7 +405,7 @@ export class Xp80tNativeSetupComponent implements OnInit {
     if (this.secureStorageReady()) {
       await this.saveToken(false);
     }
-    this.setMessage('Printer worker configured. Start worker when XP-80T is connected.');
+    this.setMessage('Printer worker configured. Start it after the ESC/POS printer is connected.');
   }
 
   async saveToken(showMessage = true): Promise<void> {
@@ -415,7 +418,7 @@ export class Xp80tNativeSetupComponent implements OnInit {
     this.savedTokenLoaded.set(saved);
     if (showMessage) {
       this.setMessage(
-        saved ? 'Printer token saved securely in iOS Keychain.' : this.secureStorage.lastError() || 'Token could not be saved.',
+        saved ? 'Printer token saved securely in Android Keystore.' : this.secureStorage.lastError() || 'Token could not be saved.',
         saved ? 'info' : 'error',
       );
     }
@@ -430,7 +433,7 @@ export class Xp80tNativeSetupComponent implements OnInit {
       this.worker.configure('');
     }
     this.setMessage(
-      removed ? 'Saved printer token cleared from this iPad.' : this.secureStorage.lastError() || 'Saved token could not be cleared.',
+      removed ? 'Saved printer token cleared from this tablet.' : this.secureStorage.lastError() || 'Saved token could not be cleared.',
       removed ? 'info' : 'error',
     );
   }
@@ -438,18 +441,18 @@ export class Xp80tNativeSetupComponent implements OnInit {
   startWorker(): void {
     this.worker.start();
     const status = this.workerStatus();
-    this.setMessage(status.lastError || 'iPad printer worker started.', status.lastError ? 'error' : 'info');
+    this.setMessage(status.lastError || 'Tablet printer worker started.', status.lastError ? 'error' : 'info');
   }
 
   stopWorker(): void {
     this.worker.stop();
-    this.setMessage('iPad printer worker stopped.');
+    this.setMessage('Tablet printer worker stopped.');
   }
 
   workerStatusCopy(): string {
     const status = this.workerStatus();
     if (!status.configured) return 'Paste a printer-agent token to configure.';
-    if (!status.nativePrinterAvailable) return 'Native XP-80T plugin is required.';
+    if (!status.nativePrinterAvailable) return 'Native Bluetooth ESC/POS plugin is required.';
     return status.lastHeartbeatAt ? 'Ready for print jobs' : 'Configured, no heartbeat yet';
   }
 
@@ -465,7 +468,21 @@ export class Xp80tNativeSetupComponent implements OnInit {
     this.token = token;
     this.savedTokenLoaded.set(true);
     this.worker.configure(token);
-    this.setMessage('Saved printer token loaded from iOS Keychain.');
+    this.setMessage('Saved printer token loaded from Android Keystore.');
+  }
+
+  printerStatusCopy(): string {
+    const status = this.printerStatus();
+    if (status.deviceName) {
+      return `${status.deviceName} · ${this.printerVendorLabel(status.vendor)}`;
+    }
+    return status.error || 'Waiting for a paired XPrinter or Epson TM printer';
+  }
+
+  printerVendorLabel(vendor?: EscPosPrinterVendor): string {
+    if (vendor === 'epson') return 'Epson ESC/POS';
+    if (vendor === 'xprinter') return 'XPrinter ESC/POS';
+    return 'Generic ESC/POS';
   }
 
   private setMessage(message: string, type: 'info' | 'error' = 'info'): void {
@@ -475,5 +492,5 @@ export class Xp80tNativeSetupComponent implements OnInit {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'XP-80T setup action failed.';
+  return error instanceof Error ? error.message : 'Bluetooth ESC/POS setup action failed.';
 }

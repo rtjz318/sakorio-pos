@@ -7300,8 +7300,8 @@ export class CashierPosComponent {
           return of([]);
         }),
       ),
-      // Keep the cashier floor responsive. Product questions are optional for the floor/menu
-      // shell and should not block POS startup for a large imported catalog.
+      // One staff product request includes its customization questions, avoiding
+      // an N+1 request per menu item while keeping priced add-ons in Cashier POS.
       legacyProducts: this.api.getProducts().pipe(
         catchError(() => {
           loadWarnings.push('legacy menu');

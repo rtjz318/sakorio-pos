@@ -5049,7 +5049,7 @@ def delete_tenant_header_background(
 def list_products(
     current_user: Annotated[models.User, Depends(require_permission(Permission.PRODUCT_READ))],
     session: Session = Depends(get_session),
-) -> list[models.Product]:
+) -> list[dict]:
     """List all products for the tenant.
     
     Returns all Product entries. Also:
@@ -5163,7 +5163,42 @@ def list_products(
         for product in products:
             session.refresh(product)
     
-    return products
+    product_ids = [product.id for product in products if product.id is not None]
+    questions_by_product: dict[int, list[dict]] = {}
+    if product_ids:
+        questions = session.exec(
+            select(models.ProductQuestion).where(
+                models.ProductQuestion.tenant_id == current_user.tenant_id,
+                models.ProductQuestion.product_id.in_(product_ids),
+            ).order_by(
+                models.ProductQuestion.product_id,
+                models.ProductQuestion.sort_order,
+                models.ProductQuestion.id,
+            )
+        ).all()
+        for question in questions:
+            questions_by_product.setdefault(question.product_id, []).append(
+                {
+                    "id": question.id,
+                    "type": question.type.value if hasattr(question.type, "value") else str(question.type),
+                    "label": question.label,
+                    "options": question.options,
+                    "sort_order": question.sort_order,
+                    "required": question.required,
+                    "multi": (
+                        choice_options_is_multi(question.options)
+                        if question.type == models.ProductQuestionType.choice
+                        else False
+                    ),
+                }
+            )
+
+    response: list[dict] = []
+    for product in products:
+        product_data = product.model_dump(mode="json")
+        product_data["questions"] = questions_by_product.get(product.id, [])
+        response.append(product_data)
+    return response
 
 
 @app.post("/products")

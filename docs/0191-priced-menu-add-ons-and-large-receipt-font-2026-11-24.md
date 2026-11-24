@@ -6,6 +6,7 @@ Target: Morinaga Ramen Izakaya and future Sakorio tenants
 ## Delivered workflow
 
 - A menu item can ask one or more choice questions in a popup on the customer QR menu, Tables order flow, and Cashier POS.
+- The staff product catalog includes customization questions in one request, so Cashier POS never silently bypasses a configured popup.
 - Every choice can have a zero or positive surcharge.
 - The UI displays priced choices such as `Add noodles (+SGD 1.50)`.
 - The cart uses the base item price plus selected add-ons before calculating service charge and GST.

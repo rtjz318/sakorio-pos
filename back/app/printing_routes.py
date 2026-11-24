@@ -9,6 +9,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from . import models
@@ -25,6 +26,7 @@ class PrinterAgentCreate(BaseModel):
     device_type: Literal["local_agent", "ipad_app", "xp80t"] = "local_agent"
     transport: Literal["network", "bluetooth_serial", "ios_bluetooth"] = "network"
     app_version: str | None = Field(default=None, max_length=64)
+    receives_customer_receipts: bool = False
 
 
 class PrintJobFailure(BaseModel):
@@ -48,6 +50,7 @@ def _agent_dict(agent: models.PrinterAgent) -> dict:
         "device_type": agent.device_type,
         "transport": agent.transport,
         "app_version": agent.app_version,
+        "receives_customer_receipts": agent.receives_customer_receipts,
         "active": agent.active,
         "last_seen_at": agent.last_seen_at.isoformat() if agent.last_seen_at else None,
         "created_at": agent.created_at.isoformat(),
@@ -102,6 +105,7 @@ def create_printer_agent(
         device_type=body.device_type,
         transport=body.transport,
         app_version=body.app_version.strip() if body.app_version else None,
+        receives_customer_receipts=body.receives_customer_receipts,
         token_hash=_hash_agent_token(raw_token),
     )
     session.add(agent)
@@ -192,7 +196,19 @@ def lease_print_jobs(
         models.PrintJob.attempts < 10,
     )
     if agent.kitchen_station_id is not None:
-        statement = statement.where(models.PrintJob.kitchen_station_id == agent.kitchen_station_id)
+        station_filter = models.PrintJob.kitchen_station_id == agent.kitchen_station_id
+        if agent.receives_customer_receipts:
+            statement = statement.where(
+                or_(station_filter, models.PrintJob.job_type == "customer_receipt")
+            )
+        else:
+            statement = statement.where(station_filter)
+    elif not agent.receives_customer_receipts:
+        # Legacy unscoped agents continue to receive every station. A dedicated
+        # customer-receipt agent with no station receives customer copies only.
+        pass
+    else:
+        statement = statement.where(models.PrintJob.job_type == "customer_receipt")
     jobs = session.exec(
         statement.order_by(models.PrintJob.created_at.asc()).with_for_update(skip_locked=True).limit(limit)
     ).all()

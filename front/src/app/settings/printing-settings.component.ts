@@ -125,6 +125,10 @@ import { Xp80tNativeSetupComponent } from './xp80t-native-setup.component';
               <option value="ios_bluetooth">Native Android tablet Bluetooth</option>
             </select>
           </label>
+          <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="receivesCustomerReceipts" />
+            <span>Print customer/cashier receipts on this printer</span>
+          </label>
           <button type="button" class="button primary wide" [disabled]="creating() || agentName.trim().length < 2" (click)="createAgent()">
             {{ creating() ? 'Creating...' : 'Create pairing token' }}
           </button>
@@ -162,6 +166,9 @@ import { Xp80tNativeSetupComponent } from './xp80t-native-setup.component';
                   <div class="agent-main">
                     <strong>{{ agent.name }}</strong>
                     <span>{{ stationName(agent.kitchen_station_id) }}</span>
+                    @if (agent.receives_customer_receipts) {
+                      <span class="receipt-route">Customer receipts enabled</span>
+                    }
                     <span>{{ agentDeviceLabel(agent) }}</span>
                     <small>{{ agentStatus(agent) }}</small>
                   </div>
@@ -310,6 +317,9 @@ import { Xp80tNativeSetupComponent } from './xp80t-native-setup.component';
     label { display: grid; gap: .38rem; margin-bottom: .8rem; font-weight: 700; }
     input, select { width: 100%; min-height: 44px; padding: .65rem .75rem; border: 1px solid #d9d6d1; border-radius: 10px; background: #fff; font: inherit; box-sizing: border-box; }
     input:focus, select:focus { outline: 3px solid rgb(216 81 50 / 16%); border-color: #d85132; }
+    .checkbox-label { display: flex; align-items: center; gap: .6rem; }
+    .checkbox-label input { width: 20px; min-height: 20px; margin: 0; }
+    .receipt-route { color: #157352 !important; font-weight: 750; }
     .runbook { margin-top: 1.1rem; padding: 1rem; border-radius: 13px; background: #f7f6f4; }
     .runbook ol { margin: .65rem 0; padding-left: 1.25rem; color: #515861; line-height: 1.55; }
     .runbook code { color: #9d3b27; }
@@ -369,6 +379,7 @@ export class PrintingSettingsComponent implements OnInit, OnDestroy {
   stationId: number | null = null;
   deviceType: PrinterAgent['device_type'] = 'local_agent';
   transport: PrinterAgent['transport'] = 'network';
+  receivesCustomerReceipts = false;
 
   activeAgents = computed(() => this.agents().filter((agent) => agent.active));
   onlineAgents = computed(() => this.activeAgents().filter((agent) => this.isOnline(agent)).length);
@@ -424,6 +435,7 @@ export class PrintingSettingsComponent implements OnInit, OnDestroy {
       device_type: this.deviceType,
       transport: this.transport,
       app_version: null,
+      receives_customer_receipts: this.receivesCustomerReceipts,
     }).subscribe({
       next: (agent) => {
         this.pairingToken.set(agent.token);
@@ -432,6 +444,7 @@ export class PrintingSettingsComponent implements OnInit, OnDestroy {
         this.stationId = null;
         this.deviceType = 'local_agent';
         this.transport = 'network';
+        this.receivesCustomerReceipts = false;
         this.creating.set(false);
         this.reload(true);
       },

@@ -820,6 +820,7 @@ export interface PrinterAgent {
   device_type: 'local_agent' | 'ipad_app' | 'xp80t';
   transport: 'network' | 'bluetooth_serial' | 'ios_bluetooth';
   app_version: string | null;
+  receives_customer_receipts: boolean;
   active: boolean;
   last_seen_at: string | null;
   created_at: string;
@@ -3069,6 +3070,7 @@ export class ApiService {
     device_type?: PrinterAgent['device_type'];
     transport?: PrinterAgent['transport'];
     app_version?: string | null;
+    receives_customer_receipts?: boolean;
   }): Observable<PrinterAgentCreated> {
     return this.http.post<PrinterAgentCreated>(`${this.apiUrl}/printing/agents`, body);
   }

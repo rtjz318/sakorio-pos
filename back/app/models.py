@@ -359,6 +359,7 @@ class PrinterAgent(SQLModel, table=True):
     device_type: str = Field(default="local_agent", max_length=32, index=True)
     transport: str = Field(default="network", max_length=32, index=True)
     app_version: str | None = Field(default=None, max_length=64)
+    receives_customer_receipts: bool = Field(default=False, index=True)
     active: bool = Field(default=True, index=True)
     last_seen_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)

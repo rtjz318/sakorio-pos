@@ -3,6 +3,12 @@ import { RouterOutlet, Router, NavigationEnd } from '@angular/router';
 import { filter, Subscription } from 'rxjs';
 import { LanguageService } from './services/language.service';
 import { environment } from '../environments/environment';
+import {
+  IpadPrinterWorkerService,
+  TABLET_PRINTER_PROFILES_STORAGE_KEY,
+  TabletPrinterProfile,
+} from './services/ipad-printer-worker.service';
+import { NativeSecureStorageService } from './services/native-secure-storage.service';
 
 @Component({
   selector: 'app-root',
@@ -17,6 +23,8 @@ export class App implements OnInit, OnDestroy {
 
   /** Inject so LanguageService initializes at bootstrap and applies browser default language everywhere from first load. */
   private languageService = inject(LanguageService);
+  private printerWorker = inject(IpadPrinterWorkerService);
+  private secureStorage = inject(NativeSecureStorageService);
 
   ngOnInit() {
     // Set initial favicon based on current route
@@ -30,6 +38,11 @@ export class App implements OnInit, OnDestroy {
           this.updateFavicon(event.urlAfterRedirects);
         }
       });
+
+    // The restaurant tablet must resume printing after an app or device restart
+    // without requiring staff to revisit Settings. Profiles and agent tokens are
+    // stored by the native Android Keystore-backed plugin, never localStorage.
+    void this.startSavedPrinterProfiles();
   }
 
   ngOnDestroy() {
@@ -47,6 +60,21 @@ export class App implements OnInit, OnDestroy {
       return;
     }
     this.setFavicon('/favicon.svg');
+  }
+
+  private async startSavedPrinterProfiles(): Promise<void> {
+    if (typeof window === 'undefined' || !this.secureStorage.refreshAvailability()) return;
+    const stored = await this.secureStorage.get(TABLET_PRINTER_PROFILES_STORAGE_KEY);
+    if (!stored) return;
+    try {
+      const profiles = JSON.parse(stored) as TabletPrinterProfile[];
+      if (!Array.isArray(profiles)) return;
+      this.printerWorker.configureProfiles(profiles);
+      this.printerWorker.startAll();
+    } catch {
+      // Settings > Printing shows the actionable recovery message for corrupt
+      // secure data; app startup itself should remain usable for order taking.
+    }
   }
 
   private setFavicon(path: string) {

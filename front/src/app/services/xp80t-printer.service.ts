@@ -14,7 +14,9 @@ export interface BluetoothEscPosPrinterDevice {
 export interface BluetoothEscPosPrinterStatus {
   available: boolean;
   connected: boolean;
+  deviceId?: string;
   deviceName?: string;
+  connectedCount?: number;
   vendor?: EscPosPrinterVendor;
   protocol?: 'escpos';
   transport?: string;
@@ -31,16 +33,19 @@ interface Xp80tPrinterPlugin {
   scan(): Promise<{ devices: BluetoothEscPosPrinterDevice[] }>;
   connect(options: { deviceId: string }): Promise<{
     connected: boolean;
+    deviceId?: string;
     deviceName?: string;
     vendor?: EscPosPrinterVendor;
     protocol?: 'escpos';
     transport?: string;
   }>;
-  disconnect(): Promise<void>;
-  print(options: { jobId: number; payloadBase64: string }): Promise<{ printed: boolean }>;
-  getStatus(): Promise<{
+  disconnect(options?: { deviceId?: string }): Promise<void>;
+  print(options: { jobId: number; deviceId?: string; payloadBase64: string }): Promise<{ printed: boolean }>;
+  getStatus(options?: { deviceId?: string }): Promise<{
     connected: boolean;
+    deviceId?: string;
     deviceName?: string;
+    connectedCount?: number;
     vendor?: EscPosPrinterVendor;
     protocol?: 'escpos';
     transport?: string;
@@ -62,6 +67,7 @@ export class Xp80tPrinterService {
     available: false,
     connected: false,
   });
+  readonly deviceStatuses = signal<Record<string, BluetoothEscPosPrinterStatus>>({});
 
   get isNativeAvailable(): boolean {
     return Boolean(window.Capacitor?.isNativePlatform?.() && this.plugin);
@@ -72,7 +78,7 @@ export class Xp80tPrinterService {
       ?.Xp80tPrinter;
   }
 
-  async refreshStatus(): Promise<BluetoothEscPosPrinterStatus> {
+  async refreshStatus(deviceId?: string): Promise<BluetoothEscPosPrinterStatus> {
     if (!this.plugin) {
       const status = {
         available: false,
@@ -83,16 +89,19 @@ export class Xp80tPrinterService {
       return status;
     }
     try {
-      const result = await this.plugin.getStatus();
+      const result = await this.plugin.getStatus(deviceId ? { deviceId } : undefined);
       const status = {
         available: true,
         connected: result.connected,
+        deviceId: result.deviceId || deviceId,
         deviceName: result.deviceName,
+        connectedCount: result.connectedCount,
         vendor: result.vendor,
         protocol: result.protocol,
         transport: result.transport,
       };
       this.status.set(status);
+      if (deviceId) this.setDeviceStatus(deviceId, status);
       return status;
     } catch (error) {
       const status = {
@@ -101,6 +110,7 @@ export class Xp80tPrinterService {
         error: error instanceof Error ? error.message : 'Printer status check failed.',
       };
       this.status.set(status);
+      if (deviceId) this.setDeviceStatus(deviceId, status);
       return status;
     }
   }
@@ -131,26 +141,45 @@ export class Xp80tPrinterService {
     const status = {
       available: true,
       connected: result.connected,
+      deviceId: result.deviceId || deviceId,
       deviceName: result.deviceName,
       vendor: result.vendor,
       protocol: result.protocol,
       transport: result.transport,
     };
     this.status.set(status);
+    this.setDeviceStatus(deviceId, status);
     return status;
   }
 
-  async printEscPos(jobId: number, bytes: Uint8Array): Promise<void> {
+  async disconnect(deviceId?: string): Promise<void> {
+    if (!this.plugin) return;
+    await this.plugin.disconnect(deviceId ? { deviceId } : undefined);
+    if (deviceId) {
+      this.setDeviceStatus(deviceId, { available: true, connected: false, deviceId });
+    } else {
+      this.deviceStatuses.set({});
+      this.status.set({ available: true, connected: false, connectedCount: 0 });
+    }
+  }
+
+  async printEscPos(jobId: number, bytes: Uint8Array, deviceId?: string): Promise<void> {
     if (!this.plugin) {
       throw new Error('Bluetooth ESC/POS printer plugin is not available in this build.');
     }
     const result = await this.plugin.print({
       jobId,
+      deviceId,
       payloadBase64: bytesToBase64(bytes),
     });
     if (!result.printed) {
       throw new Error('ESC/POS printer did not confirm print completion.');
     }
+  }
+
+  private setDeviceStatus(deviceId: string, status: BluetoothEscPosPrinterStatus): void {
+    const key = deviceId.trim().toUpperCase();
+    this.deviceStatuses.update((current) => ({ ...current, [key]: status }));
   }
 }
 

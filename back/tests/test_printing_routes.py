@@ -12,6 +12,7 @@ def test_printer_agent_dict_includes_xp80t_metadata():
         device_type="xp80t",
         transport="ios_bluetooth",
         app_version="ios-0.1.0",
+        receives_customer_receipts=True,
     )
 
     row = _agent_dict(agent)
@@ -20,3 +21,4 @@ def test_printer_agent_dict_includes_xp80t_metadata():
     assert row["device_type"] == "xp80t"
     assert row["transport"] == "ios_bluetooth"
     assert row["app_version"] == "ios-0.1.0"
+    assert row["receives_customer_receipts"] is True

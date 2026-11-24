@@ -20,9 +20,11 @@ import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
 import java.io.OutputStream;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Native Android Bluetooth Classic plugin for ESC/POS receipt printers.
@@ -60,8 +62,8 @@ public class Xp80tPrinterPlugin extends Plugin {
         UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 
     private BluetoothAdapter adapter;
-    private BluetoothSocket socket;
-    private BluetoothDevice connectedDevice;
+    private final Map<String, BluetoothSocket> sockets = new ConcurrentHashMap<>();
+    private final Map<String, BluetoothDevice> connectedDevices = new ConcurrentHashMap<>();
 
     @Override
     public void load() {
@@ -141,29 +143,36 @@ public class Xp80tPrinterPlugin extends Plugin {
         }
 
         try {
-            disconnectCurrentSocket();
             BluetoothDevice device = adapter.getRemoteDevice(deviceId);
+            String key = normalizeDeviceId(device.getAddress());
+            disconnectSocket(key);
             adapter.cancelDiscovery();
             BluetoothSocket nextSocket = connectSpp(device);
-            socket = nextSocket;
-            connectedDevice = device;
+            sockets.put(key, nextSocket);
+            connectedDevices.put(key, device);
 
             JSObject result = new JSObject();
             result.put("connected", true);
+            result.put("deviceId", key);
             result.put("deviceName", safeName(device));
             result.put("vendor", detectVendor(safeName(device)));
             result.put("protocol", "escpos");
             result.put("transport", "androidBluetoothSpp");
             call.resolve(result);
         } catch (Exception error) {
-            disconnectCurrentSocket();
+            disconnectSocket(normalizeDeviceId(deviceId));
             call.reject("Could not connect to Bluetooth ESC/POS printer: " + error.getMessage(), error);
         }
     }
 
     @PluginMethod
     public void disconnect(PluginCall call) {
-        disconnectCurrentSocket();
+        String deviceId = call.getString("deviceId");
+        if (deviceId == null || deviceId.trim().isEmpty()) {
+            disconnectAllSockets();
+        } else {
+            disconnectSocket(normalizeDeviceId(deviceId));
+        }
         call.resolve();
     }
 
@@ -174,8 +183,14 @@ public class Xp80tPrinterPlugin extends Plugin {
             call.reject("payloadBase64 is required");
             return;
         }
+        String deviceId = resolvePrintDeviceId(call.getString("deviceId"));
+        if (deviceId == null) {
+            call.reject("deviceId is required when more than one Bluetooth printer is configured");
+            return;
+        }
+        BluetoothSocket socket = sockets.get(deviceId);
         if (socket == null || !socket.isConnected()) {
-            call.reject("Bluetooth ESC/POS printer is not connected");
+            call.reject("Bluetooth ESC/POS printer is not connected: " + deviceId);
             return;
         }
 
@@ -194,17 +209,31 @@ public class Xp80tPrinterPlugin extends Plugin {
 
             JSObject result = new JSObject();
             result.put("printed", true);
+            result.put("deviceId", deviceId);
             call.resolve(result);
         } catch (Exception error) {
+            disconnectSocket(deviceId);
             call.reject("ESC/POS print failed: " + error.getMessage(), error);
         }
     }
 
     @PluginMethod
     public void getStatus(PluginCall call) {
+        String requestedId = call.getString("deviceId");
+        String deviceId = requestedId == null || requestedId.trim().isEmpty()
+            ? null
+            : normalizeDeviceId(requestedId);
+        BluetoothSocket socket = deviceId == null ? null : sockets.get(deviceId);
+        BluetoothDevice connectedDevice = deviceId == null ? null : connectedDevices.get(deviceId);
         JSObject result = new JSObject();
-        boolean connected = socket != null && socket.isConnected();
+        boolean connected = deviceId == null
+            ? sockets.values().stream().anyMatch(BluetoothSocket::isConnected)
+            : socket != null && socket.isConnected();
         result.put("connected", connected);
+        result.put("connectedCount", connectedPrinterCount());
+        if (deviceId != null) {
+            result.put("deviceId", deviceId);
+        }
         if (connectedDevice != null) {
             String name = safeName(connectedDevice);
             result.put("deviceName", name);
@@ -213,6 +242,33 @@ public class Xp80tPrinterPlugin extends Plugin {
         result.put("protocol", "escpos");
         result.put("transport", connected ? "androidBluetoothSpp" : "notConnected");
         call.resolve(result);
+    }
+
+    private int connectedPrinterCount() {
+        int count = 0;
+        for (BluetoothSocket candidate : sockets.values()) {
+            if (candidate != null && candidate.isConnected()) {
+                count += 1;
+            }
+        }
+        return count;
+    }
+
+    private String resolvePrintDeviceId(String requestedId) {
+        if (requestedId != null && !requestedId.trim().isEmpty()) {
+            return normalizeDeviceId(requestedId);
+        }
+        String only = null;
+        for (Map.Entry<String, BluetoothSocket> entry : sockets.entrySet()) {
+            if (entry.getValue() == null || !entry.getValue().isConnected()) {
+                continue;
+            }
+            if (only != null) {
+                return null;
+            }
+            only = entry.getKey();
+        }
+        return only;
     }
 
     private BluetoothSocket connectSpp(BluetoothDevice device) throws Exception {
@@ -296,16 +352,25 @@ public class Xp80tPrinterPlugin extends Plugin {
         return name == null || name.trim().isEmpty() ? "Bluetooth printer" : name;
     }
 
-    private void disconnectCurrentSocket() {
+    private String normalizeDeviceId(String deviceId) {
+        return deviceId == null ? "" : deviceId.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private void disconnectSocket(String deviceId) {
+        BluetoothSocket socket = sockets.remove(deviceId);
+        connectedDevices.remove(deviceId);
         try {
             if (socket != null) {
                 socket.close();
             }
         } catch (Exception ignored) {
             // Closing an already-dropped Bluetooth socket is safe to ignore.
-        } finally {
-            socket = null;
-            connectedDevice = null;
+        }
+    }
+
+    private void disconnectAllSockets() {
+        for (String deviceId : sockets.keySet()) {
+            disconnectSocket(deviceId);
         }
     }
 }

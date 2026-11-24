@@ -70,6 +70,9 @@ for (const marker of [
   'lower.contains("epson")',
   'lower.startsWith("tm-")',
   'result.put("protocol", "escpos")',
+  'ConcurrentHashMap',
+  'connectedCount',
+  'deviceId is required when more than one Bluetooth printer is configured',
 ]) {
   if (!java.includes(marker)) {
     console.error(`[xp80t-scaffold] Android plugin missing marker: ${marker}`);

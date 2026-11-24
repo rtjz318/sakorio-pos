@@ -964,7 +964,7 @@ export interface ProductQuestion {
   id: number;
   type: 'choice' | 'scale' | 'text';
   label: string;
-  options?: string[] | { min: number; max: number } | { choices: string[]; multi?: boolean } | null;
+  options?: string[] | { min: number; max: number } | { choices: string[]; multi?: boolean; prices_cents?: Record<string, number> } | null;
   /** True when choice options use multi-select ({ choices, multi: true }) */
   multi?: boolean;
   required?: boolean;
@@ -981,7 +981,7 @@ export type ProductQuestionStaff = Omit<ProductQuestion, 'sort_order' | 'require
 export interface ProductQuestionCreatePayload {
   type: 'choice' | 'scale' | 'text';
   label: string;
-  options?: string[] | { min: number; max: number } | { choices: string[]; multi?: boolean } | null;
+  options?: string[] | { min: number; max: number } | { choices: string[]; multi?: boolean; prices_cents?: Record<string, number> } | null;
   sort_order?: number;
   required?: boolean;
 }
@@ -989,7 +989,7 @@ export interface ProductQuestionCreatePayload {
 export interface ProductQuestionUpdatePayload {
   type?: 'choice' | 'scale' | 'text';
   label?: string;
-  options?: string[] | { min: number; max: number } | { choices: string[]; multi?: boolean } | null;
+  options?: string[] | { min: number; max: number } | { choices: string[]; multi?: boolean; prices_cents?: Record<string, number> } | null;
   sort_order?: number;
   required?: boolean;
 }

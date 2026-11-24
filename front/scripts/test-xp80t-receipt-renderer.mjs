@@ -48,6 +48,14 @@ function runCase(caseId, description, payload, checks) {
   assert(bytes instanceof Uint8Array, `${caseId}: renderEscposReceipt must return Uint8Array`);
   assert(bytes[0] === 0x1b && bytes[1] === 0x40, `${caseId}: missing ESC/POS initialize bytes`);
   assert(
+    bytes.some((value, index) => value === 0x1d && bytes[index + 1] === 0x21 && bytes[index + 2] === 0x01),
+    `${caseId}: receipt must enable larger double-height text`,
+  );
+  assert(
+    bytes.some((value, index) => value === 0x1d && bytes[index + 1] === 0x21 && bytes[index + 2] === 0x00),
+    `${caseId}: receipt must reset character size before cutting`,
+  );
+  assert(
     bytes[bytes.length - 3] === 0x1d && bytes[bytes.length - 2] === 0x56,
     `${caseId}: missing ESC/POS paper cut command`,
   );

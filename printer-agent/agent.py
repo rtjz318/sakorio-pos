@@ -181,7 +181,9 @@ def escpos_bytes(payload: dict) -> bytes:
     return (
         b"\x1b\x40"  # initialize
         + b"\x1b\x61\x00"  # left align
+        + b"\x1d\x21\x01"  # double-height text, normal width
         + text.encode(PRINTER_ENCODING, errors="replace")
+        + b"\x1d\x21\x00"  # reset character size
         + b"\r\n\r\n\r\n"
         + b"\x1d\x56\x00"  # full cut
     )

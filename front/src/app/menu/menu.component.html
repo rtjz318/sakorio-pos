@@ -535,7 +535,7 @@
                 maxlength="160"
               />
             </label>
-            <span class="cart-item-price">{{ formatPrice(item.product.price_cents * item.quantity) }}</span>
+            <span class="cart-item-price">{{ formatPrice(getCartItemUnitPrice(item) * item.quantity) }}</span>
           </div>
           <div class="cart-item-controls">
             <button class="qty-control-btn minus" (click)="decrementItem(item)">
@@ -803,7 +803,7 @@
             <label class="question-check-row">
               <input type="checkbox" [checked]="isMultiOptionChecked(q.id, opt)"
                 (change)="toggleMultiChoiceAnswer(q.id, opt, $any($event.target).checked)" />
-              <span>{{ opt }}</span>
+              <span>{{ getChoiceOptionLabel(q, opt) }}</span>
             </label>
             }
           </div>
@@ -812,7 +812,7 @@
             (change)="setCustomizationAnswer(q.id, $any($event.target).value)">
             <option value="">{{ 'COMMON.SELECT' | translate }}</option>
             @for (opt of getChoiceOptions(q); track opt) {
-            <option [value]="opt">{{ opt }}</option>
+            <option [value]="opt">{{ getChoiceOptionLabel(q, opt) }}</option>
             }
           </select>
           } @else if (q.type === 'scale' && q.options && typeof q.options === 'object' && 'min' in q.options && 'max' in q.options) {

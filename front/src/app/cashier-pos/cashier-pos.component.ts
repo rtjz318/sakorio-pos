@@ -18,6 +18,11 @@ import {
 import { getCustomerPublicOrigin } from '../shared/host-portal.util';
 import { SidebarComponent } from '../shared/sidebar.component';
 import { StaffPosToolbarComponent } from '../shared/staff-pos-toolbar.component';
+import {
+  effectiveProductPriceCents,
+  questionChoiceOptions as resolveQuestionChoiceOptions,
+  questionOptionLabel,
+} from '../shared/product-customization-price.util';
 
 type PosCheckoutMode = 'cash' | 'card_terminal' | 'hitpay';
 type PosSettlementMode = 'cash' | 'card_terminal' | 'hitpay';
@@ -1907,7 +1912,7 @@ type QueueResolutionAction = 'cancelled' | 'no_show';
                             type="checkbox"
                             [checked]="isQuestionOptionChecked(question, option)"
                             (change)="toggleProductQuestionOption(question, option, $any($event.target).checked)" />
-                          <span>{{ option }}</span>
+                          <span>{{ questionChoiceOptionLabel(question, option) }}</span>
                         </label>
                       }
                     </div>
@@ -1929,7 +1934,7 @@ type QueueResolutionAction = 'cancelled' | 'no_show';
                           class="product-question-choice"
                           [class.product-question-choice--selected]="questionAnswerValue(question) === option"
                           (click)="setProductQuestionAnswer(question, option)">
-                          <span class="product-question-choice-title">{{ option }}</span>
+                          <span class="product-question-choice-title">{{ questionChoiceOptionLabel(question, option) }}</span>
                           <span class="product-question-choice-copy">
                             {{ question.required ? 'Required for checkout' : 'Tap to use' }}
                           </span>
@@ -7535,11 +7540,15 @@ export class CashierPosComponent {
       return 'Answer the required questions, then send this item into the ticket.';
     }
 
-    if (this.hasPayableLiveBill()) {
-      return 'This item will be appended to the live bill.';
-    }
-
-    return 'This item is ready to be added to the current ticket.';
+    const price = effectiveProductPriceCents(
+      product.priceCents,
+      product.questions,
+      this.productQuestionAnswers(),
+    );
+    const destination = this.hasPayableLiveBill()
+      ? 'It will be appended to the live bill.'
+      : 'It is ready for the current ticket.';
+    return `Price with add-ons: ${this.formatPrice(price)}. ${destination}`;
   }
 
   productActionLabel(product: PosSellableProduct): string {
@@ -8123,13 +8132,11 @@ export class CashierPosComponent {
   }
 
   questionChoiceOptions(question: ProductQuestion): string[] {
-    if (Array.isArray(question.options)) {
-      return question.options;
-    }
-    if (typeof question.options === 'object' && !!question.options && 'choices' in question.options) {
-      return question.options.choices;
-    }
-    return [];
+    return resolveQuestionChoiceOptions(question);
+  }
+
+  questionChoiceOptionLabel(question: ProductQuestion, option: string): string {
+    return questionOptionLabel(question, option, (price) => this.formatPrice(price));
   }
 
   questionScaleMin(question: ProductQuestion): number {
@@ -8227,7 +8234,7 @@ export class CashierPosComponent {
           lineKey,
           productId: product.id,
           name: product.name,
-          priceCents: product.priceCents,
+          priceCents: effectiveProductPriceCents(product.priceCents, product.questions, customizationAnswers),
           quantity: 1,
           source: product.source,
           notes: '',

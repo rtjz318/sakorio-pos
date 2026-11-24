@@ -10,6 +10,11 @@ import { FocusFirstInputDirective } from '../shared/focus-first-input.directive'
 import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { getSubcategoryLabel as resolveSubcategoryLabel } from '../shared/product-subcategory-label.util';
+import {
+  effectiveProductPriceCents,
+  questionChoiceOptions,
+  questionOptionLabel,
+} from '../shared/product-customization-price.util';
 
 interface CartItem {
   product: Product;
@@ -944,16 +949,23 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   isChoiceOptionsArray(q: { type: string; options?: unknown }): boolean {
-    return q.type === 'choice' && Array.isArray(q.options);
+    return q.type === 'choice' && !!q.options;
   }
 
   getChoiceOptions(q: ProductQuestion): string[] {
-    if (Array.isArray(q.options)) return q.options as string[];
-    if (q.options && typeof q.options === 'object' && 'choices' in q.options) {
-      const c = (q.options as { choices?: string[] }).choices;
-      return Array.isArray(c) ? c : [];
-    }
-    return [];
+    return questionChoiceOptions(q);
+  }
+
+  getChoiceOptionLabel(q: ProductQuestion, option: string): string {
+    return questionOptionLabel(q, option, (price) => this.formatPrice(price));
+  }
+
+  getCartItemUnitPrice(item: CartItem): number {
+    return effectiveProductPriceCents(
+      item.product.price_cents,
+      item.product.questions,
+      item.customization_answers,
+    );
   }
 
   isMultiOptionChecked(questionId: number, option: string): boolean {
@@ -1067,7 +1079,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   getSubtotal(): number {
-    return this.cart().reduce((sum, item) => sum + item.product.price_cents * item.quantity, 0);
+    return this.cart().reduce((sum, item) => sum + this.getCartItemUnitPrice(item) * item.quantity, 0);
   }
 
   getServiceCharge(): number {

@@ -35,6 +35,49 @@ def choice_options_allowed_list(options: dict | list | None) -> list[str]:
     return []
 
 
+def choice_option_price_cents(options: dict | list | None, option: str) -> int:
+    """Return the server-configured surcharge for one choice option."""
+    if not isinstance(options, dict):
+        return 0
+    raw_prices = options.get("prices_cents")
+    if not isinstance(raw_prices, dict):
+        return 0
+    raw_price = raw_prices.get(option, 0)
+    if isinstance(raw_price, bool):
+        return 0
+    try:
+        return max(0, int(raw_price))
+    except (TypeError, ValueError):
+        return 0
+
+
+def customization_price_cents(
+    session: Session,
+    tenant_id: int,
+    product_id: int,
+    normalized_answers: dict[str, Any] | None,
+) -> int:
+    """Calculate a product's add-on surcharge from trusted question metadata."""
+    if not normalized_answers:
+        return 0
+    questions = session.exec(
+        select(models.ProductQuestion).where(
+            models.ProductQuestion.tenant_id == tenant_id,
+            models.ProductQuestion.product_id == product_id,
+        )
+    ).all()
+    total = 0
+    for question in questions:
+        if question.id is None or question.type != models.ProductQuestionType.choice:
+            continue
+        answer = normalized_answers.get(str(question.id))
+        selected = answer if isinstance(answer, list) else [answer]
+        for option in selected:
+            if isinstance(option, str):
+                total += choice_option_price_cents(question.options, option)
+    return total
+
+
 def validate_and_normalize_customization_answers(
     session: Session,
     tenant_id: int,

@@ -91,6 +91,7 @@ from .line_modifiers import (
 )
 from .product_customization import (
     choice_options_is_multi,
+    customization_price_cents,
     customization_dicts_equal,
     validate_and_normalize_customization_answers,
 )
@@ -5495,7 +5496,44 @@ def _validate_product_question_options(
                     status_code=422,
                     detail="choice questions require at least one option in choices",
                 )
-            return {"choices": opts, "multi": multi}
+            normalized: dict = {"choices": opts, "multi": multi}
+            raw_prices = options.get("prices_cents")
+            if raw_prices is not None:
+                if not isinstance(raw_prices, dict):
+                    raise HTTPException(
+                        status_code=422,
+                        detail="choice prices_cents must be an object mapping option names to integer cents",
+                    )
+                prices: dict[str, int] = {}
+                for option_name, raw_price in raw_prices.items():
+                    name = str(option_name).strip()
+                    if name not in opts:
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f'choice surcharge key "{name}" is not one of the configured choices',
+                        )
+                    if isinstance(raw_price, bool):
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f'choice surcharge for "{name}" must be integer cents',
+                        )
+                    try:
+                        price = int(raw_price)
+                    except (TypeError, ValueError) as exc:
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f'choice surcharge for "{name}" must be integer cents',
+                        ) from exc
+                    if price < 0 or price > 1_000_000:
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f'choice surcharge for "{name}" must be between 0 and 1000000 cents',
+                        )
+                    if price > 0:
+                        prices[name] = price
+                if prices:
+                    normalized["prices_cents"] = prices
+            return normalized
         raise HTTPException(
             status_code=422,
             detail="choice options must be a JSON array of strings or {choices: string[], multi?: boolean}",
@@ -13923,6 +13961,17 @@ def create_order(
             product_name=product_name,
         )
 
+        # Validate the selected options first, then price them exclusively from
+        # server-owned question metadata. Clients only submit option names and
+        # can never choose or override the surcharge.
+        raw_answers = item.customization_answers if hasattr(item, "customization_answers") else None
+        item_answers, cust_summary = validate_and_normalize_customization_answers(
+            session, table.tenant_id, effective_product_id, raw_answers
+        )
+        price_cents += customization_price_cents(
+            session, table.tenant_id, effective_product_id, item_answers
+        )
+
         # Resolve tax for this line (product override or tenant default)
         effective_tax = _get_effective_tax(session, table.tenant_id, product_tax_id, order_date)
         tax_id = effective_tax.id if effective_tax else None
@@ -13939,10 +13988,6 @@ def create_order(
 
         # Check if this product already exists in the order with same customization (only active, non-removed items)
         # Match by effective_product_id and same customization_answers so we merge only when preferences match
-        raw_answers = item.customization_answers if hasattr(item, "customization_answers") else None
-        item_answers, cust_summary = validate_and_normalize_customization_answers(
-            session, table.tenant_id, effective_product_id, raw_answers
-        )
         raw_lm = getattr(item, "line_modifiers", None)
         norm_modifiers, lm_summary = validate_and_normalize_line_modifiers(raw_lm)
         existing_items = session.exec(
@@ -13964,6 +14009,7 @@ def create_order(
 
         if existing_item:
             existing_item.quantity += item.quantity
+            existing_item.price_cents = price_cents
             if item.notes:
                 existing_item.notes = (
                     f"{existing_item.notes or ''}, {item.notes}".strip(", ")

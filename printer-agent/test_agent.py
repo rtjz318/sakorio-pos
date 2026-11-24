@@ -95,6 +95,8 @@ class PrinterAgentTransportTests(unittest.TestCase):
 
         data = target.read_bytes()
         self.assertTrue(data.startswith(b"\x1b\x40"))
+        self.assertIn(b"\x1d\x21\x01", data)
+        self.assertIn(b"\x1d\x21\x00", data)
         self.assertIn(b"SEOW TING RESTAURANT", data)
         self.assertIn(b"CUSTOMER RECEIPT", data)
         self.assertIn(b"Gyoza", data)

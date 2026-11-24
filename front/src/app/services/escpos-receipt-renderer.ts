@@ -32,7 +32,9 @@ export function renderEscposReceipt(payload: EscposReceiptPayload): Uint8Array {
   return concatBytes(
     new Uint8Array([0x1b, 0x40]), // initialize
     new Uint8Array([0x1b, 0x61, 0x00]), // left align
+    new Uint8Array([0x1d, 0x21, 0x01]), // double-height text, normal width
     encoded,
+    new Uint8Array([0x1d, 0x21, 0x00]), // reset character size
     new TextEncoder().encode('\r\n\r\n\r\n'),
     new Uint8Array([0x1d, 0x56, 0x00]), // full cut
   );

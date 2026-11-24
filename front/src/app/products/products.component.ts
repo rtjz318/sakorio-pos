@@ -306,6 +306,7 @@ import { ProductBulkImportComponent } from './product-bulk-import.component';
                              <div class="form-group">
                                <label for="q-options">{{ 'PRODUCTS.QUESTION_FIELD_OPTIONS' | translate }}</label>
                                <textarea id="q-options" name="q-options" rows="4" [(ngModel)]="questionDraft.choiceLines" [disabled]="questionSaving()" [placeholder]="'PRODUCTS.QUESTION_OPTIONS_PLACEHOLDER' | translate"></textarea>
+                               <small class="form-help">One option per line. Add a surcharge with <strong>Option | 1.50</strong>.</small>
                              </div>
                              <div class="form-group checkbox-row">
                                <label>
@@ -1165,8 +1166,11 @@ export class ProductsComponent implements OnInit {
       !Array.isArray(q.options) &&
       'choices' in q.options
     ) {
-      const o = q.options as { choices: string[]; multi?: boolean };
-      this.questionDraft.choiceLines = (o.choices || []).join('\n');
+      const o = q.options as { choices: string[]; multi?: boolean; prices_cents?: Record<string, number> };
+      this.questionDraft.choiceLines = (o.choices || []).map((choice) => {
+        const cents = o.prices_cents?.[choice] || 0;
+        return cents > 0 ? `${choice} | ${(cents / 100).toFixed(2)}` : choice;
+      }).join('\n');
       this.questionDraft.choiceMulti = !!o.multi;
     } else {
       this.questionDraft.choiceLines = '';
@@ -1196,17 +1200,44 @@ export class ProductsComponent implements OnInit {
       this.error.set(this.translate.instant('PRODUCTS.QUESTION_LABEL_REQUIRED'));
       return;
     }
-    let options: string[] | { min: number; max: number } | { choices: string[]; multi: boolean } | null | undefined;
+    let options: string[] | { min: number; max: number } | { choices: string[]; multi: boolean; prices_cents?: Record<string, number> } | null | undefined;
     if (this.questionDraft.type === 'choice') {
-      const opts = this.questionDraft.choiceLines
+      const lines = this.questionDraft.choiceLines
         .split('\n')
         .map((s) => s.trim())
         .filter(Boolean);
-      if (opts.length === 0) {
+      if (lines.length === 0) {
         this.error.set(this.translate.instant('PRODUCTS.QUESTION_OPTIONS_REQUIRED'));
         return;
       }
-      options = this.questionDraft.choiceMulti ? { choices: opts, multi: true } : opts;
+      const choices: string[] = [];
+      const pricesCents: Record<string, number> = {};
+      for (const line of lines) {
+        const separator = line.lastIndexOf('|');
+        const label = (separator >= 0 ? line.slice(0, separator) : line).trim();
+        const rawPrice = separator >= 0 ? line.slice(separator + 1).trim() : '';
+        if (!label) {
+          this.error.set('Every option needs a name before the | separator.');
+          return;
+        }
+        if (choices.includes(label)) {
+          this.error.set(`Duplicate option: ${label}`);
+          return;
+        }
+        choices.push(label);
+        if (rawPrice) {
+          const amount = Number(rawPrice.replace(/^[^0-9.-]+/, ''));
+          if (!Number.isFinite(amount) || amount < 0 || amount > 10000) {
+            this.error.set(`Invalid surcharge for ${label}. Use a value such as 1.50.`);
+            return;
+          }
+          const cents = Math.round(amount * 100);
+          if (cents > 0) pricesCents[label] = cents;
+        }
+      }
+      options = this.questionDraft.choiceMulti || Object.keys(pricesCents).length > 0
+        ? { choices, multi: this.questionDraft.choiceMulti, ...(Object.keys(pricesCents).length ? { prices_cents: pricesCents } : {}) }
+        : choices;
     } else if (this.questionDraft.type === 'scale') {
       if (this.questionDraft.scaleMin >= this.questionDraft.scaleMax) {
         this.error.set(this.translate.instant('PRODUCTS.QUESTION_SCALE_INVALID'));

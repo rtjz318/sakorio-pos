@@ -14,6 +14,11 @@ import { CommonModule } from '@angular/common';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
 import { findNonOverlappingDefaultPosition } from './table-floor-layout.util';
 import { getCustomerPublicOrigin } from '../shared/host-portal.util';
+import {
+  effectiveProductPriceCents,
+  questionChoiceOptions,
+  questionOptionLabel,
+} from '../shared/product-customization-price.util';
 
 const TABLES_VIEW_STORAGE_KEY = 'pos.tables.viewMode';
 
@@ -50,6 +55,7 @@ type QueueSeatingSuggestion = {
 
 type QuickOrderLine = {
   product: Product;
+  effectivePriceCents: number;
   quantity: number;
   customizationAnswers?: Record<string, string | number | string[]>;
   customizationSummary?: string;
@@ -1061,7 +1067,7 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                             <div>
                               <strong>{{ line.product.name }}</strong>
                               @if (line.customizationSummary) { <small>{{ line.customizationSummary }}</small> }
-                              <span>{{ formatQuickMoney(line.product.price_cents * line.quantity) }}</span>
+                              <span>{{ formatQuickMoney(line.effectivePriceCents * line.quantity) }}</span>
                             </div>
                             <div class="quick-quantity">
                               <button type="button" (click)="changeQuickLineQuantity(index, -1)" aria-label="Remove one">−</button>
@@ -1297,7 +1303,7 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                     @if (question.type === 'choice') {
                       <div class="quick-choice-grid">
                         @for (option of quickQuestionChoices(question); track option) {
-                          <button type="button" [class.active]="quickAnswerHasChoice(question, option)" (click)="toggleQuickChoice(question, option)">{{ option }}</button>
+                          <button type="button" [class.active]="quickAnswerHasChoice(question, option)" (click)="toggleQuickChoice(question, option)">{{ quickQuestionOptionLabel(question, option) }}</button>
                         }
                       </div>
                     } @else if (question.type === 'scale') {
@@ -2802,7 +2808,7 @@ export class TablesComponent implements OnInit {
 
   quickCartItemCount = computed(() => this.quickOrderCart().reduce((total, line) => total + line.quantity, 0));
   quickCartTotalCents = computed(() => this.quickOrderCart().reduce(
-    (total, line) => total + (line.product.price_cents * line.quantity),
+    (total, line) => total + (line.effectivePriceCents * line.quantity),
     0,
   ));
   quickCurrentSessionOrders = computed(() => {
@@ -3200,7 +3206,13 @@ export class TablesComponent implements OnInit {
         line.product.id === product.id
         && JSON.stringify(line.customizationAnswers || {}) === (signature || '{}')
       ));
-      if (index < 0) return [...lines, { product, quantity: 1, customizationAnswers, customizationSummary }];
+      if (index < 0) return [...lines, {
+        product,
+        effectivePriceCents: effectiveProductPriceCents(product.price_cents, product.questions, customizationAnswers),
+        quantity: 1,
+        customizationAnswers,
+        customizationSummary,
+      }];
       return lines.map((line, lineIndex) => lineIndex === index ? { ...line, quantity: line.quantity + 1 } : line);
     });
     this.quickOrderSuccess.set('');
@@ -3251,11 +3263,11 @@ export class TablesComponent implements OnInit {
   }
 
   quickQuestionChoices(question: ProductQuestion): string[] {
-    if (Array.isArray(question.options)) return question.options.map(String);
-    if (question.options && 'choices' in question.options && Array.isArray(question.options.choices)) {
-      return question.options.choices.map(String);
-    }
-    return [];
+    return questionChoiceOptions(question);
+  }
+
+  quickQuestionOptionLabel(question: ProductQuestion, option: string): string {
+    return questionOptionLabel(question, option, (price) => this.formatQuickMoney(price));
   }
 
   quickQuestionScale(question: ProductQuestion): number[] {

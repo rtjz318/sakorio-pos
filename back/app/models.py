@@ -462,7 +462,8 @@ class ProductQuestion(TenantMixin, table=True):
     product_id: int = Field(foreign_key="product.id", index=True)
     type: ProductQuestionType = Field(index=True)
     label: str = Field(max_length=256)  # e.g. "How would you like your meat?"
-    # JSON: choice = list of strings OR {"choices": [...], "multi": bool}; scale = {"min", "max"}; text = null
+    # JSON: choice = list of strings OR {"choices": [...], "multi": bool,
+    # "prices_cents": {"Choice": 150}}; scale = {"min", "max"}; text = null
     options: dict | list | None = Field(default=None, sa_column=_json_column())
     sort_order: int = Field(default=0)
     required: bool = Field(default=False)
@@ -472,7 +473,7 @@ class ProductQuestionCreate(SQLModel):
     """Create a product customization question."""
     type: ProductQuestionType
     label: str = Field(max_length=256)
-    # choice: list of strings; scale: {"min": int, "max": int}; text: omit or null
+    # choice: list of strings or {choices, multi, prices_cents}; scale: {min, max}
     options: dict | list | None = None
     sort_order: int = 0
     required: bool = False
